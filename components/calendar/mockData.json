@@ -1,0 +1,124 @@
+{
+  "bookings": [
+    {
+      "id": "1",
+      "name": "John Smith",
+      "date": "2025-6-25",
+      "time": "09:00",
+      "room": "Conference Room A",
+      "status": "approved"
+    },
+    {
+      "id": "2",
+      "name": "Sarah Johnson",
+      "date": "2025-6-25",
+      "time": "10:30",
+      "room": "Meeting Room B",
+      "status": "wait"
+    },
+    {
+      "id": "3",
+      "name": "Mike Wilson",
+      "date": "2025-6-26",
+      "time": "14:00",
+      "room": "Conference Room A",
+      "status": "cancelled"
+    },
+    {
+      "id": "4",
+      "name": "Emily Davis",
+      "date": "2025-6-26",
+      "time": "11:00",
+      "room": "Meeting Room C",
+      "status": "approved"
+    },
+    {
+      "id": "5",
+      "name": "Robert Brown",
+      "date": "2025-6-27",
+      "time": "15:30",
+      "room": "Conference Room B",
+      "status": "wait"
+    },
+    {
+      "id": "6",
+      "name": "Lisa Garcia",
+      "date": "2025-6-28",
+      "time": "09:30",
+      "room": "Meeting Room A",
+      "status": "approved"
+    },
+    {
+      "id": "7",
+      "name": "David Miller",
+      "date": "2025-6-28",
+      "time": "13:30",
+      "room": "Conference Room A",
+      "status": "cancelled"
+    },
+    {
+      "id": "8",
+      "name": "Jennifer Taylor",
+      "date": "2025-6-29",
+      "time": "10:00",
+      "room": "Meeting Room B",
+      "status": "approved"
+    },
+    {
+      "id": "9",
+      "name": "Christopher Lee",
+      "date": "2025-6-30",
+      "time": "16:00",
+      "room": "Conference Room C",
+      "status": "wait"
+    },
+    {
+      "id": "10",
+      "name": "Amanda White",
+      "date": "2025-7-1",
+      "time": "08:00",
+      "room": "Meeting Room A",
+      "status": "approved"
+    },
+    {
+      "id": "11",
+      "name": "James Anderson",
+      "date": "2025-7-2",
+      "time": "12:00",
+      "room": "Conference Room B",
+      "status": "wait"
+    },
+    {
+      "id": "12",
+      "name": "Michelle Clark",
+      "date": "2025-7-3",
+      "time": "14:30",
+      "room": "Meeting Room C",
+      "status": "cancelled"
+    },
+    {
+      "id": "13",
+      "name": "Kevin Rodriguez",
+      "date": "2025-7-5",
+      "time": "11:30",
+      "room": "Conference Room A",
+      "status": "approved"
+    },
+    {
+      "id": "14",
+      "name": "Rachel Martinez",
+      "date": "2025-7-7",
+      "time": "15:00",
+      "room": "Meeting Room B",
+      "status": "wait"
+    },
+    {
+      "id": "15",
+      "name": "Daniel Thompson",
+      "date": "2025-7-8",
+      "time": "09:00",
+      "room": "Conference Room C",
+      "status": "approved"
+    }
+  ]
+}
