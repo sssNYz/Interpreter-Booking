@@ -1,3 +1,5 @@
+
+
 // ✅ Refactored BookingCalendar with unified scroll grid (sticky headers + sidebar) and mock data
 
 "use client";
@@ -15,12 +17,12 @@ import {
   MapPin,
 } from "lucide-react";
 import { ScrollArea, ScrollBar } from "../ui/scroll-area";
-import mockData from "./mockData.json";
+import mockData from "@/data/mockData.json";
 
 const BookingCalendar = () => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedSlots, setSelectedSlots] = useState(new Set());
-  
+
   const generateTimeSlots = () => {
     const slots = [];
     for (let hour = 8; hour < 18; hour++) {
@@ -64,10 +66,67 @@ const BookingCalendar = () => {
 
   // Function to get booking data for a specific date and time
   const getBookingForSlot = (day, time) => {
-    const dateString = `${currentDate.getFullYear()}-${currentDate.getMonth()}-${day}`;
+    const paddedMonth = String(currentDate.getMonth() + 1).padStart(2, "0"); // add +1 to fix 0-based month
+    const paddedDay = String(day).padStart(2, "0");
+    const dateString = `${currentDate.getFullYear()}-${paddedMonth}-${paddedDay}`;
+
     return mockData.bookings.find(
-      (booking) => booking.date === dateString && booking.time === time
+      (booking) =>
+        booking.date === dateString && booking.timeSlots.includes(time)
     );
+  };
+
+  // Function to check if current slot should be merged (hidden)
+  const shouldHideSlot = (day, timeIndex) => {
+    const currentSlot = timeSlots[timeIndex];
+    const booking = getBookingForSlot(day, currentSlot);
+
+    if (!booking) return false;
+
+    // Check if previous slot has same booking
+    if (timeIndex > 0) {
+      const prevSlot = timeSlots[timeIndex - 1];
+      const prevBooking = getBookingForSlot(day, prevSlot);
+
+      if (
+        prevBooking &&
+        prevBooking.name === booking.name &&
+        prevBooking.room === booking.room &&
+        prevBooking.status === booking.status
+      ) {
+        return true;
+      }
+    }
+
+    return false;
+  };
+
+  // Function to get colspan for merged booking
+  const getBookingSpan = (day, timeIndex) => {
+    const currentSlot = timeSlots[timeIndex];
+    const booking = getBookingForSlot(day, currentSlot);
+
+    if (!booking) return 1;
+
+    let span = 1;
+    // Count consecutive slots with same booking
+    for (let i = timeIndex + 1; i < timeSlots.length; i++) {
+      const nextSlot = timeSlots[i];
+      const nextBooking = getBookingForSlot(day, nextSlot);
+
+      if (
+        nextBooking &&
+        nextBooking.name === booking.name &&
+        nextBooking.room === booking.room &&
+        nextBooking.status === booking.status
+      ) {
+        span++;
+      } else {
+        break;
+      }
+    }
+
+    return span;
   };
 
   // Function to get status color and icon
@@ -126,7 +185,7 @@ const BookingCalendar = () => {
 
   return (
     <div>
-      <div className="max-w-7xl mx-auto p-4">
+      <div className="mx-auto p-4" style={{ maxWidth: "1500px" }}>
         {/**TOP PAGE ZONE */}
         <div className="flex justify-between items-center mb-4">
           {/**TITLE ZONE*/}
@@ -179,11 +238,13 @@ const BookingCalendar = () => {
           </div>
         </div>
 
-        {/* Unified Scroll Grid */}
-        <ScrollArea className="focus-visible:ring-ring/50 size-full rounded-[inherit] transition-[color,box-shadow]">
-          <div className=" border rounded-2xl shadow max-h-[500px]">
+        {/* TABLE ZONE  Scroll Grid */}
+        <ScrollArea className="focus-visible:ring-ring/50 size-full rounded-3xl transition-[color,box-shadow] overflow-hidden">
+
+        { /** TABLE CONTENT */}
+          <div className="shadow max-h-[500px]">
             <div
-              className="grid "
+              className="grid"
               style={{
                 gridTemplateColumns: `120px repeat(${timeSlots.length}, 120px)`,
                 gridAutoRows: "60px",
@@ -194,7 +255,7 @@ const BookingCalendar = () => {
                 <Clock className="w-4 h-4 text-gray-600" />
               </div>
 
-              {/**sticky use for lock bar */}
+              {/**Time slot headers */}
               {timeSlots.map((slot) => (
                 <div
                   key={slot}
@@ -204,21 +265,33 @@ const BookingCalendar = () => {
                 </div>
               ))}
 
-              {/* Rows  DAY NAME AND DAY NUMBER*/}
+              {/* Rows - DAY NAME AND DAY NUMBER with TIME SLOTS */}
               {daysInMonth.map((day) => (
                 <React.Fragment key={day.date}>
                   <div className="sticky left-0 z-20 bg-gray-50 border text-center text-xs flex flex-col justify-center">
                     <span className="font-semibold">{day.dayName}</span>
                     <span>{day.date}</span>
                   </div>
-                  {timeSlots.map((slot) => {
+
+                  {timeSlots.map((slot, timeIndex) => {
                     const selected = isSlotSelected(day.date, slot);
                     const isPast = day.isPast;
                     const booking = getBookingForSlot(day.date, slot);
-                    const statusStyle = booking ? getStatusStyle(booking.status) : null;
+                    const statusStyle = booking
+                      ? getStatusStyle(booking.status)
+                      : null;
                     const isWeekend = ["Sat", "Sun"].includes(
-                      day.fullDate.toLocaleDateString("en-US", { weekday: "short" })
+                      day.fullDate.toLocaleDateString("en-US", {
+                        weekday: "short",
+                      })
                     );
+
+                    // Skip rendering if this slot should be merged with previous
+                    if (shouldHideSlot(day.date, timeIndex)) {
+                      return null;
+                    }
+
+                    const colspan = getBookingSpan(day.date, timeIndex);
 
                     return (
                       <div
@@ -230,17 +303,30 @@ const BookingCalendar = () => {
                               : isPast
                               ? "bg-gray-100 cursor-not-allowed opacity-50"
                               : booking
-                              ? statusStyle.bg + " " + statusStyle.text + " cursor-default"
+                              ? statusStyle.bg +
+                                " " +
+                                statusStyle.text +
+                                " cursor-default"
                               : "hover:bg-blue-50 cursor-pointer"
                           }
                           ${selected ? "ring-2 ring-blue-500" : ""}
                         `}
-                        onClick={() => !isPast && !booking && !isWeekend && toggleSlot(day.date, slot)}
+                        style={{
+                          gridColumn:
+                            colspan > 1 ? `span ${colspan}` : undefined,
+                        }}
+                        onClick={() => {
+                          if (!isPast && !booking && !isWeekend) {
+                            console.log(
+                              "Slot clicked — form will be shown in future."
+                            );
+                          }
+                        }}
                         title={
-                          isWeekend 
-                            ? "Weekend - No booking available" 
-                            : booking 
-                            ? `${booking.name} - ${booking.room} (${booking.status})` 
+                          isWeekend
+                            ? "Weekend - No booking available"
+                            : booking
+                            ? `${booking.name} - ${booking.room} (${booking.status})`
                             : ""
                         }
                       >
@@ -251,10 +337,14 @@ const BookingCalendar = () => {
                               <User className="w-3 h-3" />
                             </div>
                             <div className="text-center">
-                              <div className="font-medium truncate w-full">{booking.name}</div>
+                              <div className="font-medium truncate w-full">
+                                {booking.name}
+                              </div>
                               <div className="flex items-center justify-center gap-1 mt-1">
                                 <MapPin className="w-2 h-2" />
-                                <span className="text-xs truncate">{booking.room}</span>
+                                <span className="text-xs truncate">
+                                  {booking.room}
+                                </span>
                               </div>
                             </div>
                           </>
