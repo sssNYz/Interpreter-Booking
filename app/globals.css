@@ -41,6 +41,9 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+  --sred: oklch(60.997% 0.13532 31.461);
+  --sgreen: oklch(61.453% 0.06236 170.421); 
+  --syellow: oklch(71.178% 0.0944 68.467);
 }
 
 :root {
@@ -76,6 +79,7 @@
   --sidebar-accent-foreground: oklch(0.208 0.042 265.755);
   --sidebar-border: oklch(0.929 0.013 255.508);
   --sidebar-ring: oklch(0.704 0.04 256.788);
+
 }
 
 .dark {
