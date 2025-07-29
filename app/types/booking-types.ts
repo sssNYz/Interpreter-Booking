@@ -1,4 +1,3 @@
-
 export type Booking = {
   id: number;
   dateTime: string;
