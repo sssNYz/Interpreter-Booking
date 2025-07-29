@@ -5,7 +5,13 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { weeklyData, recentBookings, Booking } from '@/data/overview'; // Mock data import
+import bookingsData from '@/data/recentBookingsData.json';
+import weeklysData from '@/data/weeklyData.json';
+import type { Booking,WeeklyChartData } from '@/app/types/booking-types';
+
+
+const recentBookings: Booking[] = bookingsData as Booking[];
+const weeklyData: WeeklyChartData[] = weeklysData as WeeklyChartData[];
 
 // Subcomponents using shadcn/ui
 const StatCard = ({
@@ -41,7 +47,6 @@ const StatCard = ({
   </Card>
 );
 
-type WeeklyChartData = { day: string; value: number };
 
 const WeeklyChart = ({ data }: { data: WeeklyChartData[] }) => {
   const totalBookings = data.reduce((sum, item) => sum + item.value, 0);
