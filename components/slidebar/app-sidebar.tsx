@@ -1,4 +1,6 @@
-import { Calendar, Home, Inbox, Search, Settings } from "lucide-react"
+"use client"
+
+import { Calendar, Home, Inbox, Search, Settings, ChevronRight,LayoutDashboard,Star} from "lucide-react"
 
 import {
   Sidebar,
@@ -9,55 +11,87 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubItem,
 } from "@/components/ui/sidebar"
 
-// Menu items.
-const items = [
-  {
-    title: "Overview",
-    url: "#",
-    icon: Home,
-  },
-  {
-    title: "Bookings management",
-    url: "#",
-    icon: Inbox,
-  },
-  {
-    title: "Interpreters management",
-    url: "#",
-    icon: Calendar,
-  },
-  {
-    title: "Reports",
-    url: "#",
-    icon: Search,
-  },
-  {
-    title: "Settings",
-    url: "#",
-    icon: Settings,
-  },
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible"
+
+// Submenu for Admin
+const adminItems = [
+  { title: "Overview", url: "/admin-page", icon: Home },
+  { title: "Bookings management", url: "#", icon: Inbox },
+  { title: "Interpreters management", url: "#", icon: Calendar },
+  { title: "Reports", url: "#", icon: Search },
+  { title: "Settings", url: "#", icon: Settings },
 ]
 
 export function AppSidebar() {
   return (
-    <Sidebar>
+    <Sidebar collapsible="icon">
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>AdminControl</SidebarGroupLabel>
+          <SidebarGroupLabel>
+            <div className="flex items-center gap-2">
+              <LayoutDashboard className="h-6 w-6" />
+              <span>Main Menu</span>
+            </div>
+          </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {items.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild>
-                    <a href={item.url}>
-                      <item.icon />
-                      <span>{item.title}</span>
-                    </a>
-                  </SidebarMenuButton>
+
+              {/* 🏠 Home */}
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild>
+                  <a href="./">
+                    <Home className="h-4 w-4" />
+                    <span>Home</span>
+                  </a>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+
+              {/* 📦 Booking */}
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild>
+                  <a href="#">
+                    <Inbox className="h-4 w-4" />
+                    <span>Booking</span>
+                  </a>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+
+              {/* 🛠 Admin + Collapsible Submenu */}
+              <Collapsible defaultOpen className="group/collapsible">
+                <SidebarMenuItem>
+                  {/* Trigger */}
+                  <CollapsibleTrigger asChild>
+                    <SidebarMenuButton>
+                      <Star className="h-4 w-4 mr-2" />
+                      Admin controller
+                      <ChevronRight className="ml-auto h-4 w-4 transition-transform group-data-[state=open]/collapsible:rotate-90" />
+                    </SidebarMenuButton>
+                  </CollapsibleTrigger>
+
+                  {/* Submenu */}
+                  <CollapsibleContent>
+                    <SidebarMenuSub>
+                      {adminItems.map((item) => (
+                        <SidebarMenuSubItem key={item.title} >
+                          <a href={item.url} className="flex items-center gap-2">
+                            <item.icon className="h-4 w-4" />
+                            {item.title}
+                          </a>
+                        </SidebarMenuSubItem>
+                      ))}
+                    </SidebarMenuSub>
+                  </CollapsibleContent>
                 </SidebarMenuItem>
-              ))}
+              </Collapsible>
+
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

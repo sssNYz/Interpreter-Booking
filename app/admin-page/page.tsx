@@ -1,9 +1,7 @@
-import React from 'react'
+// app/admin/page.tsx
+import React from "react";
+import Overview from "@/components/admin-pages/overview";
 
-function adminPage() {
-  return (
-    <div>hello admin</div>
-  )
+export default function AdminPage() {
+  return <Overview />;
 }
-
-export default adminPage
