@@ -141,7 +141,7 @@ const StatusBadge = ({ status }: { status: 'confirmed' | 'pending' | 'completed'
 };
 
 const RecentBookingTable = ({ bookings }: { bookings: Booking[] }) => {
-  const [timeFilter, setTimeFilter] = useState('week');
+  const [timeFilter, setTimeFilter] = useState('today');
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
   // Get unique years from bookings data
