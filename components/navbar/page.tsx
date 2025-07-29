@@ -116,7 +116,7 @@ export function NavigationMenuMain() {
         {/**ADMIN BAR */}
         <NavigationMenuItem>
           <NavigationMenuLink asChild className={navigationMenuTriggerStyle()}>
-            <Link href="/docs">Admin</Link>
+            <Link href="/admin-page">Admin</Link>
           </NavigationMenuLink>
         </NavigationMenuItem>
         {/**EXAMPLE TWO BAR */}
