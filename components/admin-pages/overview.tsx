@@ -5,7 +5,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { weeklyData, recentBookings, Booking } from '@/data/overview'; // Assuming you have a mock data file
+import { weeklyData, recentBookings, Booking } from '@/data/overview'; // Mock data import
 
 // Subcomponents using shadcn/ui
 const StatCard = ({
