@@ -6,7 +6,7 @@
     "room": "Conference A",
     "topic": "Medical Consultation",
     "bookedBy": "Dr. Smith",
-    "status": "confirmed"
+    "status": "Approved"
   },
   {
     "id": 2,
@@ -15,7 +15,7 @@
     "room": "Meeting Room B",
     "topic": "Legal Deposition",
     "bookedBy": "Law Firm ABC",
-    "status": "pending"
+    "status": "Waiting"
   },
   {
     "id": 3,
@@ -24,7 +24,7 @@
     "room": "Virtual Room 1",
     "topic": "Business Meeting",
     "bookedBy": "Tech Corp",
-    "status": "completed"
+    "status": "Approved"
   },
   {
     "id": 4,
@@ -33,7 +33,7 @@
     "room": "Conference C",
     "topic": "Court Hearing",
     "bookedBy": "City Court",
-    "status": "cancelled"
+    "status": "Approved"
   },
   {
     "id": 5,
@@ -42,7 +42,7 @@
     "room": "Meeting Room A",
     "topic": "Immigration Interview",
     "bookedBy": "Immigration Office",
-    "status": "completed"
+    "status": "Approved"
   },
   {
     "id": 6,
@@ -51,7 +51,7 @@
     "room": "Conference B",
     "topic": "Financial Meeting",
     "bookedBy": "Bank Corp",
-    "status": "completed"
+    "status": "Cancelled"
   },
   {
     "id": 7,
@@ -60,7 +60,7 @@
     "room": "Virtual Room 2",
     "topic": "Medical Consultation",
     "bookedBy": "Hospital XYZ",
-    "status": "completed"
+    "status": "Waiting"
   },
   {
     "id": 8,
@@ -69,7 +69,7 @@
     "room": "Meeting Room C",
     "topic": "Legal Advisory",
     "bookedBy": "Legal Firm DEF",
-    "status": "confirmed"
+    "status": "Cancelled"
   },
   {
     "id": 9,
@@ -78,7 +78,7 @@
     "room": "Conference D",
     "topic": "Corporate Meeting",
     "bookedBy": "Tech Startup",
-    "status": "completed"
+    "status": "Approved"
   },
   {
     "id": 10,
@@ -87,7 +87,7 @@
     "room": "Virtual Room 3",
     "topic": "Educational Seminar",
     "bookedBy": "University ABC",
-    "status": "completed"
+    "status": "Cancelled"
   },
   {
     "id": 11,
@@ -96,7 +96,7 @@
     "room": "Meeting Room D",
     "topic": "Healthcare Conference",
     "bookedBy": "Medical Center",
-    "status": "completed"
+    "status": "Approved"
   },
   {
     "id": 12,
@@ -105,7 +105,7 @@
     "room": "Conference E",
     "topic": "International Trade Meeting",
     "bookedBy": "Export Company",
-    "status": "completed"
+    "status": "Cancelled"
   },
   {
     "id": 13,
@@ -114,7 +114,7 @@
     "room": "Virtual Room 4",
     "topic": "Legal Consultation",
     "bookedBy": "Immigration Law Firm",
-    "status": "completed"
+    "status": "Cancelled"
   },
   {
     "id": 14,
@@ -123,6 +123,6 @@
     "room": "Conference F",
     "topic": "Government Meeting",
     "bookedBy": "City Hall",
-    "status": "completed"
+    "status": "Approved"
   }
 ]

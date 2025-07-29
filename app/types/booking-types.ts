@@ -5,7 +5,7 @@ export type Booking = {
   room: string;
   topic: string;
   bookedBy: string;
-  status: 'confirmed' | 'pending' | 'completed' | 'cancelled';
+  status: 'Approved' | 'Waiting' | 'Cancelled';
 };
 
 export type WeeklyChartData = {
