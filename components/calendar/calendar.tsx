@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -12,16 +12,109 @@ import {
   MapPin,
 } from "lucide-react";
 import { ScrollArea, ScrollBar } from "../ui/scroll-area";
-import mockData from "@/data/mockData.json";
 import { BookingForm } from "../booking-form/booking-form";
+
+type Booking = {
+  id: number;
+  name: string;
+  room: string;
+  status: string;
+  timeStart: string; 
+  timeEnd: string;
+};
+
+type BookingData = {
+  bookingId: number;
+  ownerName: string;
+  ownerSurname: string;
+  ownerEmail: string;
+  ownerTel: string;
+  ownerGroup: string;
+  meetingRoom: string;
+  meetingDetail: string;
+  highPriority: boolean;
+  timeStart: string;
+  timeEnd: string;
+  interpreterId: number | null;
+  bookingStatus: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 
 const BookingCalendar = () => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [selectedSlot, setSelectedSlot] = useState<{
-    day: number;
-    slot: string;
-  } | null>(null);
+  const [selectedSlot, setSelectedSlot] = useState<{ day: number; slot: string } | undefined>(undefined);
+  const [bookings, setBookings] = useState<BookingData[]>([]);
+
+
+  // เพิ่ม useEffect เพื่อเรียก API เมื่อ currentDate เปลี่ยน
+  useEffect(() => {
+    const fetchBookings = async () => {
+      const year = currentDate.getFullYear();
+      const month = currentDate.getMonth() + 1;
+      
+      try {
+        const response = await fetch(`/api/booking-data/get-booking-byDate/${year}/${month}`);
+        console.log(year, month);
+        const data = await response.json();
+        console.log("Debug : fetch output is : ",data);
+        setBookings(data);
+      } catch (err) {
+        console.error("Failed to fetch", err);
+      }
+    };
+
+    fetchBookings();
+  }, [currentDate]);
+
+    // ✅ 1. Preprocess bookings into a Map for O(1) lookup performance
+  const bookingMap: Map<string, Booking> = useMemo(() => {
+    const map = new Map<string, Booking>();
+
+bookings.forEach((b) => {
+  console.log("Debug before use new Date: Start : ", b.timeStart, "End:", b.timeEnd);
+
+  const name = `${b.ownerName} ${b.ownerSurname}`;
+  const room = b.meetingRoom;
+  const status = b.bookingStatus;
+
+  // ใช้ Date เฉพาะเพื่อคำนวณ loop — แต่สำหรับ key ให้ดึงจาก raw string
+  const startISO = b.timeStart; // "2026-01-01T09:00:00.000Z"
+  const endISO = b.timeEnd;
+
+  const current = new Date(startISO);
+  const end = new Date(endISO);
+
+  while (current < end) {
+    const dateKey = startISO.split("T")[0]; // YYYY-MM-DD
+    const hours = current.getUTCHours().toString().padStart(2, "0");
+    const minutes = current.getUTCMinutes().toString().padStart(2, "0");
+    const timeKey = `${hours}:${minutes}`;
+
+    const key = `${dateKey}-${timeKey}`;
+    console.log("key is", key);
+
+    map.set(key, {
+      id: b.bookingId,
+      name,
+      room,
+      status,
+      timeStart: b.timeStart,
+      timeEnd: b.timeEnd,
+    });
+
+    current.setUTCMinutes(current.getUTCMinutes() + 30); // move to next slot in UTC
+  }
+});
+
+
+  
+    
+
+    return map;
+  }, [bookings]);
 
   //Function for change month next and previous, use parameter direction (1,-1)
   const shiftMonth = (direction: number) => {
@@ -85,24 +178,14 @@ const BookingCalendar = () => {
 
   const daysInMonth = getDaysInMonth(currentDate); //daysInMonth keep array of date data
 
-  // Function to get booking data for a specific date and time
-  {
-    /**
-ฟังก์ชันนี้ใช้เพื่อ "หาว่ามีคนจอง slot นี้ไหม"
-โดยเช็คจาก:
-วันที่ → ถูกต้อง (ปี-เดือน-วัน)
-เวลา → อยู่ใน array timeSlots
-*/
-  }
-  const getBookingData = (day: number, time: string) => {
-    const paddedMonth = String(currentDate.getMonth() + 1).padStart(2, "0"); // add +1 to fix 0-based month and add 0 like a "02, 09, 10"
+  // ✅ 2. Optimized getBookingData using Map lookup (O(1) instead of O(n))
+  const getBookingData = (day: number, time: string): Booking | undefined => {
+    const paddedMonth = String(currentDate.getMonth() + 1).padStart(2, "0");
     const paddedDay = String(day).padStart(2, "0");
-    const dateString = `${currentDate.getFullYear()}-${paddedMonth}-${paddedDay}`; //create format for find data
+    const dateString = `${currentDate.getFullYear()}-${paddedMonth}-${paddedDay}`;
+    const key = `${dateString}-${time}`;
 
-    return mockData.bookings.find(
-      (booking) =>
-        booking.date === dateString && booking.timeSlots.includes(time)
-    );
+    return bookingMap.get(key);
   };
 
   //style of booking like a red for cancel or green for approve
@@ -135,12 +218,13 @@ const BookingCalendar = () => {
     }
   };
 
-  //funcion for check that cell should merge or not ?
-  const shouldHideSlot = (day: number, timeIndex: number) => {
-    const currentSlot = timeSlots[timeIndex];
-    const booking = getBookingData(day, currentSlot);
-
-    if (!booking) return false;
+  // ✅ 3. Refactored shouldHideSlot to accept booking as parameter (avoids redundant lookup)
+  const shouldHideSlot = (
+    day: number,
+    timeIndex: number,
+    currentBooking: Booking | undefined
+  ): boolean => {
+    if (!currentBooking) return false;
 
     // Check if previous slot has same booking
     if (timeIndex > 0) {
@@ -149,9 +233,9 @@ const BookingCalendar = () => {
 
       if (
         prevBooking &&
-        prevBooking.name === booking.name &&
-        prevBooking.room === booking.room &&
-        prevBooking.status === booking.status
+        prevBooking.name === currentBooking.name &&
+        prevBooking.room === currentBooking.room &&
+        prevBooking.status === currentBooking.status
       ) {
         return true;
       }
@@ -160,12 +244,13 @@ const BookingCalendar = () => {
     return false;
   };
 
-  //function for fine how many cell that should merge 
-  const getBookingSpan = (day: number, timeIndex: number) => {
-    const currentSlot = timeSlots[timeIndex];
-    const booking = getBookingData(day, currentSlot);
-
-    if (!booking) return 1;
+  // ✅ 4. Refactored getBookingSpan to accept booking as parameter (avoids redundant lookup)
+  const getBookingSpan = (
+    day: number,
+    timeIndex: number,
+    currentBooking: Booking | undefined
+  ): number => {
+    if (!currentBooking) return 1;
 
     let span = 1;
     // Count consecutive slots with same booking
@@ -175,9 +260,9 @@ const BookingCalendar = () => {
 
       if (
         nextBooking &&
-        nextBooking.name === booking.name &&
-        nextBooking.room === booking.room &&
-        nextBooking.status === booking.status
+        nextBooking.name === currentBooking.name &&
+        nextBooking.room === currentBooking.room &&
+        nextBooking.status === currentBooking.status
       ) {
         span++;
       } else {
@@ -188,15 +273,49 @@ const BookingCalendar = () => {
     return span;
   };
 
-
   //set parameter for use in booking-form
   const handleSlotClick = (day: number, slot: string) => {
     setSelectedSlot({ day, slot });
     setIsFormOpen(true);
   };
 
+  // Function to check if a specific time slot is in the past
+  const isTimeSlotPast = (day: number, timeSlot: string) => {
+    const now = new Date();
+    const currentHour = now.getHours();
+    const currentMinute = now.getMinutes();
+
+    // Parse the time slot (e.g., "10:00" or "14:30")
+    const [slotHour, slotMinute] = timeSlot.split(":").map(Number);
+
+    // Check if it's today
+    const isToday =
+      day === now.getDate() &&
+      currentDate.getMonth() === now.getMonth() &&
+      currentDate.getFullYear() === now.getFullYear();
+
+    if (!isToday) return false;
+
+    // Calculate the END time of the slot (slot + 30 minutes)
+    let slotEndHour = slotHour;
+    let slotEndMinute = slotMinute + 30;
+
+    // Handle minute overflow (e.g., 9:30 + 30min = 10:00)
+    if (slotEndMinute >= 60) {
+      slotEndHour += 1;
+      slotEndMinute -= 60;
+    }
+
+    // Compare current time with slot END time
+    if (currentHour > slotEndHour) return true;
+    if (currentHour === slotEndHour && currentMinute >= slotEndMinute)
+      return true;
+
+    return false;
+  };
+
   return (
-    <div className="flex flex-col max-w-[1500px] mt-10 px- mx-auto ">
+    <div className="max-w-[1500px]">
       <div>
         {/*Head zone*/}
         <div
@@ -256,7 +375,6 @@ const BookingCalendar = () => {
               </div>
 
               {/**Time slot headers, loop in timeSlots*/}
-
               {timeSlots.map((slot) => (
                 <div
                   key={slot}
@@ -266,27 +384,25 @@ const BookingCalendar = () => {
                 </div>
               ))}
 
-              {/* loop in date array for print in calendar like this
-                {
-                date: 3,
-                dayName: "Wed",
-                fullDate: Wed Jul 03 2025 00:00:00,
-                isPast: false
-                }*/}
+              {/* loop in date array for print in calendar */}
               {daysInMonth.map((day) => (
                 <React.Fragment key={day.date}>
                   <div className=" sticky left-0 z-20  bg-slate-50 border text-center text-xs flex flex-col justify-center">
                     <span className="font-semibold">{day.dayName}</span>
                     <span>{day.date}</span>
                   </div>
-                  {/* slot is value from timeSlots {array of time}
-                      day is value from dayInMonth {array of date data}*/}
+
                   {timeSlots.map((slot, timeIndex) => {
                     const isPast = day.isPast;
-                    const booking = getBookingData(day.date, slot); //keep array of booking data
-                    const statusStyle = booking //get style of boking status
+                    const isPastTime = isTimeSlotPast(day.date, slot);
+
+                    // ✅ 5. Call getBookingData ONCE and reuse the result
+                    const booking = getBookingData(day.date, slot);
+
+                    const statusStyle = booking
                       ? getStatusStyle(booking.status)
                       : null;
+
                     //check weekend
                     const isWeekend = ["Sat", "Sun"].includes(
                       day.fullDate.toLocaleDateString("en-US", {
@@ -294,13 +410,17 @@ const BookingCalendar = () => {
                       })
                     );
 
-                    // check that cell should merge or not, if YES, skip this cell
-                    if (shouldHideSlot(day.date, timeIndex)) {
-                      return null; // if not should return null. NOT CONTINUE
+                    // ✅ 6. Pass the already-fetched booking to helper functions
+                    if (shouldHideSlot(day.date, timeIndex, booking)) {
+                      return null;
                     }
-                    //if should merge, fiind find how many cell should be merge
-                    //how many cell that should br merge (like a 2,3,4)
-                    const colspan = getBookingSpan(day.date, timeIndex);
+
+                    const colspan = getBookingSpan(
+                      day.date,
+                      timeIndex,
+                      booking
+                    );
+
                     return (
                       <div
                         key={`${day.date}-${slot}`}
@@ -308,7 +428,7 @@ const BookingCalendar = () => {
                         ${
                           isWeekend
                             ? "bg-slate-500 text-white cursor-not-allowed"
-                            : isPast
+                            : isPast || isPastTime
                             ? "bg-slate-300 cursor-not-allowed "
                             : booking
                             ? (statusStyle ? statusStyle.bg : "") +
@@ -324,7 +444,12 @@ const BookingCalendar = () => {
                             colspan > 1 ? `span ${colspan}` : undefined,
                         }}
                         onClick={() => {
-                          if (!isPast && !booking && !isWeekend) {
+                          if (
+                            !isPast &&
+                            !booking &&
+                            !isWeekend &&
+                            !isPastTime
+                          ) {
                             handleSlotClick(day.date, slot);
                           }
                         }}
@@ -388,6 +513,7 @@ const BookingCalendar = () => {
         open={isFormOpen}
         onOpenChange={setIsFormOpen}
         selectedSlot={selectedSlot}
+        daysInMonth={daysInMonth}
       />
     </div>
   );
