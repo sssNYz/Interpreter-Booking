@@ -1,6 +1,8 @@
 // app/api/booking/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient, OwnerGroup, BookingStatus } from '@prisma/client';
+import { formatInTimeZone, fromZonedTime } from 'date-fns-tz'
+
 
 const prisma = new PrismaClient();
 
@@ -83,8 +85,12 @@ const validateBookingData = (data: CreateBookingRequest): { isValid: boolean; er
 
   // Validate time range
   if (data.timeStart && data.timeEnd && isValidDateString(data.timeStart) && isValidDateString(data.timeEnd)) {
-    const startDate = new Date(data.timeStart);
-    const endDate = new Date(data.timeEnd);
+    //const startDate = new Date(data.timeStart);
+    //const endDate = new Date(data.timeEnd);
+
+    const startDate = formatInTimeZone(new Date(data.timeStart),'Asia/Bangkok', 'yyyy-MM-dd HH:mm:ss zzz');
+    const endDate = formatInTimeZone(new Date(data.timeEnd),'Asia/Bangkok', 'yyyy-MM-dd HH:mm:ss zzz');
+    
     
     if (startDate >= endDate) {
       errors.push('timeEnd must be after timeStart');
@@ -133,9 +139,18 @@ const validateBookingData = (data: CreateBookingRequest): { isValid: boolean; er
 
 // Simple date parsing without timezone conversion
 const parseBookingDates = (timeStart: string, timeEnd: string) => {
+    const s= formatInTimeZone(new Date(timeStart),'Asia/Bangkok', 'yyyy-MM-dd HH:mm:ssXXX');
+    const e= formatInTimeZone(new Date(timeEnd),'Asia/Bangkok', 'yyyy-MM-dd HH:mm:ssXXX');
+    console.log("API parseBookingDates ",s, "END :",e);
   return {
-    timeStart: new Date(timeStart),
-    timeEnd: new Date(timeEnd)
+    //timeStart: new Date(timeStart),
+    //timeEnd: new Date(timeEnd)
+
+    //timeStart: formatInTimeZone(new Date(timeStart),'Asia/Bangkok', 'yyyy-MM-dd HH:mm:ssXXX'),
+    //timeEnd: formatInTimeZone(new Date(timeEnd),'Asia/Bangkok', 'yyyy-MM-dd HH:mm:ssXXX')
+    timeStart : fromZonedTime(new Date(timeStart),''),
+    timeEnd : fromZonedTime(new Date(timeEnd),'')
+    
   };
 };
 
