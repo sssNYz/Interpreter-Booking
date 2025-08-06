@@ -20,7 +20,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useMemo, useState, useEffect } from "react";
@@ -32,7 +31,6 @@ import {
   Users,
   Mail,
   Phone,
-  HelpCircle,
   BadgeInfo,
 } from "lucide-react";
 import { Switch } from "../ui/switch";
@@ -193,7 +191,6 @@ export function BookingForm({
 
   // Form validation
   const validateForm = (): boolean => {
-    console.log("ERROR AT VALIDATE");
     const newErrors: Record<string, string> = {};
 
     if (!ownerName.trim()) newErrors.ownerName = "Name is required";
@@ -213,11 +210,9 @@ export function BookingForm({
 
   // Form submission
   const handleSubmit = async () => {
-    console.log("CLICKED !!");
     if (!validateForm()) return;
     if (!dayObj) return;
-    console.log("NP!");
-    console.log("START :", startTime, "END :", endTime);
+
     setIsSubmitting(true);
 
     try {
@@ -226,7 +221,6 @@ export function BookingForm({
       const localDate = getLocalDateString(dayObj.fullDate);
       const startDateTime = `${localDate}T${startTime}:00.000`;
       const endDateTime = `${localDate}T${endTime}:00.000`;
-      console.log("START NEW :", startDateTime, "END NEW:", endDateTime);
 
       const bookingData = {
         ownerName: ownerName.trim(),
@@ -502,12 +496,11 @@ export function BookingForm({
                   <Tooltip>
                     <TooltipTrigger>
                       <BadgeInfo className="h-4 w-4" />
-                      </TooltipTrigger>
+                    </TooltipTrigger>
                     <TooltipContent>
                       <p>Read Define</p>
                     </TooltipContent>
                   </Tooltip>
-                  
                 </Label>
               </div>
 
