@@ -1,5 +1,6 @@
 "use client";
-import React, { useState, useMemo, useEffect, useCallback } from "react";
+import React, { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   ChevronLeft,
   ChevronRight,
@@ -41,7 +42,6 @@ type BookingData = {
   updatedAt: string;
 };
 
-// ✅ New optimized slot data structure
 type SlotData = {
   bookingId: number | null;
   name: string | null;
@@ -65,6 +65,10 @@ const BookingCalendar = () => {
     { day: number; slot: string } | undefined
   >(undefined);
   const [bookings, setBookings] = useState<BookingData[]>([]);
+
+  // ✅ This ref will be connected to ScrollArea's viewport
+  const scrollAreaViewportRef = useRef<HTMLDivElement>(null);
+  
 
   // Fetch bookings when currentDate changes
   useEffect(() => {
@@ -129,24 +133,32 @@ const BookingCalendar = () => {
 
   const daysInMonth = getDaysInMonth(currentDate);
 
+  // ✅ Setup virtualization - connected to ScrollArea's viewport
+  const rowVirtualizer = useVirtualizer({
+    count: daysInMonth.length,
+    getScrollElement: () => scrollAreaViewportRef.current,
+    estimateSize: () => 60, // Fixed row height: 60px
+    overscan: 2,
+  });
+
   // Helper function to get status styles
   const getStatusStyle = (status: string) => {
     switch (status) {
-      case "approve-block":
+      case "approved":
         return {
-          bg: "bg-slate-50 border-green-700 border-[0.1px]",
+          bg: "bg-slate-50 border-green-700 border-[2px]",
           text: "text-green-800",
           icon: <CheckCircle className="w-3 h-3" />,
         };
-      case "waitinge-block":
+      case "wait":
         return {
-          bg: "bg-slate-50 border-yellow-700 border-[0.1px]",
+          bg: "bg-slate-50 border-yellow-700 border-[2px]",
           text: "text-yellow-700",
           icon: <Hourglass className="w-3 h-3" />,
         };
-      case "cancele-block":
+      case "cancelled":
         return {
-          bg: "bg-slate-50 border-red-800 border-[0.1px]",
+          bg: "bg-slate-50 border-red-800 border-[2px]",
           text: "text-red-800",
           icon: <XCircle className="w-3 h-3" />,
         };
@@ -159,9 +171,8 @@ const BookingCalendar = () => {
     }
   };
 
-
   // Helper function to check if time slot is in the past
-const isTimeSlotPast = useCallback((day: number, timeSlot: string) => {
+  const isTimeSlotPast = useCallback((day: number, timeSlot: string) => {
     const now = new Date();
     const currentHour = now.getHours();
     const currentMinute = now.getMinutes();
@@ -187,9 +198,9 @@ const isTimeSlotPast = useCallback((day: number, timeSlot: string) => {
     if (currentHour === slotEndHour && currentMinute >= slotEndMinute) return true;
 
     return false;
-}, [currentDate]);
+  }, [currentDate]);
 
-  // ✅ MAIN OPTIMIZATION: Pre-process ALL slot data in useMemo
+  // Pre-process ALL slot data in useMemo
   const slotDataMap: Map<string, SlotData> = useMemo(() => {
     const map = new Map<string, SlotData>();
     
@@ -301,7 +312,7 @@ const isTimeSlotPast = useCallback((day: number, timeSlot: string) => {
             textClass: isWeekend ? "" : statusStyle.text,
             icon: isWeekend ? null : statusStyle.icon,
             span: span,
-            shouldDisplay: isFirstSlot, // Only show first slot of multi-slot booking
+            shouldDisplay: isFirstSlot,
             isPast,
             isPastTime,
             isWeekend,
@@ -331,6 +342,102 @@ const isTimeSlotPast = useCallback((day: number, timeSlot: string) => {
     setIsFormOpen(true);
   };
 
+  // Memoized row component for better performance
+  const DayRow = React.memo(({ dayIndex, style }: { dayIndex: number; style: React.CSSProperties }) => {
+    const day = daysInMonth[dayIndex];
+    
+    return (
+      <div 
+        className="grid border-b border-slate-200"
+        style={{
+          ...style,
+          display: 'grid',
+          gridTemplateColumns: `120px repeat(${timeSlots.length}, 120px)`,
+          height: '60px',
+        }}
+      >
+        {/* Day label cell */}
+        <div className="sticky left-0 z-10 bg-slate-50 border-r border-slate-200 text-center text-xs flex flex-col justify-center">
+          <span className="font-semibold">{day.dayName}</span>
+          <span>{day.date}</span>
+        </div>
+
+        {/* Time slot cells */}
+        {timeSlots.map((slot) => {
+          const paddedMonth = String(currentDate.getMonth() + 1).padStart(2, "0");
+          const paddedDay = String(day.date).padStart(2, "0");
+          const dateString = `${currentDate.getFullYear()}-${paddedMonth}-${paddedDay}`;
+          const key = `${dateString}-${slot}`;
+
+          const slotData = slotDataMap.get(key);
+          if (!slotData) {
+            return <div key={key} className="border-r border-slate-200"></div>;
+          }
+
+          // Skip rendering for non-first slots of multi-slot bookings
+          if (!slotData.shouldDisplay) {
+            return null;
+          }
+
+          return (
+            <div
+              key={key}
+              className={`border-r border-slate-200 rounded-[4px] flex flex-col items-center justify-center text-xs transition-all p-1 ${
+                slotData.isWeekend
+                  ? "cursor-not-allowed"
+                  : slotData.isPast || slotData.isPastTime
+                  ? "cursor-not-allowed"
+                  : slotData.bookingId
+                  ? "cursor-default"
+                  : "cursor-pointer hover:bg-slate-100"
+              } ${slotData.bgClass} ${slotData.textClass}`}
+              style={{
+                gridColumn: slotData.span > 1 ? `span ${slotData.span}` : undefined,
+              }}
+              onClick={() => {
+                if (slotData.isClickable) {
+                  handleSlotClick(day.date, slot);
+                }
+              }}
+              title={
+                slotData.isWeekend
+                  ? "Weekend - No booking available"
+                  : slotData.bookingId
+                  ? `${slotData.name} - ${slotData.room} (${slotData.status})`
+                  : `Available slot: ${slot}`
+              }
+            >
+              {slotData.bookingId && !slotData.isWeekend && (
+                <>
+                  <div className="flex items-center gap-1 mb-1">
+                    {slotData.icon}
+                    <User className="w-3 h-3" />
+                  </div>
+                  <div className="text-center w-full">
+                    <div className="font-medium truncate">
+                      {slotData.name}
+                    </div>
+                    <div className="flex items-center justify-center gap-1 mt-1">
+                      <MapPin className="w-2 h-2" />
+                      <span className="text-xs truncate">
+                        {slotData.room}
+                      </span>
+                    </div>
+                  </div>
+                </>
+              )}
+              {slotData.isWeekend && (
+                <span className="text-xs font-medium">Weekend</span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    );
+  });
+
+  DayRow.displayName = 'DayRow';
+
   return (
     <div className="max-w-[1500px]">
       <div>
@@ -340,7 +447,7 @@ const isTimeSlotPast = useCallback((day: number, timeSlot: string) => {
           style={{ maxWidth: "1500px" }}
         >
           {/* Title of component */}
-          <div className="flex items-center justify-center min-w-[370px] rounded-t-4xl bg-slate-300">
+          <div className="flex items-center gap-2 justify-center min-w-[370px] rounded-t-4xl bg-slate-300 px-4 py-2">
             <Calendar className="w-8 h-8" />
             <h1 className="text-[30px] font-medium">Book Appointment</h1>
           </div>
@@ -349,7 +456,7 @@ const isTimeSlotPast = useCallback((day: number, timeSlot: string) => {
             <div className="flex items-center gap-2">
               <button
                 onClick={() => shiftMonth(-1)}
-                className="p-2 border rounded-[10px]"
+                className="p-2 border rounded-[10px] hover:bg-slate-50"
               >
                 <ChevronLeft />
               </button>
@@ -361,7 +468,7 @@ const isTimeSlotPast = useCallback((day: number, timeSlot: string) => {
               </span>
               <button
                 onClick={() => shiftMonth(1)}
-                className="p-2 border rounded-[10px]"
+                className="p-2 border rounded-[10px] hover:bg-slate-50"
               >
                 <ChevronRight />
               </button>
@@ -369,118 +476,63 @@ const isTimeSlotPast = useCallback((day: number, timeSlot: string) => {
           </div>
         </div>
 
-        {/* Content Zone */}
-        <ScrollArea className="focus-visible:ring-ring/50 size-full rounded-3xl transition-[color,box-shadow] overflow-hidden">
-          <div className="max-h-[500px]">
-            <div
-              className="grid"
+        {/* ✅ Calendar Grid Container */}
+        <div className="border border-slate-200 rounded-3xl overflow-hidden bg-white">
+          {/* ✅ Sticky header row for time slots */}
+          <div 
+            className="sticky top-0 z-20 bg-slate-50 border-b border-slate-200"
+            style={{
+              display: 'grid',
+              gridTemplateColumns: `120px repeat(${timeSlots.length}, 120px)`,
+              height: '60px',
+            }}
+          >
+            {/* Header corner */}
+            <div className="border-r border-slate-200 flex items-center justify-center bg-slate-100">
+              <Clock className="w-4 h-4 text-gray-600" />
+            </div>
+            
+            {/* Time slot headers */}
+            {timeSlots.map((slot) => (
+              <div
+                key={slot}
+                className="border-r border-slate-200 text-center text-sm font-medium flex items-center justify-center bg-slate-50"
+              >
+                {slot}
+              </div>
+            ))}
+          </div>
+
+          {/* ✅ ScrollArea with virtualized content */}
+          <ScrollArea className="h-[500px]">
+            <div 
+              ref={scrollAreaViewportRef}
               style={{
-                gridTemplateColumns: `120px repeat(${timeSlots.length}, 120px)`,
-                gridAutoRows: "60px",
+                height: `${rowVirtualizer.getTotalSize()}px`,
+                position: 'relative',
               }}
             >
-              {/* Header row */}
-              <div className="sticky top-0 left-0 z-40 bg-slate-50 border flex items-center justify-center">
-                <Clock className="bg-slate-50 w-4 h-4 text-gray-600" />
-              </div>
-
-              {/* Time slot headers */}
-              {timeSlots.map((slot) => (
-                <div
-                  key={slot}
-                  className="sticky top-0 z-30 bg-slate-50 border text-center text-sm font-medium flex items-center justify-center"
-                >
-                  {slot}
-                </div>
-              ))}
-
-              {/* ✅ OPTIMIZED RENDER: Read from pre-calculated map only */}
-              {daysInMonth.map((day) => (
-                <React.Fragment key={day.date}>
-                  <div className="sticky left-0 z-20 bg-slate-50 border text-center text-xs flex flex-col justify-center">
-                    <span className="font-semibold">{day.dayName}</span>
-                    <span>{day.date}</span>
-                  </div>
-
-                  {timeSlots.map((slot) => {
-                    const paddedMonth = String(currentDate.getMonth() + 1).padStart(2, "0");
-                    const paddedDay = String(day.date).padStart(2, "0");
-                    const dateString = `${currentDate.getFullYear()}-${paddedMonth}-${paddedDay}`;
-                    const key = `${dateString}-${slot}`;
-
-                    // ✅ Single lookup - all data is pre-calculated
-                    const slotData = slotDataMap.get(key);
-                    if (!slotData) {
-                      return null;
-                    }
-
-                    // ✅ Skip rendering hidden slots entirely (they're covered by the spanning cell)
-                    if (!slotData.shouldDisplay) {
-                      return null;
-                    }
-
-                    return (
-                      <div
-                        key={key}
-                        className={`rounded-[4px] border flex flex-col items-center justify-center text-xs transition-all p-1 ${
-                          slotData.isWeekend
-                            ? "cursor-not-allowed"
-                            : slotData.isPast || slotData.isPastTime
-                            ? "cursor-not-allowed"
-                            : slotData.bookingId
-                            ? "cursor-default"
-                            : "cursor-pointer"
-                        } ${slotData.bgClass} ${slotData.textClass}`}
-                        style={{
-                          gridColumn: slotData.span > 1 ? `span ${slotData.span}` : undefined,
-                        }}
-                        onClick={() => {
-                          if (slotData.isClickable) {
-                            handleSlotClick(day.date, slot);
-                          }
-                        }}
-                        title={
-                          slotData.isWeekend
-                            ? "Weekend - No booking available"
-                            : slotData.bookingId
-                            ? `${slotData.name} - ${slotData.room} (${slotData.status})`
-                            : ""
-                        }
-                      >
-                        {slotData.bookingId && !slotData.isWeekend && (
-                          <>
-                            <div className="flex items-center gap-1 mb-1">
-                              {slotData.icon}
-                              <User className="w-3 h-3" />
-                            </div>
-                            <div className="text-center">
-                              <div className="font-medium truncate w-full">
-                                {slotData.name}
-                              </div>
-                              <div className="flex items-center justify-center gap-1 mt-1">
-                                <MapPin className="w-2 h-2" />
-                                <span className="text-xs truncate">
-                                  {slotData.room}
-                                </span>
-                              </div>
-                            </div>
-                          </>
-                        )}
-                        {slotData.isWeekend && (
-                          <span className="text-xs font-medium">Weekend</span>
-                        )}
-                      </div>
-                    );
-                  })}
-                </React.Fragment>
+              {/* ✅ Only render visible rows */}
+              {rowVirtualizer.getVirtualItems().map((virtualRow) => (
+                <DayRow
+                  key={virtualRow.index}
+                  dayIndex={virtualRow.index}
+                  style={{
+                    position: 'absolute',
+                    top: `${virtualRow.start}px`,
+                    left: 0,
+                    width: '100%',
+                    height: `${virtualRow.size}px`,
+                  }}
+                />
               ))}
             </div>
-          </div>
-          <ScrollBar orientation="horizontal" />
-        </ScrollArea>
+            <ScrollBar orientation="horizontal" />
+          </ScrollArea>
+        </div>
 
         {/* Legend */}
-        <div className="bg-slate-300 flex items-center justify-center gap-7 ml-auto text-sm mt-3 max-w-[350px] min-h-[35px] rounded-br-4xl rounded-bl-4xl">
+        <div className="bg-slate-300 flex items-center justify-center gap-7 ml-auto text-sm mt-3 max-w-[400px] min-h-[40px] rounded-br-4xl rounded-bl-4xl px-4 py-2">
           <div className="flex items-center gap-1">
             <CheckCircle className="w-4 h-4 text-green-600" />
             <span className="font-medium">Approved</span>
