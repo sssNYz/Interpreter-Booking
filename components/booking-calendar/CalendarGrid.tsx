@@ -4,8 +4,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { Clock } from "lucide-react";
 import { ScrollArea, ScrollBar } from "../ui/scroll-area";
 import { DayRow } from "./DayRow";
-import { SlotData, DayInfo, } from "@/components/hooks/useCalendarLogic";
-import { useCalendarLogic } from "@/components/hooks/useCalendarLogic";
+import { SlotData, DayInfo } from "@/components/hooks/useCalendarLogic";
 
 interface CalendarGridProps {
   timeSlots: string[];
@@ -25,7 +24,6 @@ export const CalendarGrid = ({
   const scrollAreaViewportRef = useRef<HTMLDivElement>(null);
 
   // Setup virtualization - connected to ScrollArea's viewport
-  const { assignLayersByRoom } = useCalendarLogic();
   const rowVirtualizer = useVirtualizer({
     count: daysInMonth.length,
     getScrollElement: () => scrollAreaViewportRef.current,
@@ -86,7 +84,6 @@ export const CalendarGrid = ({
               slotDataMap={slotDataMap}
               currentDate={currentDate}
               handleSlotClick={handleSlotClick}
-              assignLayersByRoom={assignLayersByRoom}
             />
           ))}
         </div>
