@@ -8,10 +8,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { ChevronLeft, ChevronRight, Edit, AlertTriangle, Star, Clock, Info, CheckCircle, XCircle, Hourglass, Calendar } from 'lucide-react';
 
+
 // Types
 interface Booking {
   id: number;
-  date: string;
+  datetime: string;
   startTime: string;
   endTime: string;
   requestedTime: string;
@@ -20,7 +21,16 @@ interface Booking {
   room: string;
   status: 'Approve' | 'Wait' | 'Cancel';
   isDR: boolean;
-  isOverlapping: boolean;
+}
+
+interface BookingConflicts {
+  hasInterpreterConflict: boolean;
+  hasRoomConflict: boolean;
+  conflictingBookings: number[];
+}
+
+interface BookingWithConflicts extends Booking {
+  conflicts: BookingConflicts;
 }
 
 interface Stats {
@@ -30,115 +40,239 @@ interface Stats {
   total: number;
 }
 
-// Mock data for demonstration
-const mockBookings: Booking[] = [
+// Constants
+const TIME_SLOTS = [
+  '08:00', '08:30', '09:00', '09:30', '10:00', '10:30',
+  '11:00', '11:30', '12:00', '12:30', '13:00', '13:30',
+  '14:00', '14:30', '15:00', '15:30', '16:00', '16:30', '17:00'
+];
+
+const STATUS_OPTIONS = [
+  { value: 'all', label: 'All Status' },
+  { value: 'Wait', label: 'Wait' },
+  { value: 'Approve', label: 'Approve' },
+  { value: 'Cancel', label: 'Cancel' }
+];
+
+// Mock data - Examples of conflicts
+const MOCK_BOOKINGS: Booking[] = [
   {
     id: 1,
     date: '2024-08-15',
     startTime: '09:00',
     endTime: '09:30',
-    requestedTime: '2024-08-14 14:30',
+    requestedTime: '2024-08-14T14:30:00',
     user: 'John Smith',
     interpreter: 'Maria Garcia',
     room: 'Room A',
     status: 'Approve',
-    isDR: true,
-    isOverlapping: false
+    isDR: true
   },
   {
     id: 2,
     date: '2024-08-15',
     startTime: '10:00',
     endTime: '10:30',
-    requestedTime: '2024-08-14 15:45',
+    requestedTime: '2024-08-14T15:45:00',
     user: 'Sarah Johnson',
     interpreter: 'Carlos Rodriguez',
     room: 'Room B',
     status: 'Wait',
-    isDR: false,
-    isOverlapping: false
+    isDR: false
   },
   {
     id: 3,
     date: '2024-08-16',
     startTime: '14:30',
     endTime: '15:00',
-    requestedTime: '2024-08-15 09:15',
+    requestedTime: '2024-08-15T09:15:00',
     user: 'Mike Wilson',
     interpreter: 'Ana Lopez',
     room: 'Room C',
     status: 'Cancel',
-    isDR: true,
-    isOverlapping: false
+    isDR: true
   },
   {
     id: 4,
     date: '2024-08-15',
     startTime: '09:15',
     endTime: '09:45',
-    requestedTime: '2024-08-15 11:20',
+    requestedTime: '2024-08-15T11:20:00',
     user: 'Emma Davis',
-    interpreter: 'Maria Garcia',
-    room: 'Room A',
+    interpreter: 'Maria Garcia', // CONFLICT: Same interpreter + overlapping time
+    room: 'Room D',
     status: 'Wait',
-    isDR: true,
-    isOverlapping: true
+    isDR: true
   },
   {
     id: 5,
     date: '2024-08-15',
     startTime: '09:20',
     endTime: '09:50',
-    requestedTime: '2024-08-16 16:45',
+    requestedTime: '2024-08-16T16:45:00',
     user: 'David Brown',
-    interpreter: 'Maria Garcia',
-    room: 'Room A',
+    interpreter: 'Pedro Martinez', // Different interpreter = OK
+    room: 'Room A', // CONFLICT: Same room + overlapping time  
     status: 'Approve',
-    isDR: false,
-    isOverlapping: true
+    isDR: false
   },
   {
     id: 6,
-    date: '2024-07-20',
+    date: '2024-08-15',
+    startTime: '09:00', // Same time as booking 1
+    endTime: '09:30',
+    requestedTime: '2024-07-19T10:00:00',
+    user: 'Lisa White',
+    interpreter: 'Carlos Rodriguez', // Different interpreter = OK for time
+    room: 'Room C', // Different room = OK
+    status: 'Approve',
+    isDR: false
+  },
+  {
+    id: 7,
+    date: '2024-08-15',
     startTime: '11:00',
     endTime: '11:30',
-    requestedTime: '2024-07-19 10:00',
-    user: 'Lisa White',
-    interpreter: 'Pedro Martinez',
-    room: 'Room D',
-    status: 'Approve',
-    isDR: false,
-    isOverlapping: false
+    requestedTime: '2024-08-14T16:00:00',
+    user: 'Tom Wilson',
+    interpreter: 'Maria Garcia', // Same interpreter but different time = OK
+    room: 'Room A', // Same room but different time = OK
+    status: 'Wait',
+    isDR: false
   }
 ];
 
-// Client-side safe date formatting functions
-const formatRequestedTime = (dateString: string, isClient: boolean): string => {
-  if (!isClient) return dateString; // Return raw string on server
+// Utility functions
+const parseTime = (timeStr: string): number => {
+  const [hours, minutes] = timeStr.split(':').map(Number);
+  return hours * 60 + minutes;
+};
+
+const hasTimeOverlap = (start1: string, end1: string, start2: string, end2: string): boolean => {
+  const startMinutes1 = parseTime(start1);
+  const endMinutes1 = parseTime(end1);
+  const startMinutes2 = parseTime(start2);
+  const endMinutes2 = parseTime(end2);
+  
+  return startMinutes1 < endMinutes2 && startMinutes2 < endMinutes1;
+};
+
+// Lightweight date formatting with month names
+const formatDate = (dateString: string, isClient: boolean): string => {
+  if (!isClient) return dateString;
   
   const date = new Date(dateString);
-  return date.toLocaleString('en-GB', {
-    day: 'numeric',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit'
+  const today = new Date();
+  const tomorrow = new Date();
+  tomorrow.setDate(today.getDate() + 1);
+
+  // Check for today/tomorrow
+  const isToday = date.toDateString() === today.toDateString();
+  const isTomorrow = date.toDateString() === tomorrow.toDateString();
+
+  if (isToday) return 'Today';
+  if (isTomorrow) return 'Tomorrow';
+
+  // Return DD MMM YYYY format
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const day = date.getDate();
+  const month = months[date.getMonth()];
+  const year = date.getFullYear();
+  
+  return `${day} ${month} ${year}`;
+};
+
+const formatRequestedTime = (dateTimeString: string): string => {
+  const date = new Date(dateTimeString);
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  
+  const day = date.getDate();
+  const month = months[date.getMonth()];
+  const year = date.getFullYear();
+  const hours = date.getHours().toString().padStart(2, '0');
+  const minutes = date.getMinutes().toString().padStart(2, '0');
+  
+  return `${day} ${month} ${year} ${hours}:${minutes}`;
+};
+
+const getFullDate = (dateString: string, isClient: boolean): string => {
+  if (!isClient) return dateString;
+  
+  const date = new Date(dateString);
+  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const months = ['January', 'February', 'March', 'April', 'May', 'June', 
+                  'July', 'August', 'September', 'October', 'November', 'December'];
+  
+  const dayName = days[date.getDay()];
+  const day = date.getDate();
+  const month = months[date.getMonth()];
+  const year = date.getFullYear();
+  
+  return `${dayName}, ${day} ${month} ${year}`;
+};
+
+const sortBookings = (bookings: BookingWithConflicts[]): BookingWithConflicts[] => {
+  return [...bookings].sort((a, b) => {
+    // First sort by date
+    const dateCompare = a.date.localeCompare(b.date);
+    if (dateCompare !== 0) return dateCompare;
+    
+    // Then sort by start time
+    const timeA = parseTime(a.startTime);
+    const timeB = parseTime(b.startTime);
+    return timeA - timeB;
   });
 };
 
-// Generate time slots from 08:00 to 17:00 in 30-minute intervals
-const generateTimeSlots = (): string[] => {
-  const slots: string[] = [];
-  for (let hour = 8; hour <= 17; hour++) {
-    slots.push(`${hour.toString().padStart(2, '0')}:00`);
-    if (hour < 17) {
-      slots.push(`${hour.toString().padStart(2, '0')}:30`);
+const detectConflicts = (bookings: Booking[]): BookingWithConflicts[] => {
+  return bookings.map(booking => {
+    const conflicts: BookingConflicts = {
+      hasInterpreterConflict: false,
+      hasRoomConflict: false,
+      conflictingBookings: []
+    };
+
+    // Only check conflicts for non-cancelled bookings
+    if (booking.status === 'Cancel') {
+      return { ...booking, conflicts };
     }
-  }
-  return slots;
+
+    const otherBookings = bookings.filter(other => 
+      other.id !== booking.id && 
+      other.date === booking.date && 
+      other.status !== 'Cancel'
+    );
+
+    otherBookings.forEach(other => {
+      const hasOverlap = hasTimeOverlap(
+        booking.startTime, 
+        booking.endTime, 
+        other.startTime, 
+        other.endTime
+      );
+
+      if (hasOverlap) {
+        // Check interpreter conflict
+        if (booking.interpreter === other.interpreter) {
+          conflicts.hasInterpreterConflict = true;
+          conflicts.conflictingBookings.push(other.id);
+        }
+        
+        // Check room conflict
+        if (booking.room === other.room) {
+          conflicts.hasRoomConflict = true;
+          conflicts.conflictingBookings.push(other.id);
+        }
+      }
+    });
+
+    return { ...booking, conflicts };
+  });
 };
 
-// Get current month's bookings
-const getCurrentMonthBookings = (bookings: Booking[]): Booking[] => {
+const getCurrentMonthBookings = (bookings: BookingWithConflicts[]): BookingWithConflicts[] => {
   const currentDate = new Date();
   const currentMonth = currentDate.getMonth();
   const currentYear = currentDate.getFullYear();
@@ -149,132 +283,125 @@ const getCurrentMonthBookings = (bookings: Booking[]): Booking[] => {
   });
 };
 
+// Component helpers
+const getStatusColor = (status: string): string => {
+  const statusColors = {
+    'Approve': 'text-emerald-700 bg-emerald-100',
+    'Wait': 'text-amber-700 bg-amber-100',
+    'Cancel': 'text-red-700 bg-red-100'
+  };
+  return statusColors[status as keyof typeof statusColors] || 'text-gray-700 bg-gray-100';
+};
+
+const getStatusIcon = (status: string): React.ReactElement | null => {
+  const statusIcons = {
+    'Approve': <CheckCircle className="h-4 w-4" />,
+    'Wait': <Hourglass className="h-4 w-4" />,
+    'Cancel': <XCircle className="h-4 w-4" />
+  };
+  return statusIcons[status as keyof typeof statusIcons] || null;
+};
+
+// Main component
 export default function BookingManagement(): React.JSX.Element {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [dateFilter, setDateFilter] = useState('');
-  const [dateRequestFilter, setDateRequestFilter] = useState('');
-  const [timeFilter, setTimeFilter] = useState('all');
-  const [currentPage, setCurrentPage] = useState(1);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
-  const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
-  
-  // Client-side state for hydration-safe rendering
-  const [isClient, setIsClient] = useState<boolean>(false);
-  const [currentMonth, setCurrentMonth] = useState<string>('');
+  // State
+  const [filters, setFilters] = useState({
+    search: '',
+    status: 'all',
+    date: '',
+    dateRequest: '',
+    time: 'all'
+  });
+  const [pagination, setPagination] = useState({
+    currentPage: 1,
+    rowsPerPage: 10
+  });
+  const [selectedBooking, setSelectedBooking] = useState<BookingWithConflicts | null>(null);
+  const [isClient, setIsClient] = useState(false);
+  const [currentMonth, setCurrentMonth] = useState('');
   const [currentYear, setCurrentYear] = useState<number | null>(null);
 
-  const timeSlots = generateTimeSlots();
-
-  // Ensure client-side rendering for dates
+  // Effects
   useEffect(() => {
     setIsClient(true);
     const now = new Date();
-    setCurrentMonth(now.toLocaleDateString('en-US', { month: 'short' }));
-    setCurrentYear(now.getFullYear()); // ใช้ ปี คศ
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    setCurrentMonth(months[now.getMonth()]);
+    setCurrentYear(now.getFullYear());
   }, []);
 
-  // Client-safe date formatting functions
-  const formatDate = (dateString: string): string => {
-    if (!isClient) return dateString; // Return raw string on server
-    
-    const date = new Date(dateString);
-    const today = new Date();
-    const tomorrow = new Date();
-    tomorrow.setDate(today.getDate() + 1);
+  // Computed values
+  const bookingsWithConflicts = useMemo(() => detectConflicts(MOCK_BOOKINGS), []);
 
-    const isToday = date.toDateString() === today.toDateString();
-    const isTomorrow = date.toDateString() === tomorrow.toDateString();
+  const filteredBookings = useMemo(() => {
+    const filtered = bookingsWithConflicts.filter(booking => {
+      const matchesSearch = filters.search === '' ||
+        booking.user.toLowerCase().includes(filters.search.toLowerCase()) ||
+        booking.interpreter.toLowerCase().includes(filters.search.toLowerCase());
 
-    if (isToday) return 'Today';
-    if (isTomorrow) return 'Tomorrow';
-
-    return new Intl.DateTimeFormat('en-GB', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-      timeZone: 'Asia/Bangkok'
-    }).format(date);
-  };
-
-  const getFullDate = (dateString: string): string => {
-    if (!isClient) return dateString; // Return raw string on server
-    
-    const date = new Date(dateString);
-    return new Intl.DateTimeFormat('en-GB', {
-      weekday: 'long',
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-      timeZone: 'Asia/Bangkok'
-    }).format(date);
-  };
-
-  // Filter bookings based on current filters
-  const filteredBookings = useMemo<Booking[]>(() => {
-    return mockBookings.filter(booking => {
-      const matchesSearch = searchTerm === '' ||
-        booking.user.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        booking.interpreter.toLowerCase().includes(searchTerm.toLowerCase());
-
-      const matchesStatus = statusFilter === 'all' || booking.status === statusFilter;
-      const matchesDate = dateFilter === '' || booking.date === dateFilter;
-      const matchesDateRequest = dateRequestFilter === '' || booking.requestedTime.startsWith(dateRequestFilter);
-      const matchesTime = timeFilter === 'all' || booking.startTime === timeFilter;
+      const matchesStatus = filters.status === 'all' || booking.status === filters.status;
+      const matchesDate = filters.date === '' || booking.date === filters.date;
+      
+      // Handle date request filtering (extract date part from datetime)
+      const matchesDateRequest = filters.dateRequest === '' || 
+        booking.requestedTime.startsWith(filters.dateRequest);
+      
+      const matchesTime = filters.time === 'all' || booking.startTime === filters.time;
 
       return matchesSearch && matchesStatus && matchesDate && matchesDateRequest && matchesTime;
     });
-  }, [searchTerm, statusFilter, dateFilter, dateRequestFilter, timeFilter]);
 
-  // Calculate summary statistics
-  const stats = useMemo<Stats>(() => {
-    const hasActiveFilters = searchTerm !== '' || statusFilter !== 'all' || dateFilter !== '' || dateRequestFilter !== '' || timeFilter !== 'all';
-    const bookingsToAnalyze = hasActiveFilters ? filteredBookings : getCurrentMonthBookings(mockBookings);
+    // Sort the filtered results
+    return sortBookings(filtered);
+  }, [bookingsWithConflicts, filters]);
 
-    const wait = bookingsToAnalyze.filter(b => b.status === 'Wait').length;
-    const approve = bookingsToAnalyze.filter(b => b.status === 'Approve').length;
-    const cancel = bookingsToAnalyze.filter(b => b.status === 'Cancel').length;
-    const total = bookingsToAnalyze.length;
+  const stats = useMemo((): Stats => {
+    const hasActiveFilters = Object.values(filters).some(filter => filter !== '' && filter !== 'all');
+    const bookingsToAnalyze = hasActiveFilters ? filteredBookings : getCurrentMonthBookings(bookingsWithConflicts);
 
-    return { wait, approve, cancel, total };
-  }, [filteredBookings, searchTerm, statusFilter, dateFilter, dateRequestFilter, timeFilter]);
+    return {
+      wait: bookingsToAnalyze.filter(b => b.status === 'Wait').length,
+      approve: bookingsToAnalyze.filter(b => b.status === 'Approve').length,
+      cancel: bookingsToAnalyze.filter(b => b.status === 'Cancel').length,
+      total: bookingsToAnalyze.length
+    };
+  }, [filteredBookings, bookingsWithConflicts, filters]);
 
-  // Pagination
-  const totalPages = Math.ceil(filteredBookings.length / rowsPerPage);
-  const startIndex = (currentPage - 1) * rowsPerPage;
-  const paginatedBookings = filteredBookings.slice(startIndex, startIndex + rowsPerPage);
+  const paginatedBookings = useMemo(() => {
+    const totalPages = Math.ceil(filteredBookings.length / pagination.rowsPerPage);
+    const startIndex = (pagination.currentPage - 1) * pagination.rowsPerPage;
+    return {
+      bookings: filteredBookings.slice(startIndex, startIndex + pagination.rowsPerPage),
+      totalPages,
+      startIndex
+    };
+  }, [filteredBookings, pagination]);
 
-  const handlePageChange = (newPage: number): void => {
-    setCurrentPage(Math.max(1, Math.min(newPage, totalPages)));
+  // Handlers
+  const updateFilter = (key: keyof typeof filters, value: string) => {
+    setFilters(prev => ({ ...prev, [key]: value }));
+    setPagination(prev => ({ ...prev, currentPage: 1 }));
   };
 
-  const handleRowsPerPageChange = (value: string): void => {
-    setRowsPerPage(parseInt(value));
-    setCurrentPage(1);
+  const handlePageChange = (newPage: number) => {
+    setPagination(prev => ({
+      ...prev,
+      currentPage: Math.max(1, Math.min(newPage, paginatedBookings.totalPages))
+    }));
   };
 
-  const getStatusColor = (status: string): string => {
-    switch (status) {
-      case 'Approve': return 'text-emerald-700 bg-emerald-100';
-      case 'Wait': return 'text-amber-700 bg-amber-100';
-      case 'Cancel': return 'text-red-700 bg-red-100';
-      default: return 'text-gray-700 bg-gray-100';
-    }
+  const handleRowsPerPageChange = (value: string) => {
+    setPagination({
+      currentPage: 1,
+      rowsPerPage: parseInt(value)
+    });
   };
 
-  const getStatusIcon = (status: string): React.ReactElement | null => {
-    switch (status) {
-      case 'Approve': return <CheckCircle className="h-4 w-4" />;
-      case 'Wait': return <Hourglass className="h-4 w-4" />;
-      case 'Cancel': return <XCircle className="h-4 w-4" />;
-      default: return null;
-    }
-  };
-
-  const hasActiveFilters = searchTerm !== '' || statusFilter !== 'all' || dateFilter !== '' || dateRequestFilter !== '' || timeFilter !== 'all';
+  const hasActiveFilters = Object.values(filters).some(filter => filter !== '' && filter !== 'all');
 
   return (
-    <div className="min-h-scree p-4 md:p-6">
+    <div className="min-h-screen p-4 md:p-6">
       {/* Header */}
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-gray-900">Booking Management</h1>
@@ -292,71 +419,35 @@ export default function BookingManagement(): React.JSX.Element {
         </div>
         <div className="flex items-center gap-2">
           <AlertTriangle className="h-5 w-5 text-red-500" />
-          <span className="text-blue-700">= Conflict (Time Overlap)</span>
+          <span className="text-blue-700">= Conflict (Interpreter/Room Overlap)</span>
         </div>
       </div>
 
       {/* Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-6">
-        <Card className="bg-gradient-to-br from-amber-50 to-amber-100 border-amber-200 hover:shadow-lg transition-shadow">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base font-semibold text-amber-800 flex items-center gap-2">
-              <Hourglass className="h-4 w-4" />
-              Wait {!hasActiveFilters && isClient && `- ${currentMonth} ${currentYear}`}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-amber-700">{stats.wait}</div>
-            <p className="text-sm text-amber-600 mt-1">
-              {hasActiveFilters ? 'Awaiting management approval' : 'Bookings awaiting approval'}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-emerald-50 to-emerald-100 border-emerald-200 hover:shadow-lg transition-shadow">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base font-semibold text-emerald-800 flex items-center gap-2">
-              <CheckCircle className="h-4 w-4" />
-              Approve {!hasActiveFilters && isClient && `- ${currentMonth} ${currentYear}`}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-emerald-700">{stats.approve}</div>
-            <p className="text-sm text-emerald-600 mt-1">
-              {hasActiveFilters ? 'Confirmed & ready to proceed' : 'Confirmed bookings'}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-red-50 to-red-100 border-red-200 hover:shadow-lg transition-shadow">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base font-semibold text-red-800 flex items-center gap-2">
-              <XCircle className="h-4 w-4" />
-              Cancel {!hasActiveFilters && isClient && `- ${currentMonth} ${currentYear}`}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-red-700">{stats.cancel}</div>
-            <p className="text-sm text-red-600 mt-1">
-              {hasActiveFilters ? 'Rejected or withdrawn bookings' : 'Cancel bookings'}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200 hover:shadow-lg transition-shadow">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base font-semibold text-blue-800 flex items-center gap-2">
-              <Calendar className="h-4 w-4" />
-              Total {!hasActiveFilters && isClient && `- ${currentMonth} ${currentYear}`}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-blue-700">{stats.total}</div>
-            <p className="text-sm text-blue-600 mt-1">
-              {hasActiveFilters ? 'All matching results' : 'Total bookings this month'}
-            </p>
-          </CardContent>
-        </Card>
+        {[
+          { key: 'wait', label: 'Wait', color: 'amber', icon: Hourglass, description: hasActiveFilters ? 'Awaiting management approval' : 'Bookings awaiting approval' },
+          { key: 'approve', label: 'Approve', color: 'emerald', icon: CheckCircle, description: hasActiveFilters ? 'Confirmed & ready to proceed' : 'Confirmed bookings' },
+          { key: 'cancel', label: 'Cancel', color: 'red', icon: XCircle, description: hasActiveFilters ? 'Rejected or withdrawn bookings' : 'Cancel bookings' },
+          { key: 'total', label: 'Total', color: 'blue', icon: Calendar, description: hasActiveFilters ? 'All matching results' : 'Total bookings this month' }
+        ].map(({ key, label, color, icon: Icon, description }) => (
+          <Card key={key} className={`bg-gradient-to-br from-${color}-50 to-${color}-100 border-${color}-200 hover:shadow-lg transition-shadow`}>
+            <CardHeader className="pb-3">
+              <CardTitle className={`text-base font-semibold text-${color}-800 flex items-center gap-2`}>
+                <Icon className="h-4 w-4" />
+                {label} {!hasActiveFilters && isClient && `- ${currentMonth} ${currentYear}`}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className={`text-3xl font-bold text-${color}-700`}>
+                {stats[key as keyof Stats]}
+              </div>
+              <p className={`text-sm text-${color}-600 mt-1`}>
+                {description}
+              </p>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
       {/* Filters */}
@@ -369,8 +460,8 @@ export default function BookingManagement(): React.JSX.Element {
               </label>
               <Input
                 placeholder="Search..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                value={filters.search}
+                onChange={(e) => updateFilter('search', e.target.value)}
                 className="h-10"
               />
             </div>
@@ -379,15 +470,14 @@ export default function BookingManagement(): React.JSX.Element {
               <label className="block text-base font-semibold text-gray-800 mb-2">
                 Status
               </label>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <Select value={filters.status} onValueChange={(value) => updateFilter('status', value)}>
                 <SelectTrigger className="h-10">
-                  <SelectValue />
+                  <SelectValue placeholder="All Status" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="Wait">Wait</SelectItem>
-                  <SelectItem value="Approve">Approve</SelectItem>
-                  <SelectItem value="Cancel">Cancel</SelectItem>
+                  {STATUS_OPTIONS.map(option => (
+                    <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -398,8 +488,8 @@ export default function BookingManagement(): React.JSX.Element {
               </label>
               <Input
                 type="date"
-                value={dateFilter}
-                onChange={(e) => setDateFilter(e.target.value)}
+                value={filters.date}
+                onChange={(e) => updateFilter('date', e.target.value)}
                 className="h-10"
               />
             </div>
@@ -410,8 +500,8 @@ export default function BookingManagement(): React.JSX.Element {
               </label>
               <Input
                 type="date"
-                value={dateRequestFilter}
-                onChange={(e) => setDateRequestFilter(e.target.value)}
+                value={filters.dateRequest}
+                onChange={(e) => updateFilter('dateRequest', e.target.value)}
                 className="h-10"
               />
             </div>
@@ -420,13 +510,13 @@ export default function BookingManagement(): React.JSX.Element {
               <label className="block text-base font-semibold text-gray-800 mb-2">
                 Start Time
               </label>
-              <Select value={timeFilter} onValueChange={setTimeFilter}>
+              <Select value={filters.time} onValueChange={(value) => updateFilter('time', value)}>
                 <SelectTrigger className="h-10">
-                  <SelectValue placeholder="Select time" />
+                  <SelectValue placeholder="All Times" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Times</SelectItem>
-                  {timeSlots.map(time => (
+                  {TIME_SLOTS.map(time => (
                     <SelectItem key={time} value={time}>{time}</SelectItem>
                   ))}
                 </SelectContent>
@@ -444,157 +534,165 @@ export default function BookingManagement(): React.JSX.Element {
               <table className="w-full text-sm">
                 <thead className="sticky top-0 bg-white z-10">
                   <tr className="border-b border-gray-200">
-                    <th className="px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Date Meeting</th>
-                    <th className="px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Time</th>
-                    <th className="px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">User</th>
-                    <th className="px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Interpreter</th>
-                    <th className="px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Room</th>
-                    <th className="px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Status</th>
-                    <th className="px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Request</th>
-                    <th className="px-4 py-3 text-center font-semibold text-gray-900 bg-gray-50 text-sm">Action</th>
+                    {['Date Meeting', 'Time', 'User', 'Interpreter', 'Room', 'Status', 'Request', 'Action'].map(header => (
+                      <th key={header} className={`px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm ${header === 'Action' ? 'text-center' : ''}`}>
+                        {header}
+                      </th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {paginatedBookings.map((booking, index) => (
-                    <tr
-                      key={booking.id}
-                      className={`border-b border-gray-100 hover:bg-blue-50 transition-colors ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'}`}
-                    >
-                      <td className="px-4 py-4">
-                        <div className="flex items-center gap-2">
-                          <div className="group relative">
-                            <span className="font-semibold text-gray-900 text-sm cursor-help">
-                              {formatDate(booking.date)}
-                            </span>
-                            {isClient && (
-                              <div className="absolute bottom-full left-0 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50">
-                                {getFullDate(booking.date)}
-                              </div>
-                            )}
-                          </div>
-                          {booking.isDR && (
-                            <div className="flex items-center gap-1">
+                  {paginatedBookings.bookings.map((booking, index) => {
+                    const hasConflict = booking.conflicts.hasInterpreterConflict || booking.conflicts.hasRoomConflict;
+                    
+                    return (
+                      <tr
+                        key={booking.id}
+                        className={`border-b border-gray-100 hover:bg-blue-50 transition-colors ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'}`}
+                      >
+                        <td className="px-4 py-4">
+                          <div className="flex items-center gap-2">
+                            <div className="group relative">
+                              <span className="font-semibold text-gray-900 text-sm cursor-help">
+                                {formatDate(booking.date, isClient)}
+                              </span>
+                              {isClient && (
+                                <div className="absolute bottom-full left-0 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50">
+                                  {getFullDate(booking.date, isClient)}
+                                </div>
+                              )}
+                            </div>
+                            {booking.isDR && (
                               <div className="group relative">
                                 <Star className="h-4 w-4 text-amber-500 fill-amber-500 cursor-help" />
                                 <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50">
                                   High Priority Meeting (DR)
                                 </div>
                               </div>
-                            </div>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-4 py-4">
-                        <div className="flex items-center gap-2">
-                          <div className="flex items-center gap-1 text-gray-800 font-mono text-sm">
-                            <Clock className="h-4 w-4 text-gray-500" />
-                            {booking.startTime} - {booking.endTime}
+                            )}
                           </div>
-                          {booking.isOverlapping && (
-                            <span className="inline-flex items-center gap-1 px-2 py-1 bg-red-100 text-red-800 rounded-md text-xs font-semibold">
-                              <AlertTriangle className="h-3 w-3" />
-                              Conflict
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-4 py-4">
-                        <span className="font-semibold text-gray-900 text-sm">{booking.user}</span>
-                      </td>
-                      <td className="px-4 py-4">
-                        <span className="text-gray-800 text-sm">{booking.interpreter}</span>
-                      </td>
-                      <td className="px-4 py-4">
-                        <span className="px-2 py-1 bg-gray-100 text-gray-800 rounded-md text-sm font-semibold">
-                          {booking.room}
-                        </span>
-                      </td>
-                      <td className="px-4 py-4">
-                        <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-semibold ${getStatusColor(booking.status)}`}>
-                          {getStatusIcon(booking.status)}
-                          {booking.status}
-                        </span>
-                      </td>
-                      <td className="px-4 py-4">
-                        <span className="text-sm text-gray-600 font-mono">
-                          {formatRequestedTime(booking.requestedTime, isClient)}
-                        </span>
-                      </td>
-                      <td className="px-4 py-4 text-center">
-                        <Dialog>
-                          <DialogTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0 hover:bg-blue-100"
-                              onClick={() => setSelectedBooking(booking)}
-                            >
-                              <Edit className="h-4 w-4 text-gray-500" />
-                            </Button>
-                          </DialogTrigger>
-                          <DialogContent className="max-w-md">
-                            <DialogHeader>
-                              <DialogTitle className="text-xl font-bold">Booking Details</DialogTitle>
-                            </DialogHeader>
-                            {selectedBooking && (
-                              <div className="space-y-4">
-                                <div className="grid grid-cols-2 gap-4">
-                                  <div>
-                                    <label className="block text-base font-semibold text-gray-800">Date Meeting</label>
-                                    <p className="mt-1 font-semibold text-base">{formatDate(selectedBooking.date)}</p>
-                                    {isClient && (
-                                      <p className="text-sm text-gray-500">{getFullDate(selectedBooking.date)}</p>
-                                    )}
-                                  </div>
-                                  <div>
-                                    <label className="block text-base font-semibold text-gray-800">Time</label>
-                                    <p className="mt-1 font-mono text-base">{selectedBooking.startTime} - {selectedBooking.endTime}</p>
-                                  </div>
-                                  <div>
-                                    <label className="block text-base font-semibold text-gray-800">User</label>
-                                    <p className="mt-1 font-semibold text-base">{selectedBooking.user}</p>
-                                  </div>
-                                  <div>
-                                    <label className="block text-base font-semibold text-gray-800">Interpreter</label>
-                                    <p className="mt-1 text-base">{selectedBooking.interpreter}</p>
-                                  </div>
-                                  <div>
-                                    <label className="block text-base font-semibold text-gray-800">Room</label>
-                                    <p className="mt-1 text-base">{selectedBooking.room}</p>
-                                  </div>
-                                  <div>
-                                    <label className="block text-base font-semibold text-gray-800">Status</label>
-                                    <span className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-semibold mt-1 ${getStatusColor(selectedBooking.status)}`}>
-                                      {getStatusIcon(selectedBooking.status)}
-                                      {selectedBooking.status}
-                                    </span>
-                                  </div>
-                                </div>
-                                <div>
-                                  <label className="block text-base font-semibold text-gray-800">คศ Requested Time</label>
-                                  <p className="mt-1 text-base text-gray-700">{selectedBooking.requestedTime}</p>
-                                </div>
-                                <div className="flex gap-2 flex-wrap">
-                                  {selectedBooking.isDR && (
-                                    <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-amber-100 text-amber-800 rounded-full text-sm font-semibold">
-                                      <Star className="h-3.5 w-3.5 fill-current" />
-                                      DR Booking
-                                    </span>
-                                  )}
-                                  {selectedBooking.isOverlapping && (
-                                    <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-red-100 text-red-800 rounded-full text-sm font-semibold">
-                                      <AlertTriangle className="h-3.5 w-3.5" />
-                                      Conflicting
-                                    </span>
-                                  )}
+                        </td>
+                        <td className="px-4 py-4">
+                          <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-1 text-gray-800 font-mono text-sm">
+                              <Clock className="h-4 w-4 text-gray-500" />
+                              {booking.startTime} - {booking.endTime}
+                            </div>
+                            {hasConflict && (
+                              <div className="group relative">
+                                <span className="inline-flex items-center gap-1 px-2 py-1 bg-red-100 text-red-800 rounded-md text-xs font-semibold cursor-help">
+                                  <AlertTriangle className="h-3 w-3" />
+                                  Conflict
+                                </span>
+                                <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50">
+                                  {booking.conflicts.hasInterpreterConflict && 'Interpreter conflict'}
+                                  {booking.conflicts.hasInterpreterConflict && booking.conflicts.hasRoomConflict && ' & '}
+                                  {booking.conflicts.hasRoomConflict && 'Room conflict'}
                                 </div>
                               </div>
                             )}
-                          </DialogContent>
-                        </Dialog>
-                      </td>
-                    </tr>
-                  ))}
+                          </div>
+                        </td>
+                        <td className="px-4 py-4">
+                          <span className="font-semibold text-gray-900 text-sm">{booking.user}</span>
+                        </td>
+                        <td className="px-4 py-4">
+                          <span className="text-gray-800 text-sm">{booking.interpreter}</span>
+                        </td>
+                        <td className="px-4 py-4">
+                          <span className="px-2 py-1 bg-gray-100 text-gray-800 rounded-md text-sm font-semibold">
+                            {booking.room}
+                          </span>
+                        </td>
+                        <td className="px-4 py-4">
+                          <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-semibold ${getStatusColor(booking.status)}`}>
+                            {getStatusIcon(booking.status)}
+                            {booking.status}
+                          </span>
+                        </td>
+                        <td className="px-4 py-4">
+                          <span className="text-sm text-gray-600 font-mono">
+                            {formatRequestedTime(booking.requestedTime)}
+                          </span>
+                        </td>
+                        <td className="px-4 py-4 text-center">
+                          <Dialog>
+                            <DialogTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0 hover:bg-blue-100"
+                                onClick={() => setSelectedBooking(booking)}
+                              >
+                                <Edit className="h-4 w-4 text-gray-500" />
+                              </Button>
+                            </DialogTrigger>
+                            <DialogContent className="max-w-md">
+                              <DialogHeader>
+                                <DialogTitle className="text-xl font-bold">Booking Details</DialogTitle>
+                              </DialogHeader>
+                              {selectedBooking && (
+                                <div className="space-y-4">
+                                  <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                      <label className="block text-base font-semibold text-gray-800">Date Meeting</label>
+                                      <p className="mt-1 font-semibold text-base">{formatDate(selectedBooking.date, isClient)}</p>
+                                      {isClient && (
+                                        <p className="text-sm text-gray-500">{getFullDate(selectedBooking.date, isClient)}</p>
+                                      )}
+                                    </div>
+                                    <div>
+                                      <label className="block text-base font-semibold text-gray-800">Time</label>
+                                      <p className="mt-1 font-mono text-base">{selectedBooking.startTime} - {selectedBooking.endTime}</p>
+                                    </div>
+                                    <div>
+                                      <label className="block text-base font-semibold text-gray-800">User</label>
+                                      <p className="mt-1 font-semibold text-base">{selectedBooking.user}</p>
+                                    </div>
+                                    <div>
+                                      <label className="block text-base font-semibold text-gray-800">Interpreter</label>
+                                      <p className="mt-1 text-base">{selectedBooking.interpreter}</p>
+                                    </div>
+                                    <div>
+                                      <label className="block text-base font-semibold text-gray-800">Room</label>
+                                      <p className="mt-1 text-base">{selectedBooking.room}</p>
+                                    </div>
+                                    <div>
+                                      <label className="block text-base font-semibold text-gray-800">Status</label>
+                                      <span className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-semibold mt-1 ${getStatusColor(selectedBooking.status)}`}>
+                                        {getStatusIcon(selectedBooking.status)}
+                                        {selectedBooking.status}
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <div>
+                                    <label className="block text-base font-semibold text-gray-800">Requested Time</label>
+                                    <p className="mt-1 text-base text-gray-700">{formatRequestedTime(selectedBooking.requestedTime)}</p>
+                                  </div>
+                                  <div className="flex gap-2 flex-wrap">
+                                    {selectedBooking.isDR && (
+                                      <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-amber-100 text-amber-800 rounded-full text-sm font-semibold">
+                                        <Star className="h-3.5 w-3.5 fill-current" />
+                                        DR Booking
+                                      </span>
+                                    )}
+                                    {(selectedBooking.conflicts.hasInterpreterConflict || selectedBooking.conflicts.hasRoomConflict) && (
+                                      <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-red-100 text-red-800 rounded-full text-sm font-semibold">
+                                        <AlertTriangle className="h-3.5 w-3.5" />
+                                        {selectedBooking.conflicts.hasInterpreterConflict && 'Interpreter'}
+                                        {selectedBooking.conflicts.hasInterpreterConflict && selectedBooking.conflicts.hasRoomConflict && ' & '}
+                                        {selectedBooking.conflicts.hasRoomConflict && 'Room'} Conflict
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                            </DialogContent>
+                          </Dialog>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -607,36 +705,35 @@ export default function BookingManagement(): React.JSX.Element {
         <CardContent className="flex items-center justify-between pt-6">
           <div className="flex items-center space-x-2">
             <span className="text-base text-gray-800">Rows per page:</span>
-            <Select value={rowsPerPage.toString()} onValueChange={handleRowsPerPageChange}>
+            <Select value={pagination.rowsPerPage.toString()} onValueChange={handleRowsPerPageChange}>
               <SelectTrigger className="w-20">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="10">10</SelectItem>
-                <SelectItem value="20">20</SelectItem>
-                <SelectItem value="50">50</SelectItem>
-                <SelectItem value="100">100</SelectItem>
+                {[10, 20, 50, 100].map(value => (
+                  <SelectItem key={value} value={value.toString()}>{value}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
 
           <div className="flex items-center space-x-2">
             <span className="text-base text-gray-800">
-              {startIndex + 1}-{Math.min(startIndex + rowsPerPage, filteredBookings.length)} of {filteredBookings.length}
+              {paginatedBookings.startIndex + 1}-{Math.min(paginatedBookings.startIndex + pagination.rowsPerPage, filteredBookings.length)} of {filteredBookings.length}
             </span>
             <Button
               variant="outline"
               size="sm"
-              onClick={() => handlePageChange(currentPage - 1)}
-              disabled={currentPage === 1}
+              onClick={() => handlePageChange(pagination.currentPage - 1)}
+              disabled={pagination.currentPage === 1}
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
             <Button
               variant="outline"
               size="sm"
-              onClick={() => handlePageChange(currentPage + 1)}
-              disabled={currentPage === totalPages}
+              onClick={() => handlePageChange(pagination.currentPage + 1)}
+              disabled={pagination.currentPage === paginatedBookings.totalPages}
             >
               <ChevronRight className="h-4 w-4" />
             </Button>
