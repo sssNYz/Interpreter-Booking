@@ -8,37 +8,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { ChevronLeft, ChevronRight, Edit, AlertTriangle, Star, Clock, Info, CheckCircle, XCircle, Hourglass, Calendar } from 'lucide-react';
 
-
 // Types
-interface Booking {
-  id: number;
-  datetime: string;
-  startTime: string;
-  endTime: string;
-  requestedTime: string;
-  user: string;
-  interpreter: string;
-  room: string;
-  status: 'Approve' | 'Wait' | 'Cancel';
-  isDR: boolean;
-}
-
-interface BookingConflicts {
-  hasInterpreterConflict: boolean;
-  hasRoomConflict: boolean;
-  conflictingBookings: number[];
-}
-
-interface BookingWithConflicts extends Booking {
-  conflicts: BookingConflicts;
-}
-
-interface Stats {
-  wait: number;
-  approve: number;
-  cancel: number;
-  total: number;
-}
+import type  {
+  BookingMange, BookingWithConflicts, BookingConflicts, Stats,
+} from '@/app/types/booking-types';
 
 // Constants
 const TIME_SLOTS = [
@@ -55,90 +28,104 @@ const STATUS_OPTIONS = [
 ];
 
 // Mock data - Examples of conflicts
-const MOCK_BOOKINGS: Booking[] = [
+const MOCK_BOOKINGS: BookingMange[]  = [
   {
     id: 1,
-    date: '2024-08-15',
+    dateTime: '2024-08-15',
     startTime: '09:00',
     endTime: '09:30',
     requestedTime: '2024-08-14T14:30:00',
-    user: 'John Smith',
+    bookedBy: 'John Smith',
     interpreter: 'Maria Garcia',
     room: 'Room A',
     status: 'Approve',
-    isDR: true
+    isDR: true,
+    isOverlapping: false,
+    topic: 'Hello World Meeting'
   },
   {
     id: 2,
-    date: '2024-08-15',
+    dateTime: '2024-08-15',
     startTime: '10:00',
     endTime: '10:30',
     requestedTime: '2024-08-14T15:45:00',
-    user: 'Sarah Johnson',
+    bookedBy: 'Sarah Johnson',
     interpreter: 'Carlos Rodriguez',
     room: 'Room B',
     status: 'Wait',
-    isDR: false
+    isDR: false,
+    isOverlapping: false,
+    topic: 'Team Sync'
   },
   {
     id: 3,
-    date: '2024-08-16',
+    dateTime: '2024-08-16',
     startTime: '14:30',
     endTime: '15:00',
     requestedTime: '2024-08-15T09:15:00',
-    user: 'Mike Wilson',
+    bookedBy: 'Mike Wilson',
     interpreter: 'Ana Lopez',
     room: 'Room C',
     status: 'Cancel',
-    isDR: true
+    isDR: true,
+    isOverlapping: false,
+    topic: 'Retrospective'
   },
   {
     id: 4,
-    date: '2024-08-15',
+    dateTime: '2024-08-15',
     startTime: '09:15',
     endTime: '09:45',
     requestedTime: '2024-08-15T11:20:00',
-    user: 'Emma Davis',
-    interpreter: 'Maria Garcia', // CONFLICT: Same interpreter + overlapping time
+    bookedBy: 'Emma Davis',
+    interpreter: 'Maria Garcia',
     room: 'Room D',
     status: 'Wait',
-    isDR: true
+    isDR: true,
+    isOverlapping: false,
+    topic: 'Design Review'
   },
   {
     id: 5,
-    date: '2024-08-15',
+    dateTime: '2024-08-15',
     startTime: '09:20',
     endTime: '09:50',
     requestedTime: '2024-08-16T16:45:00',
-    user: 'David Brown',
-    interpreter: 'Pedro Martinez', // Different interpreter = OK
-    room: 'Room A', // CONFLICT: Same room + overlapping time  
+    bookedBy: 'David Brown',
+    interpreter: 'Pedro Martinez',
+    room: 'Room A',
     status: 'Approve',
-    isDR: false
+    isDR: false,
+    isOverlapping: false,
+    topic: 'Marketing Planning'
   },
   {
     id: 6,
-    date: '2024-08-15',
-    startTime: '09:00', // Same time as booking 1
+    dateTime: '2024-08-15',
+    startTime: '09:00',
     endTime: '09:30',
     requestedTime: '2024-07-19T10:00:00',
-    user: 'Lisa White',
-    interpreter: 'Carlos Rodriguez', // Different interpreter = OK for time
-    room: 'Room C', // Different room = OK
+    bookedBy: 'Lisa White',
+    interpreter: 'Carlos Rodriguez',
+    room: 'Room C',
     status: 'Approve',
-    isDR: false
+    isDR: false,
+    isOverlapping: false,
+    topic: 'Dev Sync'
   },
   {
     id: 7,
-    date: '2024-08-15',
+    dateTime: '2024-08-15',
     startTime: '11:00',
     endTime: '11:30',
     requestedTime: '2024-08-14T16:00:00',
-    user: 'Tom Wilson',
-    interpreter: 'Maria Garcia', // Same interpreter but different time = OK
-    room: 'Room A', // Same room but different time = OK
+    bookedBy: 'Tom Wilson',
+    interpreter: 'Maria Garcia',
+    room: 'Room A',
     status: 'Wait',
-    isDR: false
+    isDR: false,
+    isOverlapping: false,
+    topic: 'Client Meeting'
   }
 ];
 
@@ -216,7 +203,7 @@ const getFullDate = (dateString: string, isClient: boolean): string => {
 const sortBookings = (bookings: BookingWithConflicts[]): BookingWithConflicts[] => {
   return [...bookings].sort((a, b) => {
     // First sort by date
-    const dateCompare = a.date.localeCompare(b.date);
+    const dateCompare = a.dateTime.localeCompare(b.dateTime);
     if (dateCompare !== 0) return dateCompare;
     
     // Then sort by start time
@@ -226,7 +213,7 @@ const sortBookings = (bookings: BookingWithConflicts[]): BookingWithConflicts[] 
   });
 };
 
-const detectConflicts = (bookings: Booking[]): BookingWithConflicts[] => {
+const detectConflicts = (bookings: BookingMange[]): BookingWithConflicts[] => {
   return bookings.map(booking => {
     const conflicts: BookingConflicts = {
       hasInterpreterConflict: false,
@@ -241,7 +228,7 @@ const detectConflicts = (bookings: Booking[]): BookingWithConflicts[] => {
 
     const otherBookings = bookings.filter(other => 
       other.id !== booking.id && 
-      other.date === booking.date && 
+      other.dateTime === booking.dateTime && 
       other.status !== 'Cancel'
     );
 
@@ -278,7 +265,7 @@ const getCurrentMonthBookings = (bookings: BookingWithConflicts[]): BookingWithC
   const currentYear = currentDate.getFullYear();
 
   return bookings.filter(booking => {
-    const bookingDate = new Date(booking.date);
+    const bookingDate = new Date(booking.dateTime);
     return bookingDate.getMonth() === currentMonth && bookingDate.getFullYear() === currentYear;
   });
 };
@@ -337,11 +324,11 @@ export default function BookingManagement(): React.JSX.Element {
   const filteredBookings = useMemo(() => {
     const filtered = bookingsWithConflicts.filter(booking => {
       const matchesSearch = filters.search === '' ||
-        booking.user.toLowerCase().includes(filters.search.toLowerCase()) ||
+        booking.bookedBy.toLowerCase().includes(filters.search.toLowerCase()) ||
         booking.interpreter.toLowerCase().includes(filters.search.toLowerCase());
 
       const matchesStatus = filters.status === 'all' || booking.status === filters.status;
-      const matchesDate = filters.date === '' || booking.date === filters.date;
+      const matchesDate = filters.date === '' || booking.dateTime === filters.date;
       
       // Handle date request filtering (extract date part from datetime)
       const matchesDateRequest = filters.dateRequest === '' || 
@@ -554,11 +541,11 @@ export default function BookingManagement(): React.JSX.Element {
                           <div className="flex items-center gap-2">
                             <div className="group relative">
                               <span className="font-semibold text-gray-900 text-sm cursor-help">
-                                {formatDate(booking.date, isClient)}
+                                {formatDate(booking.dateTime, isClient)}
                               </span>
                               {isClient && (
                                 <div className="absolute bottom-full left-0 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50">
-                                  {getFullDate(booking.date, isClient)}
+                                  {getFullDate(booking.dateTime, isClient)}
                                 </div>
                               )}
                             </div>
@@ -594,7 +581,7 @@ export default function BookingManagement(): React.JSX.Element {
                           </div>
                         </td>
                         <td className="px-4 py-4">
-                          <span className="font-semibold text-gray-900 text-sm">{booking.user}</span>
+                          <span className="font-semibold text-gray-900 text-sm">{booking.bookedBy}</span>
                         </td>
                         <td className="px-4 py-4">
                           <span className="text-gray-800 text-sm">{booking.interpreter}</span>
@@ -624,7 +611,7 @@ export default function BookingManagement(): React.JSX.Element {
                                 className="h-8 w-8 p-0 hover:bg-blue-100"
                                 onClick={() => setSelectedBooking(booking)}
                               >
-                                <Edit className="h-4 w-4 text-gray-500" />
+                                <Edit className="h-8 w-8 text-gray-500" />
                               </Button>
                             </DialogTrigger>
                             <DialogContent className="max-w-md">
@@ -636,9 +623,9 @@ export default function BookingManagement(): React.JSX.Element {
                                   <div className="grid grid-cols-2 gap-4">
                                     <div>
                                       <label className="block text-base font-semibold text-gray-800">Date Meeting</label>
-                                      <p className="mt-1 font-semibold text-base">{formatDate(selectedBooking.date, isClient)}</p>
+                                      <p className="mt-1 font-semibold text-base">{formatDate(selectedBooking.dateTime, isClient)}</p>
                                       {isClient && (
-                                        <p className="text-sm text-gray-500">{getFullDate(selectedBooking.date, isClient)}</p>
+                                        <p className="text-sm text-gray-500">{getFullDate(selectedBooking.dateTime, isClient)}</p>
                                       )}
                                     </div>
                                     <div>
@@ -647,7 +634,7 @@ export default function BookingManagement(): React.JSX.Element {
                                     </div>
                                     <div>
                                       <label className="block text-base font-semibold text-gray-800">User</label>
-                                      <p className="mt-1 font-semibold text-base">{selectedBooking.user}</p>
+                                      <p className="mt-1 font-semibold text-base">{selectedBooking.bookedBy}</p>
                                     </div>
                                     <div>
                                       <label className="block text-base font-semibold text-gray-800">Interpreter</label>
