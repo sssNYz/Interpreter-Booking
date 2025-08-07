@@ -1,9 +1,7 @@
 // app/api/booking/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { PrismaClient, OwnerGroup, BookingStatus } from "@prisma/client";
 import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
-
-const prisma = new PrismaClient();
+import prisma, {OwnerGroup, BookingStatus } from '@/prisma/prisma';
 
 // Interface for the booking creation request
 interface CreateBookingRequest {
