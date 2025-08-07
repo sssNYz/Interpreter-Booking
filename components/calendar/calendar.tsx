@@ -1,5 +1,6 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   ChevronLeft,
   ChevronRight,
@@ -12,38 +13,91 @@ import {
   MapPin,
 } from "lucide-react";
 import { ScrollArea, ScrollBar } from "../ui/scroll-area";
-import mockData from "@/data/mockData.json";
 import { BookingForm } from "../booking-form/booking-form";
+
+type Booking = {
+  id: number;
+  name: string;
+  room: string;
+  status: string;
+  timeStart: string;
+  timeEnd: string;
+};
+
+type BookingData = {
+  bookingId: number;
+  ownerName: string;
+  ownerSurname: string;
+  ownerEmail: string;
+  ownerTel: string;
+  ownerGroup: string;
+  meetingRoom: string;
+  meetingDetail: string;
+  highPriority: boolean;
+  timeStart: string;
+  timeEnd: string;
+  interpreterId: number | null;
+  bookingStatus: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type SlotData = {
+  bookingId: number | null;
+  name: string | null;
+  room: string | null;
+  status: string | null;
+  bgClass: string;
+  textClass: string;
+  icon: React.ReactNode | null;
+  span: number;
+  shouldDisplay: boolean;
+  isPast: boolean;
+  isPastTime: boolean;
+  isWeekend: boolean;
+  isClickable: boolean;
+};
 
 const BookingCalendar = () => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [selectedSlot, setSelectedSlot] = useState<{
-    day: number;
-    slot: string;
-  } | null>(null);
+  const [selectedSlot, setSelectedSlot] = useState<
+    { day: number; slot: string } | undefined
+  >(undefined);
+  const [bookings, setBookings] = useState<BookingData[]>([]);
 
-  //Function for change month next and previous, use parameter direction (1,-1)
-  const shiftMonth = (direction: number) => {
-    //setCurrentDate for update current month
-    setCurrentDate((current) => {
-      const newDate = new Date(current); //Step1 : copy data from current data and set to newDate
-      newDate.setMonth(current.getMonth() + direction); //Step2 : shift month by direction in newDate
-      return newDate; //Step3 : give newDate value for update currentDate by setCurrentDate fuction
-    });
-  };
+  // ✅ This ref will be connected to ScrollArea's viewport
+  const scrollAreaViewportRef = useRef<HTMLDivElement>(null);
+  
 
-  //Create all time in table and keep in slots array
+  // Fetch bookings when currentDate changes
+  useEffect(() => {
+    const fetchBookings = async () => {
+      const year = currentDate.getFullYear();
+      const month = currentDate.getMonth() + 1;
+
+      try {
+        const response = await fetch(
+          `/api/booking-data/get-booking-byDate/${year}/${month}`
+        );
+        const data = await response.json();
+        setBookings(data);
+      } catch (err) {
+        console.error("Failed to fetch", err);
+      }
+    };
+
+    fetchBookings();
+  }, [currentDate]);
+
+  // Generate time slots
   const generateTimeSlots = () => {
     const slots = [];
-    //loop start 8:00 AM to 18:00 PM
     for (let hour = 8; hour < 18; hour++) {
-      //Spetial Time Condition
       if (hour === 12) {
         slots.push(`${hour}:00`, `${hour}:20`);
         continue;
       }
-      //Spetial Time Condition
       if (hour === 13) {
         slots.push(`${hour}:10`, `${hour}:30`);
         continue;
@@ -58,20 +112,14 @@ const BookingCalendar = () => {
     return slots;
   };
 
-  const timeSlots = generateTimeSlots(); //timeSlote keep time array
+  const timeSlots = generateTimeSlots();
 
-  //getDaysInMonth is array of date for careate data {date,dayName,fillday,isPast}
+  // Get days in current month
   const getDaysInMonth = (date: Date) => {
-    const year = date.getFullYear(); //number of year : 202 5
-    const month = date.getMonth(); //number of current month : 6
-    const lastDay = new Date(year, month + 1, 0).getDate(); //calcurate how namy day in month
-    {
-      /*loop in lastDay lange for like a
-      { date: 3,
-        dayName: "Wed",
-        fullDate: Wed Jul 03 2025 00:00:00,
-        isPast: false}*/
-    }
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const lastDay = new Date(year, month + 1, 0).getDate();
+    
     return Array.from({ length: lastDay }, (_, i) => {
       const day = new Date(year, month, i + 1);
       return {
@@ -83,46 +131,34 @@ const BookingCalendar = () => {
     });
   };
 
-  const daysInMonth = getDaysInMonth(currentDate); //daysInMonth keep array of date data
+  const daysInMonth = getDaysInMonth(currentDate);
 
-  // Function to get booking data for a specific date and time
-  {
-    /**
-ฟังก์ชันนี้ใช้เพื่อ "หาว่ามีคนจอง slot นี้ไหม"
-โดยเช็คจาก:
-วันที่ → ถูกต้อง (ปี-เดือน-วัน)
-เวลา → อยู่ใน array timeSlots
-*/
-  }
-  const getBookingData = (day: number, time: string) => {
-    const paddedMonth = String(currentDate.getMonth() + 1).padStart(2, "0"); // add +1 to fix 0-based month and add 0 like a "02, 09, 10"
-    const paddedDay = String(day).padStart(2, "0");
-    const dateString = `${currentDate.getFullYear()}-${paddedMonth}-${paddedDay}`; //create format for find data
+  // ✅ Setup virtualization - connected to ScrollArea's viewport
+  const rowVirtualizer = useVirtualizer({
+    count: daysInMonth.length,
+    getScrollElement: () => scrollAreaViewportRef.current,
+    estimateSize: () => 60, // Fixed row height: 60px
+    overscan: 2,
+  });
 
-    return mockData.bookings.find(
-      (booking) =>
-        booking.date === dateString && booking.timeSlots.includes(time)
-    );
-  };
-
-  //style of booking like a red for cancel or green for approve
+  // Helper function to get status styles
   const getStatusStyle = (status: string) => {
     switch (status) {
       case "approved":
         return {
-          bg: "bg-slate-50  border-green-700 border-[2px]",
+          bg: "bg-slate-50 border-green-700 border-[2px]",
           text: "text-green-800",
           icon: <CheckCircle className="w-3 h-3" />,
         };
       case "wait":
         return {
-          bg: "bg-slate-50  border-yellow-700 border-[2px]",
+          bg: "bg-slate-50 border-yellow-700 border-[2px]",
           text: "text-yellow-700",
           icon: <Hourglass className="w-3 h-3" />,
         };
       case "cancelled":
         return {
-          bg: "bg-slate-50  border-red-800 border-[2px]",
+          bg: "bg-slate-50 border-red-800 border-[2px]",
           text: "text-red-800",
           icon: <XCircle className="w-3 h-3" />,
         };
@@ -135,100 +171,304 @@ const BookingCalendar = () => {
     }
   };
 
-  //funcion for check that cell should merge or not ?
-  const shouldHideSlot = (day: number, timeIndex: number) => {
-    const currentSlot = timeSlots[timeIndex];
-    const booking = getBookingData(day, currentSlot);
+  // Helper function to check if time slot is in the past
+  const isTimeSlotPast = useCallback((day: number, timeSlot: string) => {
+    const now = new Date();
+    const currentHour = now.getHours();
+    const currentMinute = now.getMinutes();
 
-    if (!booking) return false;
+    const [slotHour, slotMinute] = timeSlot.split(":").map(Number);
 
-    // Check if previous slot has same booking
-    if (timeIndex > 0) {
-      const prevSlot = timeSlots[timeIndex - 1];
-      const prevBooking = getBookingData(day, prevSlot);
+    const isToday =
+      day === now.getDate() &&
+      currentDate.getMonth() === now.getMonth() &&
+      currentDate.getFullYear() === now.getFullYear();
 
-      if (
-        prevBooking &&
-        prevBooking.name === booking.name &&
-        prevBooking.room === booking.room &&
-        prevBooking.status === booking.status
-      ) {
-        return true;
-      }
+    if (!isToday) return false;
+
+    let slotEndHour = slotHour;
+    let slotEndMinute = slotMinute + 30;
+
+    if (slotEndMinute >= 60) {
+      slotEndHour += 1;
+      slotEndMinute -= 60;
     }
+
+    if (currentHour > slotEndHour) return true;
+    if (currentHour === slotEndHour && currentMinute >= slotEndMinute) return true;
 
     return false;
-  };
+  }, [currentDate]);
 
-  //function for fine how many cell that should merge 
-  const getBookingSpan = (day: number, timeIndex: number) => {
-    const currentSlot = timeSlots[timeIndex];
-    const booking = getBookingData(day, currentSlot);
+  // Pre-process ALL slot data in useMemo
+  const slotDataMap: Map<string, SlotData> = useMemo(() => {
+    const map = new Map<string, SlotData>();
+    
+    // Step 1: Create booking map for fast lookup
+    const bookingMap = new Map<string, Booking>();
+    bookings.forEach((b) => {
+      const name = `${b.ownerName} ${b.ownerSurname}`;
+      const room = b.meetingRoom;
+      const status = b.bookingStatus;
+      const bookingId = b.bookingId;
 
-    if (!booking) return 1;
+      const startISO = b.timeStart;
+      const endISO = b.timeEnd;
 
-    let span = 1;
-    // Count consecutive slots with same booking
-    for (let i = timeIndex + 1; i < timeSlots.length; i++) {
-      const nextSlot = timeSlots[i];
-      const nextBooking = getBookingData(day, nextSlot);
+      const current = new Date(startISO);
+      const end = new Date(endISO);
 
-      if (
-        nextBooking &&
-        nextBooking.name === booking.name &&
-        nextBooking.room === booking.room &&
-        nextBooking.status === booking.status
-      ) {
-        span++;
-      } else {
-        break;
+      while (current < end) {
+        const dateKey = startISO.split("T")[0]; // YYYY-MM-DD
+        const hours = current.getUTCHours().toString().padStart(2, "0");
+        const minutes = current.getUTCMinutes().toString().padStart(2, "0");
+        const timeKey = `${hours}:${minutes}`;
+
+        const key = `${dateKey}-${timeKey}`;
+
+        bookingMap.set(key, {
+          id: bookingId,
+          name,
+          room,
+          status,
+          timeStart: b.timeStart,
+          timeEnd: b.timeEnd,
+        });
+
+        current.setUTCMinutes(current.getUTCMinutes() + 30);
       }
-    }
+    });
 
-    return span;
+    // Step 2: Pre-process each day and time slot
+    daysInMonth.forEach((day) => {
+      const isWeekend = ["Sat", "Sun"].includes(day.dayName);
+      const isPast = day.isPast;
+
+      timeSlots.forEach((timeSlot, timeIndex) => {
+        const paddedMonth = String(currentDate.getMonth() + 1).padStart(2, "0");
+        const paddedDay = String(day.date).padStart(2, "0");
+        const dateString = `${currentDate.getFullYear()}-${paddedMonth}-${paddedDay}`;
+        const key = `${dateString}-${timeSlot}`;
+
+        const booking = bookingMap.get(key);
+        const isPastTime = isTimeSlotPast(day.date, timeSlot);
+
+        // Default slot data for empty slots
+        let slotData: SlotData = {
+          bookingId: null,
+          name: null,
+          room: null,
+          status: null,
+          bgClass: isWeekend
+            ? "bg-slate-500 text-white"
+            : isPast || isPastTime
+            ? "bg-slate-300"
+            : "bg-slate-50",
+          textClass: "",
+          icon: null,
+          span: 1,
+          shouldDisplay: true,
+          isPast,
+          isPastTime,
+          isWeekend,
+          isClickable: !isPast && !booking && !isWeekend && !isPastTime,
+        };
+
+        if (booking) {
+          const statusStyle = getStatusStyle(booking.status);
+          
+          // Check if this is the first slot of this booking for this day
+          const isFirstSlot = timeIndex === 0 || (() => {
+            const prevSlot = timeSlots[timeIndex - 1];
+            const prevKey = `${dateString}-${prevSlot}`;
+            const prevBooking = bookingMap.get(prevKey);
+            return !prevBooking || prevBooking.id !== booking.id;
+          })();
+
+          // Calculate span: count consecutive slots with same booking ID
+          let span = 1;
+          if (isFirstSlot) {
+            for (let i = timeIndex + 1; i < timeSlots.length; i++) {
+              const nextSlot = timeSlots[i];
+              const nextKey = `${dateString}-${nextSlot}`;
+              const nextBooking = bookingMap.get(nextKey);
+              
+              if (nextBooking && nextBooking.id === booking.id) {
+                span++;
+              } else {
+                break;
+              }
+            }
+          }
+
+          slotData = {
+            bookingId: booking.id,
+            name: booking.name,
+            room: booking.room,
+            status: booking.status,
+            bgClass: isWeekend
+              ? "bg-slate-500 text-white"
+              : statusStyle.bg,
+            textClass: isWeekend ? "" : statusStyle.text,
+            icon: isWeekend ? null : statusStyle.icon,
+            span: span,
+            shouldDisplay: isFirstSlot,
+            isPast,
+            isPastTime,
+            isWeekend,
+            isClickable: false,
+          };
+        }
+
+        map.set(key, slotData);
+      });
+    });
+
+    return map;
+  }, [bookings, currentDate, daysInMonth, isTimeSlotPast, timeSlots]);
+
+  // Function for changing month
+  const shiftMonth = (direction: number) => {
+    setCurrentDate((current) => {
+      const newDate = new Date(current);
+      newDate.setMonth(current.getMonth() + direction);
+      return newDate;
+    });
   };
 
-
-  //set parameter for use in booking-form
+  // Handle slot click
   const handleSlotClick = (day: number, slot: string) => {
     setSelectedSlot({ day, slot });
     setIsFormOpen(true);
   };
 
+  // Memoized row component for better performance
+  const DayRow = React.memo(({ dayIndex, style }: { dayIndex: number; style: React.CSSProperties }) => {
+    const day = daysInMonth[dayIndex];
+    
+    return (
+      <div 
+        className="grid border-b border-slate-200"
+        style={{
+          ...style,
+          display: 'grid',
+          gridTemplateColumns: `120px repeat(${timeSlots.length}, 120px)`,
+          height: '60px',
+        }}
+      >
+        {/* Day label cell */}
+        <div className="sticky left-0 z-10 bg-slate-50 border-r border-slate-200 text-center text-xs flex flex-col justify-center">
+          <span className="font-semibold">{day.dayName}</span>
+          <span>{day.date}</span>
+        </div>
+
+        {/* Time slot cells */}
+        {timeSlots.map((slot) => {
+          const paddedMonth = String(currentDate.getMonth() + 1).padStart(2, "0");
+          const paddedDay = String(day.date).padStart(2, "0");
+          const dateString = `${currentDate.getFullYear()}-${paddedMonth}-${paddedDay}`;
+          const key = `${dateString}-${slot}`;
+
+          const slotData = slotDataMap.get(key);
+          if (!slotData) {
+            return <div key={key} className="border-r border-slate-200"></div>;
+          }
+
+          // Skip rendering for non-first slots of multi-slot bookings
+          if (!slotData.shouldDisplay) {
+            return null;
+          }
+
+          return (
+            <div
+              key={key}
+              className={`border-r border-slate-200 rounded-[4px] flex flex-col items-center justify-center text-xs transition-all p-1 ${
+                slotData.isWeekend
+                  ? "cursor-not-allowed"
+                  : slotData.isPast || slotData.isPastTime
+                  ? "cursor-not-allowed"
+                  : slotData.bookingId
+                  ? "cursor-default"
+                  : "cursor-pointer hover:bg-slate-100"
+              } ${slotData.bgClass} ${slotData.textClass}`}
+              style={{
+                gridColumn: slotData.span > 1 ? `span ${slotData.span}` : undefined,
+              }}
+              onClick={() => {
+                if (slotData.isClickable) {
+                  handleSlotClick(day.date, slot);
+                }
+              }}
+              title={
+                slotData.isWeekend
+                  ? "Weekend - No booking available"
+                  : slotData.bookingId
+                  ? `${slotData.name} - ${slotData.room} (${slotData.status})`
+                  : `Available slot: ${slot}`
+              }
+            >
+              {slotData.bookingId && !slotData.isWeekend && (
+                <>
+                  <div className="flex items-center gap-1 mb-1">
+                    {slotData.icon}
+                    <User className="w-3 h-3" />
+                  </div>
+                  <div className="text-center w-full">
+                    <div className="font-medium truncate">
+                      {slotData.name}
+                    </div>
+                    <div className="flex items-center justify-center gap-1 mt-1">
+                      <MapPin className="w-2 h-2" />
+                      <span className="text-xs truncate">
+                        {slotData.room}
+                      </span>
+                    </div>
+                  </div>
+                </>
+              )}
+              {slotData.isWeekend && (
+                <span className="text-xs font-medium">Weekend</span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    );
+  });
+
+  DayRow.displayName = 'DayRow';
+
   return (
-    <div className="flex flex-col max-w-[1500px] mt-10 px- mx-auto ">
+    <div className="max-w-[1500px]">
       <div>
-        {/*Head zone*/}
+        {/* Head zone */}
         <div
-          className="flex items-center justify-between  py-3"
+          className="flex items-center justify-between py-3"
           style={{ maxWidth: "1500px" }}
         >
-          {/*Title of commonent */}
-          <div className=" flex items-center justify-center   min-w-[370px] rounded-t-4xl bg-slate-300">
-            <Calendar className="w-8 h-8 " />
+          {/* Title of component */}
+          <div className="flex items-center gap-2 justify-center min-w-[370px] rounded-t-4xl bg-slate-300 px-4 py-2">
+            <Calendar className="w-8 h-8" />
             <h1 className="text-[30px] font-medium">Book Appointment</h1>
           </div>
-          {/*Next and Previous month zone*/}
-          <div className="mt-auto mr-3.5 flex items-center justify-center ml-auto  max-w-[280px]">
+          {/* Next and Previous month zone */}
+          <div className="mt-auto mr-3.5 flex items-center justify-center ml-auto max-w-[280px]">
             <div className="flex items-center gap-2">
-              {/**Button previous month*/}
               <button
-                onClick={() => shiftMonth(-1)} // Move to previous month
-                className="p-2 border  rounded-[10px]"
+                onClick={() => shiftMonth(-1)}
+                className="p-2 border rounded-[10px] hover:bg-slate-50"
               >
                 <ChevronLeft />
               </button>
-              {/**Current month label*/}
-              <span className="min-w-[150px] text-center font-medium ">
+              <span className="min-w-[150px] text-center font-medium">
                 {currentDate.toLocaleDateString("en-US", {
                   month: "long",
                   year: "numeric",
                 })}
               </span>
-              {/**Button next month*/}
               <button
-                onClick={() => shiftMonth(1)} // Move to next month
-                className="p-2 border rounded-[10px]"
+                onClick={() => shiftMonth(1)}
+                className="p-2 border rounded-[10px] hover:bg-slate-50"
               >
                 <ChevronRight />
               </button>
@@ -236,140 +476,63 @@ const BookingCalendar = () => {
           </div>
         </div>
 
-        {/*Content Zone*/}
-        <ScrollArea className="focus-visible:ring-ring/50 size-full rounded-3xl  transition-[color,box-shadow] overflow-hidden ">
-          {/*Table content zone */}
-          <div className=" max-h-[500px] ">
-            {/*Create Grid */}
-            <div
-              className="grid"
+        {/* ✅ Calendar Grid Container */}
+        <div className="border border-slate-200 rounded-3xl overflow-hidden bg-white">
+          {/* ✅ Sticky header row for time slots */}
+          <div 
+            className="sticky top-0 z-20 bg-slate-50 border-b border-slate-200"
+            style={{
+              display: 'grid',
+              gridTemplateColumns: `120px repeat(${timeSlots.length}, 120px)`,
+              height: '60px',
+            }}
+          >
+            {/* Header corner */}
+            <div className="border-r border-slate-200 flex items-center justify-center bg-slate-100">
+              <Clock className="w-4 h-4 text-gray-600" />
+            </div>
+            
+            {/* Time slot headers */}
+            {timeSlots.map((slot) => (
+              <div
+                key={slot}
+                className="border-r border-slate-200 text-center text-sm font-medium flex items-center justify-center bg-slate-50"
+              >
+                {slot}
+              </div>
+            ))}
+          </div>
+
+          {/* ✅ ScrollArea with virtualized content */}
+          <ScrollArea className="h-[500px]">
+            <div 
+              ref={scrollAreaViewportRef}
               style={{
-                // First column = 120px (for showing day names)
-                // Next columns = created from timeSlots (each 120px wide)
-                gridTemplateColumns: `120px repeat(${timeSlots.length}, 120px)`,
-                gridAutoRows: "60px",
+                height: `${rowVirtualizer.getTotalSize()}px`,
+                position: 'relative',
               }}
             >
-              {/* Header row */}
-              <div className="sticky top-0 left-0 z-40 bg-slate-50 border flex items-center justify-center">
-                <Clock className=" bg-slate-50 w-4 h-4 text-gray-600" />
-              </div>
-
-              {/**Time slot headers, loop in timeSlots*/}
-
-              {timeSlots.map((slot) => (
-                <div
-                  key={slot}
-                  className="sticky top-0 z-30  bg-slate-50 border text-center text-sm font-medium flex items-center justify-center"
-                >
-                  {slot}
-                </div>
-              ))}
-
-              {/* loop in date array for print in calendar like this
-                {
-                date: 3,
-                dayName: "Wed",
-                fullDate: Wed Jul 03 2025 00:00:00,
-                isPast: false
-                }*/}
-              {daysInMonth.map((day) => (
-                <React.Fragment key={day.date}>
-                  <div className=" sticky left-0 z-20  bg-slate-50 border text-center text-xs flex flex-col justify-center">
-                    <span className="font-semibold">{day.dayName}</span>
-                    <span>{day.date}</span>
-                  </div>
-                  {/* slot is value from timeSlots {array of time}
-                      day is value from dayInMonth {array of date data}*/}
-                  {timeSlots.map((slot, timeIndex) => {
-                    const isPast = day.isPast;
-                    const booking = getBookingData(day.date, slot); //keep array of booking data
-                    const statusStyle = booking //get style of boking status
-                      ? getStatusStyle(booking.status)
-                      : null;
-                    //check weekend
-                    const isWeekend = ["Sat", "Sun"].includes(
-                      day.fullDate.toLocaleDateString("en-US", {
-                        weekday: "short",
-                      })
-                    );
-
-                    // check that cell should merge or not, if YES, skip this cell
-                    if (shouldHideSlot(day.date, timeIndex)) {
-                      return null; // if not should return null. NOT CONTINUE
-                    }
-                    //if should merge, fiind find how many cell should be merge
-                    //how many cell that should br merge (like a 2,3,4)
-                    const colspan = getBookingSpan(day.date, timeIndex);
-                    return (
-                      <div
-                        key={`${day.date}-${slot}`}
-                        className={`rounded-[4px] border flex flex-col items-center justify-center text-xs transition-all p-1
-                        ${
-                          isWeekend
-                            ? "bg-slate-500 text-white cursor-not-allowed"
-                            : isPast
-                            ? "bg-slate-300 cursor-not-allowed "
-                            : booking
-                            ? (statusStyle ? statusStyle.bg : "") +
-                              " " +
-                              (statusStyle ? statusStyle.text : "") +
-                              " cursor-default"
-                            : "bg-slate-50 cursor-pointer"
-                        }
-
-                        `}
-                        style={{
-                          gridColumn:
-                            colspan > 1 ? `span ${colspan}` : undefined,
-                        }}
-                        onClick={() => {
-                          if (!isPast && !booking && !isWeekend) {
-                            handleSlotClick(day.date, slot);
-                          }
-                        }}
-                        title={
-                          isWeekend
-                            ? "Weekend - No booking available"
-                            : booking
-                            ? `${booking.name} - ${booking.room} (${booking.status})`
-                            : ""
-                        }
-                      >
-                        {booking && !isWeekend && (
-                          <>
-                            <div className="flex items-center gap-1 mb-1">
-                              {statusStyle ? statusStyle.icon : ""}
-                              <User className="w-3 h-3" />
-                            </div>
-                            <div className="text-center">
-                              <div className="font-medium truncate w-full">
-                                {booking.name}
-                              </div>
-                              <div className="flex items-center justify-center gap-1 mt-1">
-                                <MapPin className="w-2 h-2" />
-                                <span className="text-xs truncate">
-                                  {booking.room}
-                                </span>
-                              </div>
-                            </div>
-                          </>
-                        )}
-                        {isWeekend && (
-                          <span className="text-xs font-medium">Weekend</span>
-                        )}
-                      </div>
-                    );
-                  })}
-                </React.Fragment>
+              {/* ✅ Only render visible rows */}
+              {rowVirtualizer.getVirtualItems().map((virtualRow) => (
+                <DayRow
+                  key={virtualRow.index}
+                  dayIndex={virtualRow.index}
+                  style={{
+                    position: 'absolute',
+                    top: `${virtualRow.start}px`,
+                    left: 0,
+                    width: '100%',
+                    height: `${virtualRow.size}px`,
+                  }}
+                />
               ))}
             </div>
-          </div>
-          <ScrollBar orientation="horizontal" />
-        </ScrollArea>
+            <ScrollBar orientation="horizontal" />
+          </ScrollArea>
+        </div>
 
         {/* Legend */}
-        <div className="bg-slate-300 flex items-center justify-center gap-7 ml-auto text-sm mt-3 max-w-[350px] min-h-[35px] rounded-br-4xl rounded-bl-4xl">
+        <div className="bg-slate-300 flex items-center justify-center gap-7 ml-auto text-sm mt-3 max-w-[400px] min-h-[40px] rounded-br-4xl rounded-bl-4xl px-4 py-2">
           <div className="flex items-center gap-1">
             <CheckCircle className="w-4 h-4 text-green-600" />
             <span className="font-medium">Approved</span>
@@ -384,10 +547,12 @@ const BookingCalendar = () => {
           </div>
         </div>
       </div>
+      
       <BookingForm
         open={isFormOpen}
         onOpenChange={setIsFormOpen}
         selectedSlot={selectedSlot}
+        daysInMonth={daysInMonth}
       />
     </div>
   );

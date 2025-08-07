@@ -57,7 +57,7 @@ export function AppSidebar() {
               {/* 📦 Booking */}
               <SidebarMenuItem>
                 <SidebarMenuButton asChild>
-                  <a href="../booking-page">
+                  <a href="/booking-page">
                     <Inbox className="h-4 w-4" />
                     <span>Booking</span>
                   </a>
