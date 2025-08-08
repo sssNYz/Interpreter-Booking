@@ -5,11 +5,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { ChevronLeft, ChevronRight, Edit, AlertTriangle, Star, Clock, Info, CheckCircle, XCircle, Hourglass, Calendar } from 'lucide-react';
+import { ChevronLeft, ChevronRight, AlertTriangle, Star, Clock, Info, CheckCircle, XCircle, Hourglass, Calendar, ChevronUp, ChevronDown } from 'lucide-react';
+import BookingDetailDialog from '@/components/admin-form/booking-form';
 
 // Types
-import type  {
+import type {
   BookingMange, BookingWithConflicts, BookingConflicts, Stats,
 } from '@/app/types/booking-types';
 
@@ -28,105 +28,62 @@ const STATUS_OPTIONS = [
 ];
 
 // Mock data - Examples of conflicts
-const MOCK_BOOKINGS: BookingMange[]  = [
-  {
-    id: 1,
-    dateTime: '2024-08-15',
-    startTime: '09:00',
-    endTime: '09:30',
-    requestedTime: '2024-08-14T14:30:00',
-    bookedBy: 'John Smith',
-    interpreter: 'Maria Garcia',
-    room: 'Room A',
-    status: 'Approve',
-    isDR: true,
-    isOverlapping: false,
-    topic: 'Hello World Meeting'
-  },
-  {
-    id: 2,
-    dateTime: '2024-08-15',
-    startTime: '10:00',
-    endTime: '10:30',
-    requestedTime: '2024-08-14T15:45:00',
-    bookedBy: 'Sarah Johnson',
-    interpreter: 'Carlos Rodriguez',
-    room: 'Room B',
-    status: 'Wait',
-    isDR: false,
-    isOverlapping: false,
-    topic: 'Team Sync'
-  },
-  {
-    id: 3,
-    dateTime: '2024-08-16',
-    startTime: '14:30',
-    endTime: '15:00',
-    requestedTime: '2024-08-15T09:15:00',
-    bookedBy: 'Mike Wilson',
-    interpreter: 'Ana Lopez',
-    room: 'Room C',
-    status: 'Cancel',
-    isDR: true,
-    isOverlapping: false,
-    topic: 'Retrospective'
-  },
-  {
-    id: 4,
-    dateTime: '2024-08-15',
-    startTime: '09:15',
-    endTime: '09:45',
-    requestedTime: '2024-08-15T11:20:00',
-    bookedBy: 'Emma Davis',
-    interpreter: 'Maria Garcia',
-    room: 'Room D',
-    status: 'Wait',
-    isDR: true,
-    isOverlapping: false,
-    topic: 'Design Review'
-  },
-  {
-    id: 5,
-    dateTime: '2024-08-15',
-    startTime: '09:20',
-    endTime: '09:50',
-    requestedTime: '2024-08-16T16:45:00',
-    bookedBy: 'David Brown',
-    interpreter: 'Pedro Martinez',
-    room: 'Room A',
-    status: 'Approve',
-    isDR: false,
-    isOverlapping: false,
-    topic: 'Marketing Planning'
-  },
-  {
-    id: 6,
-    dateTime: '2024-08-15',
-    startTime: '09:00',
-    endTime: '09:30',
-    requestedTime: '2024-07-19T10:00:00',
-    bookedBy: 'Lisa White',
-    interpreter: 'Carlos Rodriguez',
-    room: 'Room C',
-    status: 'Approve',
-    isDR: false,
-    isOverlapping: false,
-    topic: 'Dev Sync'
-  },
-  {
-    id: 7,
-    dateTime: '2024-08-15',
-    startTime: '11:00',
-    endTime: '11:30',
-    requestedTime: '2024-08-14T16:00:00',
-    bookedBy: 'Tom Wilson',
-    interpreter: 'Maria Garcia',
-    room: 'Room A',
-    status: 'Wait',
-    isDR: false,
-    isOverlapping: false,
-    topic: 'Client Meeting'
-  }
+const MOCK_BOOKINGS: BookingMange[] = [
+  // 🟢 2025-08-08 - ไม่มี conflict
+  { id: 1, dateTime: '2025-08-08', startTime: '08:00', endTime: '08:30', requestedTime: '2025-08-07T08:00:00', bookedBy: 'User A', interpreter: 'Anna', room: 'Room A', status: 'Approve', isDR: false, isOverlapping: false, topic: 'Kickoff' },
+  { id: 2, dateTime: '2025-08-08', startTime: '09:00', endTime: '09:30', requestedTime: '2025-08-07T08:15:00', bookedBy: 'User B', interpreter: 'Ben', room: 'Room B', status: 'Wait', isDR: false, isOverlapping: false, topic: 'Sync' },
+
+  // 🔴 Conflict: Interpreter (Diana)
+  { id: 3, dateTime: '2025-08-08', startTime: '10:00', endTime: '10:30', requestedTime: '2025-08-07T08:20:00', bookedBy: 'User C', interpreter: 'Diana', room: 'Room C', status: 'Approve', isDR: true, isOverlapping: false, topic: 'Sprint Review' },
+  { id: 4, dateTime: '2025-08-08', startTime: '10:15', endTime: '10:45', requestedTime: '2025-08-07T08:25:00', bookedBy: 'User D', interpreter: 'Diana', room: 'Room D', status: 'Wait', isDR: false, isOverlapping: false, topic: 'Q&A' },
+
+  // 🟢 2025-08-07 - ไม่มี conflict
+  { id: 5, dateTime: '2025-08-07', startTime: '08:30', endTime: '09:00', requestedTime: '2025-08-06T07:50:00', bookedBy: 'User E', interpreter: 'Emma', room: 'Room A', status: 'Cancel', isDR: false, isOverlapping: false, topic: 'Prep' },
+  { id: 6, dateTime: '2025-08-07', startTime: '09:30', endTime: '10:30', requestedTime: '2025-08-06T08:10:00', bookedBy: 'User F', interpreter: 'Fred', room: 'Room B', status: 'Approve', isDR: false, isOverlapping: false, topic: 'All-hands' },
+
+  // 🔴 Conflict: Room (Room A)
+  { id: 7, dateTime: '2025-08-07', startTime: '11:00', endTime: '11:30', requestedTime: '2025-08-06T08:30:00', bookedBy: 'User G', interpreter: 'George', room: 'Room A', status: 'Wait', isDR: false, isOverlapping: false, topic: 'Design Sync' },
+  { id: 8, dateTime: '2025-08-07', startTime: '11:15', endTime: '11:45', requestedTime: '2025-08-06T08:35:00', bookedBy: 'User H', interpreter: 'Helen', room: 'Room A', status: 'Approve', isDR: false, isOverlapping: false, topic: 'Planning' },
+
+  // 🟢 2025-08-06 - ไม่มี conflict
+  { id: 9, dateTime: '2025-08-06', startTime: '08:00', endTime: '09:00', requestedTime: '2025-08-05T07:30:00', bookedBy: 'User I', interpreter: 'Ivan', room: 'Room D', status: 'Approve', isDR: false, isOverlapping: false, topic: 'Team Update' },
+
+  // 🔴 Conflict: Interpreter + Room (Jack & Room C)
+  { id: 10, dateTime: '2025-08-06', startTime: '10:00', endTime: '10:30', requestedTime: '2025-08-05T08:00:00', bookedBy: 'User J', interpreter: 'Jack', room: 'Room C', status: 'Approve', isDR: true, isOverlapping: false, topic: 'Review A' },
+  { id: 11, dateTime: '2025-08-06', startTime: '10:15', endTime: '10:45', requestedTime: '2025-08-05T08:05:00', bookedBy: 'User K', interpreter: 'Jack', room: 'Room C', status: 'Wait', isDR: false, isOverlapping: false, topic: 'Review B' },
+
+  // 🟢 2025-08-05 - ไม่มี conflict
+  { id: 12, dateTime: '2025-08-05', startTime: '08:15', endTime: '08:45', requestedTime: '2025-08-04T07:00:00', bookedBy: 'User L', interpreter: 'Laura', room: 'Room E', status: 'Approve', isDR: false, isOverlapping: false, topic: 'Retro' },
+  { id: 13, dateTime: '2025-08-05', startTime: '09:00', endTime: '09:30', requestedTime: '2025-08-04T07:10:00', bookedBy: 'User M', interpreter: 'Mason', room: 'Room F', status: 'Cancel', isDR: false, isOverlapping: false, topic: 'Issue Review' },
+
+  // 🔴 Conflict: Interpreter (Nina)
+  { id: 14, dateTime: '2025-08-05', startTime: '10:00', endTime: '10:30', requestedTime: '2025-08-04T08:00:00', bookedBy: 'User N', interpreter: 'Nina', room: 'Room G', status: 'Approve', isDR: false, isOverlapping: false, topic: 'Content Brief' },
+  { id: 15, dateTime: '2025-08-05', startTime: '10:15', endTime: '10:45', requestedTime: '2025-08-04T08:05:00', bookedBy: 'User O', interpreter: 'Nina', room: 'Room H', status: 'Wait', isDR: false, isOverlapping: false, topic: 'Creative Review' },
+
+  // 🟢 2025-08-04
+  { id: 16, dateTime: '2025-08-04', startTime: '09:00', endTime: '09:30', requestedTime: '2025-08-03T07:00:00', bookedBy: 'User P', interpreter: 'Oliver', room: 'Room I', status: 'Approve', isDR: true, isOverlapping: false, topic: 'Strategy' },
+
+  // 🔴 Conflict: Room (Room E)
+  { id: 17, dateTime: '2025-08-04', startTime: '10:00', endTime: '10:30', requestedTime: '2025-08-03T07:50:00', bookedBy: 'User Q', interpreter: 'Peter', room: 'Room E', status: 'Wait', isDR: false, isOverlapping: false, topic: 'Board Review' },
+  { id: 18, dateTime: '2025-08-04', startTime: '10:15', endTime: '10:45', requestedTime: '2025-08-03T07:55:00', bookedBy: 'User R', interpreter: 'Quinn', room: 'Room E', status: 'Approve', isDR: false, isOverlapping: false, topic: 'OKRs' },
+
+  // 🟢 2025-08-03
+  { id: 19, dateTime: '2025-08-03', startTime: '08:00', endTime: '08:30', requestedTime: '2025-08-02T08:00:00', bookedBy: 'User S', interpreter: 'Interp 0', room: 'Room F', status: 'Approve', isDR: true, isOverlapping: false, topic: 'Session 1' },
+  { id: 20, dateTime: '2025-08-03', startTime: '08:30', endTime: '09:00', requestedTime: '2025-08-02T08:00:00', bookedBy: 'User T', interpreter: 'Interp 1', room: 'Room G', status: 'Wait', isDR: false, isOverlapping: false, topic: 'Session 2' },
+  { id: 21, dateTime: '2025-08-03', startTime: '09:00', endTime: '09:30', requestedTime: '2025-08-02T08:00:00', bookedBy: 'User U', interpreter: 'Interp 2', room: 'Room H', status: 'Cancel', isDR: false, isOverlapping: false, topic: 'Session 3' },
+  { id: 22, dateTime: '2025-08-03', startTime: '09:30', endTime: '10:00', requestedTime: '2025-08-02T08:00:00', bookedBy: 'User V', interpreter: 'Interp 3', room: 'Room I', status: 'Approve', isDR: false, isOverlapping: false, topic: 'Session 4' },
+
+  // 🟢 2025-08-02
+  { id: 23, dateTime: '2025-08-02', startTime: '08:00', endTime: '08:30', requestedTime: '2025-08-01T08:00:00', bookedBy: 'User W', interpreter: 'Interp 4', room: 'Room F', status: 'Wait', isDR: false, isOverlapping: false, topic: 'Session 5' },
+  { id: 24, dateTime: '2025-08-02', startTime: '08:30', endTime: '09:00', requestedTime: '2025-08-01T08:00:00', bookedBy: 'User X', interpreter: 'Interp 5', room: 'Room G', status: 'Cancel', isDR: false, isOverlapping: false, topic: 'Session 6' },
+  { id: 25, dateTime: '2025-08-02', startTime: '09:00', endTime: '09:30', requestedTime: '2025-08-01T08:00:00', bookedBy: 'User Y', interpreter: 'Interp 6', room: 'Room H', status: 'Approve', isDR: true, isOverlapping: false, topic: 'Session 7' },
+  { id: 26, dateTime: '2025-08-02', startTime: '09:30', endTime: '10:00', requestedTime: '2025-08-01T08:00:00', bookedBy: 'User Z', interpreter: 'Interp 7', room: 'Room I', status: 'Wait', isDR: false, isOverlapping: false, topic: 'Session 8' },
+
+  // 🟢 2025-08-01
+  { id: 27, dateTime: '2025-08-01', startTime: '08:00', endTime: '08:30', requestedTime: '2025-07-31T08:00:00', bookedBy: 'User AA', interpreter: 'Interp 8', room: 'Room F', status: 'Cancel', isDR: false, isOverlapping: false, topic: 'Session 9' },
+  { id: 28, dateTime: '2025-08-01', startTime: '08:30', endTime: '09:00', requestedTime: '2025-07-31T08:00:00', bookedBy: 'User AB', interpreter: 'Interp 9', room: 'Room G', status: 'Approve', isDR: false, isOverlapping: false, topic: 'Session 10' },
+  { id: 29, dateTime: '2025-08-01', startTime: '09:00', endTime: '09:30', requestedTime: '2025-07-31T08:00:00', bookedBy: 'User AC', interpreter: 'Interp 10', room: 'Room H', status: 'Wait', isDR: false, isOverlapping: false, topic: 'Session 11' },
+  { id: 30, dateTime: '2025-08-01', startTime: '09:30', endTime: '10:00', requestedTime: '2025-07-31T08:00:00', bookedBy: 'User AD', interpreter: 'Interp 11', room: 'Room I', status: 'Cancel', isDR: false, isOverlapping: false, topic: 'Session 12' }
 ];
 
 // Utility functions
@@ -140,73 +97,63 @@ const hasTimeOverlap = (start1: string, end1: string, start2: string, end2: stri
   const endMinutes1 = parseTime(end1);
   const startMinutes2 = parseTime(start2);
   const endMinutes2 = parseTime(end2);
-  
+
   return startMinutes1 < endMinutes2 && startMinutes2 < endMinutes1;
 };
 
-// Lightweight date formatting with month names
-const formatDate = (dateString: string, isClient: boolean): string => {
-  if (!isClient) return dateString;
-  
+// Updated formatDate function to always return D MMM YYYY format
+const formatDate = (dateString: string): string => {
   const date = new Date(dateString);
-  const today = new Date();
-  const tomorrow = new Date();
-  tomorrow.setDate(today.getDate() + 1);
-
-  // Check for today/tomorrow
-  const isToday = date.toDateString() === today.toDateString();
-  const isTomorrow = date.toDateString() === tomorrow.toDateString();
-
-  if (isToday) return 'Today';
-  if (isTomorrow) return 'Tomorrow';
-
-  // Return DD MMM YYYY format
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
-                  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const day = date.getDate();
   const month = months[date.getMonth()];
   const year = date.getFullYear();
-  
+
   return `${day} ${month} ${year}`;
 };
 
 const formatRequestedTime = (dateTimeString: string): string => {
   const date = new Date(dateTimeString);
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
-                  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
   const day = date.getDate();
   const month = months[date.getMonth()];
   const year = date.getFullYear();
   const hours = date.getHours().toString().padStart(2, '0');
   const minutes = date.getMinutes().toString().padStart(2, '0');
-  
+
   return `${day} ${month} ${year} ${hours}:${minutes}`;
 };
 
 const getFullDate = (dateString: string, isClient: boolean): string => {
   if (!isClient) return dateString;
-  
+
   const date = new Date(dateString);
   const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-  const months = ['January', 'February', 'March', 'April', 'May', 'June', 
-                  'July', 'August', 'September', 'October', 'November', 'December'];
-  
+  const months = ['January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'];
+
   const dayName = days[date.getDay()];
   const day = date.getDate();
   const month = months[date.getMonth()];
   const year = date.getFullYear();
-  
+
   return `${dayName}, ${day} ${month} ${year}`;
 };
 
-const sortBookings = (bookings: BookingWithConflicts[]): BookingWithConflicts[] => {
+// Updated sortBookings function to accept sort direction
+const sortBookings = (bookings: BookingWithConflicts[], sortByDateAsc: boolean): BookingWithConflicts[] => {
   return [...bookings].sort((a, b) => {
     // First sort by date
-    const dateCompare = a.dateTime.localeCompare(b.dateTime);
-    if (dateCompare !== 0) return dateCompare;
+    const dateCompare = sortByDateAsc 
+      ? a.dateTime.localeCompare(b.dateTime)
+      : b.dateTime.localeCompare(a.dateTime);
     
-    // Then sort by start time
+    if (dateCompare !== 0) return dateCompare;
+
+    // Then sort by start time (always ascending for same date)
     const timeA = parseTime(a.startTime);
     const timeB = parseTime(b.startTime);
     return timeA - timeB;
@@ -226,17 +173,17 @@ const detectConflicts = (bookings: BookingMange[]): BookingWithConflicts[] => {
       return { ...booking, conflicts };
     }
 
-    const otherBookings = bookings.filter(other => 
-      other.id !== booking.id && 
-      other.dateTime === booking.dateTime && 
+    const otherBookings = bookings.filter(other =>
+      other.id !== booking.id &&
+      other.dateTime === booking.dateTime &&
       other.status !== 'Cancel'
     );
 
     otherBookings.forEach(other => {
       const hasOverlap = hasTimeOverlap(
-        booking.startTime, 
-        booking.endTime, 
-        other.startTime, 
+        booking.startTime,
+        booking.endTime,
+        other.startTime,
         other.endTime
       );
 
@@ -246,7 +193,7 @@ const detectConflicts = (bookings: BookingMange[]): BookingWithConflicts[] => {
           conflicts.hasInterpreterConflict = true;
           conflicts.conflictingBookings.push(other.id);
         }
-        
+
         // Check room conflict
         if (booking.room === other.room) {
           conflicts.hasRoomConflict = true;
@@ -303,17 +250,18 @@ export default function BookingManagement(): React.JSX.Element {
     currentPage: 1,
     rowsPerPage: 10
   });
-  const [selectedBooking, setSelectedBooking] = useState<BookingWithConflicts | null>(null);
   const [isClient, setIsClient] = useState(false);
   const [currentMonth, setCurrentMonth] = useState('');
   const [currentYear, setCurrentYear] = useState<number | null>(null);
+  // New state for date sorting - defaults to ascending (oldest first)
+  const [sortByDateAsc, setSortByDateAsc] = useState(true);
 
   // Effects
   useEffect(() => {
     setIsClient(true);
     const now = new Date();
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
-                   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     setCurrentMonth(months[now.getMonth()]);
     setCurrentYear(now.getFullYear());
   }, []);
@@ -329,19 +277,19 @@ export default function BookingManagement(): React.JSX.Element {
 
       const matchesStatus = filters.status === 'all' || booking.status === filters.status;
       const matchesDate = filters.date === '' || booking.dateTime === filters.date;
-      
+
       // Handle date request filtering (extract date part from datetime)
-      const matchesDateRequest = filters.dateRequest === '' || 
+      const matchesDateRequest = filters.dateRequest === '' ||
         booking.requestedTime.startsWith(filters.dateRequest);
-      
+
       const matchesTime = filters.time === 'all' || booking.startTime === filters.time;
 
       return matchesSearch && matchesStatus && matchesDate && matchesDateRequest && matchesTime;
     });
 
-    // Sort the filtered results
-    return sortBookings(filtered);
-  }, [bookingsWithConflicts, filters]);
+    // Sort the filtered results with the current sort direction
+    return sortBookings(filtered, sortByDateAsc);
+  }, [bookingsWithConflicts, filters, sortByDateAsc]);
 
   const stats = useMemo((): Stats => {
     const hasActiveFilters = Object.values(filters).some(filter => filter !== '' && filter !== 'all');
@@ -385,6 +333,12 @@ export default function BookingManagement(): React.JSX.Element {
     });
   };
 
+  // New handler for date sort toggle
+  const handleDateSortToggle = () => {
+    setSortByDateAsc(prev => !prev);
+    setPagination(prev => ({ ...prev, currentPage: 1 })); // Reset to first page
+  };
+
   const hasActiveFilters = Object.values(filters).some(filter => filter !== '' && filter !== 'all');
 
   return (
@@ -406,7 +360,7 @@ export default function BookingManagement(): React.JSX.Element {
         </div>
         <div className="flex items-center gap-2">
           <AlertTriangle className="h-5 w-5 text-red-500" />
-          <span className="text-blue-700">= Conflict (Interpreter/Room Overlap)</span>
+          <span className="text-blue-700">= Conflict (Overlapping Time Interpreter or Room)</span>
         </div>
       </div>
 
@@ -521,7 +475,22 @@ export default function BookingManagement(): React.JSX.Element {
               <table className="w-full text-sm">
                 <thead className="sticky top-0 bg-white z-10">
                   <tr className="border-b border-gray-200">
-                    {['Date Meeting', 'Time', 'User', 'Interpreter', 'Room', 'Status', 'Request', 'Action'].map(header => (
+                    {/* Updated Date Meeting header with clickable sort button */}
+                    <th className="px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">
+                      <button
+                        onClick={handleDateSortToggle}
+                        className="flex items-center gap-2 hover:bg-gray-100 px-2 py-1 rounded transition-colors"
+                        title={`Sort by ${sortByDateAsc ? 'newest' : 'oldest'} first`}
+                      >
+                        <span>Date Meeting</span>
+                        {sortByDateAsc ? (
+                          <ChevronUp className="h-4 w-4 text-gray-600" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-gray-600" />
+                        )}
+                      </button>
+                    </th>
+                    {['Time', 'User', 'Interpreter', 'Room', 'Status', 'Request', 'Action'].map(header => (
                       <th key={header} className={`px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm ${header === 'Action' ? 'text-center' : ''}`}>
                         {header}
                       </th>
@@ -531,7 +500,7 @@ export default function BookingManagement(): React.JSX.Element {
                 <tbody>
                   {paginatedBookings.bookings.map((booking, index) => {
                     const hasConflict = booking.conflicts.hasInterpreterConflict || booking.conflicts.hasRoomConflict;
-                    
+
                     return (
                       <tr
                         key={booking.id}
@@ -541,7 +510,7 @@ export default function BookingManagement(): React.JSX.Element {
                           <div className="flex items-center gap-2">
                             <div className="group relative">
                               <span className="font-semibold text-gray-900 text-sm cursor-help">
-                                {formatDate(booking.dateTime, isClient)}
+                                {formatDate(booking.dateTime)}
                               </span>
                               {isClient && (
                                 <div className="absolute bottom-full left-0 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50">
@@ -603,79 +572,7 @@ export default function BookingManagement(): React.JSX.Element {
                           </span>
                         </td>
                         <td className="px-4 py-4 text-center">
-                          <Dialog>
-                            <DialogTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-8 w-8 p-0 hover:bg-blue-100"
-                                onClick={() => setSelectedBooking(booking)}
-                              >
-                                <Edit className="h-8 w-8 text-gray-500" />
-                              </Button>
-                            </DialogTrigger>
-                            <DialogContent className="max-w-md">
-                              <DialogHeader>
-                                <DialogTitle className="text-xl font-bold">Booking Details</DialogTitle>
-                              </DialogHeader>
-                              {selectedBooking && (
-                                <div className="space-y-4">
-                                  <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                      <label className="block text-base font-semibold text-gray-800">Date Meeting</label>
-                                      <p className="mt-1 font-semibold text-base">{formatDate(selectedBooking.dateTime, isClient)}</p>
-                                      {isClient && (
-                                        <p className="text-sm text-gray-500">{getFullDate(selectedBooking.dateTime, isClient)}</p>
-                                      )}
-                                    </div>
-                                    <div>
-                                      <label className="block text-base font-semibold text-gray-800">Time</label>
-                                      <p className="mt-1 font-mono text-base">{selectedBooking.startTime} - {selectedBooking.endTime}</p>
-                                    </div>
-                                    <div>
-                                      <label className="block text-base font-semibold text-gray-800">User</label>
-                                      <p className="mt-1 font-semibold text-base">{selectedBooking.bookedBy}</p>
-                                    </div>
-                                    <div>
-                                      <label className="block text-base font-semibold text-gray-800">Interpreter</label>
-                                      <p className="mt-1 text-base">{selectedBooking.interpreter}</p>
-                                    </div>
-                                    <div>
-                                      <label className="block text-base font-semibold text-gray-800">Room</label>
-                                      <p className="mt-1 text-base">{selectedBooking.room}</p>
-                                    </div>
-                                    <div>
-                                      <label className="block text-base font-semibold text-gray-800">Status</label>
-                                      <span className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-semibold mt-1 ${getStatusColor(selectedBooking.status)}`}>
-                                        {getStatusIcon(selectedBooking.status)}
-                                        {selectedBooking.status}
-                                      </span>
-                                    </div>
-                                  </div>
-                                  <div>
-                                    <label className="block text-base font-semibold text-gray-800">Requested Time</label>
-                                    <p className="mt-1 text-base text-gray-700">{formatRequestedTime(selectedBooking.requestedTime)}</p>
-                                  </div>
-                                  <div className="flex gap-2 flex-wrap">
-                                    {selectedBooking.isDR && (
-                                      <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-amber-100 text-amber-800 rounded-full text-sm font-semibold">
-                                        <Star className="h-3.5 w-3.5 fill-current" />
-                                        DR Booking
-                                      </span>
-                                    )}
-                                    {(selectedBooking.conflicts.hasInterpreterConflict || selectedBooking.conflicts.hasRoomConflict) && (
-                                      <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-red-100 text-red-800 rounded-full text-sm font-semibold">
-                                        <AlertTriangle className="h-3.5 w-3.5" />
-                                        {selectedBooking.conflicts.hasInterpreterConflict && 'Interpreter'}
-                                        {selectedBooking.conflicts.hasInterpreterConflict && selectedBooking.conflicts.hasRoomConflict && ' & '}
-                                        {selectedBooking.conflicts.hasRoomConflict && 'Room'} Conflict
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-                              )}
-                            </DialogContent>
-                          </Dialog>
+                          <BookingDetailDialog booking={booking} />
                         </td>
                       </tr>
                     );
