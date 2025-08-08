@@ -150,7 +150,7 @@ const sortBookings = (bookings: BookingWithConflicts[], sortByDateAsc: boolean):
     const dateCompare = sortByDateAsc 
       ? a.dateTime.localeCompare(b.dateTime)
       : b.dateTime.localeCompare(a.dateTime);
-    
+
     if (dateCompare !== 0) return dateCompare;
 
     // Then sort by start time (always ascending for same date)
