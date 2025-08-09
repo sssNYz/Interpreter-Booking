@@ -1,13 +1,25 @@
 "use client";
 import React from "react";
-import { MapPin, User } from "lucide-react";
-import type { DayInfo, SlotData } from "@/types/booking";
+import type { DayInfo, BarItem } from "@/types/booking";
+import {
+  MAX_LANES,
+  ROW_HEIGHT,
+  CELL_WIDTH,
+  DAY_LABEL_WIDTH,
+  BAR_HEIGHT,
+  LANE_TOP_OFFSET,
+  BAR_STACK_GAP,
+} from "@/utils/constants";
+import { getStatusStyle } from "@/utils/status";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 type Props = {
   day: DayInfo;
   currentDate: Date;
   timeSlots: string[];
-  slotDataMap: Map<string, SlotData>;
+  bars: BarItem[];
+  occupancy: number[];
+  isTimeSlotPast: (day: number, slot: string) => boolean;
   onSlotClick: (day: number, slot: string) => void;
   style: React.CSSProperties;
 };
@@ -16,7 +28,9 @@ const DayRow: React.FC<Props> = ({
   day,
   currentDate,
   timeSlots,
-  slotDataMap,
+  bars,
+  occupancy,
+  isTimeSlotPast,
   onSlotClick,
   style,
 }) => {
@@ -26,8 +40,9 @@ const DayRow: React.FC<Props> = ({
       style={{
         ...style,
         display: "grid",
-        gridTemplateColumns: `120px repeat(${timeSlots.length}, 120px)`,
-        height: "60px",
+        gridTemplateColumns: `${DAY_LABEL_WIDTH}px repeat(${timeSlots.length}, ${CELL_WIDTH}px)`,
+        height: `${ROW_HEIGHT}px`,
+        position: "relative",
       }}
     >
       <div className="sticky left-0 z-10 bg-slate-50 border-r border-slate-200 text-center text-xs flex flex-col justify-center">
@@ -35,65 +50,61 @@ const DayRow: React.FC<Props> = ({
         <span>{day.date}</span>
       </div>
 
-      {timeSlots.map((slot) => {
-        const paddedMonth = String(currentDate.getMonth() + 1).padStart(2, "0");
-        const paddedDay = String(day.date).padStart(2, "0");
-        const dateString = `${currentDate.getFullYear()}-${paddedMonth}-${paddedDay}`;
-        const key = `${dateString}-${slot}`;
-
-        const slotData = slotDataMap.get(key);
-        if (!slotData)
-          return <div key={key} className="border-r border-slate-200" />;
-        if (!slotData.shouldDisplay) return null;
-
-        const clickable = slotData.isClickable;
-
+      {/* Background Grid Layer */}
+      {timeSlots.map((slot, index) => {
+        const isFull = occupancy[index] >= MAX_LANES;
+        const isPastTime = isTimeSlotPast(day.date, slot);
         return (
           <div
-            key={key}
-            className={`border-r border-slate-200 rounded-[4px] flex flex-col items-center justify-center text-xs transition-all p-1 ${
-              slotData.isWeekend
-                ? "cursor-not-allowed"
-                : slotData.isPast || slotData.isPastTime
-                ? "cursor-not-allowed"
-                : slotData.bookingId
-                ? "cursor-default"
+            key={`${day.fullDate.toDateString()}-${slot}`}
+            className={`border-r border-slate-200 ${
+              isFull || isPastTime
+                ? "cursor-not-allowed bg-slate-100"
                 : "cursor-pointer hover:bg-slate-100"
-            } ${slotData.bgClass} ${slotData.textClass}`}
-            style={{
-              gridColumn:
-                slotData.span > 1 ? `span ${slotData.span}` : undefined,
+            }`}
+            onClick={() => {
+              if (!isFull && !isPastTime) onSlotClick(day.date, slot);
             }}
-            onClick={() => clickable && onSlotClick(day.date, slot)}
-            title={
-              slotData.isWeekend
-                ? "Weekend - No booking available"
-                : slotData.bookingId
-                ? `${slotData.name} - ${slotData.room} (${slotData.status})`
-                : `Available slot: ${slot}`
-            }
-          >
-            {slotData.bookingId && !slotData.isWeekend && (
-              <>
-                <div className="flex items-center gap-1 mb-1">
-                  {slotData.icon}
-                  <User className="w-3 h-3" />
-                </div>
-                <div className="text-center w-full">
-                  <div className="font-medium truncate">{slotData.name}</div>
-                  <div className="flex items-center justify-center gap-1 mt-1">
-                    <MapPin className="w-2 h-2" />
-                    <span className="text-xs truncate">{slotData.room}</span>
-                  </div>
-                </div>
-              </>
-            )}
-            {slotData.isWeekend && (
-              <span className="text-xs font-medium">Weekend</span>
-            )}
-          </div>
+            title={isFull ? "Time full" : isPastTime ? "Past" : `Available: ${slot}`}
+          />
         );
       })}
+
+      {/* Bars Overlay Layer */}
+      <div
+        className="pointer-events-none"
+        style={{ position: "absolute", inset: 0, zIndex: 5 }}
+      >
+        {bars.map((bar) => {
+          const statusStyle = getStatusStyle(bar.status);
+          const left = DAY_LABEL_WIDTH + bar.startIndex * CELL_WIDTH;
+          const width = (bar.endIndex - bar.startIndex) * CELL_WIDTH;
+          const top = LANE_TOP_OFFSET + bar.lane * BAR_STACK_GAP;
+          return (
+            <Tooltip key={`bar-${bar.bookingId}`}>
+              <TooltipTrigger asChild>
+                <div
+                  className={`pointer-events-auto rounded-sm border ${statusStyle.text} ${statusStyle.bg}`}
+                  style={{
+                    position: "absolute",
+                    left,
+                    width,
+                    top,
+                    height: BAR_HEIGHT,
+                    borderRadius: 4,
+                  }}
+                />
+              </TooltipTrigger>
+              <TooltipContent>
+                <div className="text-xs">
+                  <div className="font-medium">{bar.name}</div>
+                  <div className="opacity-80">{bar.room}</div>
+                </div>
+              </TooltipContent>
+            </Tooltip>
+          );
+        })}
+      </div>
     </div>
   );
 };
