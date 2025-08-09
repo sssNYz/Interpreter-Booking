@@ -36,12 +36,10 @@ import {
 import { Switch } from "../ui/switch";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 
-
 type BookingFormProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   selectedSlot?: {
-
     day: number;
     slot: string;
   };
@@ -59,7 +57,7 @@ type BookingFormProps = {
   rooms?: string[];
 };
 
-type OwnerGroup = "software" | "iot" | "network" | "security";
+type OwnerGroup = "software" | "iot" | "hardware" | "other";
 export function BookingForm({
   open,
   onOpenChange,
@@ -96,7 +94,6 @@ export function BookingForm({
     ? daysInMonth.find((d) => d.date === selectedSlot.day)
     : undefined;
 
-
   // Reset form when sheet opens/closes
   useEffect(() => {
     if (!open) {
@@ -122,7 +119,6 @@ export function BookingForm({
 
   // Time slots generation
   const slotsTime = useMemo(() => {
-
     const times = [];
     for (let hour = 8; hour < 18; hour++) {
       if (hour === 12) {
@@ -145,7 +141,6 @@ export function BookingForm({
 
   // Function to convert time string to minutes for comparison
   const timeToMinutes = (time: string): number => {
-
     const [hours, minutes] = time.split(":").map(Number);
 
     return hours * 60 + minutes;
@@ -153,7 +148,6 @@ export function BookingForm({
 
   // Get available end times based on selected start time
   const availableEndTimes = useMemo(() => {
-
     if (!startTime) return slotsTime;
     const startMinutes = timeToMinutes(startTime);
     return slotsTime.filter((time) => {
@@ -161,7 +155,6 @@ export function BookingForm({
       return endMinutes > startMinutes;
     });
   }, [startTime, slotsTime]);
-
 
   // Reset end time if it becomes invalid
   const handleStartTimeChange = (value: string) => {
@@ -380,8 +373,8 @@ export function BookingForm({
                     <SelectContent>
                       <SelectItem value="software">Software</SelectItem>
                       <SelectItem value="iot">IoT</SelectItem>
-                      <SelectItem value="network">Network</SelectItem>
-                      <SelectItem value="security">Security</SelectItem>
+                      <SelectItem value="hardware">Hardware</SelectItem>
+                      <SelectItem value="other">Other</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -605,6 +598,4 @@ export function BookingForm({
       </SheetContent>
     </Sheet>
   );
-
 }
-
