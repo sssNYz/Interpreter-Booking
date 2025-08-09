@@ -49,3 +49,19 @@ export type SlotData = {
   isWeekend: boolean;
   isClickable: boolean;
 };
+
+// Thin stacked bars data for overlay rendering
+export type BarItem = {
+  bookingId: number;
+  name: string; // optional for tooltip
+  room: string; // optional for tooltip
+  status: string; // affects color
+  startIndex: number; // inclusive
+  endIndex: number; // exclusive
+  lane: 0 | 1; // stacked level
+};
+
+export type DayBars = {
+  bars: BarItem[];
+  occupancy: number[]; // length === timeSlots.length, values 0..MAX_LANES
+};

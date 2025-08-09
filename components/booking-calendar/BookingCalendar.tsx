@@ -8,7 +8,8 @@ import DayRow from "./DayRow";
 
 import { generateTimeSlots, getDaysInMonth } from "@/utils/calendar";
 import { useBookings } from "@/hooks/useBookings";
-import { useSlotData } from "@/hooks/useSlotData";
+import { useSlotDataForBars } from "@/hooks/useSlotDataForBars";
+import { ROW_HEIGHT, DAY_LABEL_WIDTH, CELL_WIDTH } from "@/utils/constants";
 import type { DayInfo } from "@/types/booking";
 
 const BookingCalendar: React.FC = () => {
@@ -56,18 +57,16 @@ const BookingCalendar: React.FC = () => {
     [currentDate]
   );
 
-  const { slotDataMap } = useSlotData({
+  const { barsByDay, occupancyByDay } = useSlotDataForBars({
     bookings,
-    currentDate,
     daysInMonth,
     timeSlots,
-    isTimeSlotPast,
   });
 
   const rowVirtualizer = useVirtualizer({
     count: daysInMonth.length,
     getScrollElement: () => scrollAreaViewportRef.current,
-    estimateSize: () => 60,
+    estimateSize: () => ROW_HEIGHT,
     overscan: 2,
   });
 
@@ -125,8 +124,8 @@ const BookingCalendar: React.FC = () => {
             className="sticky top-0 z-20 bg-slate-50 border-b border-slate-200"
             style={{
               display: "grid",
-              gridTemplateColumns: `120px repeat(${timeSlots.length}, 120px)`,
-              height: "60px",
+              gridTemplateColumns: `${DAY_LABEL_WIDTH}px repeat(${timeSlots.length}, ${CELL_WIDTH}px)`,
+              height: `${ROW_HEIGHT}px`,
             }}
           >
             <div className="sticky left-0 z-20 flex items-center justify-center border-r border-slate-200 bg-slate-100">
@@ -156,7 +155,9 @@ const BookingCalendar: React.FC = () => {
                 day={daysInMonth[vr.index]}
                 currentDate={currentDate}
                 timeSlots={timeSlots}
-                slotDataMap={slotDataMap}
+                bars={barsByDay.get(vr.index) ?? []}
+                occupancy={occupancyByDay.get(vr.index) ?? Array(timeSlots.length).fill(0)}
+                isTimeSlotPast={isTimeSlotPast}
                 onSlotClick={handleSlotClick}
                 style={{
                   position: "absolute",
