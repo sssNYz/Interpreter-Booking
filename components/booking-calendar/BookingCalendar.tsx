@@ -121,14 +121,14 @@ const BookingCalendar: React.FC = () => {
         {/* KEEPING ScrollArea + virtualizer viewport TOGETHER */}
         <ScrollArea className="h-[500px]">
           <div
-            className="sticky top-0 z-20 bg-slate-50 border-b border-slate-200"
+            className="sticky top-0 z-30 bg-slate-50 border-b border-slate-200"
             style={{
               display: "grid",
               gridTemplateColumns: `${DAY_LABEL_WIDTH}px repeat(${timeSlots.length}, ${CELL_WIDTH}px)`,
               height: `${ROW_HEIGHT}px`,
             }}
           >
-            <div className="sticky left-0 z-20 flex items-center justify-center border-r border-slate-200 bg-slate-100">
+            <div className="sticky left-0 z-30 flex items-center justify-center border-r border-slate-200 bg-slate-100">
               <Clock className="w-4 h-4 text-gray-600" />
             </div>
             {timeSlots.map((slot) => (
