@@ -56,19 +56,39 @@ const DayRow: React.FC<Props> = ({
       {/* พื้นหลังกริด (คอลัมน์ของ timeSlots จะเริ่มหลังคอลัมน์ป้ายวันโดยอัตโนมัติ) */}
       {timeSlots.map((slot, index) => {
         const isFull = occupancy[index] >= MAX_LANES;
+        const isWeekend = ["Sat", "Sun"].includes(day.dayName);
+        const isPastDay = day.isPast;
         const isPastTime = isTimeSlotPast(day.date, slot);
+
+        const clickable = !isWeekend && !isPastDay && !isPastTime && !isFull;
+
+        let stateClasses = "";
+        if (isWeekend) {
+          stateClasses = "bg-slate-500 text-white cursor-not-allowed";
+        } else if (isPastDay || isPastTime) {
+          stateClasses = "bg-slate-300 cursor-not-allowed";
+        } else if (isFull) {
+          stateClasses = "bg-slate-300 cursor-not-allowed";
+        } else {
+          stateClasses = "bg-slate-50 cursor-pointer hover:bg-slate-100";
+        }
+
+        const title = isWeekend
+          ? "Weekend - No booking available"
+          : isPastDay || isPastTime
+          ? "Past"
+          : isFull
+          ? "Time full"
+          : `Available: ${slot}`;
+
         return (
           <div
             key={`${day.fullDate.toDateString()}-${slot}`}
-            className={`border-r border-slate-200 ${
-              isFull || isPastTime
-                ? "cursor-not-allowed bg-slate-100"
-                : "cursor-pointer hover:bg-slate-100"
-            }`}
+            className={`border-r border-slate-200 ${stateClasses}`}
             onClick={() => {
-              if (!isFull && !isPastTime) onSlotClick(day.date, slot);
+              if (clickable) onSlotClick(day.date, slot);
             }}
-            title={isFull ? "Time full" : isPastTime ? "Past" : `Available: ${slot}`}
+            title={title}
           />
         );
       })}
