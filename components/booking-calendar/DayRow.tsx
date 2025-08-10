@@ -35,8 +35,7 @@ const DayRow: React.FC<Props> = ({
   style,
 }) => {
   return (
-    <div
-      className="grid relative p-0 m-0 overflow-hidden box-border"
+    <div className="grid relative p-0 m-0 box-border"
       style={{
         ...style,
         display: "grid",
@@ -45,7 +44,8 @@ const DayRow: React.FC<Props> = ({
       }}
     >
       {/* ✅ คอลัมน์ซ้าย: ป้ายวัน (ต้องมีเสมอ) */}
-      <div className="sticky left-0 z-10 bg-slate-50 border-r border-slate-200 text-center text-xs flex flex-col justify-center">
+      <div className="sticky left-0 z-20 bg-slate-50 border-r border-slate-200 text-center text-xs flex
+  flex-col justify-center">
         <span className="font-semibold">{day.dayName}</span>
         <span>{day.date}</span>
       </div>
@@ -76,10 +76,10 @@ const DayRow: React.FC<Props> = ({
         const title = isWeekend
           ? "Weekend - No booking available"
           : isPastDay || isPastTime
-          ? "Past"
-          : isFull
-          ? "Time full"
-          : `Available: ${slot}`;
+            ? "Past"
+            : isFull
+              ? "Time full"
+              : `Available: ${slot}`;
 
         return (
           <div
@@ -94,10 +94,13 @@ const DayRow: React.FC<Props> = ({
       })}
 
       {/* บาร์ overlay */}
-      <div className="pointer-events-none absolute inset-0 z-10">
+      <div className="pointer-events-none absolute z-10" style={{
+        top: 0, bottom: 0, left:
+          DAY_LABEL_WIDTH, right: 0
+      }}>
         {bars.map((bar) => {
+          const left = bar.startIndex * CELL_WIDTH; // overlay already offset by day label
           const statusStyle = getStatusStyle(bar.status);
-          const left = DAY_LABEL_WIDTH + bar.startIndex * CELL_WIDTH;
           const width = (bar.endIndex - bar.startIndex) * CELL_WIDTH;
           const top = LANE_TOP_OFFSET + bar.lane * BAR_STACK_GAP;
           return (
