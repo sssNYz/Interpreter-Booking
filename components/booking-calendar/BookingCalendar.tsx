@@ -3,7 +3,7 @@ import React, { useCallback, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { Calendar, ChevronLeft, ChevronRight, Clock } from "lucide-react";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
-import { BookingForm } from "@/components/booking-form/booking-form";
+import { BookingForm } from "@/components/booking-form/BookingForm";
 import DayRow from "./DayRow";
 
 import { generateTimeSlots, getDaysInMonth } from "@/utils/calendar";
