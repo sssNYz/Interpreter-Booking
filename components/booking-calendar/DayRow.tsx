@@ -36,21 +36,24 @@ const DayRow: React.FC<Props> = ({
 }) => {
   return (
     <div
-      className="grid border-b border-slate-200"
+      className="grid relative p-0 m-0 overflow-hidden box-border"
       style={{
         ...style,
         display: "grid",
         gridTemplateColumns: `${DAY_LABEL_WIDTH}px repeat(${timeSlots.length}, ${CELL_WIDTH}px)`,
         height: `${ROW_HEIGHT}px`,
-        position: "relative",
       }}
     >
+      {/* ✅ คอลัมน์ซ้าย: ป้ายวัน (ต้องมีเสมอ) */}
       <div className="sticky left-0 z-10 bg-slate-50 border-r border-slate-200 text-center text-xs flex flex-col justify-center">
         <span className="font-semibold">{day.dayName}</span>
         <span>{day.date}</span>
       </div>
 
-      {/* Background Grid Layer */}
+      {/* ✅ เส้นแบ่งล่าง (absolute; ไม่ควรมี children) */}
+      <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-px bg-slate-200" />
+
+      {/* พื้นหลังกริด (คอลัมน์ของ timeSlots จะเริ่มหลังคอลัมน์ป้ายวันโดยอัตโนมัติ) */}
       {timeSlots.map((slot, index) => {
         const isFull = occupancy[index] >= MAX_LANES;
         const isPastTime = isTimeSlotPast(day.date, slot);
@@ -70,11 +73,8 @@ const DayRow: React.FC<Props> = ({
         );
       })}
 
-      {/* Bars Overlay Layer */}
-      <div
-        className="pointer-events-none"
-        style={{ position: "absolute", inset: 0, zIndex: 5 }}
-      >
+      {/* บาร์ overlay */}
+      <div className="pointer-events-none absolute inset-0 z-10">
         {bars.map((bar) => {
           const statusStyle = getStatusStyle(bar.status);
           const left = DAY_LABEL_WIDTH + bar.startIndex * CELL_WIDTH;
