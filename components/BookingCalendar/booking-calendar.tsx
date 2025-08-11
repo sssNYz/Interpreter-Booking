@@ -3,12 +3,12 @@ import React, { useCallback, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { Calendar, ChevronLeft, ChevronRight, Clock } from "lucide-react";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
-import { BookingForm } from "@/components/booking-form/booking-form";
-import DayRow from "./DayRow";
+import { BookingForm } from "@/components/BookingForm/booking-form";
+import DayRow from "./day-row";
 
 import { generateTimeSlots, getDaysInMonth } from "@/utils/calendar";
-import { useBookings } from "@/hooks/useBookings";
-import { useSlotDataForBars } from "@/hooks/useSlotDataForBars";
+import { useBookings } from "@/hooks/use-booking";
+import { useSlotDataForBars } from "@/hooks/use-bar-slot-data";
 import { ROW_HEIGHT, DAY_LABEL_WIDTH, CELL_WIDTH } from "@/utils/constants";
 import { getStatusStyle } from "@/utils/status";
 import type { DayInfo } from "@/types/booking";
