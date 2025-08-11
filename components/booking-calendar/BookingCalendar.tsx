@@ -10,6 +10,7 @@ import { generateTimeSlots, getDaysInMonth } from "@/utils/calendar";
 import { useBookings } from "@/hooks/useBookings";
 import { useSlotDataForBars } from "@/hooks/useSlotDataForBars";
 import { ROW_HEIGHT, DAY_LABEL_WIDTH, CELL_WIDTH } from "@/utils/constants";
+import { getStatusStyle } from "@/utils/status";
 import type { DayInfo } from "@/types/booking";
 
 const BookingCalendar: React.FC = () => {
@@ -124,7 +125,7 @@ const BookingCalendar: React.FC = () => {
         {/* Left side: Title with calendar icon */}
         <div className="flex items-center gap-2 justify-center min-w-[370px] rounded-t-4xl bg-primary px-4 py-2">
           <Calendar className="w-8 h-8 text-primary-foreground" />
-          <h1 className="text-[30px] font-medium text-primary-foreground">Book Appointment</h1>
+          <h1 className="text-[20px] font-medium text-primary-foreground">Book Appointment</h1>
         </div>
         
         {/* Right side: Month navigation buttons */}
@@ -217,9 +218,19 @@ const BookingCalendar: React.FC = () => {
       </div>
 
       {/* Legend section at bottom */}
-      <div className="bg-primary flex items-center justify-center gap-7 ml-auto text-sm mt-3 max-w-[400px] min-h-[40px] rounded-br-4xl rounded-bl-4xl px-4 py-2">
-        {/* Icons come from utils/status in the cells; legend can be added similarly if desired */}
-        <span className="text-primary-foreground">Legend: Approved / Waiting / Cancelled</span>
+      <div className="bg-primary flex items-center justify-center gap-6 ml-auto text-sm mt-3 max-w-[320px] min-h-[40px] rounded-br-4xl rounded-bl-4xl px-4 py-2">
+        <div className="flex items-center gap-2">
+          <span className={`inline-block h-2.5 w-2.5 rounded-full border border-primary-foreground ${getStatusStyle("approve").bg}`} />
+          <span className="text-primary-foreground">Approved</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className={`inline-block h-2.5 w-2.5 rounded-full border border-primary-foreground ${getStatusStyle("waiting").bg}`} />
+          <span className="text-primary-foreground">Waiting</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className={`inline-block h-2.5 w-2.5 rounded-full border border-primary-foreground ${getStatusStyle("cancel").bg}`} />
+          <span className="text-primary-foreground">Cancelled</span>
+        </div>
       </div>
 
       {/* Booking form modal - opens when clicking on a time slot */}
