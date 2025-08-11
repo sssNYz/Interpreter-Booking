@@ -123,7 +123,7 @@ const BookingCalendar: React.FC = () => {
         style={{ maxWidth: "1500px" }}
       >
         {/* Left side: Title with calendar icon */}
-        <div className="flex items-center gap-2 justify-center min-w-[370px] rounded-t-4xl bg-primary px-4 py-2">
+        <div className="flex items-center gap-2 justify-center min-w-[370px] rounded-t-4xl bg-neutral-600 px-4 py-2">
           <Calendar className="w-8 h-8 text-primary-foreground" />
           <h1 className="text-[20px] font-medium text-primary-foreground">Book Appointment</h1>
         </div>
