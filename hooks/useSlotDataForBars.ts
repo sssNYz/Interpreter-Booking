@@ -58,11 +58,13 @@ export function useSlotDataForBars({
             status: b.bookingStatus,
             startIndex,
             endIndex,
+
             interpreterName: b.interpreterId ? `Interpreter ID: ${b.interpreterId}` : "No interpreter assigned",
             meetingDetail: b.meetingDetail,
             ownerEmail: b.ownerEmail,
             ownerTel: b.ownerTel,
             ownerGroup: b.ownerGroup,
+
           } as Omit<BarItem, "lane"> & { lane?: 0 | 1 };
         })
         .filter(
@@ -87,9 +89,11 @@ export function useSlotDataForBars({
           }
         }
         if (laneUsed >= 0) {
+
             placed.push({ ...iv, lane: laneUsed as 0 | 1 });
             lanesEnd[laneUsed] = iv.endIndex;
           }
+
       }
 
       // 4) Build occupancy
@@ -106,4 +110,6 @@ export function useSlotDataForBars({
 
     return { barsByDay, occupancyByDay };
   }, [bookings, daysInMonth, timeSlots]);
+
 }
+

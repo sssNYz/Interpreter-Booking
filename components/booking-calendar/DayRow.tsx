@@ -11,7 +11,9 @@ import {
   BAR_STACK_GAP,
 } from "@/utils/constants";
 import { getStatusStyle } from "@/utils/status";
+
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
+
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 type Props = {
@@ -24,6 +26,7 @@ type Props = {
   onSlotClick: (day: number, slot: string) => void;
   style: React.CSSProperties;
 };
+
 
 const DayRow: React.FC<Props> = ({
   day,
@@ -74,6 +77,7 @@ const DayRow: React.FC<Props> = ({
           stateClasses = "bg-background cursor-pointer hover:bg-accent";
         }
 
+
         const title = isWeekend
           ? "Weekend - No booking available"
           : isPastDay || isPastTime
@@ -111,6 +115,7 @@ const DayRow: React.FC<Props> = ({
               <div className="text-xs">{title}</div>
             </TooltipContent>
           </Tooltip>
+
         );
       })}
 
@@ -125,8 +130,10 @@ const DayRow: React.FC<Props> = ({
           const width = (bar.endIndex - bar.startIndex) * CELL_WIDTH;
           const top = LANE_TOP_OFFSET + bar.lane * BAR_STACK_GAP;
           return (
+
             <HoverCard key={`bar-${bar.bookingId}`}>
               <HoverCardTrigger asChild>
+
                 <div
                   className={`pointer-events-auto rounded-sm border ${statusStyle.text} ${statusStyle.bg}`}
                   style={{
@@ -138,6 +145,7 @@ const DayRow: React.FC<Props> = ({
                     borderRadius: 4,
                   }}
                 />
+
               </HoverCardTrigger>
                              <HoverCardContent>
                  <div className="text-xs space-y-2">
@@ -173,6 +181,7 @@ const DayRow: React.FC<Props> = ({
                  </div>
                </HoverCardContent>
             </HoverCard>
+
           );
         })}
       </div>

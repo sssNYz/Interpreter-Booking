@@ -53,6 +53,16 @@ export function AppSidebar() {
                   </a>
                 </SidebarMenuButton>
               </SidebarMenuItem>
+              
+              {/* 🏠 TEST */}
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild>
+                  <a href="/Test-calendar">
+                    <Home className="h-4 w-4" />
+                    <span>TEST</span>
+                  </a>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
 
               {/* 📦 Booking */}
               <SidebarMenuItem>
