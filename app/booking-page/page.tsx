@@ -1,6 +1,4 @@
-
-// หรือ แบบ B (แนะนำ)
-import { BookingCalendar } from "@/components/booking-calendar";
+import BookingCalendar from "@/components/booking-calendar/BookingCalendar";
 
 function BookingPage() {
   return (
