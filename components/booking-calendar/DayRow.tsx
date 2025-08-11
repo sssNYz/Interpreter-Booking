@@ -12,6 +12,7 @@ import {
 } from "@/utils/constants";
 import { getStatusStyle } from "@/utils/status";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 type Props = {
   day: DayInfo;
@@ -44,7 +45,7 @@ const DayRow: React.FC<Props> = ({
       }}
     >
       {/* ✅ คอลัมน์ซ้าย: ป้ายวัน (ต้องมีเสมอ) */}
-      <div className="sticky left-0 z-20 bg-secondary border-r border-border text-center text-xs flex
+      <div className="sticky left-0 z-20 bg-secondary border-r border-b border-border text-center text-xs flex
   flex-col justify-center text-secondary-foreground">
         <span className="font-semibold">{day.dayName}</span>
         <span>{day.date}</span>
@@ -81,14 +82,28 @@ const DayRow: React.FC<Props> = ({
               ? "Time full"
               : `Available: ${slot}`;
 
+        // Use styled Tooltip from our UI library for non-clickable cells
+        if (!clickable) {
+          return (
+            <Tooltip key={`${day.fullDate.toDateString()}-${slot}`}>
+              <TooltipTrigger asChild>
+                <div
+                  className={`border-r border-border ${stateClasses}`}
+                />
+              </TooltipTrigger>
+              <TooltipContent>
+                <div className="text-xs">{title}</div>
+              </TooltipContent>
+            </Tooltip>
+          );
+        }
+
+        // Clickable cells keep native behavior (no tooltip)
         return (
           <div
             key={`${day.fullDate.toDateString()}-${slot}`}
             className={`border-r border-border ${stateClasses}`}
-            onClick={() => {
-              if (clickable) onSlotClick(day.date, slot);
-            }}
-            title={title}
+            onClick={() => onSlotClick(day.date, slot)}
           />
         );
       })}
