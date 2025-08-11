@@ -11,7 +11,7 @@ import {
   BAR_STACK_GAP,
 } from "@/utils/constants";
 import { getStatusStyle } from "@/utils/status";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 
 type Props = {
   day: DayInfo;
@@ -104,8 +104,8 @@ const DayRow: React.FC<Props> = ({
           const width = (bar.endIndex - bar.startIndex) * CELL_WIDTH;
           const top = LANE_TOP_OFFSET + bar.lane * BAR_STACK_GAP;
           return (
-            <Tooltip key={`bar-${bar.bookingId}`}>
-              <TooltipTrigger asChild>
+            <HoverCard key={`bar-${bar.bookingId}`}>
+              <HoverCardTrigger asChild>
                 <div
                   className={`pointer-events-auto rounded-sm border ${statusStyle.text} ${statusStyle.bg}`}
                   style={{
@@ -117,14 +117,14 @@ const DayRow: React.FC<Props> = ({
                     borderRadius: 4,
                   }}
                 />
-              </TooltipTrigger>
-              <TooltipContent>
+              </HoverCardTrigger>
+              <HoverCardContent>
                 <div className="text-xs">
                   <div className="font-medium">{bar.name}</div>
                   <div className="opacity-80">{bar.room}</div>
                 </div>
-              </TooltipContent>
-            </Tooltip>
+              </HoverCardContent>
+            </HoverCard>
           );
         })}
       </div>
