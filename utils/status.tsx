@@ -2,28 +2,28 @@ import { CheckCircle, Hourglass, XCircle } from "lucide-react";
 
 export const getStatusStyle = (status: string) => {
   switch (status) {
-    case "approved":
+    case "approve":
       return {
-        bg: "bg-green-600/70",
-        text: "text-green-800",
+        bg: "bg-lime-600",
+        text: "text-chart-1-foreground",
         icon: <CheckCircle className="w-3 h-3" />,
       };
-    case "wait":
+    case "waiting":
       return {
-        bg: "bg-yellow-500/70",
-        text: "text-yellow-800",
+        bg: "bg-amber-500",
+        text: "text-chart-4-foreground",
         icon: <Hourglass className="w-3 h-3" />,
       };
-    case "cancelled":
+    case "cancel":
       return {
-        bg: "bg-red-600/70",
-        text: "text-red-900",
+        bg: "bg-red-500",
+        text: "text-destructive-foreground",
         icon: <XCircle className="w-3 h-3" />,
       };
     default:
       return {
-        bg: "bg-gray-400/60",
-        text: "text-gray-800",
+        bg: "bg-neutral-800",
+        text: "text-muted-foreground",
         icon: null,
       };
   }
