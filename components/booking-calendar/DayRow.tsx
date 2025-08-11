@@ -44,14 +44,14 @@ const DayRow: React.FC<Props> = ({
       }}
     >
       {/* ✅ คอลัมน์ซ้าย: ป้ายวัน (ต้องมีเสมอ) */}
-      <div className="sticky left-0 z-20 bg-slate-50 border-r border-slate-200 text-center text-xs flex
-  flex-col justify-center">
+      <div className="sticky left-0 z-20 bg-secondary border-r border-border text-center text-xs flex
+  flex-col justify-center text-secondary-foreground">
         <span className="font-semibold">{day.dayName}</span>
         <span>{day.date}</span>
       </div>
 
       {/* ✅ เส้นแบ่งล่าง (absolute; ไม่ควรมี children) */}
-      <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-px bg-slate-200" />
+      <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-px bg-border" />
 
       {/* พื้นหลังกริด (คอลัมน์ของ timeSlots จะเริ่มหลังคอลัมน์ป้ายวันโดยอัตโนมัติ) */}
       {timeSlots.map((slot, index) => {
@@ -64,13 +64,13 @@ const DayRow: React.FC<Props> = ({
 
         let stateClasses = "";
         if (isWeekend) {
-          stateClasses = "bg-slate-500 text-white cursor-not-allowed";
+          stateClasses = "bg-neutral-600 text-muted-foreground cursor-not-allowed";
         } else if (isPastDay || isPastTime) {
-          stateClasses = "bg-slate-300 cursor-not-allowed";
+          stateClasses = "bg-neutral-100 text-muted-foreground cursor-not-allowed";
         } else if (isFull) {
-          stateClasses = "bg-slate-300 cursor-not-allowed";
+          stateClasses = "bg-muted text-muted-foreground cursor-not-allowed";
         } else {
-          stateClasses = "bg-slate-50 cursor-pointer hover:bg-slate-100";
+          stateClasses = "bg-background cursor-pointer hover:bg-accent";
         }
 
         const title = isWeekend
@@ -84,7 +84,7 @@ const DayRow: React.FC<Props> = ({
         return (
           <div
             key={`${day.fullDate.toDateString()}-${slot}`}
-            className={`border-r border-slate-200 ${stateClasses}`}
+            className={`border-r border-border ${stateClasses}`}
             onClick={() => {
               if (clickable) onSlotClick(day.date, slot);
             }}
@@ -122,32 +122,32 @@ const DayRow: React.FC<Props> = ({
                  <div className="text-xs space-y-2">
                    {/* Owner Information */}
                    <div>
-                     <div className="font-semibold text-sm mb-1">Owner</div>
-                     <div className="font-medium">{bar.name}</div>
-                     <div className="opacity-80">{bar.ownerGroup}</div>
+                     <div className="font-semibold text-sm mb-1 text-foreground">Owner</div>
+                     <div className="font-medium text-foreground">{bar.name}</div>
+                     <div className="text-muted-foreground">{bar.ownerGroup}</div>
                    </div>
                    
                    {/* Meeting Details */}
                    <div>
-                     <div className="font-semibold text-sm mb-1">Meeting</div>
-                     <div className="opacity-80">{bar.room}</div>
+                     <div className="font-semibold text-sm mb-1 text-foreground">Meeting</div>
+                     <div className="text-muted-foreground">{bar.room}</div>
                      {bar.meetingDetail && (
-                       <div className="opacity-70 text-xs mt-1">{bar.meetingDetail}</div>
+                       <div className="text-muted-foreground/70 text-xs mt-1">{bar.meetingDetail}</div>
                      )}
                    </div>
                    
                    {/* Status & Interpreter */}
                    <div>
-                     <div className="font-semibold text-sm mb-1">Status</div>
-                     <div className="opacity-80">{bar.status}</div>
-                     <div className="opacity-70 text-xs mt-1">{bar.interpreterName}</div>
+                     <div className="font-semibold text-sm mb-1 text-foreground">Status</div>
+                     <div className="text-muted-foreground">{bar.status}</div>
+                     <div className="text-muted-foreground/70 text-xs mt-1">{bar.interpreterName}</div>
                    </div>
                    
                    {/* Contact Info */}
                    <div>
-                     <div className="font-semibold text-sm mb-1">Contact</div>
-                     <div className="opacity-80 text-xs">{bar.ownerEmail}</div>
-                     <div className="opacity-80 text-xs">{bar.ownerTel}</div>
+                     <div className="font-semibold text-sm mb-1 text-foreground">Contact</div>
+                     <div className="text-muted-foreground text-xs">{bar.ownerEmail}</div>
+                     <div className="text-muted-foreground text-xs">{bar.ownerTel}</div>
                    </div>
                  </div>
                </HoverCardContent>
