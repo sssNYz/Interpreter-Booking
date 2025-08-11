@@ -98,13 +98,19 @@ const DayRow: React.FC<Props> = ({
           );
         }
 
-        // Clickable cells keep native behavior (no tooltip)
+        // Clickable cells: show "Available: {slot}" tooltip too
         return (
-          <div
-            key={`${day.fullDate.toDateString()}-${slot}`}
-            className={`border-r border-border ${stateClasses}`}
-            onClick={() => onSlotClick(day.date, slot)}
-          />
+          <Tooltip key={`${day.fullDate.toDateString()}-${slot}`}>
+            <TooltipTrigger asChild>
+              <div
+                className={`border-r border-border ${stateClasses}`}
+                onClick={() => onSlotClick(day.date, slot)}
+              />
+            </TooltipTrigger>
+            <TooltipContent>
+              <div className="text-xs">{title}</div>
+            </TooltipContent>
+          </Tooltip>
         );
       })}
 
