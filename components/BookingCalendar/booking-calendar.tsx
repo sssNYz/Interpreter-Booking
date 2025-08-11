@@ -12,6 +12,8 @@ import { useSlotDataForBars } from "@/hooks/use-bar-slot-data";
 import { ROW_HEIGHT, DAY_LABEL_WIDTH, CELL_WIDTH } from "@/utils/constants";
 import { getStatusStyle } from "@/utils/status";
 import type { DayInfo } from "@/types/booking";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { Button } from "@/components/ui/button";
 
 const BookingCalendar: React.FC = () => {
   // State for current month/year being displayed
@@ -240,6 +242,8 @@ const BookingCalendar: React.FC = () => {
         selectedSlot={selectedSlot}
         daysInMonth={daysInMonth}
       />
+
+      
     </div>
   );
 };
