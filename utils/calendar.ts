@@ -44,4 +44,6 @@ export const getDaysInMonth = (date: Date): DayInfo[] => {
       isPast,
     };
   });
+
 };
+
