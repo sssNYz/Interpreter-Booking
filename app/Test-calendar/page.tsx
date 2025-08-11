@@ -1,0 +1,45 @@
+'use client'
+ 
+import { useNextCalendarApp, ScheduleXCalendar } from '@schedule-x/react'
+import {
+  createViewDay,
+  createViewList,
+  createViewMonthAgenda,
+  createViewMonthGrid,
+  createViewWeek,
+} from '@schedule-x/calendar'
+import { createEventsServicePlugin } from '@schedule-x/events-service'
+ 
+import '@schedule-x/theme-default/dist/index.css'
+import { useState } from "react";
+ 
+function CalendarApp() {
+  const eventsService = useState(() => createEventsServicePlugin())[0]
+ 
+  const calendar = useNextCalendarApp({
+     views: [createViewDay(), createViewMonthAgenda(), createViewMonthGrid(), createViewWeek(), createViewList()],
+    events: [
+      {
+        id: '1',
+        title: 'Event 1',
+        start: '2023-12-16',
+        end: '2023-12-16',
+      },
+    ],
+    plugins: [eventsService],
+    callbacks: {
+      onRender: () => {
+        // get all events
+        eventsService.getAll()
+      }
+    }
+  })
+ 
+  return (
+    <div>
+      <ScheduleXCalendar calendarApp={calendar} />
+    </div>
+  )
+}
+ 
+export default CalendarApp

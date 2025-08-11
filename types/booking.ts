@@ -53,20 +53,26 @@ export type SlotData = {
 // Thin stacked bars data for overlay rendering
 export type BarItem = {
   bookingId: number;
+
   name: string; // owner name for tooltip
   room: string; // meeting room for tooltip
+
   status: string; // affects color
   startIndex: number; // inclusive
   endIndex: number; // exclusive
   lane: 0 | 1; // stacked level
+
   interpreterName?: string; // interpreter name if assigned
   meetingDetail?: string; // meeting details
   ownerEmail?: string; // owner email
   ownerTel?: string; // owner phone
   ownerGroup?: string; // owner group/department
+
 };
 
 export type DayBars = {
   bars: BarItem[];
   occupancy: number[]; // length === timeSlots.length, values 0..MAX_LANES
+
 };
+
