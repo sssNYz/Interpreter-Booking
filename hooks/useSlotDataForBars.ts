@@ -58,6 +58,11 @@ export function useSlotDataForBars({
             status: b.bookingStatus,
             startIndex,
             endIndex,
+            interpreterName: b.interpreterId ? `Interpreter ID: ${b.interpreterId}` : "No interpreter assigned",
+            meetingDetail: b.meetingDetail,
+            ownerEmail: b.ownerEmail,
+            ownerTel: b.ownerTel,
+            ownerGroup: b.ownerGroup,
           } as Omit<BarItem, "lane"> & { lane?: 0 | 1 };
         })
         .filter(
