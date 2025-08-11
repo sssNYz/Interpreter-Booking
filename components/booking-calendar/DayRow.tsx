@@ -118,12 +118,39 @@ const DayRow: React.FC<Props> = ({
                   }}
                 />
               </HoverCardTrigger>
-              <HoverCardContent>
-                <div className="text-xs">
-                  <div className="font-medium">{bar.name}</div>
-                  <div className="opacity-80">{bar.room}</div>
-                </div>
-              </HoverCardContent>
+                             <HoverCardContent>
+                 <div className="text-xs space-y-2">
+                   {/* Owner Information */}
+                   <div>
+                     <div className="font-semibold text-sm mb-1">Owner</div>
+                     <div className="font-medium">{bar.name}</div>
+                     <div className="opacity-80">{bar.ownerGroup}</div>
+                   </div>
+                   
+                   {/* Meeting Details */}
+                   <div>
+                     <div className="font-semibold text-sm mb-1">Meeting</div>
+                     <div className="opacity-80">{bar.room}</div>
+                     {bar.meetingDetail && (
+                       <div className="opacity-70 text-xs mt-1">{bar.meetingDetail}</div>
+                     )}
+                   </div>
+                   
+                   {/* Status & Interpreter */}
+                   <div>
+                     <div className="font-semibold text-sm mb-1">Status</div>
+                     <div className="opacity-80">{bar.status}</div>
+                     <div className="opacity-70 text-xs mt-1">{bar.interpreterName}</div>
+                   </div>
+                   
+                   {/* Contact Info */}
+                   <div>
+                     <div className="font-semibold text-sm mb-1">Contact</div>
+                     <div className="opacity-80 text-xs">{bar.ownerEmail}</div>
+                     <div className="opacity-80 text-xs">{bar.ownerTel}</div>
+                   </div>
+                 </div>
+               </HoverCardContent>
             </HoverCard>
           );
         })}
