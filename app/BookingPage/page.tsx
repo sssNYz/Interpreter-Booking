@@ -1,4 +1,4 @@
-import BookingCalendar from "@/components/booking-calendar/BookingCalendar";
+import BookingCalendar from "@/components/BookingCalendar/booking-calendar";
 
 function BookingPage() {
   return (
