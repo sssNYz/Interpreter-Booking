@@ -136,5 +136,4 @@ export function useSlotData({
   }, [bookings, currentDate, daysInMonth, isTimeSlotPast, timeSlots]);
 
   return { slotDataMap };
-
 }

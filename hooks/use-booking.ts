@@ -30,5 +30,4 @@ export function useBookings(currentDate: Date) {
   }, [currentDate]);
 
   return { bookings, loading, error };
-
 }

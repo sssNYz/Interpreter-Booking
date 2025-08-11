@@ -3,18 +3,17 @@ import React, { useCallback, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { Calendar, ChevronLeft, ChevronRight, Clock } from "lucide-react";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
-
-import { BookingForm } from "@/components/booking-form/booking-form";
-
-import DayRow from "./DayRow";
+import { BookingForm } from "@/components/BookingForm/booking-form";
+import DayRow from "./day-row";
 
 import { generateTimeSlots, getDaysInMonth } from "@/utils/calendar";
-import { useBookings } from "@/hooks/useBookings";
-import { useSlotDataForBars } from "@/hooks/useSlotDataForBars";
+import { useBookings } from "@/hooks/use-booking";
+import { useSlotDataForBars } from "@/hooks/use-bar-slot-data";
 import { ROW_HEIGHT, DAY_LABEL_WIDTH, CELL_WIDTH } from "@/utils/constants";
-
 import { getStatusStyle } from "@/utils/status";
 import type { DayInfo } from "@/types/booking";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { Button } from "@/components/ui/button";
 
 const BookingCalendar: React.FC = () => {
   // State for current month/year being displayed
@@ -24,13 +23,11 @@ const BookingCalendar: React.FC = () => {
   const [isFormOpen, setIsFormOpen] = useState(false);
   
   // Stores which time slot was clicked (day + time) to pass to booking form
-
   const [selectedSlot, setSelectedSlot] = useState<
     { day: number; slot: string } | undefined
   >(undefined);
 
   // IMPORTANT: keep ScrollArea viewport ref together with virtualizer
-
   // This ref is used by the virtualizer to know the scrollable container
   const scrollAreaViewportRef = useRef<HTMLDivElement>(null);
 
@@ -38,7 +35,6 @@ const BookingCalendar: React.FC = () => {
   const timeSlots = useMemo(() => generateTimeSlots(), []);
   
   // Get all days in the current month with their date info
-
   const daysInMonth: DayInfo[] = useMemo(
     () => getDaysInMonth(currentDate),
     [currentDate]
@@ -51,15 +47,12 @@ const BookingCalendar: React.FC = () => {
    * Check if a time slot is in the past (for today only)
    * Used to disable past time slots from being clicked
    */
-
   const isTimeSlotPast = useCallback(
     (day: number, timeSlot: string) => {
       const now = new Date();
       const [slotHour, slotMinute] = timeSlot.split(":").map(Number);
 
-
       // Only check past slots for today
-
       const isToday =
         day === now.getDate() &&
         currentDate.getMonth() === now.getMonth() &&
@@ -67,9 +60,7 @@ const BookingCalendar: React.FC = () => {
 
       if (!isToday) return false;
 
-
       // Calculate when this 30-minute slot ends
-
       let slotEndHour = slotHour;
       let slotEndMinute = slotMinute + 30;
       if (slotEndMinute >= 60) {
@@ -77,9 +68,7 @@ const BookingCalendar: React.FC = () => {
         slotEndMinute -= 60;
       }
 
-
       // Check if current time is past the slot end time
-
       if (now.getHours() > slotEndHour) return true;
       if (now.getHours() === slotEndHour && now.getMinutes() >= slotEndMinute)
         return true;
@@ -88,17 +77,14 @@ const BookingCalendar: React.FC = () => {
     [currentDate]
   );
 
-
   // Process booking data to create visual bars and occupancy data
   // barsByDay: Map of day index → array of booking bars for that day
   // occupancyByDay: Map of day index → array showing how many bookings per time slot
-
   const { barsByDay, occupancyByDay } = useSlotDataForBars({
     bookings,
     daysInMonth,
     timeSlots,
   });
-
 
   // Virtualization setup for rendering only visible day rows
   // This improves performance when there are many days
@@ -113,7 +99,6 @@ const BookingCalendar: React.FC = () => {
    * Navigate to previous or next month
    * @param direction -1 for previous month, +1 for next month
    */
-
   const shiftMonth = useCallback((direction: number) => {
     setCurrentDate((current) => {
       const d = new Date(current);
@@ -122,13 +107,11 @@ const BookingCalendar: React.FC = () => {
     });
   }, []);
 
-
   /**
    * Handle clicking on a time slot - opens booking form
    * @param day - Day of month (1-31)
    * @param slot - Time slot string (e.g., "08:00")
    */
-
   const handleSlotClick = useCallback((day: number, slot: string) => {
     setSelectedSlot({ day, slot });
     setIsFormOpen(true);
@@ -136,33 +119,27 @@ const BookingCalendar: React.FC = () => {
 
   return (
     <div className="max-w-[1500px]">
-
       {/* Header section with title and month navigation */}
-
       <div
         className="flex items-center justify-between py-3"
         style={{ maxWidth: "1500px" }}
       >
-
         {/* Left side: Title with calendar icon */}
-        <div className="flex items-center gap-2 justify-center min-w-[370px] rounded-t-4xl bg-primary px-4 py-2">
+        <div className="flex items-center gap-2 justify-center min-w-[370px] rounded-t-4xl bg-neutral-600 px-4 py-2">
           <Calendar className="w-8 h-8 text-primary-foreground" />
           <h1 className="text-[20px] font-medium text-primary-foreground">Book Appointment</h1>
         </div>
         
         {/* Right side: Month navigation buttons */}
-
         <div className="mt-auto mr-3.5 flex items-center justify-center ml-auto max-w-[280px]">
           <div className="flex items-center gap-2">
             <button
               onClick={() => shiftMonth(-1)}
-
               className="p-2 border border-border rounded-[10px] hover:bg-accent hover:border-primary transition-colors"
             >
               <ChevronLeft className="text-foreground" />
             </button>
             <span className="min-w-[150px] text-center font-medium text-foreground">
-
               {currentDate.toLocaleDateString("en-US", {
                 month: "long",
                 year: "numeric",
@@ -170,16 +147,13 @@ const BookingCalendar: React.FC = () => {
             </span>
             <button
               onClick={() => shiftMonth(1)}
-
               className="p-2 border border-border rounded-[10px] hover:bg-accent hover:border-primary transition-colors"
             >
               <ChevronRight className="text-foreground" />
-
             </button>
           </div>
         </div>
       </div>
-
 
       {/* Main calendar grid */}
       <div className="border border-border rounded-3xl overflow-hidden bg-background">
@@ -188,14 +162,12 @@ const BookingCalendar: React.FC = () => {
           {/* Fixed header row with time labels */}
           <div
             className="sticky top-0 z-30 bg-secondary border-b border-border"
-
             style={{
               display: "grid",
               gridTemplateColumns: `${DAY_LABEL_WIDTH}px repeat(${timeSlots.length}, ${CELL_WIDTH}px)`,
               height: `${ROW_HEIGHT}px`,
             }}
           >
-
             {/* Left column: Clock icon */}
             <div className="sticky left-0 z-30 flex items-center justify-center border-r border-border bg-secondary">
               <Clock className="w-4 h-4 text-secondary-foreground" />
@@ -206,16 +178,13 @@ const BookingCalendar: React.FC = () => {
               <div
                 key={slot}
                 className="border-r border-border text-center text-sm font-medium flex items-center justify-center bg-secondary text-secondary-foreground"
-
               >
                 {slot}
               </div>
             ))}
           </div>
 
-
           {/* Virtualized day rows - only renders visible rows for performance */}
-
           <div
             ref={scrollAreaViewportRef}
             style={{
@@ -223,9 +192,7 @@ const BookingCalendar: React.FC = () => {
               position: "relative",
             }}
           >
-
             {/* Render only the day rows that are currently visible */}
-
             {rowVirtualizer.getVirtualItems().map((vr) => (
               <DayRow
                 key={vr.index}
@@ -234,7 +201,6 @@ const BookingCalendar: React.FC = () => {
                 timeSlots={timeSlots}
                 bars={barsByDay.get(vr.index) ?? []} // Booking bars for this day
                 occupancy={occupancyByDay.get(vr.index) ?? Array(timeSlots.length).fill(0)} // How many bookings per time slot
-
                 isTimeSlotPast={isTimeSlotPast}
                 onSlotClick={handleSlotClick}
                 style={{
@@ -247,7 +213,6 @@ const BookingCalendar: React.FC = () => {
               />
             ))}
           </div>
-
           
           {/* Horizontal scrollbar */}
           <ScrollBar orientation="horizontal" className="z-[10]"/>
@@ -268,7 +233,6 @@ const BookingCalendar: React.FC = () => {
           <span className={`inline-block h-2.5 w-2.5 rounded-full border border-primary-foreground ${getStatusStyle("cancel").bg}`} />
           <span className="text-primary-foreground">Cancelled</span>
         </div>
-
       </div>
 
       {/* Booking form modal - opens when clicking on a time slot */}
@@ -278,6 +242,8 @@ const BookingCalendar: React.FC = () => {
         selectedSlot={selectedSlot}
         daysInMonth={daysInMonth}
       />
+
+      
     </div>
   );
 };
