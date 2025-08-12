@@ -1,5 +1,5 @@
 "use client";
-import React, { useCallback, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { Calendar, ChevronLeft, ChevronRight, Clock } from "lucide-react";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
@@ -33,9 +33,10 @@ const BookingCalendar: React.FC = () => {
     { day: number; slot: string } | undefined
   >(undefined);
 
-  // IMPORTANT: keep ScrollArea viewport ref together with virtualizer
-  // This ref is used by the virtualizer to know the scrollable container
-  const scrollAreaViewportRef = useRef<HTMLDivElement>(null);
+  // Ref to the actual Radix ScrollArea viewport (the real scroll container)
+  const scrollViewportRef = useRef<HTMLDivElement>(null);
+  // Guard to ensure we auto-scroll only once on initial mount
+  const hasAutoScrolledRef = useRef(false);
 
   // Generate time slots for the day (e.g., ["08:00", "08:30", "09:00", ...])
   const timeSlots = useMemo(() => generateTimeSlots(), []);
@@ -96,10 +97,70 @@ const BookingCalendar: React.FC = () => {
   // This improves performance when there are many days
   const rowVirtualizer = useVirtualizer({
     count: daysInMonth.length, // Total number of days to render
-    getScrollElement: () => scrollAreaViewportRef.current, // Scroll container
+    getScrollElement: () => scrollViewportRef.current, // Scroll container
     estimateSize: () => ROW_HEIGHT, // Height of each day row
     overscan: 2, // Render 2 extra rows above/below for smooth scrolling
   });
+
+  /**
+   * Scroll to today's row in the calendar
+   * Only works when viewing the current month
+   */
+  const scrollToToday = useCallback(() => {
+    const viewport = scrollViewportRef.current;
+    if (!viewport) return;
+
+    const today = new Date();
+    const isCurrentMonth =
+      currentDate.getMonth() === today.getMonth() &&
+      currentDate.getFullYear() === today.getFullYear();
+
+    if (!isCurrentMonth || daysInMonth.length === 0) return;
+
+    const todayIndex = today.getDate() - 1; // 0-based index
+    if (todayIndex < 0 || todayIndex >= daysInMonth.length) return;
+
+    const targetOffset = Math.max(0, todayIndex * ROW_HEIGHT);
+
+    // Use native smooth scrolling for better UX
+    viewport.scrollTo({ top: targetOffset, behavior: "smooth" });
+  }, [currentDate, daysInMonth.length]);
+
+  /**
+   * Navigate to current month and scroll to today
+   */
+  const goToToday = useCallback(() => {
+    const now = new Date();
+    const alreadyCurrentMonth =
+      currentDate.getMonth() === now.getMonth() &&
+      currentDate.getFullYear() === now.getFullYear();
+
+    if (!alreadyCurrentMonth) {
+      setCurrentDate(now);
+      // Scroll shortly after state applies and layout settles
+      setTimeout(() => {
+        requestAnimationFrame(() => scrollToToday());
+      }, 150);
+      return;
+    }
+
+    // If already on current month, scroll immediately
+    requestAnimationFrame(() => scrollToToday());
+  }, [currentDate, scrollToToday]);
+
+  // Auto-scroll to today when component mounts or when viewing current month
+  useEffect(() => {
+    if (hasAutoScrolledRef.current) return;
+
+    const viewportReady = !!scrollViewportRef.current;
+    if (!viewportReady || daysInMonth.length === 0) return;
+
+    // Auto-scroll once when component is ready and rendering current month
+    requestAnimationFrame(() => {
+      scrollToToday();
+      hasAutoScrolledRef.current = true;
+    });
+  }, [scrollToToday, daysInMonth.length]);
 
   /**
    * Navigate to previous or next month
@@ -138,8 +199,8 @@ const BookingCalendar: React.FC = () => {
           </h1>
         </div>
 
-        {/* Right side: Month navigation buttons */}
-        <div className="mt-auto mr-3.5 flex items-center justify-center ml-auto max-w-[280px]">
+        {/* Right side: Month navigation buttons and Today button */}
+        <div className="mt-auto mr-3.5 flex items-center justify-center ml-auto max-w-[350px]">
           <div className="flex items-center gap-2">
             <button
               onClick={() => shiftMonth(-1)}
@@ -159,6 +220,15 @@ const BookingCalendar: React.FC = () => {
             >
               <ChevronRight className="text-foreground" />
             </button>
+            <Button
+              onClick={goToToday}
+              variant="outline"
+              size="sm"
+              className="ml-2 flex items-center gap-1.5"
+            >
+              <Calendar className="w-4 h-4" />
+              Today
+            </Button>
           </div>
         </div>
       </div>
@@ -166,7 +236,7 @@ const BookingCalendar: React.FC = () => {
       {/* Main calendar grid */}
       <div className="border border-border rounded-3xl overflow-hidden bg-background">
         {/* KEEPING ScrollArea + virtualizer viewport TOGETHER */}
-        <ScrollArea className="h-[500px]">
+        <ScrollArea className="h-[500px]" viewportRef={scrollViewportRef}>
           {/* Fixed header row with time labels */}
           <div
             className="sticky top-0 z-30 bg-secondary border-b border-border"
@@ -194,7 +264,6 @@ const BookingCalendar: React.FC = () => {
 
           {/* Virtualized day rows - only renders visible rows for performance */}
           <div
-            ref={scrollAreaViewportRef}
             style={{
               height: `${rowVirtualizer.getTotalSize()}px`,
               position: "relative",
