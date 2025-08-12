@@ -4,6 +4,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { Calendar, ChevronLeft, ChevronRight, Clock } from "lucide-react";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { BookingForm } from "@/components/BookingForm/booking-form";
+import BookingRules from "@/components/BookingRules/booking-rules";
 import DayRow from "./day-row";
 
 import { generateTimeSlots, getDaysInMonth } from "@/utils/calendar";
@@ -233,7 +234,7 @@ const BookingCalendar: React.FC = () => {
         </div>
       </div>
 
-      {/* Main calendar grid */}
+      {/* Main calendar grid (table) */}
       <div className="border border-border rounded-3xl overflow-hidden bg-background">
         {/* KEEPING ScrollArea + virtualizer viewport TOGETHER */}
         <ScrollArea className="h-[500px]" viewportRef={scrollViewportRef}>
@@ -297,33 +298,48 @@ const BookingCalendar: React.FC = () => {
           {/* Horizontal scrollbar */}
           <ScrollBar orientation="horizontal" className="z-[10]" />
         </ScrollArea>
+
       </div>
 
-      {/* Legend section at bottom */}
-      <div className="bg-primary flex items-center justify-center gap-6 ml-auto text-sm mt-3 max-w-[320px] min-h-[40px] rounded-br-4xl rounded-bl-4xl px-4 py-2">
+      {/* Row next to the table: left controls + right legend (outside the calendar box) */}
+      <div className="flex items-center justify-between mt-3">
         <div className="flex items-center gap-2">
-          <span
-            className={`inline-block h-2.5 w-2.5 rounded-full border border-primary-foreground ${
-              getStatusStyle("approve").bg
-            }`}
-          />
-          <span className="text-primary-foreground">Approved</span>
+          <BookingRules />
+          <Button
+            onClick={goToToday}
+            variant="secondary"
+            size="sm"
+            className="bg-neutral-600 text-white hover:bg-neutral-700 flex items-center gap-1.5"
+          >
+            <Calendar className="w-4 h-4" />
+            Today
+          </Button>
         </div>
-        <div className="flex items-center gap-2">
-          <span
-            className={`inline-block h-2.5 w-2.5 rounded-full border border-primary-foreground ${
-              getStatusStyle("waiting").bg
-            }`}
-          />
-          <span className="text-primary-foreground">Waiting</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span
-            className={`inline-block h-2.5 w-2.5 rounded-full border border-primary-foreground ${
-              getStatusStyle("cancel").bg
-            }`}
-          />
-          <span className="text-primary-foreground">Cancelled</span>
+        <div className="bg-primary flex items-center justify-center gap-6 text-sm min-h-[40px] rounded-br-4xl rounded-bl-4xl px-4 py-2">
+          <div className="flex items-center gap-2">
+            <span
+              className={`inline-block h-2.5 w-2.5 rounded-full border border-primary-foreground ${
+                getStatusStyle("approve").bg
+              }`}
+            />
+            <span className="text-primary-foreground">Approved</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span
+              className={`inline-block h-2.5 w-2.5 rounded-full border border-primary-foreground ${
+                getStatusStyle("waiting").bg
+              }`}
+            />
+            <span className="text-primary-foreground">Waiting</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span
+              className={`inline-block h-2.5 w-2.5 rounded-full border border-primary-foreground ${
+                getStatusStyle("cancel").bg
+              }`}
+            />
+            <span className="text-primary-foreground">Cancelled</span>
+          </div>
         </div>
       </div>
 
