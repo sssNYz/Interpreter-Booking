@@ -138,30 +138,46 @@ const BookingCalendar: React.FC = () => {
 
     if (!alreadyCurrentMonth) {
       setCurrentDate(now);
-      // Scroll shortly after state applies and layout settles
-      setTimeout(() => {
-        requestAnimationFrame(() => scrollToToday());
-      }, 150);
-      return;
+      return; // Let useEffect handle the scroll after month change
     }
 
     // If already on current month, scroll immediately
     requestAnimationFrame(() => scrollToToday());
   }, [currentDate, scrollToToday]);
 
-  // Auto-scroll to today when component mounts or when viewing current month
+  // Auto-scroll to today when component mounts
   useEffect(() => {
     if (hasAutoScrolledRef.current) return;
 
-    const viewportReady = !!scrollViewportRef.current;
-    if (!viewportReady || daysInMonth.length === 0) return;
+    const now = new Date();
+    const isCurrentMonth =
+      currentDate.getMonth() === now.getMonth() &&
+      currentDate.getFullYear() === now.getFullYear();
 
-    // Auto-scroll once when component is ready and rendering current month
+    const viewportReady = !!scrollViewportRef.current;
+    if (!viewportReady || daysInMonth.length === 0 || !isCurrentMonth) return;
+
+    // Auto-scroll once on initial mount if viewing current month
     requestAnimationFrame(() => {
       scrollToToday();
       hasAutoScrolledRef.current = true;
     });
   }, [scrollToToday, daysInMonth.length]);
+
+  // Handle scroll when "Today" button switches to current month
+  useEffect(() => {
+    const now = new Date();
+    const isCurrentMonth =
+      currentDate.getMonth() === now.getMonth() &&
+      currentDate.getFullYear() === now.getFullYear();
+
+    const viewportReady = !!scrollViewportRef.current;
+    if (!viewportReady || daysInMonth.length === 0 || !isCurrentMonth) return;
+    if (hasAutoScrolledRef.current && currentDate.getTime() === now.getTime()) return; // Skip if just mounted
+
+    // Scroll when month changes to current month (e.g., via Today button)
+    requestAnimationFrame(() => scrollToToday());
+  }, [currentDate, scrollToToday, daysInMonth.length]);
 
   /**
    * Navigate to previous or next month
@@ -200,8 +216,8 @@ const BookingCalendar: React.FC = () => {
           </h1>
         </div>
 
-        {/* Right side: Month navigation buttons and Today button */}
-        <div className="mt-auto mr-3.5 flex items-center justify-center ml-auto max-w-[350px]">
+        {/* Right side: Month navigation buttons */}
+        <div className="mt-auto mr-3.5 flex items-center justify-center ml-auto max-w-[280px]">
           <div className="flex items-center gap-2">
             <button
               onClick={() => shiftMonth(-1)}
@@ -221,15 +237,6 @@ const BookingCalendar: React.FC = () => {
             >
               <ChevronRight className="text-foreground" />
             </button>
-            <Button
-              onClick={goToToday}
-              variant="outline"
-              size="sm"
-              className="ml-2 flex items-center gap-1.5"
-            >
-              <Calendar className="w-4 h-4" />
-              Today
-            </Button>
           </div>
         </div>
       </div>
