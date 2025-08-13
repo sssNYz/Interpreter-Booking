@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/prisma/prisma";
 
+const REF_API_URL = process.env.REF_API_URL || "http://192.168.1.184/api/login";
+
 type LoginRequest = {
 	empCode: string;
 	oldPassword: string;
@@ -24,12 +26,15 @@ export async function POST(req: NextRequest) {
     // Call reference login service
     try {
         const forward = { empCode, oldPassword };
-        console.log("[/api/login] forwarding to reference", { host: "http://192.168.1.184/api/login", empCode: forward.empCode, passwordLength: forward.oldPassword.length });
-        const refRes = await fetch("http://192.168.1.184/api/login", {
+        console.log("[/api/login] forwarding to reference", { host: REF_API_URL, empCode: forward.empCode, passwordLength: forward.oldPassword.length });
+        const controller = new AbortController();
+        const to = setTimeout(() => controller.abort(), 5000);
+        const refRes = await fetch(REF_API_URL, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(forward),
-        });
+            signal: controller.signal,
+        }).finally(() => clearTimeout(to));
 
         if (!refRes.ok) {
             const text = await refRes.text().catch(() => "");
@@ -58,41 +63,38 @@ export async function POST(req: NextRequest) {
         const deptPath: string | null = u.divDeptSect || null;
         const positionTitle: string | null = u.positionDescription || null;
 
-    	// Upsert employee via raw SQL (avoids Prisma type dependency before generate)
+    	// Upsert employee via parameterized SQL
         const now = new Date();
         const nowIso = now.toISOString().slice(0, 19).replace('T', ' ');
         try {
-            await prisma.$executeRawUnsafe(
-            `INSERT INTO EMPLOYEE (
-                EMP_CODE, PREFIX_EN, FIRST_NAME_EN, LAST_NAME_EN,
-                PREFIX_TH, FIRST_NAME_TH, LAST_NAME_TH,
-                FNO, DEPT_PATH, POSITION_TITLE,
-                EMAIL, TEL_EXT,
-                IS_ACTIVE, ROLE, LAST_LOGIN_AT, SYNCED_AT, created_at, updated_at
-            ) VALUES (
-                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'USER', ?, ?, NOW(), NOW()
-            )
-            ON DUPLICATE KEY UPDATE 
-                PREFIX_EN=VALUES(PREFIX_EN), FIRST_NAME_EN=VALUES(FIRST_NAME_EN), LAST_NAME_EN=VALUES(LAST_NAME_EN),
-                PREFIX_TH=VALUES(PREFIX_TH), FIRST_NAME_TH=VALUES(FIRST_NAME_TH), LAST_NAME_TH=VALUES(LAST_NAME_TH),
-                FNO=VALUES(FNO), DEPT_PATH=VALUES(DEPT_PATH), POSITION_TITLE=VALUES(POSITION_TITLE),
-                EMAIL=VALUES(EMAIL), TEL_EXT=VALUES(TEL_EXT),
-                LAST_LOGIN_AT=VALUES(LAST_LOGIN_AT), SYNCED_AT=VALUES(SYNCED_AT), updated_at=NOW()`,
-                empCodeFromRef,
-                prefixEn, firstNameEn, lastNameEn,
-                prefixTh, firstNameTh, lastNameTh,
-                fno, deptPath, positionTitle,
-                email, telExt,
-                nowIso, nowIso
-            );
+            await prisma.$executeRaw`
+                INSERT INTO EMPLOYEE (
+                    EMP_CODE, PREFIX_EN, FIRST_NAME_EN, LAST_NAME_EN,
+                    PREFIX_TH, FIRST_NAME_TH, LAST_NAME_TH,
+                    FNO, DEPT_PATH, POSITION_TITLE,
+                    EMAIL, TEL_EXT,
+                    IS_ACTIVE, ROLE, LAST_LOGIN_AT, SYNCED_AT, created_at, updated_at
+                ) VALUES (
+                    ${empCodeFromRef}, ${prefixEn}, ${firstNameEn}, ${lastNameEn},
+                    ${prefixTh}, ${firstNameTh}, ${lastNameTh},
+                    ${fno}, ${deptPath}, ${positionTitle},
+                    ${email}, ${telExt},
+                    1, 'USER', ${nowIso}, ${nowIso}, NOW(), NOW()
+                )
+                ON DUPLICATE KEY UPDATE 
+                    PREFIX_EN=VALUES(PREFIX_EN), FIRST_NAME_EN=VALUES(FIRST_NAME_EN), LAST_NAME_EN=VALUES(LAST_NAME_EN),
+                    PREFIX_TH=VALUES(PREFIX_TH), FIRST_NAME_TH=VALUES(FIRST_NAME_TH), LAST_NAME_TH=VALUES(LAST_NAME_TH),
+                    FNO=VALUES(FNO), DEPT_PATH=VALUES(DEPT_PATH), POSITION_TITLE=VALUES(POSITION_TITLE),
+                    EMAIL=VALUES(EMAIL), TEL_EXT=VALUES(TEL_EXT),
+                    LAST_LOGIN_AT=VALUES(LAST_LOGIN_AT), SYNCED_AT=VALUES(SYNCED_AT), updated_at=NOW()
+            `;
         } catch (err) {
             console.error("[/api/login] DB write failed", { error: err instanceof Error ? err.message : String(err) });
             return NextResponse.json({ ok: false, message: "Database error" }, { status: 500 });
         }
-        const rows = await prisma.$queryRawUnsafe<Array<{ ID: number; EMAIL: string | null; EMP_CODE: string | null; FIRST_NAME_EN: string | null; LAST_NAME_EN: string | null; TEL_EXT: string | null }>>(
-            `SELECT ID, EMAIL, EMP_CODE, FIRST_NAME_EN, LAST_NAME_EN, TEL_EXT FROM EMPLOYEE WHERE EMP_CODE = ? LIMIT 1`,
-            empCodeFromRef
-    	);
+        const rows = await prisma.$queryRaw<Array<{ ID: number; EMAIL: string | null; EMP_CODE: string | null; FIRST_NAME_EN: string | null; LAST_NAME_EN: string | null; TEL_EXT: string | null }>>`
+            SELECT ID, EMAIL, EMP_CODE, FIRST_NAME_EN, LAST_NAME_EN, TEL_EXT FROM EMPLOYEE WHERE EMP_CODE = ${empCodeFromRef} LIMIT 1
+        `;
     	const row = rows[0];
     	return NextResponse.json({
 			ok: true,
