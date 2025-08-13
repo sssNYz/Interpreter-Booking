@@ -59,7 +59,7 @@ type BookingFormProps = {
   rooms?: string[];
 };
 
-type OwnerGroup = "software" | "iot" | "network" | "security";
+type OwnerGroup = "software" | "iot" | "hardware" | "other";
 export function BookingForm({
   open,
   onOpenChange,
@@ -378,10 +378,11 @@ export function BookingForm({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
+                      
                       <SelectItem value="software">Software</SelectItem>
                       <SelectItem value="iot">IoT</SelectItem>
-                      <SelectItem value="network">Network</SelectItem>
-                      <SelectItem value="security">Security</SelectItem>
+                      <SelectItem value="hardware">Hardware</SelectItem>
+                      <SelectItem value="other">Other</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
