@@ -83,3 +83,22 @@ enum BookingStatus {
 
   @@map("booking_status")
 }
+
+model Employee {
+  id            Int       @id @default(autoincrement()) @map("ID")
+  source        String    @map("SOURCE") @db.VarChar(64)
+  sourceUserId  String    @map("SOURCE_USER_ID") @db.VarChar(128)
+  email         String?   @map("EMAIL") @db.VarChar(255)
+  empCode       String?   @map("EMP_CODE") @db.VarChar(64)
+  name          String    @map("NAME") @db.VarChar(255)
+  phone         String?   @map("PHONE") @db.VarChar(64)
+  isActive      Boolean   @default(true) @map("IS_ACTIVE")
+  role          String    @default("USER") @map("ROLE") @db.VarChar(32)
+  lastLoginAt   DateTime? @map("LAST_LOGIN_AT")
+  syncedAt      DateTime? @map("SYNCED_AT")
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt     DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamp(0)
+
+  @@unique([source, sourceUserId], map: "uniq_source_user")
+  @@map("EMPLOYEE")
+}
