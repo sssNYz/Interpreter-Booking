@@ -44,13 +44,12 @@ export function LoginForm({
                 }
                 const user = j.user
                 const payload = {
-                  id: user.id,
+                  empCode: user.empCode,
                   name: user.name,
                   email: user.email,
                   phone: user.phone || null,
-                  emp_code: user.empCode || null,
-                  timestamp: Date.now(),
-                  ttl: 1000 * 60 * 60 * 24 * 14,
+                  storedAt: Date.now(),
+                  ttlDays: 14,
                 }
                 localStorage.setItem("booking.user", JSON.stringify(payload))
                 window.dispatchEvent(new StorageEvent("storage", { key: "booking:user-changed" }))

@@ -35,10 +35,7 @@ model Interpreter {
 
 model BookingPlan {
   bookingId     Int               @id @default(autoincrement()) @map("BOOKING_ID")
-  ownerName     String            @map("OWNER_NAME") @db.VarChar(255)
-  ownerSurname  String            @map("OWNER_SURNAME") @db.VarChar(255)
-  ownerEmail    String            @map("OWNER_EMAIL") @db.VarChar(255)
-  ownerTel      String            @map("OWNER_TEL") @db.VarChar(15)
+  ownerEmpCode  String            @map("OWNER_EMP_CODE") @db.VarChar(64)
   ownerGroup    OwnerGroup        @map("OWNER_GROUP")
   meetingRoom   String            @map("MEETING_ROOM") @db.VarChar(50)
   meetingDetail String?           @map("MEETING_DETAIL") @db.Text
@@ -46,13 +43,18 @@ model BookingPlan {
   timeStart     DateTime          @map("TIME_START") @db.DateTime(0)
   timeEnd       DateTime          @map("TIME_END") @db.DateTime(0)
   interpreterId Int?              @map("INTERPRETER_ID")
+  interpreterEmpCode String?      @map("INTERPRETER_EMP_CODE") @db.VarChar(64)
   bookingStatus BookingStatus     @default(waiting) @map("BOOKING_STATUS")
   createdAt     DateTime          @default(now()) @map("created_at") @db.Timestamp(0)
   updatedAt     DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamp(0)
   interpreter   Interpreter?      @relation(fields: [interpreterId], references: [interpreterId])
+  employee      Employee          @relation(fields: [ownerEmpCode], references: [empCode])
+  interpreterEmployee Employee?   @relation("InterpreterEmployee", fields: [interpreterEmpCode], references: [empCode])
   inviteEmails  InviteEmailList[]
 
   @@index([interpreterId], map: "BOOKING_PLAN_INTERPRETER_ID_fkey")
+  @@index([ownerEmpCode], map: "BOOKING_PLAN_OWNER_EMP_CODE_idx")
+  @@index([interpreterEmpCode], map: "BOOKING_PLAN_INTERPRETER_EMP_CODE_idx")
   @@map("BOOKING_PLAN")
 }
 
@@ -106,4 +108,6 @@ model Employee {
   updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamp(0)
 
   @@map("EMPLOYEE")
+  bookingsOwned           BookingPlan[]
+  bookingsAsInterpreter   BookingPlan[] @relation("InterpreterEmployee")
 }
