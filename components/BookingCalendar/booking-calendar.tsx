@@ -1,5 +1,5 @@
 "use client";
-import React, { useCallback, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { Calendar, ChevronLeft, ChevronRight, Clock } from "lucide-react";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
@@ -12,8 +12,8 @@ import { useSlotDataForBars } from "@/hooks/use-bar-slot-data";
 import { ROW_HEIGHT, DAY_LABEL_WIDTH, CELL_WIDTH } from "@/utils/constants";
 import { getStatusStyle } from "@/utils/status";
 import type { DayInfo } from "@/types/booking";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
+import BookingRules from "@/components/BookingRules/booking-rules";
 
 const BookingCalendar: React.FC = () => {
   // State for current month/year being displayed
@@ -92,7 +92,7 @@ const BookingCalendar: React.FC = () => {
     count: daysInMonth.length, // Total number of days to render
     getScrollElement: () => scrollAreaViewportRef.current, // Scroll container
     estimateSize: () => ROW_HEIGHT, // Height of each day row
-    overscan: 2, // Render 2 extra rows above/below for smooth scrolling
+    overscan: 1, // Render fewer extra rows for better performance
   });
 
   /**
@@ -106,6 +106,27 @@ const BookingCalendar: React.FC = () => {
       return d;
     });
   }, []);
+
+  /**
+   * Jump to today's date and scroll the list to today's row
+   */
+  const goToToday = useCallback(() => {
+    setCurrentDate(new Date());
+  }, []);
+
+  // When viewing the current month, scroll to today's row
+  useEffect(() => {
+    const today = new Date();
+    if (
+      currentDate.getFullYear() === today.getFullYear() &&
+      currentDate.getMonth() === today.getMonth()
+    ) {
+      // Align today's row near the center for visibility
+      rowVirtualizer.scrollToIndex(Math.max(0, today.getDate() - 1), {
+        align: "center",
+      });
+    }
+  }, [currentDate, rowVirtualizer]);
 
   /**
    * Handle clicking on a time slot - opens booking form
@@ -125,7 +146,7 @@ const BookingCalendar: React.FC = () => {
         style={{ maxWidth: "1500px" }}
       >
         {/* Left side: Title with calendar icon */}
-        <div className="flex items-center gap-2 justify-center min-w-[370px] rounded-t-4xl bg-neutral-600 px-4 py-2">
+        <div className="flex items-center gap-2 justify-center min-w-[370px] rounded-t-4xl bg-neutral-700 px-4 py-2">
           <Calendar className="w-8 h-8 text-primary-foreground" />
           <h1 className="text-[20px] font-medium text-primary-foreground">Book Appointment</h1>
         </div>
@@ -158,7 +179,7 @@ const BookingCalendar: React.FC = () => {
       {/* Main calendar grid */}
       <div className="border border-border rounded-3xl overflow-hidden bg-background">
         {/* KEEPING ScrollArea + virtualizer viewport TOGETHER */}
-        <ScrollArea className="h-[500px]">
+        <ScrollArea className="h-[500px]" viewportRef={scrollAreaViewportRef}>
           {/* Fixed header row with time labels */}
           <div
             className="sticky top-0 z-30 bg-secondary border-b border-border"
@@ -219,19 +240,33 @@ const BookingCalendar: React.FC = () => {
         </ScrollArea>
       </div>
 
-      {/* Legend section at bottom */}
-      <div className="bg-primary flex items-center justify-center gap-6 ml-auto text-sm mt-3 max-w-[320px] min-h-[40px] rounded-br-4xl rounded-bl-4xl px-4 py-2">
+      {/* Bottom controls and legend */}
+      <div className="flex items-center justify-between mt-3 gap-3">
+        {/* Left: controls */}
         <div className="flex items-center gap-2">
-          <span className={`inline-block h-2.5 w-2.5 rounded-full border border-primary-foreground ${getStatusStyle("approve").bg}`} />
-          <span className="text-primary-foreground">Approved</span>
+          <Button
+            onClick={goToToday}
+            className="bg-neutral-700 text-white rounded-t-none rounded-b-3xl hover:bg-black/90 w-32 h-10"
+          >
+            Today
+          </Button>
+          <BookingRules />
         </div>
-        <div className="flex items-center gap-2">
-          <span className={`inline-block h-2.5 w-2.5 rounded-full border border-primary-foreground ${getStatusStyle("waiting").bg}`} />
-          <span className="text-primary-foreground">Waiting</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className={`inline-block h-2.5 w-2.5 rounded-full border border-primary-foreground ${getStatusStyle("cancel").bg}`} />
-          <span className="text-primary-foreground">Cancelled</span>
+
+        {/* Right: legend */}
+        <div className="bg-neutral-700 flex items-center justify-center gap-6 ml-auto text-sm max-w-[320px] min-h-[40px] rounded-br-4xl rounded-bl-4xl px-4 py-2">
+          <div className="flex items-center gap-2">
+            <span className={`inline-block h-2.5 w-2.5 rounded-full border border-primary-foreground ${getStatusStyle("approve").bg}`} />
+            <span className="text-primary-foreground">Approved</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className={`inline-block h-2.5 w-2.5 rounded-full border border-primary-foreground ${getStatusStyle("waiting").bg}`} />
+            <span className="text-primary-foreground">Waiting</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className={`inline-block h-2.5 w-2.5 rounded-full border border-primary-foreground ${getStatusStyle("cancel").bg}`} />
+            <span className="text-primary-foreground">Cancelled</span>
+          </div>
         </div>
       </div>
 
