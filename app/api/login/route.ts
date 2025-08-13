@@ -73,13 +73,13 @@ export async function POST(req: NextRequest) {
                     PREFIX_TH, FIRST_NAME_TH, LAST_NAME_TH,
                     FNO, DEPT_PATH, POSITION_TITLE,
                     EMAIL, TEL_EXT,
-                    IS_ACTIVE, ROLE, LAST_LOGIN_AT, SYNCED_AT, created_at, updated_at
+                    IS_ACTIVE, LAST_LOGIN_AT, SYNCED_AT, created_at, updated_at
                 ) VALUES (
                     ${empCodeFromRef}, ${prefixEn}, ${firstNameEn}, ${lastNameEn},
                     ${prefixTh}, ${firstNameTh}, ${lastNameTh},
                     ${fno}, ${deptPath}, ${positionTitle},
                     ${email}, ${telExt},
-                    1, 'USER', ${nowIso}, ${nowIso}, NOW(), NOW()
+                    1, ${nowIso}, ${nowIso}, NOW(), NOW()
                 )
                 ON DUPLICATE KEY UPDATE 
                     PREFIX_EN=VALUES(PREFIX_EN), FIRST_NAME_EN=VALUES(FIRST_NAME_EN), LAST_NAME_EN=VALUES(LAST_NAME_EN),
