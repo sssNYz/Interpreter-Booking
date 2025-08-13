@@ -97,7 +97,7 @@ export function BookingForm({
     : undefined;
 
 
-  // Reset form when sheet opens/closes
+  // Prefill from localStorage and reset form when sheet opens/closes
   useEffect(() => {
     if (!open) {
       // Reset all form fields when sheet closes
@@ -117,6 +117,25 @@ export function BookingForm({
       setNewEmail("");
       setErrors({});
       setIsSubmitting(false);
+    }
+    if (open) {
+      try {
+        const raw = localStorage.getItem("booking.user");
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          const expired = Date.now() > (parsed.timestamp || 0) + (parsed.ttl || 0);
+          if (!expired) {
+            const full = String(parsed.name || "");
+            const parts = full.trim().split(/\s+/);
+            const first = parts[0] || "";
+            const last = parts.slice(1).join(" ") || "";
+            setOwnerName(first);
+            setOwnerSurname(last);
+            setOwnerEmail(parsed.email || "");
+            setOwnerTel(parsed.phone || "");
+          }
+        }
+      } catch {}
     }
   }, [open]);
 

@@ -13,15 +13,52 @@ export function LoginForm({
   ...props
 }: React.ComponentProps<"div">) {
   const router = useRouter()
+  const [loading, setLoading] = React.useState(false)
+  const [error, setError] = React.useState<string | null>(null)
   return (
     <div className={cn("flex flex-col gap-6", className)} {...props}>
       <Card className="overflow-hidden p-0">
         <CardContent className="p-0">
           <form
             className="p-6 md:p-8"
-            onSubmit={(e) => {
+            onSubmit={async (e) => {
               e.preventDefault()
-              router.push("/")
+              setError(null)
+              setLoading(true)
+              const form = e.currentTarget as HTMLFormElement
+              const formData = new FormData(form)
+              const empCode = String(formData.get("username") || "").trim()
+              const oldPassword = String(formData.get("password") || "")
+              try {
+                console.log("[LoginForm] sending payload", { empCode, passwordLength: oldPassword.length })
+                const res = await fetch("/api/login", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ empCode, oldPassword }),
+                })
+                const j = await res.json().catch(() => ({}))
+                if (!res.ok || !j.ok) {
+                  setError(j.message || "Invalid credentials")
+                  setLoading(false)
+                  return
+                }
+                const user = j.user
+                const payload = {
+                  id: user.id,
+                  name: user.name,
+                  email: user.email,
+                  phone: user.phone || null,
+                  emp_code: user.empCode || null,
+                  timestamp: Date.now(),
+                  ttl: 1000 * 60 * 60 * 24 * 14,
+                }
+                localStorage.setItem("booking.user", JSON.stringify(payload))
+                window.dispatchEvent(new StorageEvent("storage", { key: "booking:user-changed" }))
+                router.push("/BookingPage")
+              } catch {
+                setError("Network error")
+                setLoading(false)
+              }
             }}
           >
             <div className="flex flex-col gap-6">
@@ -33,19 +70,15 @@ export function LoginForm({
               </div>
               <div className="grid gap-3">
                 <Label htmlFor="username">Username</Label>
-                <Input
-                  id="username"
-                  type="text"
-                  placeholder="your username"
-                  required
-                />
+                <Input id="username" name="username" type="text" placeholder="your employee code or email" required />
               </div>
               <div className="grid gap-3">
                 <Label htmlFor="password">Password</Label>
-                <Input id="password" type="password" required />
+                <Input id="password" name="password" type="password" required />
               </div>
-              <Button type="submit" className="w-full">
-                Login
+              {error && <p className="text-sm text-red-600">{error}</p>}
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? "Signing in..." : "Login"}
               </Button>
             </div>
           </form>
