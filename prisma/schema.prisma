@@ -75,7 +75,6 @@ model Employee {
   positionTitle  String?   @map("POSITION_TITLE") @db.VarChar(255)
   email          String?   @map("EMAIL") @db.VarChar(255)
   telExt         String?   @map("TEL_EXT") @db.VarChar(64)
-  role           String    @default("USER") @map("ROLE") @db.VarChar(32)
   isActive       Boolean   @default(true) @map("IS_ACTIVE")
   lastLoginAt    DateTime? @map("LAST_LOGIN_AT")
   syncedAt       DateTime? @map("SYNCED_AT")
