@@ -1,5 +1,5 @@
 "use client";
-import React from "react";
+import React, { useRef, useState } from "react";
 import type { DayInfo, BarItem } from "@/types/booking";
 import {
   MAX_LANES,
@@ -27,7 +27,7 @@ type Props = {
 
 const DayRow: React.FC<Props> = ({
   day,
-  currentDate,
+  currentDate: _currentDate,
   timeSlots,
   bars,
   occupancy,
@@ -35,6 +35,16 @@ const DayRow: React.FC<Props> = ({
   onSlotClick,
   style,
 }) => {
+  const [openBarId, setOpenBarId] = useState<number | null>(null);
+  const longPressTimerRef = useRef<number | null>(null);
+
+  const clearLongPressTimer = () => {
+    if (longPressTimerRef.current !== null) {
+      window.clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  };
+
   return (
     <div className="grid relative p-0 m-0 box-border"
       style={{
@@ -125,7 +135,14 @@ const DayRow: React.FC<Props> = ({
           const width = (bar.endIndex - bar.startIndex) * CELL_WIDTH;
           const top = LANE_TOP_OFFSET + bar.lane * BAR_STACK_GAP;
           return (
-            <HoverCard key={`bar-${bar.bookingId}`}>
+            <HoverCard
+              key={`bar-${bar.bookingId}`}
+              open={openBarId === bar.bookingId}
+              onOpenChange={(isOpen) => {
+                // Sync with Radix hover open state, but keep exclusive open per row
+                setOpenBarId((current) => (isOpen ? bar.bookingId : current === bar.bookingId ? null : current));
+              }}
+            >
               <HoverCardTrigger asChild>
                 <div
                   className={`pointer-events-auto rounded-sm border ${statusStyle.text} ${statusStyle.bg}`}
@@ -137,6 +154,21 @@ const DayRow: React.FC<Props> = ({
                     height: BAR_HEIGHT,
                     borderRadius: 4,
                   }}
+                  onMouseEnter={() => setOpenBarId(bar.bookingId)}
+                  onMouseLeave={() => {
+                    clearLongPressTimer();
+                    setOpenBarId((current) => (current === bar.bookingId ? null : current));
+                  }}
+                  onPointerDown={() => {
+                    clearLongPressTimer();
+                    // Long-press to open on touch devices
+                    longPressTimerRef.current = window.setTimeout(() => {
+                      setOpenBarId(bar.bookingId);
+                    }, 200);
+                  }}
+                  onPointerUp={clearLongPressTimer}
+                  onPointerCancel={clearLongPressTimer}
+                  onPointerLeave={clearLongPressTimer}
                 />
               </HoverCardTrigger>
                              <HoverCardContent>
