@@ -12,7 +12,6 @@ import {
 } from "@/utils/constants";
 import { getStatusStyle } from "@/utils/status";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 type Props = {
   day: DayInfo;
@@ -35,6 +34,8 @@ const DayRow: React.FC<Props> = ({
   onSlotClick,
   style,
 }) => {
+  const isWeekendDay = ["Sat", "Sun"].includes(day.dayName);
+  const isPastDay = day.isPast;
   const [openBarId, setOpenBarId] = useState<number | null>(null);
   const longPressTimerRef = useRef<number | null>(null);
 
@@ -44,7 +45,6 @@ const DayRow: React.FC<Props> = ({
       longPressTimerRef.current = null;
     }
   };
-
   return (
     <div className="grid relative p-0 m-0 box-border"
       style={{
@@ -67,15 +67,13 @@ const DayRow: React.FC<Props> = ({
       {/* พื้นหลังกริด (คอลัมน์ของ timeSlots จะเริ่มหลังคอลัมน์ป้ายวันโดยอัตโนมัติ) */}
       {timeSlots.map((slot, index) => {
         const isFull = occupancy[index] >= MAX_LANES;
-        const isWeekend = ["Sat", "Sun"].includes(day.dayName);
-        const isPastDay = day.isPast;
         const isPastTime = isTimeSlotPast(day.date, slot);
 
-        const clickable = !isWeekend && !isPastDay && !isPastTime && !isFull;
+        const clickable = !isWeekendDay && !isPastDay && !isPastTime && !isFull;
 
         let stateClasses = "";
-        if (isWeekend) {
-          stateClasses = "bg-neutral-600 text-muted-foreground cursor-not-allowed";
+        if (isWeekendDay) {
+          stateClasses = "bg-neutral-700 text-muted-foreground cursor-not-allowed";
         } else if (isPastDay || isPastTime) {
           stateClasses = "bg-neutral-100 text-muted-foreground cursor-not-allowed";
         } else if (isFull) {
@@ -84,7 +82,7 @@ const DayRow: React.FC<Props> = ({
           stateClasses = "bg-background cursor-pointer hover:bg-accent";
         }
 
-        const title = isWeekend
+        const title = isWeekendDay
           ? "Weekend - No booking available"
           : isPastDay || isPastTime
             ? "Past"
@@ -92,35 +90,23 @@ const DayRow: React.FC<Props> = ({
               ? "Time full"
               : `Available: ${slot}`;
 
-        // Use styled Tooltip from our UI library for non-clickable cells
         if (!clickable) {
           return (
-            <Tooltip key={`${day.fullDate.toDateString()}-${slot}`}>
-              <TooltipTrigger asChild>
-                <div
-                  className={`border-r border-border ${stateClasses}`}
-                />
-              </TooltipTrigger>
-              <TooltipContent>
-                <div className="text-xs">{title}</div>
-              </TooltipContent>
-            </Tooltip>
+            <div
+              key={`${day.fullDate.toDateString()}-${slot}`}
+              className={`border-r border-border ${stateClasses}`}
+              title={title}
+            />
           );
         }
 
-        // Clickable cells: show "Available: {slot}" tooltip too
         return (
-          <Tooltip key={`${day.fullDate.toDateString()}-${slot}`}>
-            <TooltipTrigger asChild>
-              <div
-                className={`border-r border-border ${stateClasses}`}
-                onClick={() => onSlotClick(day.date, slot)}
-              />
-            </TooltipTrigger>
-            <TooltipContent>
-              <div className="text-xs">{title}</div>
-            </TooltipContent>
-          </Tooltip>
+          <div
+            key={`${day.fullDate.toDateString()}-${slot}`}
+            className={`border-r border-border ${stateClasses}`}
+            title={title}
+            onClick={() => onSlotClick(day.date, slot)}
+          />
         );
       })}
 
