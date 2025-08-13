@@ -7,31 +7,9 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Admin {
-  adminId      Int      @id @default(autoincrement()) @map("ADMIN_ID")
-  adminName    String   @map("ADMIN_NAME") @db.VarChar(255)
-  adminSurname String   @map("ADMIN_SURNAME") @db.VarChar(255)
-  adminEmail   String   @map("ADMIN_EMAIL") @db.VarChar(255)
-  username     String   @unique @map("USERNAME") @db.VarChar(40)
-  password     String   @map("PASSWORD") @db.VarChar(60)
-  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamp(0)
-  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamp(0)
 
-  @@map("ADMIN")
-}
 
-model Interpreter {
-  interpreterId      Int           @id @default(autoincrement()) @map("INTERPRETER_ID")
-  interpreterName    String        @map("INTERPRETER_NAME") @db.VarChar(255)
-  interpreterSurname String        @map("INTERPRETER_SURNAME") @db.VarChar(255)
-  interpreterPhone   String        @map("INTERPRETER_PHONE") @db.VarChar(15)
-  interpreterEmail   String        @unique @map("INTERPRETER_EMAIL") @db.VarChar(255)
-  createdAt          DateTime      @default(now()) @map("created_at") @db.Timestamp(0)
-  updatedAt          DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamp(0)
-  bookingPlans       BookingPlan[]
 
-  @@map("INTERPRETER")
-}
 
 model BookingPlan {
   bookingId     Int               @id @default(autoincrement()) @map("BOOKING_ID")
@@ -42,17 +20,14 @@ model BookingPlan {
   highPriority  Boolean           @default(false) @map("HIGH_PRIORITY")
   timeStart     DateTime          @map("TIME_START") @db.DateTime(0)
   timeEnd       DateTime          @map("TIME_END") @db.DateTime(0)
-  interpreterId Int?              @map("INTERPRETER_ID")
   interpreterEmpCode String?      @map("INTERPRETER_EMP_CODE") @db.VarChar(64)
   bookingStatus BookingStatus     @default(waiting) @map("BOOKING_STATUS")
   createdAt     DateTime          @default(now()) @map("created_at") @db.Timestamp(0)
   updatedAt     DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamp(0)
-  interpreter   Interpreter?      @relation(fields: [interpreterId], references: [interpreterId])
   employee      Employee          @relation(fields: [ownerEmpCode], references: [empCode])
   interpreterEmployee Employee?   @relation("InterpreterEmployee", fields: [interpreterEmpCode], references: [empCode])
   inviteEmails  InviteEmailList[]
 
-  @@index([interpreterId], map: "BOOKING_PLAN_INTERPRETER_ID_fkey")
   @@index([ownerEmpCode], map: "BOOKING_PLAN_OWNER_EMP_CODE_idx")
   @@index([interpreterEmpCode], map: "BOOKING_PLAN_INTERPRETER_EMP_CODE_idx")
   @@map("BOOKING_PLAN")
