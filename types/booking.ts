@@ -21,7 +21,7 @@ export type BookingData = {
   highPriority: boolean;
   timeStart: string;
   timeEnd: string;
-  interpreterId: number | null;
+  interpreterId: string | null;
   bookingStatus: string;
   createdAt: string;
   updatedAt: string;
