@@ -1,5 +1,6 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import {
   SidebarProvider,
   SidebarInset,
@@ -24,14 +25,16 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const pathname = usePathname();
+  const hideSidebar = pathname === "/login" || pathname === "/LoginPage";
   return (
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <SidebarProvider>
-          <AppSidebar />
+          {!hideSidebar && <AppSidebar />}
           <SidebarInset>
             <main className="min-h-screen p-4">
-              <SidebarTrigger className="mb-4" />
+              {!hideSidebar && <SidebarTrigger className="mb-4" />}
               {children}
             </main>
           </SidebarInset>

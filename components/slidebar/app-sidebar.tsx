@@ -1,6 +1,7 @@
 "use client"
 
-import { Calendar, Home, Inbox, Search, Settings, ChevronRight,LayoutDashboard,Star} from "lucide-react"
+import { useRouter } from "next/navigation"
+import { Calendar, Home, Inbox, Search, Settings, ChevronRight,LayoutDashboard,Star, LogOut } from "lucide-react"
 
 import {
   Sidebar,
@@ -31,6 +32,7 @@ const adminItems = [
 ]
 
 export function AppSidebar() {
+  const router = useRouter()
   return (
     <Sidebar collapsible="icon">
       <SidebarContent>
@@ -91,6 +93,16 @@ export function AppSidebar() {
                   </CollapsibleContent>
                 </SidebarMenuItem>
               </Collapsible>
+
+              {/* 🔒 Logout */}
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild>
+                  <button type="button" onClick={() => router.push("/login")}>
+                    <LogOut className="h-4 w-4" />
+                    <span>Logout</span>
+                  </button>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
 
             </SidebarMenu>
           </SidebarGroupContent>
