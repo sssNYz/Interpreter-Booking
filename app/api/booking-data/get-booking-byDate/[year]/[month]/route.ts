@@ -48,6 +48,7 @@ export async function GET(
   type IncludedInterpreter = { empCode: string | null } | null;
   const result = (bookings as Array<{
     bookingId: number;
+    ownerEmpCode: string;
     ownerGroup: string;
     meetingRoom: string;
     meetingDetail: string | null;
@@ -61,6 +62,7 @@ export async function GET(
     interpreterEmployee?: IncludedInterpreter;
   }>).map((b) => ({
     bookingId: b.bookingId,
+    ownerEmpCode: b.ownerEmpCode,
     ownerName: b.employee?.firstNameEn ?? "",
     ownerSurname: b.employee?.lastNameEn ?? "",
     ownerEmail: b.employee?.email ?? "",
