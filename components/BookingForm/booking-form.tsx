@@ -36,10 +36,12 @@ import {
 import { Switch } from "../ui/switch";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 
+
 type BookingFormProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   selectedSlot?: {
+
     day: number;
     slot: string;
   };
@@ -57,12 +59,12 @@ type BookingFormProps = {
   rooms?: string[];
 };
 
-type OwnerGroup = "software" | "iot" | "network" | "security";
-
+type OwnerGroup = "software" | "iot" | "hardware" | "other";
 export function BookingForm({
   open,
   onOpenChange,
   selectedSlot,
+
   daysInMonth,
   interpreters = [],
 }: BookingFormProps) {
@@ -94,12 +96,14 @@ export function BookingForm({
     ? daysInMonth.find((d) => d.date === selectedSlot.day)
     : undefined;
 
-  // Reset form when sheet opens/closes
+
+  // Get user data from localStorage (cached at login) and reset form when sheet opens/closes
   useEffect(() => {
     if (!open) {
       // Reset all form fields when sheet closes
       setStartTime("");
       setEndTime("");
+
       setOwnerName("");
       setOwnerSurname("");
       setOwnerEmail("");
@@ -114,10 +118,28 @@ export function BookingForm({
       setErrors({});
       setIsSubmitting(false);
     }
+    if (open) {
+      try {
+        const raw = localStorage.getItem("booking.user");
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        const expired = Date.now() > (parsed.storedAt || parsed.timestamp || 0) + ((parsed.ttlDays ? parsed.ttlDays * 86400000 : parsed.ttl) || 0);
+        if (expired) return;
+        const full = String(parsed.name || "");
+        const parts = full.trim().split(/\s+/);
+        const first = parts[0] || "";
+        const last = parts.slice(1).join(" ") || "";
+        setOwnerName(first);
+        setOwnerSurname(last);
+        setOwnerEmail(parsed.email || "");
+        setOwnerTel(parsed.phone || "");
+      } catch {}
+    }
   }, [open]);
 
   // Time slots generation
   const slotsTime = useMemo(() => {
+
     const times = [];
     for (let hour = 8; hour < 18; hour++) {
       if (hour === 12) {
@@ -140,12 +162,15 @@ export function BookingForm({
 
   // Function to convert time string to minutes for comparison
   const timeToMinutes = (time: string): number => {
+
     const [hours, minutes] = time.split(":").map(Number);
+
     return hours * 60 + minutes;
   };
 
   // Get available end times based on selected start time
   const availableEndTimes = useMemo(() => {
+
     if (!startTime) return slotsTime;
     const startMinutes = timeToMinutes(startTime);
     return slotsTime.filter((time) => {
@@ -153,6 +178,7 @@ export function BookingForm({
       return endMinutes > startMinutes;
     });
   }, [startTime, slotsTime]);
+
 
   // Reset end time if it becomes invalid
   const handleStartTimeChange = (value: string) => {
@@ -193,12 +219,6 @@ export function BookingForm({
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
 
-    if (!ownerName.trim()) newErrors.ownerName = "Name is required";
-    if (!ownerSurname.trim()) newErrors.ownerSurname = "Surname is required";
-    if (!ownerEmail.trim()) newErrors.ownerEmail = "Email is required";
-    else if (!isValidEmail(ownerEmail))
-      newErrors.ownerEmail = "Invalid email format";
-    if (!ownerTel.trim()) newErrors.ownerTel = "Phone number is required";
     if (!meetingRoom.trim()) newErrors.meetingRoom = "Meeting room is required";
     if (!startTime) newErrors.startTime = "Start time is required";
     if (!endTime) newErrors.endTime = "End time is required";
@@ -222,18 +242,27 @@ export function BookingForm({
       const startDateTime = `${localDate}T${startTime}:00.000`;
       const endDateTime = `${localDate}T${endTime}:00.000`;
 
+      // Get empCode from localStorage
+      const raw = localStorage.getItem("booking.user");
+      if (!raw) {
+        alert("User session expired. Please login again.");
+        return;
+      }
+      const parsed = JSON.parse(raw);
+      const empCode = parsed.empCode;
+      if (!empCode) {
+        alert("User session invalid. Please login again.");
+        return;
+      }
+
       const bookingData = {
-        ownerName: ownerName.trim(),
-        ownerSurname: ownerSurname.trim(),
-        ownerEmail: ownerEmail.trim(),
-        ownerTel: ownerTel.trim(),
+        ownerEmpCode: empCode,
         ownerGroup,
         meetingRoom: meetingRoom.trim(),
         meetingDetail: meetingDetail.trim() || undefined,
         highPriority,
         timeStart: startDateTime,
         timeEnd: endDateTime,
-        interpreterId: interpreterId ? parseInt(interpreterId) : null,
         bookingStatus: "waiting", // Default to waiting
         inviteEmails: inviteEmails.length > 0 ? inviteEmails : undefined,
       };
@@ -298,8 +327,8 @@ export function BookingForm({
                     id="ownerName"
                     placeholder="Your first name"
                     value={ownerName}
-                    onChange={(e) => setOwnerName(e.target.value)}
-                    className={errors.ownerName ? "border-red-500" : ""}
+                    readOnly
+                    className="bg-muted cursor-not-allowed"
                   />
                   {errors.ownerName && (
                     <p className="text-red-500 text-sm">{errors.ownerName}</p>
@@ -312,8 +341,8 @@ export function BookingForm({
                     id="ownerSurname"
                     placeholder="Your last name"
                     value={ownerSurname}
-                    onChange={(e) => setOwnerSurname(e.target.value)}
-                    className={errors.ownerSurname ? "border-red-500" : ""}
+                    readOnly
+                    className="bg-muted cursor-not-allowed"
                   />
                   {errors.ownerSurname && (
                     <p className="text-red-500 text-sm">
@@ -333,8 +362,8 @@ export function BookingForm({
                   type="email"
                   placeholder="your.email@example.com"
                   value={ownerEmail}
-                  onChange={(e) => setOwnerEmail(e.target.value)}
-                  className={errors.ownerEmail ? "border-red-500" : ""}
+                  readOnly
+                  className="bg-muted cursor-not-allowed"
                 />
                 {errors.ownerEmail && (
                   <p className="text-red-500 text-sm">{errors.ownerEmail}</p>
@@ -351,8 +380,8 @@ export function BookingForm({
                     id="ownerTel"
                     placeholder="0123456789"
                     value={ownerTel}
-                    onChange={(e) => setOwnerTel(e.target.value)}
-                    className={errors.ownerTel ? "border-red-500" : ""}
+                    readOnly
+                    className="bg-muted cursor-not-allowed"
                   />
                   {errors.ownerTel && (
                     <p className="text-red-500 text-sm">{errors.ownerTel}</p>
@@ -369,10 +398,11 @@ export function BookingForm({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
+                      
                       <SelectItem value="software">Software</SelectItem>
                       <SelectItem value="iot">IoT</SelectItem>
-                      <SelectItem value="network">Network</SelectItem>
-                      <SelectItem value="security">Security</SelectItem>
+                      <SelectItem value="hardware">Hardware</SelectItem>
+                      <SelectItem value="other">Other</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -596,4 +626,6 @@ export function BookingForm({
       </SheetContent>
     </Sheet>
   );
+
 }
+
