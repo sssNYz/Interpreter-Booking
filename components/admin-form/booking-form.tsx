@@ -1,566 +1,186 @@
-import React, { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Edit, AlertTriangle, Star, CheckCircle, XCircle, Hourglass, ArrowLeft, Calendar, Clock, User, MapPin } from 'lucide-react';
+"use client";
 
-// Types
-import type { BookingWithConflicts, BookingMange } from '@/app/types/booking-types';
+import React, { useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Star, CheckCircle, XCircle, Hourglass } from "lucide-react";
+import type { BookingManage } from "@/app/types/booking-types";
 
-// Dialog Step Types
-type DialogStep = 'details' | 'flow1_conflict' | 'flow2_waiting';
+/* ---------------- Utils ---------------- */
+const fromYMD = (s: string) => {
+  const [y, m, d] = s.split("-").map(Number);
+  return new Date(y, (m ?? 1) - 1, d ?? 1, 0, 0, 0, 0);
+};
+const formatDate = (s: string) => {
+  const d = fromYMD(s);
+  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+};
+const formatRequestedTime = (s: string) => {
+  const d = new Date(s);
+  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const hh = `${d.getHours()}`.padStart(2, "0");
+  const mm = `${d.getMinutes()}`.padStart(2, "0");
+  return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()} ${hh}:${mm}`;
+};
+const getStatusColor = (status: BookingManage["status"]) =>
+  ({ Approve: "text-emerald-700 bg-emerald-100", Wait: "text-amber-700 bg-amber-100", Cancel: "text-red-700 bg-red-100" } as const)[status] ?? "text-gray-700 bg-gray-100";
+const getStatusIcon = (status: BookingManage["status"]) =>
+  ({ Approve: <CheckCircle className="h-4 w-4" />, Wait: <Hourglass className="h-4 w-4" />, Cancel: <XCircle className="h-4 w-4" /> } as const)[status] ?? null;
 
-interface BookingDetailDialogProps {
-  booking: BookingWithConflicts;
-  allBookings?: BookingMange[];
+/* ---------------- Small UI helpers ---------------- */
+const Row: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
+  <div className="grid grid-cols-12 items-start gap-3">
+    <dt className="col-span-4 text-xs font-medium text-gray-600">{label}</dt>
+    <dd className="col-span-8 text-sm text-gray-900">{children}</dd>
+  </div>
+);
+
+type DialogStep = "details";
+type BookingDetailDialogProps = {
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  editData?: BookingManage | null;
+  isEditing?: boolean;
+  allBookings?: BookingManage[];
   onActionComplete?: () => void;
-}
-
-// Utility functions
-const parseTime = (timeStr: string): number => {
-  const [hours, minutes] = timeStr.split(':').map(Number);
-  return hours * 60 + minutes;
 };
 
-const hasTimeOverlap = (start1: string, end1: string, start2: string, end2: string): boolean => {
-  const startMinutes1 = parseTime(start1);
-  const endMinutes1 = parseTime(end1);
-  const startMinutes2 = parseTime(start2);
-  const endMinutes2 = parseTime(end2);
-
-  return startMinutes1 < endMinutes2 && startMinutes2 < endMinutes1;
-};
-
-const formatDate = (dateString: string): string => {
-  const date = new Date(dateString);
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  const day = date.getDate();
-  const month = months[date.getMonth()];
-  const year = date.getFullYear();
-
-  return `${day} ${month} ${year}`;
-};
-
-const formatRequestedTime = (dateTimeString: string): string => {
-  const date = new Date(dateTimeString);
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-  const day = date.getDate();
-  const month = months[date.getMonth()];
-  const year = date.getFullYear();
-  const hours = date.getHours().toString().padStart(2, '0');
-  const minutes = date.getMinutes().toString().padStart(2, '0');
-
-  return `${day} ${month} ${year} ${hours}:${minutes}`;
-};
-
-const getFullDate = (dateString: string, isClient: boolean): string => {
-  if (!isClient) return dateString;
-
-  const date = new Date(dateString);
-  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-  const months = ['January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December'];
-
-  const dayName = days[date.getDay()];
-  const day = date.getDate();
-  const month = months[date.getMonth()];
-  const year = date.getFullYear();
-
-  return `${dayName}, ${day} ${month} ${year}`;
-};
-
-// Component helpers
-const getStatusColor = (status: string): string => {
-  const statusColors = {
-    'Approve': 'text-emerald-700 bg-emerald-100',
-    'Wait': 'text-amber-700 bg-amber-100',
-    'Cancel': 'text-red-700 bg-red-100'
-  };
-  return statusColors[status as keyof typeof statusColors] || 'text-gray-700 bg-gray-100';
-};
-
-const getStatusIcon = (status: string): React.ReactElement | null => {
-  const statusIcons = {
-    'Approve': <CheckCircle className="h-4 w-4" />,
-    'Wait': <Hourglass className="h-4 w-4" />,
-    'Cancel': <XCircle className="h-4 w-4" />
-  };
-  return statusIcons[status as keyof typeof statusIcons] || null;
-};
-
-// BookingDetailDialog Component
-const BookingDetailDialog: React.FC<BookingDetailDialogProps> = ({ 
-  booking, 
-  allBookings = [], 
-  onActionComplete 
+const BookingDetailDialog: React.FC<BookingDetailDialogProps> = ({
+  open,
+  onOpenChange,
+  editData,
+  isEditing = true,
+  allBookings = [],
+  onActionComplete,
 }) => {
-  const [isClient, setIsClient] = useState(false);
-  const [isOpen, setIsOpen] = useState(false);
-  const [currentStep, setCurrentStep] = useState<DialogStep>('details');
-  const [conflictingApprovedBooking, setConflictingApprovedBooking] = useState<BookingMange | null>(null);
-  const [waitingConflictBookings, setWaitingConflictBookings] = useState<BookingMange[]>([]);
-  const [isProcessing, setIsProcessing] = useState(false);
+  const isControlled = typeof open === "boolean";
+  const [internalOpen, setInternalOpen] = useState(false);
+  const actualOpen = isControlled ? (open as boolean) : internalOpen;
+  const setOpen = (val: boolean) => (isControlled ? onOpenChange?.(val) : setInternalOpen(val));
+
+  // 👉 เก็บ snapshot ของ booking ตอนเปิดไว้ กัน parent เคลียร์เร็วไป
+  const [cachedBooking, setCachedBooking] = useState<BookingManage | null>(null);
+
+  // ย่อ/ขยายคำอธิบาย
+  const [showFullDetail, setShowFullDetail] = useState(false);
+
+  // ระยะเวลาแอนิเมชันปิด (พอดี ๆ)
+  const EXIT_MS = 200;
 
   useEffect(() => {
-    setIsClient(true);
-  }, []);
+    // เปิด dialog เมื่อไหร่ และมี editData → เก็บ snapshot
+    if (actualOpen && editData) setCachedBooking(editData);
+  }, [actualOpen, editData]);
 
-  // Reset dialog state when it opens
-  const handleDialogOpen = (open: boolean) => {
-    setIsOpen(open);
-    if (open) {
-      setCurrentStep('details');
-      setConflictingApprovedBooking(null);
-      setWaitingConflictBookings([]);
-      setIsProcessing(false);
-    }
-  };
+  useEffect(() => {
+    setShowFullDetail(false);
+  }, [cachedBooking?.id, actualOpen]);
 
-  // FLOW 1: Check for approved booking conflicts
-  const checkApprovedConflicts = (): BookingMange | null => {
-    if (!allBookings.length) return null;
-
-    const conflictingBooking = allBookings.find(other => 
-      other.id !== booking.id &&
-      other.status === 'Approve' &&
-      other.dateTime === booking.dateTime &&
-      hasTimeOverlap(booking.startTime, booking.endTime, other.startTime, other.endTime) &&
-      (booking.interpreter === other.interpreter || booking.room === other.room)
-    );
-
-    return conflictingBooking || null;
-  };
-
-  // FLOW 2: Find waiting bookings that conflict with this booking
-  const findWaitingConflicts = (): BookingMange[] => {
-    if (!allBookings.length) return [];
-
-    return allBookings.filter(other =>
-      other.id !== booking.id &&
-      other.status === 'Wait' &&
-      other.dateTime === booking.dateTime &&
-      hasTimeOverlap(booking.startTime, booking.endTime, other.startTime, other.endTime) &&
-      (booking.interpreter === other.interpreter || booking.room === other.room)
-    );
-  };
-
-  // Handle approve action
-  const handleApprove = async () => {
-    if (booking.status === 'Approve') return;
-
-    setIsProcessing(true);
-
-    // FLOW 1: Check for conflicts with approved bookings
-    const approvedConflict = checkApprovedConflicts();
-    
-    if (approvedConflict) {
-      setConflictingApprovedBooking(approvedConflict);
-      setCurrentStep('flow1_conflict');
-      setIsProcessing(false);
-      return;
-    }
-
-    // No conflicts, proceed with approval
-    await performApproval();
-  };
-
-  // Perform the actual approval
-  const performApproval = async () => {
-    setIsProcessing(true);
-
-    try {
-      // TODO: Replace with actual API call
-      console.log('Approving booking:', booking.id);
-      
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      // FLOW 2: Check for waiting conflicts after approval
-      const waitingConflicts = findWaitingConflicts();
-      
-      if (waitingConflicts.length > 0) {
-        setWaitingConflictBookings(waitingConflicts);
-        setCurrentStep('flow2_waiting');
-        setIsProcessing(false);
-        return;
-      }
-
-      // No waiting conflicts, complete the process
-      completeAction();
-    } catch (error) {
-      console.error('Error approving booking:', error);
-      setIsProcessing(false);
-    }
-  };
-
-  // Handle cancel action
-  const handleCancel = async () => {
-    if (booking.status === 'Cancel') return;
-
-    setIsProcessing(true);
-
-    try {
-      // TODO: Replace with actual API call
-      console.log('Cancelling booking:', booking.id);
-      
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      completeAction();
-    } catch (error) {
-      console.error('Error cancelling booking:', error);
-      setIsProcessing(false);
-    }
-  };
-
-  // FLOW 1: Handle approved conflict resolution
-  const handleApprovedConflictConfirm = async () => {
-    if (!conflictingApprovedBooking) return;
-
-    setIsProcessing(true);
-
-    try {
-      // TODO: Replace with actual API calls
-      console.log('Cancelling conflicting booking:', conflictingApprovedBooking.id);
-      console.log('Approving current booking:', booking.id);
-      
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      // FLOW 2: Check for waiting conflicts after approval
-      const waitingConflicts = findWaitingConflicts();
-      
-      if (waitingConflicts.length > 0) {
-        setWaitingConflictBookings(waitingConflicts);
-        setCurrentStep('flow2_waiting');
-        setIsProcessing(false);
-        return;
-      }
-
-      // No waiting conflicts, complete the process
-      completeAction();
-    } catch (error) {
-      console.error('Error resolving conflict:', error);
-      setIsProcessing(false);
-    }
-  };
-
-  // FLOW 2: Handle waiting conflicts resolution
-  const handleWaitingConflictsConfirm = async () => {
-    setIsProcessing(true);
-
-    try {
-      // TODO: Replace with actual API call
-      console.log('Cancelling waiting conflicts:', waitingConflictBookings.map(b => b.id));
-      
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      completeAction();
-    } catch (error) {
-      console.error('Error cancelling waiting bookings:', error);
-      setIsProcessing(false);
-    }
-  };
-
-  // Complete the action and close dialog
-  const completeAction = () => {
-    setIsProcessing(false);
-    setIsOpen(false);
-    onActionComplete?.();
-  };
-
-  // Handle back navigation
-  const handleBack = () => {
-    if (currentStep === 'flow1_conflict') {
-      setCurrentStep('details');
-      setConflictingApprovedBooking(null);
-    } else if (currentStep === 'flow2_waiting') {
-      setCurrentStep('details');
-      setWaitingConflictBookings([]);
-    }
-  };
-
-  // Render conflict type badge
-  const renderConflictType = (currentBooking: BookingWithConflicts, conflictingBooking: BookingMange) => {
-    const hasInterpreterConflict = currentBooking.interpreter === conflictingBooking.interpreter;
-    const hasRoomConflict = currentBooking.room === conflictingBooking.room;
-
-    return (
-      <span className="inline-flex items-center gap-1 px-2 py-1 bg-red-100 text-red-800 rounded text-xs font-semibold">
-        <AlertTriangle className="h-3 w-3" />
-        {hasInterpreterConflict && 'Interpreter'}
-        {hasInterpreterConflict && hasRoomConflict && ' & '}
-        {hasRoomConflict && 'Room'} Conflict
-      </span>
-    );
-  };
-
-  // Render booking card
-  const renderBookingCard = (bookingData: BookingMange | BookingWithConflicts, title: string, variant: 'current' | 'conflicting' | 'waiting' = 'current') => {
-    const borderColor = variant === 'current' ? 'border-blue-200 bg-blue-50' : 
-                       variant === 'conflicting' ? 'border-red-200 bg-red-50' : 'border-amber-200 bg-amber-50';
-    
-    return (
-      <div className={`border rounded-lg p-4 ${borderColor}`}>
-        <div className="flex items-center justify-between mb-3">
-          <h4 className="font-semibold text-gray-900">{title}</h4>
-          <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold ${getStatusColor(bookingData.status)}`}>
-            {getStatusIcon(bookingData.status)}
-            {bookingData.status}
-          </span>
-        </div>
-        
-        <div className="grid grid-cols-2 gap-3 text-sm">
-          <div className="flex items-center gap-2">
-            <Calendar className="h-4 w-4 text-gray-500" />
-            <span>{formatDate(bookingData.dateTime)}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Clock className="h-4 w-4 text-gray-500" />
-            <span className="font-mono">{bookingData.startTime} - {bookingData.endTime}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <User className="h-4 w-4 text-gray-500" />
-            <span>{bookingData.bookedBy}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <MapPin className="h-4 w-4 text-gray-500" />
-            <span>{bookingData.room}</span>
-          </div>
-        </div>
-        
-        <div className="mt-3 flex items-center gap-2">
-          <span className="text-sm text-gray-600">Interpreter: <strong>{bookingData.interpreter}</strong></span>
-          {bookingData.isDR && (
-            <span className="inline-flex items-center gap-1 px-2 py-1 bg-amber-100 text-amber-800 rounded text-xs font-semibold">
-              <Star className="h-3 w-3 fill-current" />
-              DR
-            </span>
-          )}
-        </div>
-        
-        {variant !== 'current' && (
-          <div className="mt-2">
-            {renderConflictType(booking, bookingData)}
-          </div>
-        )}
-      </div>
-    );
-  };
+  const booking = cachedBooking; // ใช้ snapshot เสมอใน Dialog
 
   return (
-    <Dialog open={isOpen} onOpenChange={handleDialogOpen}>
-      <DialogTrigger asChild>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-8 w-8 p-0 hover:bg-blue-100"
-        >
-          <Edit className="h-8 w-8 text-gray-500" />
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-xl font-bold">
-            {currentStep !== 'details' && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleBack}
-                className="h-8 w-8 p-0"
-                disabled={isProcessing}
-              >
-                <ArrowLeft className="h-4 w-4" />
-              </Button>
+    <Dialog open={actualOpen} onOpenChange={setOpen}>
+      {/* ใช้ onOpen/CloseAutoFocus กันโฟกัสเด้งขณะเปิด/ปิด */}
+      <DialogContent
+        onOpenAutoFocus={(e) => e.preventDefault()}
+        onCloseAutoFocus={(e) => e.preventDefault()}
+        className="max-w-3xl w-[min(96vw,56rem)] max-h-[calc(100dvh-6rem)] overflow-hidden p-0"
+      >
+        <DialogHeader className="px-6 pt-6 pb-3">
+          <DialogTitle className="flex items-center gap-3 text-xl font-bold tracking-tight">
+            {isEditing ? "Booking Details" : "Create Booking"}
+            {booking?.isDR && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-500 text-white rounded-full text-xs font-semibold shadow-sm">
+                <Star className="h-3.5 w-3.5 fill-current" />
+                DR
+              </span>
             )}
-            {currentStep === 'details' && 'Booking Details'}
-            {currentStep === 'flow1_conflict' && 'Resolve Booking Conflict'}
-            {currentStep === 'flow2_waiting' && 'Handle Waiting Bookings'}
           </DialogTitle>
         </DialogHeader>
 
-        {/* STEP 1: Booking Details */}
-        {currentStep === 'details' && (
-          <div className="space-y-6">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-base font-semibold text-gray-800">Date Meeting</label>
-                <p className="mt-1 font-semibold text-base">{formatDate(booking.dateTime)}</p>
-                {isClient && (
-                  <p className="text-sm text-gray-500">{getFullDate(booking.dateTime, isClient)}</p>
+        {!booking ? (
+          <div className="px-6 pb-6 text-sm text-gray-600">No booking selected.</div>
+        ) : (
+          <div className="px-6 pb-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* ซ้าย: Schedule */}
+              <section className="rounded-xl border border-gray-200 bg-white p-4">
+                <h3 className="text-xs font-semibold text-gray-900 mb-3">Schedule</h3>
+                <dl className="space-y-3">
+                  <Row label="Date">{formatDate(booking.dateTime)}</Row>
+                  <Row label="Time">
+                    <span className="font-mono">{booking.startTime} - {booking.endTime}</span>
+                  </Row>
+                  <Row label="Room">
+                    <span className="px-2 py-1 bg-gray-100 rounded-md font-medium">{booking.room}</span>
+                  </Row>
+                  <Row label="Requested At">{formatRequestedTime(booking.requestedTime)}</Row>
+                </dl>
+              </section>
+
+              {/* ขวา: People & Status */}
+              <section className="rounded-xl border border-gray-200 bg-white p-4">
+                <h3 className="text-xs font-semibold text-gray-900 mb-3">People & Status</h3>
+                <dl className="space-y-3">
+                  <Row label="Booked By">{booking.bookedBy}</Row>
+                  <Row label="Interpreter">{booking.interpreter || "-"}</Row>
+                  <Row label="Group">{booking.group.toUpperCase()}</Row>
+                  <Row label="Status">
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${getStatusColor(booking.status)}`}>
+                      {getStatusIcon(booking.status)}
+                      {booking.status}
+                    </span>
+                  </Row>
+                </dl>
+              </section>
+            </div>
+
+            {/* Meeting Detail (ย่อ/ขยายได้) */}
+            <section className="rounded-xl border border-gray-200 bg-white p-4 mt-6">
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="text-xs font-semibold text-gray-900">Meeting Detail</h3>
+                {(booking.meetingDetail || booking.topic) && (
+                  <Button variant="outline" size="sm" onClick={() => setShowFullDetail(v => !v)}>
+                    {showFullDetail ? "Show less" : "Show more"}
+                  </Button>
                 )}
               </div>
-              <div>
-                <label className="block text-base font-semibold text-gray-800">Time</label>
-                <p className="mt-1 font-mono text-base">{booking.startTime} - {booking.endTime}</p>
-              </div>
-              <div>
-                <label className="block text-base font-semibold text-gray-800">User</label>
-                <p className="mt-1 font-semibold text-base">{booking.bookedBy}</p>
-              </div>
-              <div>
-                <label className="block text-base font-semibold text-gray-800">Interpreter</label>
-                <p className="mt-1 text-base">{booking.interpreter}</p>
-              </div>
-              <div>
-                <label className="block text-base font-semibold text-gray-800">Room</label>
-                <p className="mt-1 text-base">{booking.room}</p>
-              </div>
-              <div>
-                <label className="block text-base font-semibold text-gray-800">Status</label>
-                <span className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-semibold mt-1 ${getStatusColor(booking.status)}`}>
-                  {getStatusIcon(booking.status)}
-                  {booking.status}
-                </span>
-              </div>
-            </div>
-            <div>
-              <label className="block text-base font-semibold text-gray-800">Requested Time</label>
-              <p className="mt-1 text-base text-gray-700">{formatRequestedTime(booking.requestedTime)}</p>
-            </div>
-            <div className="flex gap-2 flex-wrap">
-              {booking.isDR && (
-                <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-amber-100 text-amber-800 rounded-full text-sm font-semibold">
-                  <Star className="h-3.5 w-3.5 fill-current" />
-                  DR Booking
-                </span>
-              )}
-              {(booking.conflicts.hasInterpreterConflict || booking.conflicts.hasRoomConflict) && (
-                <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-red-100 text-red-800 rounded-full text-sm font-semibold">
-                  <AlertTriangle className="h-3.5 w-3.5" />
-                  {booking.conflicts.hasInterpreterConflict && 'Interpreter'}
-                  {booking.conflicts.hasInterpreterConflict && booking.conflicts.hasRoomConflict && ' & '}
-                  {booking.conflicts.hasRoomConflict && 'Room'} Conflict
-                </span>
-              )}
-            </div>
-
-            {/* Action Buttons */}
-            <div className="flex gap-3 pt-4 border-t">
-              {booking.status !== 'Approve' && (
-                <Button
-                  onClick={handleApprove}
-                  disabled={isProcessing}
-                  className="flex-1 bg-emerald-600 hover:bg-emerald-700"
-                >
-                  {isProcessing ? 'Processing...' : 'Approve Booking'}
-                </Button>
-              )}
-              {booking.status !== 'Cancel' && (
-                <Button
-                  onClick={handleCancel}
-                  disabled={isProcessing}
-                  variant="destructive"
-                  className="flex-1"
-                >
-                  {isProcessing ? 'Processing...' : 'Cancel Booking'}
-                </Button>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* STEP 2: FLOW 1 - Approved Booking Conflict */}
-        {currentStep === 'flow1_conflict' && conflictingApprovedBooking && (
-          <div className="space-y-6">
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <AlertTriangle className="h-5 w-5 text-red-600" />
-                <h3 className="font-semibold text-red-800">Booking Conflict Detected</h3>
-              </div>
-              <p className="text-red-700 text-sm">
-                This booking conflicts with an already approved booking. To approve this booking, 
-                the conflicting approved booking must be cancelled.
-              </p>
-            </div>
-
-            <div className="space-y-4">
-              {renderBookingCard(booking, "Current Booking (to be approved)", 'current')}
-              {renderBookingCard(conflictingApprovedBooking, "Conflicting Approved Booking", 'conflicting')}
-            </div>
-
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-              <p className="text-amber-800 font-semibold">
-                Do you want to cancel the currently approved booking in order to approve this one?
-              </p>
-            </div>
-
-            {/* Action Buttons */}
-            <div className="flex gap-3 pt-4 border-t">
-              <Button
-                onClick={handleApprovedConflictConfirm}
-                disabled={isProcessing}
-                className="flex-1 bg-red-600 hover:bg-red-700"
+              <p
+                className={[
+                  "mt-3 text-sm leading-relaxed text-gray-800",
+                  showFullDetail ? "" : "line-clamp-4",
+                ].join(" ")}
               >
-                {isProcessing ? 'Processing...' : 'Yes, Cancel & Approve'}
+                {booking.meetingDetail || booking.topic || "-"}
+              </p>
+            </section>
+
+            {/* Actions */}
+            <div className="flex flex-col sm:flex-row gap-3 pt-6">
+              <Button
+                className="flex-1 bg-emerald-600 hover:bg-emerald-700"
+                onClick={() => {
+                  // ปิดก่อน → รอ animation จบ → ค่อยให้ parent ทำงานต่อ (refresh/clear)
+                  setOpen(false);
+                  setTimeout(() => {
+                    onActionComplete?.();
+                  }, EXIT_MS);
+                }}
+              >
+                Approve
               </Button>
               <Button
-                onClick={handleBack}
-                disabled={isProcessing}
-                variant="outline"
+                variant="destructive"
                 className="flex-1"
+                onClick={() => {
+                  setOpen(false);
+                  setTimeout(() => {
+                    onActionComplete?.();
+                  }, EXIT_MS);
+                }}
               >
-                Back
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {/* STEP 3: FLOW 2 - Waiting Bookings Conflict */}
-        {currentStep === 'flow2_waiting' && waitingConflictBookings.length > 0 && (
-          <div className="space-y-6">
-            <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <CheckCircle className="h-5 w-5 text-emerald-600" />
-                <h3 className="font-semibold text-emerald-800">Booking Approved Successfully</h3>
-              </div>
-              <p className="text-emerald-700 text-sm">
-                Your booking has been approved. However, there are waiting bookings that conflict with this approved booking.
-              </p>
-            </div>
-
-            <div className="space-y-4">
-              {renderBookingCard(booking, "Newly Approved Booking", 'current')}
-              
-              <div>
-                <h4 className="font-semibold text-gray-900 mb-3">
-                  Conflicting Waiting Bookings ({waitingConflictBookings.length})
-                </h4>
-                <div className="space-y-3">
-                  {waitingConflictBookings.map((waitingBooking) => (
-                    <div key={waitingBooking.id}>
-                      {renderBookingCard(waitingBooking, `Waiting Booking #${waitingBooking.id}`, 'waiting')}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-              <p className="text-amber-800 font-semibold">
-                Do you want to automatically cancel these waiting bookings?
-              </p>
-            </div>
-
-            {/* Action Buttons */}
-            <div className="flex gap-3 pt-4 border-t">
-              <Button
-                onClick={handleWaitingConflictsConfirm}
-                disabled={isProcessing}
-                className="flex-1 bg-amber-600 hover:bg-amber-700"
-              >
-                {isProcessing ? 'Processing...' : 'Yes, Cancel Waiting Bookings'}
-              </Button>
-              <Button
-                onClick={completeAction}
-                disabled={isProcessing}
-                variant="outline"
-                className="flex-1"
-              >
-                Skip (Keep Waiting Bookings)
+                Cancel Booking
               </Button>
             </div>
           </div>
