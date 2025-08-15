@@ -13,6 +13,7 @@ interface CreateBookingRequest {
 	timeStart: string; // ISO string or date string
 	timeEnd: string; // ISO string or date string
 	interpreterEmpCode?: string | null;
+	interpreterId?: number | null;
 	bookingStatus?: BookingStatus;
 	timezone?: string; // Optional timezone parameter (not used for conversion, just for reference)
 	inviteEmails?: string[]; // Array of email addresses to invite
@@ -81,6 +82,12 @@ const validateBookingData = (
 		}
 	}
 
+	if (data.interpreterId !== undefined && data.interpreterId !== null) {
+		if (typeof data.interpreterId !== "number" || !Number.isInteger(data.interpreterId) || data.interpreterId <= 0) {
+			errors.push("interpreterId must be a positive integer when provided");
+		}
+	}
+
 	if (data.bookingStatus && !Object.values(BookingStatus).includes(data.bookingStatus)) {
 		errors.push(`bookingStatus must be one of: ${Object.values(BookingStatus).join(", ")}`);
 	}
@@ -113,6 +120,13 @@ export async function POST(request: NextRequest) {
 
 		const { timeStart, timeEnd } = parseBookingDates(body.timeStart, body.timeEnd);
 
+		// Resolve interpreter emp code if only interpreterId is provided
+		let resolvedInterpreterEmpCode: string | null = body.interpreterEmpCode ?? null;
+		if (!resolvedInterpreterEmpCode && body.interpreterId) {
+			const emp = await prisma.employee.findUnique({ where: { id: body.interpreterId } });
+			resolvedInterpreterEmpCode = emp?.empCode ?? null;
+		}
+
 		// conflict check via parameterized SQL to avoid old Prisma client selecting removed columns
 		const conflicts = await prisma.$queryRaw<Array<{ x: number }>>`
 			SELECT 1 as x FROM BOOKING_PLAN
@@ -134,12 +148,25 @@ export async function POST(request: NextRequest) {
 			INSERT INTO BOOKING_PLAN (
 				\`OWNER_EMP_CODE\`, \`OWNER_GROUP\`, \`MEETING_ROOM\`, \`MEETING_DETAIL\`, \`HIGH_PRIORITY\`, \`TIME_START\`, \`TIME_END\`, \`INTERPRETER_EMP_CODE\`, \`BOOKING_STATUS\`, \`created_at\`, \`updated_at\`
 			) VALUES (
-				${body.ownerEmpCode.trim()}, ${body.ownerGroup}, ${body.meetingRoom.trim()}, ${body.meetingDetail ?? null}, ${body.highPriority ? 1 : 0}, ${timeStart}, ${timeEnd}, ${body.interpreterEmpCode ?? null}, ${body.bookingStatus || BookingStatus.waiting}, NOW(), NOW()
+				${body.ownerEmpCode.trim()}, ${body.ownerGroup}, ${body.meetingRoom.trim()}, ${body.meetingDetail ?? null}, ${body.highPriority ? 1 : 0}, ${timeStart}, ${timeEnd}, ${resolvedInterpreterEmpCode ?? null}, ${body.bookingStatus || BookingStatus.waiting}, NOW(), NOW()
 			)
 		`;
 		const inserted = await prisma.$queryRaw<Array<{ id: number | bigint }>>`SELECT LAST_INSERT_ID() as id`;
 		const bookingIdValue = inserted?.[0]?.id;
 		const bookingId = bookingIdValue != null ? Number(bookingIdValue) : null;
+
+		// Persist invite emails if provided
+		if (bookingId && Array.isArray(body.inviteEmails) && body.inviteEmails.length > 0) {
+			const emailsToInsert = body.inviteEmails
+				.filter((email: string) => typeof email === "string" && email.trim().length > 0)
+				.map((email: string) => ({ bookingId, email: email.trim() }));
+			if (emailsToInsert.length > 0) {
+				await prisma.inviteEmailList.createMany({
+					data: emailsToInsert,
+					skipDuplicates: true,
+				});
+			}
+		}
 
 		return NextResponse.json(
 			{
@@ -151,6 +178,7 @@ export async function POST(request: NextRequest) {
 					timeStart,
 					timeEnd,
 					bookingStatus: body.bookingStatus || BookingStatus.waiting,
+					inviteEmailsSaved: Array.isArray(body.inviteEmails) ? body.inviteEmails.length : 0,
 				},
 			},
 			{ status: 201 }

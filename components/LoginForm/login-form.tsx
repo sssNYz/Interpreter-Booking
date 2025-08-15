@@ -49,7 +49,7 @@ export function LoginForm({
                   email: user.email,
                   phone: user.phone || null,
                   storedAt: Date.now(),
-                  ttl: 60 * 60 * 1000,
+                  ttl: 30 * 60 * 1000,
                 }
                 localStorage.setItem("booking.user", JSON.stringify(payload))
                 window.dispatchEvent(new StorageEvent("storage", { key: "booking:user-changed" }))
