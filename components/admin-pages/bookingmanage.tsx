@@ -12,10 +12,8 @@ import {
   Calendar, ChevronUp, ChevronDown, SquarePen,
 } from "lucide-react";
 
-// ✅ แก้ import type ให้แมตช์
 import type { BookingManage as BookingMange, Stats } from "@/app/types/booking-types";
 
-// ฟอร์มแก้ไข/สร้าง
 import BookingDetailDialog from "../admin-form/booking-form";
 
 /* ========= THEME ========= */
