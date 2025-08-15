@@ -263,7 +263,6 @@ export function BookingForm({
         highPriority,
         timeStart: startDateTime,
         timeEnd: endDateTime,
-        interpreterId: interpreterId ? parseInt(interpreterId) : null,
         bookingStatus: "waiting", // Default to waiting
         inviteEmails: inviteEmails.length > 0 ? inviteEmails : undefined,
       };
