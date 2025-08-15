@@ -10,6 +10,7 @@ import {
 import { AppSidebar } from "@/components/slidebar/app-sidebar";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { Toaster } from "@/components/ui/sonner";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -63,6 +64,7 @@ export default function RootLayout({
             </main>
           </SidebarInset>
         </SidebarProvider>
+        <Toaster position="top-center" offset={50} />
       </body>
     </html>
   );
