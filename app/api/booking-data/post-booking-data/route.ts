@@ -81,6 +81,8 @@ const validateBookingData = (
 		}
 	}
 
+
+
 	if (data.bookingStatus && !Object.values(BookingStatus).includes(data.bookingStatus)) {
 		errors.push(`bookingStatus must be one of: ${Object.values(BookingStatus).join(", ")}`);
 	}
@@ -113,6 +115,8 @@ export async function POST(request: NextRequest) {
 
 		const { timeStart, timeEnd } = parseBookingDates(body.timeStart, body.timeEnd);
 
+
+
 		// conflict check via parameterized SQL to avoid old Prisma client selecting removed columns
 		const conflicts = await prisma.$queryRaw<Array<{ x: number }>>`
 			SELECT 1 as x FROM BOOKING_PLAN
@@ -141,6 +145,19 @@ export async function POST(request: NextRequest) {
 		const bookingIdValue = inserted?.[0]?.id;
 		const bookingId = bookingIdValue != null ? Number(bookingIdValue) : null;
 
+		// Persist invite emails if provided
+		if (bookingId && Array.isArray(body.inviteEmails) && body.inviteEmails.length > 0) {
+			const emailsToInsert = body.inviteEmails
+				.filter((email: string) => typeof email === "string" && email.trim().length > 0)
+				.map((email: string) => ({ bookingId, email: email.trim() }));
+			if (emailsToInsert.length > 0) {
+				await prisma.inviteEmailList.createMany({
+					data: emailsToInsert,
+					skipDuplicates: true,
+				});
+			}
+		}
+
 		return NextResponse.json(
 			{
 				success: true,
@@ -151,6 +168,7 @@ export async function POST(request: NextRequest) {
 					timeStart,
 					timeEnd,
 					bookingStatus: body.bookingStatus || BookingStatus.waiting,
+					inviteEmailsSaved: Array.isArray(body.inviteEmails) ? body.inviteEmails.length : 0,
 				},
 			},
 			{ status: 201 }
