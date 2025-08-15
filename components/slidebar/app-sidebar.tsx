@@ -97,7 +97,7 @@ export function AppSidebar() {
               {/* 🔒 Logout */}
               <SidebarMenuItem>
                 <SidebarMenuButton asChild>
-                  <button type="button" onClick={() => router.push("/login")}>
+                  <button type="button" onClick={() => { localStorage.removeItem("booking.user"); router.push("/login"); }}>
                     <LogOut className="h-4 w-4" />
                     <span>Logout</span>
                   </button>
