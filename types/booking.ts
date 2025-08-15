@@ -11,6 +11,7 @@ export type Booking = {
 
 export type BookingData = {
   bookingId: number;
+  ownerEmpCode: string;
   ownerName: string;
   ownerSurname: string;
   ownerEmail: string;
