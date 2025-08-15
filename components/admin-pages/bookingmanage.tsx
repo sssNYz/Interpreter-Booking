@@ -96,7 +96,6 @@ const getStatusIcon = (status: string) =>
 
 /* ========= Component ========= */
 export default function BookingManagement(): React.JSX.Element {
-  // ✅ เพิ่ม state สำหรับข้อมูลจาก API
   const [bookings, setBookings] = useState<BookingMange[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -114,11 +113,10 @@ export default function BookingManagement(): React.JSX.Element {
   const [currentYear, setCurrentYear] = useState<number | null>(null);
   const [sortByDateAsc, setSortByDateAsc] = useState(true);
 
-  // ฟอร์มแก้ไข
   const [showBookingDetailDialog, setShowBookingDetailDialog] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<BookingMange | null>(null);
 
-  // ✅ ดึงข้อมูลจาก API
+// fetch bookings from API
   const fetchBookings = useCallback(async () => {
     try {
       setLoading(true);
@@ -141,10 +139,10 @@ export default function BookingManagement(): React.JSX.Element {
     const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
     setCurrentMonth(months[now.getMonth()]);
     setCurrentYear(now.getFullYear());
-    fetchBookings(); // ✅ โหลดครั้งแรก
+    fetchBookings(); 
   }, [fetchBookings]);
 
-  // ✅ ใช้ bookings แทน MOCK_BOOKINGS
+
   const filteredBookings = useMemo(() => {
     const filtered = bookings.filter((b) => {
       const searchOk =
@@ -435,8 +433,7 @@ export default function BookingManagement(): React.JSX.Element {
             </div>
           </CardContent>
         </Card>
-
-        {/* BookingForm เรนเดอร์ครั้งเดียว (นอกตาราง) */}
+        {/* Booking Detail Dialog */}
         <BookingDetailDialog
           open={showBookingDetailDialog}
           onOpenChange={(open: boolean) => {
@@ -445,7 +442,6 @@ export default function BookingManagement(): React.JSX.Element {
           }}
           editData={selectedBooking}
           isEditing
-          // ✅ รีโหลดหลัง Approve/Cancel
           onActionComplete={fetchBookings}
         />
 
