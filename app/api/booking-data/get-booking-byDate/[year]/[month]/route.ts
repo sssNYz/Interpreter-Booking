@@ -33,18 +33,53 @@ export async function GET(
       },
     },
     orderBy: { timeStart: "asc" },
-  });
+    include: {
+      employee: {
+        select: { firstNameEn: true, lastNameEn: true, email: true, telExt: true },
+      },
+      interpreterEmployee: {
+        select: { empCode: true },
+      },
+    },
+  } as Parameters<typeof prisma.bookingPlan.findMany>[0]);
 
-  // ✅ ไม่แปลง timezone ซ้ำ เพราะเวลาใน DB เป็น local แล้ว
-  const bookingsWithLocalTime = bookings.map((b) => {
-    return {
-      ...b,
-      timeStart: b.timeStart, // ❌ ไม่มี timezone!
-      timeEnd: b.timeEnd,
-    };
-  });
+  // Map to the BookingData shape expected by the frontend
+  type IncludedEmployee = { firstNameEn: string | null; lastNameEn: string | null; email: string | null; telExt: string | null } | null;
+  type IncludedInterpreter = { empCode: string | null } | null;
+  const result = (bookings as Array<{
+    bookingId: number;
+    ownerEmpCode: string;
+    ownerGroup: string;
+    meetingRoom: string;
+    meetingDetail: string | null;
+    highPriority: boolean;
+    timeStart: Date;
+    timeEnd: Date;
+    bookingStatus: string;
+    createdAt: Date;
+    updatedAt: Date;
+    employee?: IncludedEmployee;
+    interpreterEmployee?: IncludedInterpreter;
+  }>).map((b) => ({
+    bookingId: b.bookingId,
+    ownerEmpCode: b.ownerEmpCode,
+    ownerName: b.employee?.firstNameEn ?? "",
+    ownerSurname: b.employee?.lastNameEn ?? "",
+    ownerEmail: b.employee?.email ?? "",
+    ownerTel: b.employee?.telExt ?? "",
+    ownerGroup: b.ownerGroup,
+    meetingRoom: b.meetingRoom,
+    meetingDetail: b.meetingDetail ?? "",
+    highPriority: b.highPriority,
+    timeStart: b.timeStart,
+    timeEnd: b.timeEnd,
+    interpreterId: b.interpreterEmployee?.empCode ?? null,
+    bookingStatus: b.bookingStatus,
+    createdAt: b.createdAt,
+    updatedAt: b.updatedAt,
+  }));
 
-  return new Response(JSON.stringify(bookingsWithLocalTime), {
+  return new Response(JSON.stringify(result), {
     headers: { "Content-Type": "application/json" },
   });
 }
