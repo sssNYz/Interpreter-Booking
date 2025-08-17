@@ -1,5 +1,11 @@
 "use client";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { Calendar, ChevronLeft, ChevronRight, Clock } from "lucide-react";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
@@ -173,7 +179,8 @@ const BookingCalendar: React.FC = () => {
 
     const viewportReady = !!scrollViewportRef.current;
     if (!viewportReady || daysInMonth.length === 0 || !isCurrentMonth) return;
-    if (hasAutoScrolledRef.current && currentDate.getTime() === now.getTime()) return; // Skip if just mounted
+    if (hasAutoScrolledRef.current && currentDate.getTime() === now.getTime())
+      return; // Skip if just mounted
 
     // Scroll when month changes to current month (e.g., via Today button)
     requestAnimationFrame(() => scrollToToday());
@@ -305,7 +312,6 @@ const BookingCalendar: React.FC = () => {
           {/* Horizontal scrollbar */}
           <ScrollBar orientation="horizontal" className="z-[10]" />
         </ScrollArea>
-
       </div>
 
       {/* Row next to the table: left controls + right legend (outside the calendar box) */}
