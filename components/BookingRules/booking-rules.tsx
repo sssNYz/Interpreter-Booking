@@ -9,7 +9,9 @@ export default function BookingRules() {
   return (
     <Sheet>
       <SheetTrigger asChild>
-        <Button variant="secondary" className="bg-neutral-600 text-white hover:bg-neutral-700">Rules</Button>
+
+        <Button variant="outline" className="ml-0">Rules</Button>
+
       </SheetTrigger>
       <SheetContent side="right" className="w-[380px] sm:w-[480px]">
         <SheetHeader>

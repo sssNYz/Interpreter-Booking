@@ -15,6 +15,8 @@ import { useSlotDataForBars } from "@/hooks/use-bar-slot-data";
 import { ROW_HEIGHT, DAY_LABEL_WIDTH, CELL_WIDTH } from "@/utils/constants";
 import { getStatusStyle } from "@/utils/status";
 import type { DayInfo } from "@/types/booking";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { Button } from "@/components/ui/button";
 
 
 const BookingCalendar: React.FC = () => {
@@ -135,7 +137,8 @@ const BookingCalendar: React.FC = () => {
       >
         {/* Left side: Title with calendar icon */}
 
-        <div className="flex items-center gap-2 justify-center min-w-[370px] rounded-t-4xl bg-primary px-4 py-2">
+        <div className="flex items-center gap-2 justify-center min-w-[370px] rounded-t-4xl bg-neutral-600 px-4 py-2">
+
           <Calendar className="w-8 h-8 text-primary-foreground" />
           <h1 className="text-[20px] font-medium text-primary-foreground">Book Appointment</h1>
         </div>
@@ -261,6 +264,8 @@ const BookingCalendar: React.FC = () => {
         selectedSlot={selectedSlot}
         daysInMonth={daysInMonth}
       />
+
+      
     </div>
   );
 };
