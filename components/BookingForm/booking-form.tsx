@@ -35,6 +35,8 @@ import {
 } from "lucide-react";
 import { Switch } from "../ui/switch";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { toast } from "sonner";
 
 
 type BookingFormProps = {
@@ -97,7 +99,7 @@ export function BookingForm({
     : undefined;
 
 
-  // Reset form when sheet opens/closes
+  // Get user data from localStorage (cached at login) and reset form when sheet opens/closes
   useEffect(() => {
     if (!open) {
       // Reset all form fields when sheet closes
@@ -117,6 +119,23 @@ export function BookingForm({
       setNewEmail("");
       setErrors({});
       setIsSubmitting(false);
+    }
+    if (open) {
+      try {
+        const raw = localStorage.getItem("booking.user");
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        const expired = Date.now() > (parsed.storedAt || parsed.timestamp || 0) + ((parsed.ttlDays ? parsed.ttlDays * 86400000 : parsed.ttl) || 0);
+        if (expired) return;
+        const full = String(parsed.name || "");
+        const parts = full.trim().split(/\s+/);
+        const first = parts[0] || "";
+        const last = parts.slice(1).join(" ") || "";
+        setOwnerName(first);
+        setOwnerSurname(last);
+        setOwnerEmail(parsed.email || "");
+        setOwnerTel(parsed.phone || "");
+      } catch {}
     }
   }, [open]);
 
@@ -202,12 +221,6 @@ export function BookingForm({
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
 
-    if (!ownerName.trim()) newErrors.ownerName = "Name is required";
-    if (!ownerSurname.trim()) newErrors.ownerSurname = "Surname is required";
-    if (!ownerEmail.trim()) newErrors.ownerEmail = "Email is required";
-    else if (!isValidEmail(ownerEmail))
-      newErrors.ownerEmail = "Invalid email format";
-    if (!ownerTel.trim()) newErrors.ownerTel = "Phone number is required";
     if (!meetingRoom.trim()) newErrors.meetingRoom = "Meeting room is required";
     if (!startTime) newErrors.startTime = "Start time is required";
     if (!endTime) newErrors.endTime = "End time is required";
@@ -231,18 +244,27 @@ export function BookingForm({
       const startDateTime = `${localDate}T${startTime}:00.000`;
       const endDateTime = `${localDate}T${endTime}:00.000`;
 
+      // Get empCode from localStorage
+      const raw = localStorage.getItem("booking.user");
+      if (!raw) {
+        alert("User session expired. Please login again.");
+        return;
+      }
+      const parsed = JSON.parse(raw);
+      const empCode = parsed.empCode;
+      if (!empCode) {
+        alert("User session invalid. Please login again.");
+        return;
+      }
+
       const bookingData = {
-        ownerName: ownerName.trim(),
-        ownerSurname: ownerSurname.trim(),
-        ownerEmail: ownerEmail.trim(),
-        ownerTel: ownerTel.trim(),
+        ownerEmpCode: empCode,
         ownerGroup,
         meetingRoom: meetingRoom.trim(),
         meetingDetail: meetingDetail.trim() || undefined,
         highPriority,
         timeStart: startDateTime,
         timeEnd: endDateTime,
-        interpreterId: interpreterId ? parseInt(interpreterId) : null,
         bookingStatus: "waiting", // Default to waiting
         inviteEmails: inviteEmails.length > 0 ? inviteEmails : undefined,
       };
@@ -258,17 +280,93 @@ export function BookingForm({
       const result = await response.json();
 
       if (result.success) {
-        alert("Booking created successfully!");
+        const bookingDate = dayObj?.fullDate.toLocaleDateString("en-US", {
+          weekday: "long",
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+        });
+        const duration = `${startTime} - ${endTime}`;
+        toast.custom(
+          (t) => (
+            <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm w-[420px]">
+              <Alert className="border-none p-0">
+                <AlertTitle className="text-gray-900">
+                  <span className="text-green-600 font-semibold">Success</span>
+                  <span className="ml-1">Booking created successfully!</span>
+                </AlertTitle>
+                <AlertDescription className="text-gray-700">
+                  {bookingDate} at {duration}
+                </AlertDescription>
+              </Alert>
+              <div className="flex justify-end mt-4">
+                <button
+                  onClick={() => toast.dismiss(t)}
+                  className="bg-gray-900 text-white px-3 py-1 rounded text-xs"
+                >
+                  OK
+                </button>
+              </div>
+            </div>
+          ),
+          { duration: 5000 }
+        );
         onOpenChange(false);
       } else {
-        alert(`Error: ${result.message || result.error}`);
+        toast.custom(
+          (t) => (
+            <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm w-[420px]">
+              <Alert className="border-none p-0">
+                <AlertTitle className="text-gray-900">
+                  <span className="text-red-600 font-semibold">Error</span>
+                  <span className="ml-1">Unable to create booking</span>
+                </AlertTitle>
+                <AlertDescription className="text-gray-700">
+                  {result.message || result.error || "Please try again"}
+                </AlertDescription>
+              </Alert>
+              <div className="flex justify-end mt-4">
+                <button
+                  onClick={() => toast.dismiss(t)}
+                  className="bg-gray-900 text-white px-3 py-1 rounded text-xs"
+                >
+                  OK
+                </button>
+              </div>
+            </div>
+          ),
+          { duration: 5000 }
+        );
         if (result.details) {
           console.error("Validation errors:", result.details);
         }
       }
     } catch (error) {
       console.error("Error creating booking:", error);
-      alert("An error occurred while creating the booking");
+      toast.custom(
+        (t) => (
+          <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm w-[420px]">
+            <Alert className="border-none p-0">
+              <AlertTitle className="text-gray-900">
+                <span className="text-red-600 font-semibold">Error</span>
+                <span className="ml-1">Unable to create booking</span>
+              </AlertTitle>
+              <AlertDescription className="text-gray-700">
+                An error occurred while creating the booking
+              </AlertDescription>
+            </Alert>
+            <div className="flex justify-end mt-4">
+              <button
+                onClick={() => toast.dismiss(t)}
+                className="bg-gray-900 text-white px-3 py-1 rounded text-xs"
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        ),
+        { duration: 5000 }
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -307,8 +405,8 @@ export function BookingForm({
                     id="ownerName"
                     placeholder="Your first name"
                     value={ownerName}
-                    onChange={(e) => setOwnerName(e.target.value)}
-                    className={errors.ownerName ? "border-red-500" : ""}
+                    readOnly
+                    className="bg-muted cursor-not-allowed"
                   />
                   {errors.ownerName && (
                     <p className="text-red-500 text-sm">{errors.ownerName}</p>
@@ -321,8 +419,8 @@ export function BookingForm({
                     id="ownerSurname"
                     placeholder="Your last name"
                     value={ownerSurname}
-                    onChange={(e) => setOwnerSurname(e.target.value)}
-                    className={errors.ownerSurname ? "border-red-500" : ""}
+                    readOnly
+                    className="bg-muted cursor-not-allowed"
                   />
                   {errors.ownerSurname && (
                     <p className="text-red-500 text-sm">
@@ -342,8 +440,8 @@ export function BookingForm({
                   type="email"
                   placeholder="your.email@example.com"
                   value={ownerEmail}
-                  onChange={(e) => setOwnerEmail(e.target.value)}
-                  className={errors.ownerEmail ? "border-red-500" : ""}
+                  readOnly
+                  className="bg-muted cursor-not-allowed"
                 />
                 {errors.ownerEmail && (
                   <p className="text-red-500 text-sm">{errors.ownerEmail}</p>
@@ -360,8 +458,8 @@ export function BookingForm({
                     id="ownerTel"
                     placeholder="0123456789"
                     value={ownerTel}
-                    onChange={(e) => setOwnerTel(e.target.value)}
-                    className={errors.ownerTel ? "border-red-500" : ""}
+                    readOnly
+                    className="bg-muted cursor-not-allowed"
                   />
                   {errors.ownerTel && (
                     <p className="text-red-500 text-sm">{errors.ownerTel}</p>

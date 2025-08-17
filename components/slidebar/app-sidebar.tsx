@@ -1,6 +1,7 @@
 "use client"
 
-import { Calendar, Home, Inbox, Search, Settings, ChevronRight,LayoutDashboard,Star} from "lucide-react"
+import { useRouter } from "next/navigation"
+import { Calendar, Home, Inbox, Search, Settings, ChevronRight,LayoutDashboard,Star, LogOut } from "lucide-react"
 
 import {
   Sidebar,
@@ -24,13 +25,14 @@ import {
 // Submenu for Admin
 const adminItems = [
   { title: "Overview", url: "/admin-page", icon: Home },
-  { title: "Bookings management", url: "#", icon: Inbox },
+  { title: "Bookings management", url: "/admin-page/booking-manage", icon: Inbox },
   { title: "Interpreters management", url: "#", icon: Calendar },
   { title: "Reports", url: "#", icon: Search },
   { title: "Settings", url: "#", icon: Settings },
 ]
 
 export function AppSidebar() {
+  const router = useRouter()
   return (
     <Sidebar collapsible="icon">
       <SidebarContent>
@@ -91,6 +93,16 @@ export function AppSidebar() {
                   </CollapsibleContent>
                 </SidebarMenuItem>
               </Collapsible>
+
+              {/* 🔒 Logout */}
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild>
+                  <button type="button" onClick={() => { localStorage.removeItem("booking.user"); router.push("/login"); }}>
+                    <LogOut className="h-4 w-4" />
+                    <span>Logout</span>
+                  </button>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
 
             </SidebarMenu>
           </SidebarGroupContent>

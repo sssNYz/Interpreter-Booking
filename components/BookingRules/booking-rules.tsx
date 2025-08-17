@@ -10,7 +10,7 @@ export default function BookingRules() {
     <Sheet>
       <SheetTrigger asChild>
 
-        <Button variant="outline" className="ml-0">Rules</Button>
+        <Button className="ml-0 bg-neutral-700 text-white rounded-t-none rounded-b-3xl hover:bg-black/90 w-32 h-10">Rules</Button>
 
       </SheetTrigger>
       <SheetContent side="right" className="w-[380px] sm:w-[480px]">
