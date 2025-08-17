@@ -11,6 +11,7 @@ export type Booking = {
 
 export type BookingData = {
   bookingId: number;
+  ownerEmpCode: string;
   ownerName: string;
   ownerSurname: string;
   ownerEmail: string;
@@ -21,7 +22,7 @@ export type BookingData = {
   highPriority: boolean;
   timeStart: string;
   timeEnd: string;
-  interpreterId: number | null;
+  interpreterId: string | null;
   bookingStatus: string;
   createdAt: string;
   updatedAt: string;
