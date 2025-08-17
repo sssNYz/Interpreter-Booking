@@ -1,9 +1,12 @@
 "use client";
+
 import React, { useCallback, useMemo, useRef, useState } from "react";
+
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { Calendar, ChevronLeft, ChevronRight, Clock } from "lucide-react";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { BookingForm } from "@/components/BookingForm/booking-form";
+
 import DayRow from "./day-row";
 
 import { generateTimeSlots, getDaysInMonth } from "@/utils/calendar";
@@ -13,17 +16,21 @@ import { ROW_HEIGHT, DAY_LABEL_WIDTH, CELL_WIDTH } from "@/utils/constants";
 import { getStatusStyle } from "@/utils/status";
 import type { DayInfo } from "@/types/booking";
 
+
 const BookingCalendar: React.FC = () => {
   // State for current month/year being displayed
   const [currentDate, setCurrentDate] = useState(new Date());
+
   
   // Controls whether the booking form modal is open
   const [isFormOpen, setIsFormOpen] = useState(false);
   
+
   // Stores which time slot was clicked (day + time) to pass to booking form
   const [selectedSlot, setSelectedSlot] = useState<
     { day: number; slot: string } | undefined
   >(undefined);
+
 
   // IMPORTANT: keep ScrollArea viewport ref together with virtualizer
   // This ref is used by the virtualizer to know the scrollable container
@@ -32,6 +39,7 @@ const BookingCalendar: React.FC = () => {
   // Generate time slots for the day (e.g., ["08:00", "08:30", "09:00", ...])
   const timeSlots = useMemo(() => generateTimeSlots(), []);
   
+
   // Get all days in the current month with their date info
   const daysInMonth: DayInfo[] = useMemo(
     () => getDaysInMonth(currentDate),
@@ -88,12 +96,15 @@ const BookingCalendar: React.FC = () => {
   // This improves performance when there are many days
   const rowVirtualizer = useVirtualizer({
     count: daysInMonth.length, // Total number of days to render
+
     getScrollElement: () => scrollAreaViewportRef.current, // Scroll container
+
     estimateSize: () => ROW_HEIGHT, // Height of each day row
     overscan: 2, // Render 2 extra rows above/below for smooth scrolling
   });
 
   /**
+
    * Navigate to previous or next month
    * @param direction -1 for previous month, +1 for next month
    */
@@ -123,11 +134,13 @@ const BookingCalendar: React.FC = () => {
         style={{ maxWidth: "1500px" }}
       >
         {/* Left side: Title with calendar icon */}
+
         <div className="flex items-center gap-2 justify-center min-w-[370px] rounded-t-4xl bg-primary px-4 py-2">
           <Calendar className="w-8 h-8 text-primary-foreground" />
           <h1 className="text-[20px] font-medium text-primary-foreground">Book Appointment</h1>
         </div>
         
+
         {/* Right side: Month navigation buttons */}
         <div className="mt-auto mr-3.5 flex items-center justify-center ml-auto max-w-[280px]">
           <div className="flex items-center gap-2">
@@ -153,10 +166,12 @@ const BookingCalendar: React.FC = () => {
         </div>
       </div>
 
+
       {/* Main calendar grid */}
       <div className="border border-border rounded-3xl overflow-hidden bg-background">
         {/* KEEPING ScrollArea + virtualizer viewport TOGETHER */}
         <ScrollArea className="h-[500px]">
+
           {/* Fixed header row with time labels */}
           <div
             className="sticky top-0 z-30 bg-secondary border-b border-border"
@@ -170,7 +185,7 @@ const BookingCalendar: React.FC = () => {
             <div className="sticky left-0 z-30 flex items-center justify-center border-r border-border bg-secondary">
               <Clock className="w-4 h-4 text-secondary-foreground" />
             </div>
-            
+
             {/* Time slot headers (08:00, 08:30, 09:00, etc.) */}
             {timeSlots.map((slot) => (
               <div
@@ -184,7 +199,9 @@ const BookingCalendar: React.FC = () => {
 
           {/* Virtualized day rows - only renders visible rows for performance */}
           <div
+
             ref={scrollAreaViewportRef}
+
             style={{
               height: `${rowVirtualizer.getTotalSize()}px`,
               position: "relative",
@@ -198,7 +215,9 @@ const BookingCalendar: React.FC = () => {
                 currentDate={currentDate}
                 timeSlots={timeSlots}
                 bars={barsByDay.get(vr.index) ?? []} // Booking bars for this day
+
                 occupancy={occupancyByDay.get(vr.index) ?? Array(timeSlots.length).fill(0)} // How many bookings per time slot
+
                 isTimeSlotPast={isTimeSlotPast}
                 onSlotClick={handleSlotClick}
                 style={{
@@ -211,6 +230,7 @@ const BookingCalendar: React.FC = () => {
               />
             ))}
           </div>
+
           
           {/* Horizontal scrollbar */}
           <ScrollBar orientation="horizontal" className="z-[10]"/>
@@ -230,6 +250,7 @@ const BookingCalendar: React.FC = () => {
         <div className="flex items-center gap-2">
           <span className={`inline-block h-2.5 w-2.5 rounded-full border border-primary-foreground ${getStatusStyle("cancel").bg}`} />
           <span className="text-primary-foreground">Cancelled</span>
+
         </div>
       </div>
 
@@ -245,3 +266,4 @@ const BookingCalendar: React.FC = () => {
 };
 
 export default BookingCalendar;
+
