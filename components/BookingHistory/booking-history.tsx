@@ -12,7 +12,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
-import { FilterIcon, UserSearchIcon, XIcon, User, Mail, Users, ListCollapse } from "lucide-react";
+import { FilterIcon, UserSearchIcon, XIcon, User, Mail, Users, ListCollapse, MapPin, Clock } from "lucide-react";
 
 type StatusFilter = "all" | "approve" | "waiting" | "cancel";
 
@@ -318,7 +318,12 @@ export default function BookingHistory() {
                     const end = new Date(selectedBooking.timeEnd);
                     return (
                       <>
-                        <div className="font-medium">{selectedBooking.meetingRoom} {formatTimeHHMM_UTC(start)} - {formatTimeHHMM_UTC(end)}</div>
+                        <div className="font-medium flex items-center gap-2">
+                          <MapPin className="h-4 w-4 text-muted-foreground" />
+                          {selectedBooking.meetingRoom}
+                          <Clock className="h-4 w-4 text-muted-foreground ml-2" />
+                          {formatTimeHHMM_UTC(start)} - {formatTimeHHMM_UTC(end)}
+                        </div>
                         <div className="mt-1 whitespace-pre-wrap">{selectedBooking.meetingDetail || "-"}</div>
                       </>
                     );
