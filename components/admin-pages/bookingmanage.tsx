@@ -11,7 +11,7 @@ import {
   ChevronLeft, ChevronRight, Star, Clock, Info, CheckCircle, XCircle, Hourglass,
   Calendar, ChevronUp, ChevronDown, SquarePen,
 } from "lucide-react";
-
+import { Label } from "@/components/ui/label";
 import type { BookingManage as BookingMange, Stats } from "@/app/types/booking-types";
 
 import BookingDetailDialog from "../admin-form/booking-form";
@@ -21,9 +21,9 @@ const PAGE_WRAPPER = "min-h-screen bg-[#f7f7f7] font-sans text-gray-900";
 
 /* ========= Constants ========= */
 const TIME_SLOTS = [
-  "08:00","08:30","09:00","09:30","10:00","10:30",
-  "11:00","11:30","12:00","12:30","13:00","13:30",
-  "14:00","14:30","15:00","15:30","16:00","16:30","17:00",
+  "08:00", "08:30", "09:00", "09:30", "10:00", "10:30",
+  "11:00", "11:30", "12:00", "12:30", "13:00", "13:30",
+  "14:00", "14:30", "15:00", "15:30", "16:00", "16:30", "17:00",
 ];
 
 const STATUS_OPTIONS = [
@@ -33,6 +33,23 @@ const STATUS_OPTIONS = [
   { value: "Cancel", label: "Cancel" },
 ];
 
+// === Past/Ended helpers ===
+const toLocalYMD = (s: string) => {
+  const d = new Date(s);
+  const yyyy = d.getFullYear();
+  const mm = `${d.getMonth() + 1}`.padStart(2, "0");
+  const dd = `${d.getDate()}`.padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+};
+
+const isPastMeeting = (dateStr: string, endHHmm: string, graceMin = 10) => {
+  const ymd = toLocalYMD(dateStr);
+  const end = new Date(`${ymd}T${endHHmm}:00`);
+  const endWithGrace = new Date(end.getTime() + graceMin * 60 * 1000);
+  return Date.now() > endWithGrace.getTime();
+};
+
+
 /* ========= Utils ========= */
 const parseTime = (t: string) => {
   const [h, m] = t.split(":").map(Number);
@@ -41,13 +58,13 @@ const parseTime = (t: string) => {
 
 const formatDate = (s: string) => {
   const d = new Date(s);
-  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
 };
 
 const formatRequestedTime = (s: string) => {
   const d = new Date(s);
-  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   const hh = `${d.getHours()}`.padStart(2, "0");
   const mm = `${d.getMinutes()}`.padStart(2, "0");
   return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()} ${hh}:${mm}`;
@@ -56,8 +73,8 @@ const formatRequestedTime = (s: string) => {
 const getFullDate = (s: string, isClient: boolean) => {
   if (!isClient) return s;
   const d = new Date(s);
-  const days = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
-  const months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+  const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
   return `${days[d.getDay()]}, ${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
 };
 
@@ -113,8 +130,10 @@ export default function BookingManagement(): React.JSX.Element {
 
   const [showBookingDetailDialog, setShowBookingDetailDialog] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<BookingMange | null>(null);
+  const [showPast, setShowPast] = useState(false);
 
-// fetch bookings from API
+
+  // fetch bookings from API
   const fetchBookings = useCallback(async () => {
     try {
       setLoading(true);
@@ -134,10 +153,10 @@ export default function BookingManagement(): React.JSX.Element {
   useEffect(() => {
     setIsClient(true);
     const now = new Date();
-    const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
     setCurrentMonth(months[now.getMonth()]);
     setCurrentYear(now.getFullYear());
-    fetchBookings(); 
+    fetchBookings();
   }, [fetchBookings]);
 
 
@@ -151,10 +170,16 @@ export default function BookingManagement(): React.JSX.Element {
       const dateOk = !filters.date || b.dateTime === filters.date;
       const reqOk = !filters.dateRequest || b.requestedTime.startsWith(filters.dateRequest);
       const timeOk = filters.time === "all" || b.startTime === filters.time;
-      return searchOk && statusOk && dateOk && reqOk && timeOk;
+
+      // ✅ ใหม่: ถ้าไม่กดปุ่ม Show Past จะซ่อนประชุมที่จบไปแล้ว
+      const pastOk = showPast ? true : !isPastMeeting(b.dateTime, b.endTime, 10);
+
+      return searchOk && statusOk && dateOk && reqOk && timeOk && pastOk;
     });
+
     return sortBookings(filtered, sortByDateAsc);
-  }, [bookings, filters, sortByDateAsc]);
+  }, [bookings, filters, sortByDateAsc, showPast]);
+
 
   const stats = useMemo<Stats>(() => {
     const hasActive = Object.values(filters).some((v) => v !== "" && v !== "all");
@@ -192,6 +217,8 @@ export default function BookingManagement(): React.JSX.Element {
     setSortByDateAsc((p) => !p);
     setPagination((p) => ({ ...p, currentPage: 1 }));
   };
+
+
 
   return (
     <div className={PAGE_WRAPPER}>
@@ -255,9 +282,12 @@ export default function BookingManagement(): React.JSX.Element {
         {/* Filters */}
         <Card className="mb-6 bg-white">
           <CardContent className="pt-6">
-            <div className="flex flex-wrap gap-4 items-end">
-              <div className="flex-1 min-w-[200px]">
-                <label className="block text-base font-semibold text-gray-800 mb-2">Search User / Interpreter</label>
+            <div className="flex flex-nowrap items-end gap-4 overflow-x-auto pb-2">
+              {/* Search */}
+              <div className="shrink-0 w-[260px] flex flex-col gap-2">
+                <Label className="text-sm font-semibold text-gray-800 leading-none">
+                  Search User / Interpreter
+                </Label>
                 <Input
                   placeholder="Search..."
                   value={filters.search}
@@ -266,47 +296,93 @@ export default function BookingManagement(): React.JSX.Element {
                 />
               </div>
 
-              <div className="flex-1 min-w-[120px]">
-                <label className="block text-base font-semibold text-gray-800 mb-2">Status</label>
+              {/* Status */}
+              <div className="shrink-0 w-[160px] flex flex-col gap-2">
+                <Label className="text-sm font-semibold text-gray-800 leading-none">
+                  Status
+                </Label>
                 <Select value={filters.status} onValueChange={(v) => updateFilter("status", v)}>
                   <SelectTrigger className="h-10">
                     <SelectValue placeholder="All Status" />
                   </SelectTrigger>
                   <SelectContent>
                     {STATUS_OPTIONS.map((o) => (
-                      <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                      <SelectItem key={o.value} value={o.value}>
+                        {o.label}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
 
-              <div className="flex-1 min-w-[150px]">
-                <label className="block text-base font-semibold text-gray-800 mb-2">Date Meeting</label>
-                <Input type="date" value={filters.date} onChange={(e) => updateFilter("date", e.target.value)} className="h-10" />
+              {/* Date Meeting */}
+              <div className="shrink-0 w-[170px] flex flex-col gap-2">
+                <Label className="text-sm font-semibold text-gray-800 leading-none">
+                  Date Meeting
+                </Label>
+                <Input
+                  type="date"
+                  value={filters.date}
+                  onChange={(e) => updateFilter("date", e.target.value)}
+                  className="h-10"
+                />
               </div>
 
-              <div className="flex-1 min-w-[150px]">
-                <label className="block text-base font-semibold text-gray-800 mb-2">Date Requested</label>
-                <Input type="date" value={filters.dateRequest} onChange={(e) => updateFilter("dateRequest", e.target.value)} className="h-10" />
+              {/* Date Requested */}
+              <div className="shrink-0 w-[170px] flex flex-col gap-2">
+                <Label className="text-sm font-semibold text-gray-800 leading-none">
+                  Date Requested
+                </Label>
+                <Input
+                  type="date"
+                  value={filters.dateRequest}
+                  onChange={(e) => updateFilter("dateRequest", e.target.value)}
+                  className="h-10"
+                />
               </div>
 
-              <div className="flex-1 min-w-[130px]">
-                <label className="block text-base font-semibold text-gray-800 mb-2">Start Time</label>
+              {/* Start Time (แก้ตรงนี้ให้เหมือนช่องอื่นเป๊ะ) */}
+              <div className="shrink-0 w-[150px] flex flex-col gap-2">
+                <Label className="text-sm font-semibold text-gray-800 leading-none">
+                  Start Time
+                </Label>
                 <Select value={filters.time} onValueChange={(v) => updateFilter("time", v)}>
                   <SelectTrigger className="h-10">
                     <SelectValue placeholder="All Times" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="max-h-60 overflow-y-auto">
                     <SelectItem value="all">All Times</SelectItem>
                     {TIME_SLOTS.map((t) => (
-                      <SelectItem key={t} value={t}>{t}</SelectItem>
+                      <SelectItem key={t} value={t}>
+                        {t}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
+
+              {/* Past toggle button */}
+              <div className="shrink-0 w-[100px] flex flex-col gap-2">
+                <Label className="text-sm font-semibold text-gray-800 leading-none">
+                  Past Records
+                </Label>
+                <Button
+                  variant={showPast ? "default" : "outline"}
+                  size="sm"
+                  className="h-10 w-full"
+                  onClick={() => {
+                    setShowPast((v) => !v);
+                    setPagination((p) => ({ ...p, currentPage: 1 }));
+                  }}
+                >
+                  {showPast ? "Show" : "Hide"}
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
+
+
 
         {/* Loading / Error */}
         {loading && (
@@ -365,7 +441,7 @@ export default function BookingManagement(): React.JSX.Element {
                                 {formatDate(booking.dateTime)}
                               </span>
                               {isClient && (
-                            <div className="absolute top-full left-0 mt-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50">
+                                <div className="absolute top-full left-0 mt-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50">
                                   {getFullDate(booking.dateTime, isClient)}
                                 </div>
                               )}
