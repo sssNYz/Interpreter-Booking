@@ -49,7 +49,7 @@ const BookingCalendar: React.FC = () => {
   );
 
   // Fetch all bookings for the current month
-  const { bookings } = useBookings(currentDate);
+  const { bookings, refetch, loading } = useBookings(currentDate);
 
   /**
    * Check if a time slot is in the past (for today only)
@@ -148,6 +148,52 @@ const BookingCalendar: React.FC = () => {
     setSelectedSlot({ day, slot });
     setIsFormOpen(true);
   }, []);
+
+  // Light auto-refresh every ~60s while tab is visible
+  useEffect(() => {
+    let intervalId: number | null = null;
+
+    const startInterval = () => {
+      // add small jitter up to +5s to avoid all clients hitting at the exact same time
+      const intervalMs = 60000 + Math.floor(Math.random() * 5000);
+      intervalId = window.setInterval(() => {
+        if (document.visibilityState === "visible") {
+          refetch();
+        }
+      }, intervalMs);
+    };
+
+    const clear = () => {
+      if (intervalId !== null) {
+        window.clearInterval(intervalId);
+        intervalId = null;
+      }
+    };
+
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        // When user comes back, refresh now to catch up
+        refetch();
+      }
+    };
+
+    startInterval();
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    return () => {
+      clear();
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, [refetch, currentDate]);
+
+  // Listen for booking updates from the form and refetch
+  useEffect(() => {
+    const onUpdated = () => {
+      refetch();
+    };
+    window.addEventListener("booking:updated", onUpdated as EventListener);
+    return () => window.removeEventListener("booking:updated", onUpdated as EventListener);
+  }, [refetch]);
 
   return (
     <div className="max-w-[1500px]">
@@ -271,6 +317,14 @@ const BookingCalendar: React.FC = () => {
             className="bg-neutral-700 text-white rounded-t-none rounded-b-3xl hover:bg-black/90 w-32 h-10"
           >
             Today
+          </Button>
+          <Button
+            onClick={() => refetch()}
+            variant="outline"
+            className="h-10"
+            disabled={loading}
+          >
+            {loading ? "Refreshing..." : "Refresh"}
           </Button>
           <BookingRules />
         </div>
