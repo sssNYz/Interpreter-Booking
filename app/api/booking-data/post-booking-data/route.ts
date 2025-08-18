@@ -16,16 +16,18 @@ interface CreateBookingRequest {
 	bookingStatus?: BookingStatus;
 	timezone?: string; // Optional timezone parameter (not used for conversion, just for reference)
 	inviteEmails?: string[]; // Array of email addresses to invite
+	force?: boolean; // Allow booking even if overlap exists
 }
 
-// Capacity per overlapping time slot per meeting room
-const SLOT_CAPACITY = 2;
+// Global capacity across all rooms
+const GLOBAL_SLOT_CAPACITY = 2;
 
 // Standard API response shape
 type ApiResponse = {
 	success: boolean;
 	message?: string;
 	error?: string;
+	code?: string;
 	data?: Record<string, unknown>;
 };
 
@@ -84,6 +86,10 @@ const validateBookingData = (
 		errors.push("highPriority must be a boolean");
 	}
 
+	if (data.force !== undefined && typeof data.force !== "boolean") {
+		errors.push("force must be a boolean");
+	}
+
 	if (data.interpreterEmpCode !== undefined && data.interpreterEmpCode !== null) {
 		if (typeof data.interpreterEmpCode !== "string" || data.interpreterEmpCode.trim().length === 0) {
 			errors.push("interpreterEmpCode must be a non-empty string when provided");
@@ -126,41 +132,68 @@ export async function POST(request: NextRequest) {
 
 		const { timeStart, timeEnd } = parseBookingDates(body.timeStart, body.timeEnd);
 
-		// Use an interactive transaction to safely enforce capacity with concurrency
+		// Use an interactive transaction to keep operations atomic (insert + related records)
 		const result = await prisma.$transaction(async (tx) => {
-			// Acquire an advisory lock per meeting room to serialize overlapping checks for that room
-			const lockKey = `booking_room_${body.meetingRoom.trim()}`;
+			// Acquire a global advisory lock to serialize overlap checks + insert
+			const lockKey = 'booking_global_capacity';
 			const lockRes = await tx.$queryRaw<Array<{ locked: number | bigint }>>`
 				SELECT GET_LOCK(${lockKey}, 5) AS locked
 			`;
 			const lockedVal = lockRes?.[0]?.locked;
 			const lockOk = lockedVal != null ? Number(lockedVal) === 1 : false;
 			if (!lockOk) {
-				throw new Error('Failed to acquire booking lock');
+				throw new Error('Failed to acquire global booking lock');
 			}
 			try {
-				// Count overlapping non-cancel bookings for the room
-				const counts = await tx.$queryRaw<Array<{ cnt: number | bigint }>>`
+				// 1) Global capacity check (NOT by room)
+				const capCounts = await tx.$queryRaw<Array<{ cnt: number | bigint }>>`
+					SELECT COUNT(*) AS cnt
+					FROM BOOKING_PLAN
+					WHERE BOOKING_STATUS <> 'cancel'
+					AND (TIME_START < ${timeEnd} AND TIME_END > ${timeStart})
+					FOR UPDATE
+				`;
+				const capCntVal = capCounts?.[0]?.cnt;
+				const totalOverlap = capCntVal != null ? Number(capCntVal) : 0;
+				if (totalOverlap >= GLOBAL_SLOT_CAPACITY) {
+					return {
+						success: false as const,
+						status: 409,
+						body: {
+							success: false,
+							error: 'Time slot full',
+							message: 'The selected time slot has reached its capacity',
+							code: 'CAPACITY_FULL',
+							data: { totalOverlap, capacity: GLOBAL_SLOT_CAPACITY },
+						},
+					};
+				}
+
+				// 2) Same-room overlap warning (informational, requires confirmation)
+				const sameRoomCounts = await tx.$queryRaw<Array<{ cnt: number | bigint }>>`
 					SELECT COUNT(*) AS cnt
 					FROM BOOKING_PLAN
 					WHERE MEETING_ROOM = ${body.meetingRoom}
 					AND BOOKING_STATUS <> 'cancel'
-					AND (
-						(TIME_START < ${timeEnd} AND TIME_END > ${timeStart})
-					)
-					FOR UPDATE
+					AND (TIME_START < ${timeEnd} AND TIME_END > ${timeStart})
 				`;
-				const cntVal = counts?.[0]?.cnt;
-				const overlapCount = cntVal != null ? Number(cntVal) : 0;
-				if (overlapCount >= SLOT_CAPACITY) {
+				const sameRoomCntVal = sameRoomCounts?.[0]?.cnt;
+				const sameRoomOverlap = sameRoomCntVal != null ? Number(sameRoomCntVal) : 0;
+				if (sameRoomOverlap > 0 && !body.force) {
 					return {
 						success: false as const,
 						status: 409,
-						body: { success: false, error: 'Time slot full', message: 'The selected time slot has reached its capacity' },
+						body: {
+							success: false,
+							error: 'Overlap warning',
+							message: 'This room already has a booking overlapping this time. Do you want to proceed?',
+							code: 'OVERLAP_WARNING',
+							data: { meetingRoom: body.meetingRoom.trim(), overlapCount: sameRoomOverlap },
+						},
 					};
 				}
 
-				// Insert booking
+				// 3) Insert booking (capacity still enforced by the global lock + check)
 				await tx.$executeRaw`
 					INSERT INTO BOOKING_PLAN (
 						\`OWNER_EMP_CODE\`, \`OWNER_GROUP\`, \`MEETING_ROOM\`, \`MEETING_DETAIL\`, \`HIGH_PRIORITY\`, \`TIME_START\`, \`TIME_END\`, \`INTERPRETER_EMP_CODE\`, \`BOOKING_STATUS\`, \`created_at\`, \`updated_at\`
@@ -202,7 +235,6 @@ export async function POST(request: NextRequest) {
 					},
 				};
 			} finally {
-				// Always release the advisory lock
 				await tx.$queryRaw`SELECT RELEASE_LOCK(${lockKey})`;
 			}
 		}, { timeout: 10000 });

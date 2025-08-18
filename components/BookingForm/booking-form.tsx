@@ -267,21 +267,39 @@ export function BookingForm({
         inviteEmails: inviteEmails.length > 0 ? inviteEmails : undefined,
       };
 
-      const response = await fetch("/api/booking-data/post-booking-data", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(bookingData),
-      });
+      const submitOnce = async (force?: boolean) => {
+        const response = await fetch("/api/booking-data/post-booking-data", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ ...bookingData, ...(force ? { force: true } : {}) }),
+        });
+        const result = await response.json();
+        return { response, result } as const;
+      };
 
-      const result = await response.json();
+      // First attempt without force
+      let { response, result } = await submitOnce(false);
+
+      // If overlap warning, ask user to confirm and then force submit
+      if (response.status === 409 && result?.code === "OVERLAP_WARNING") {
+        const proceed = window.confirm(
+          result?.message ||
+            "This room already has a booking overlapping this time. Do you want to proceed?"
+        );
+        if (proceed) {
+          ({ response, result } = await submitOnce(true));
+        } else {
+          return; // user cancelled
+        }
+      }
 
       if (result.success) {
         alert("Booking created successfully!");
         onOpenChange(false);
       } else {
-        alert(`Error: ${result.message || result.error}`);
+        alert(`Error: ${result.message || result.error || "Failed to create booking"}`);
         if (result.details) {
           console.error("Validation errors:", result.details);
         }
