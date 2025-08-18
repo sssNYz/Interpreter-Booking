@@ -4,20 +4,11 @@ import prisma from "@/prisma/prisma";
 
 export const dynamic = "force-dynamic";
 
-// YYYY-MM-DD (เลี่ยง timezone shift)
-const fmtDate = (d: Date) => {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-};
+// YYYY-MM-DD (ตัดจาก UTC เพื่อกัน timezone shift)
+const fmtDate = (d: Date) => d.toISOString().slice(0, 10);
 
-// HH:mm (เลี่ยง timezone shift)
-const fmtTime = (d: Date) => {
-  const hh = String(d.getHours()).padStart(2, "0");
-  const mm = String(d.getMinutes()).padStart(2, "0");
-  return `${hh}:${mm}`;
-};
+// HH:mm (ตัดจาก UTC เพื่อกัน timezone shift)
+const fmtTime = (d: Date) => d.toISOString().slice(11, 16);
 
 // 'approve'|'cancel'|'waiting' -> 'Approve'|'Cancel'|'Wait'
 const mapStatus = (s: "approve" | "cancel" | "waiting"): "Approve" | "Cancel" | "Wait" => {
@@ -43,21 +34,21 @@ export async function GET() {
 
     return {
       id: b.bookingId,                          // number
-      dateTime: fmtDate(b.timeStart),           // "YYYY-MM-DD"
+      dateTime: fmtDate(b.timeStart),           // "YYYY-MM-DD" (UTC-based)
       interpreter,                              // ชื่อ-นามสกุลล่าม
       room: b.meetingRoom,                      // string
 
-      group: b.ownerGroup,                      // NEW: 'iot' | 'hardware' | 'software' | 'other'
-      meetingDetail: b.meetingDetail ?? "",     // NEW: string (รายละเอียดเต็ม)
+      group: b.ownerGroup,                      // 'iot' | 'hardware' | 'software' | 'other'
+      meetingDetail: b.meetingDetail ?? "",     // รายละเอียดเต็ม
 
       // คงไว้เพื่อ compatibility กับโค้ดเดิม
       topic: b.meetingDetail ?? "",
 
       bookedBy,                                 // ชื่อผู้จอง
       status: mapStatus(b.bookingStatus),       // 'Approve' | 'Wait' | 'Cancel'
-      startTime: fmtTime(b.timeStart),          // "HH:mm"
-      endTime: fmtTime(b.timeEnd),              // "HH:mm"
-      requestedTime: b.createdAt.toISOString(), // ISO string
+      startTime: fmtTime(b.timeStart),          // "HH:mm" (UTC-based)
+      endTime: fmtTime(b.timeEnd),              // "HH:mm" (UTC-based)
+      requestedTime: b.createdAt.toISOString(), // ISO string (UTC)
       isDR: b.highPriority,                     // boolean
     };
   });
