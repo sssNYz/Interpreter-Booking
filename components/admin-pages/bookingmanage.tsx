@@ -33,6 +33,23 @@ const STATUS_OPTIONS = [
   { value: "Cancel", label: "Cancel" },
 ];
 
+// === Past/Ended helpers ===
+const toLocalYMD = (s: string) => {
+  const d = new Date(s);
+  const yyyy = d.getFullYear();
+  const mm = `${d.getMonth() + 1}`.padStart(2, "0");
+  const dd = `${d.getDate()}`.padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+};
+
+const isPastMeeting = (dateStr: string, endHHmm: string, graceMin = 10) => {
+  const ymd = toLocalYMD(dateStr);
+  const end = new Date(`${ymd}T${endHHmm}:00`);
+  const endWithGrace = new Date(end.getTime() + graceMin * 60 * 1000);
+  return Date.now() > endWithGrace.getTime();
+};
+
+
 /* ========= Utils ========= */
 const parseTime = (t: string) => {
   const [h, m] = t.split(":").map(Number);
@@ -113,6 +130,8 @@ export default function BookingManagement(): React.JSX.Element {
 
   const [showBookingDetailDialog, setShowBookingDetailDialog] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<BookingMange | null>(null);
+  const [showPast, setShowPast] = useState(false);
+
 
 // fetch bookings from API
   const fetchBookings = useCallback(async () => {
@@ -141,20 +160,26 @@ export default function BookingManagement(): React.JSX.Element {
   }, [fetchBookings]);
 
 
-  const filteredBookings = useMemo(() => {
-    const filtered = bookings.filter((b) => {
-      const searchOk =
-        !filters.search ||
-        b.bookedBy.toLowerCase().includes(filters.search.toLowerCase()) ||
-        b.interpreter.toLowerCase().includes(filters.search.toLowerCase());
-      const statusOk = filters.status === "all" || b.status === filters.status;
-      const dateOk = !filters.date || b.dateTime === filters.date;
-      const reqOk = !filters.dateRequest || b.requestedTime.startsWith(filters.dateRequest);
-      const timeOk = filters.time === "all" || b.startTime === filters.time;
-      return searchOk && statusOk && dateOk && reqOk && timeOk;
-    });
-    return sortBookings(filtered, sortByDateAsc);
-  }, [bookings, filters, sortByDateAsc]);
+const filteredBookings = useMemo(() => {
+  const filtered = bookings.filter((b) => {
+    const searchOk =
+      !filters.search ||
+      b.bookedBy.toLowerCase().includes(filters.search.toLowerCase()) ||
+      b.interpreter.toLowerCase().includes(filters.search.toLowerCase());
+    const statusOk = filters.status === "all" || b.status === filters.status;
+    const dateOk = !filters.date || b.dateTime === filters.date;
+    const reqOk = !filters.dateRequest || b.requestedTime.startsWith(filters.dateRequest);
+    const timeOk = filters.time === "all" || b.startTime === filters.time;
+
+    // ✅ ใหม่: ถ้าไม่กดปุ่ม Show Past จะซ่อนประชุมที่จบไปแล้ว
+    const pastOk = showPast ? true : !isPastMeeting(b.dateTime, b.endTime, 10);
+
+    return searchOk && statusOk && dateOk && reqOk && timeOk && pastOk;
+  });
+
+  return sortBookings(filtered, sortByDateAsc);
+}, [bookings, filters, sortByDateAsc, showPast]);
+
 
   const stats = useMemo<Stats>(() => {
     const hasActive = Object.values(filters).some((v) => v !== "" && v !== "all");
@@ -193,6 +218,7 @@ export default function BookingManagement(): React.JSX.Element {
     setPagination((p) => ({ ...p, currentPage: 1 }));
   };
 
+
   return (
     <div className={PAGE_WRAPPER}>
       {/* Header */}
@@ -208,9 +234,20 @@ export default function BookingManagement(): React.JSX.Element {
                 <p className="text-sm text-gray-500">Manage & review meeting bookings</p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              {/* reserved for future */}
-            </div>
+<div className="flex items-center gap-2">
+  <Button
+    variant={showPast ? "default" : "outline"}
+    onClick={() => {
+      setShowPast((v) => !v);
+      setPagination((p) => ({ ...p, currentPage: 1 }));
+    }}
+    className="h-9"
+    title={showPast ? "ซ่อนการประชุมเก่า" : "แสดงการประชุมเก่า"}
+  >
+    {showPast ? "Showing past meetings" : "Show past meetings"}
+  </Button>
+</div>
+
           </div>
         </div>
       </div>
@@ -311,12 +348,12 @@ export default function BookingManagement(): React.JSX.Element {
         {/* Loading / Error */}
         {loading && (
           <div className="mb-6 p-4 rounded-md bg-gray-50 border border-gray-200 text-gray-700">
-            กำลังโหลดข้อมูล...
+            Data reload...
           </div>
         )}
         {error && (
           <div className="mb-6 p-4 rounded-md bg-red-50 border border-red-200 text-red-700">
-            โหลดข้อมูลล้มเหลว: {error}
+            Data failure: {error}
           </div>
         )}
 
