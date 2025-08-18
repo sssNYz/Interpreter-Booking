@@ -105,33 +105,33 @@ const WeeklyChart = ({ data }: { data: WeeklyChartData[] }) => {
   );
 };
 
-const StatusBadge = ({ status }: { status: 'Approved' | 'Waiting' | 'Cancelled' }) => {
+const StatusBadge = ({ status }: { status: 'Approve' | 'Wait' | 'Cancel' }) => {
   const statusConfig: Record<
-    'Approved' | 'Waiting' | 'Cancelled',
+    'Approve' | 'Wait' | 'Cancel',
     {
       variant:'destructive' | 'default' | 'secondary';
       label: string;
       className: string;
     }
   > = {
-    Approved: {
+    Approve: {
       variant: 'default',
       label: 'Approved',
       className: 'bg-emerald-100 text-emerald-800 hover:bg-emerald-100'
     },
-    Waiting: {
+    Wait: {
       variant: 'secondary',
       label: 'Waiting',
       className: 'bg-amber-100 text-amber-800 hover:bg-amber-100'
     },
-    Cancelled: {
+    Cancel: {
       variant: 'destructive',
       label: 'Cancelled',
       className: 'bg-red-100 text-red-800 hover:bg-red-100'
     }
   };
 
-  const config = statusConfig[status] || statusConfig.Waiting;
+  const config = statusConfig[status] || statusConfig.Wait;
 
   return (
     <Badge variant={config.variant} className={config.className}>

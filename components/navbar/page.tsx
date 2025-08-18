@@ -110,7 +110,7 @@ export function NavigationMenuMain() {
         {/**BOOKING BAR */}
         <NavigationMenuItem>
           <NavigationMenuLink asChild className={navigationMenuTriggerStyle()}>
-            <Link href="/booking-page">Booking</Link>
+            <Link href="/BookingPage">Booking</Link>
           </NavigationMenuLink>
         </NavigationMenuItem>
         {/**ADMIN BAR */}
