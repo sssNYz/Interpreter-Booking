@@ -35,6 +35,8 @@ import {
 } from "lucide-react";
 import { Switch } from "../ui/switch";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { toast } from "sonner";
 
 
 type BookingFormProps = {
@@ -296,17 +298,93 @@ export function BookingForm({
       }
 
       if (result.success) {
-        alert("Booking created successfully!");
+        const bookingDate = dayObj?.fullDate.toLocaleDateString("en-US", {
+          weekday: "long",
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+        });
+        const duration = `${startTime} - ${endTime}`;
+        toast.custom(
+          (t) => (
+            <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm w-[420px]">
+              <Alert className="border-none p-0">
+                <AlertTitle className="text-gray-900">
+                  <span className="text-green-600 font-semibold">Success</span>
+                  <span className="ml-1">Booking created successfully!</span>
+                </AlertTitle>
+                <AlertDescription className="text-gray-700">
+                  {bookingDate} at {duration}
+                </AlertDescription>
+              </Alert>
+              <div className="flex justify-end mt-4">
+                <button
+                  onClick={() => toast.dismiss(t)}
+                  className="bg-gray-900 text-white px-3 py-1 rounded text-xs"
+                >
+                  OK
+                </button>
+              </div>
+            </div>
+          ),
+          { duration: 5000 }
+        );
         onOpenChange(false);
       } else {
-        alert(`Error: ${result.message || result.error || "Failed to create booking"}`);
+        toast.custom(
+          (t) => (
+            <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm w-[420px]">
+              <Alert className="border-none p-0">
+                <AlertTitle className="text-gray-900">
+                  <span className="text-red-600 font-semibold">Error</span>
+                  <span className="ml-1">Unable to create booking</span>
+                </AlertTitle>
+                <AlertDescription className="text-gray-700">
+                  {result.message || result.error || "Please try again"}
+                </AlertDescription>
+              </Alert>
+              <div className="flex justify-end mt-4">
+                <button
+                  onClick={() => toast.dismiss(t)}
+                  className="bg-gray-900 text-white px-3 py-1 rounded text-xs"
+                >
+                  OK
+                </button>
+              </div>
+            </div>
+          ),
+          { duration: 5000 }
+        );
         if (result.details) {
           console.error("Validation errors:", result.details);
         }
       }
     } catch (error) {
       console.error("Error creating booking:", error);
-      alert("An error occurred while creating the booking");
+      toast.custom(
+        (t) => (
+          <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm w-[420px]">
+            <Alert className="border-none p-0">
+              <AlertTitle className="text-gray-900">
+                <span className="text-red-600 font-semibold">Error</span>
+                <span className="ml-1">Unable to create booking</span>
+              </AlertTitle>
+              <AlertDescription className="text-gray-700">
+                An error occurred while creating the booking
+              </AlertDescription>
+            </Alert>
+            <div className="flex justify-end mt-4">
+              <button
+                onClick={() => toast.dismiss(t)}
+                className="bg-gray-900 text-white px-3 py-1 rounded text-xs"
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        ),
+        { duration: 5000 }
+      );
     } finally {
       setIsSubmitting(false);
     }
