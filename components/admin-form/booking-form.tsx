@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Star, CheckCircle, XCircle, Hourglass } from "lucide-react";
 import type { BookingManage } from "@/app/types/booking-types";
 
- // Format date and time for display
+// -------- helpers: format --------
 const fmtDate = (ymd: string) => {
   const [y, m, d] = ymd.split("-").map(Number);
   const dt = new Date(y, (m ?? 1) - 1, d ?? 1);
@@ -14,9 +14,14 @@ const fmtDate = (ymd: string) => {
 };
 const fmtDateTime = (iso: string) =>
   new Intl.DateTimeFormat("en-GB", {
-    day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
   }).format(new Date(iso));
 
+// -------- helpers: UI status pill --------
 const Status: React.FC<{ value: BookingManage["status"] }> = ({ value }) => {
   const styles: Record<BookingManage["status"], string> = {
     Approve: "text-emerald-700 bg-emerald-100",
@@ -39,16 +44,55 @@ const Row: React.FC<{ label: string; children: React.ReactNode }> = ({ label, ch
   </div>
 );
 
-// Type for booking data
+// -------- types & helpers (เพิ่ม) --------
+type ApiStatus = "approve" | "cancel" | "waiting";
+type PatchResponse = { bookingStatus: ApiStatus };
+
+// ขยายจาก BookingManage ให้ฟิลด์ที่อาจเจอเป็น optional
+type BookingForDialog = BookingManage & {
+  bookingId?: number; // จากฝั่ง DB
+  id?: number;        // บางที่ใช้ชื่อ id
+  group?: string;
+  topic?: string;
+};
+
+const apiToUi = (s: ApiStatus): BookingManage["status"] =>
+  s === "approve" ? "Approve" : s === "cancel" ? "Cancel" : "Wait";
+
+// ดึง id ที่จะส่งเข้า API แบบ type-safe
+function getBookingId(b?: BookingForDialog | null): number | undefined {
+  if (!b) return undefined;
+  return typeof b.bookingId === "number" ? b.bookingId : b.id;
+}
+
+// -------- API helpers --------
+async function patchStatus(bookingId: number | string, bookingStatus: ApiStatus): Promise<PatchResponse> {
+  const res = await fetch(`/api/booking-data/patch-booking-by-id/${bookingId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ bookingStatus }),
+  });
+  if (!res.ok) {
+    // รองรับ problem+json (RFC 7807)
+    let msg = `Failed (${res.status})`;
+    try {
+      const p = await res.json();
+      if (p?.title || p?.detail) msg = `${p.title ?? "Error"}${p.detail ? `: ${p.detail}` : ""}`;
+    } catch {}
+    throw new Error(msg);
+  }
+  return res.json();
+}
+
+// -------- component --------
 type Props = {
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   editData?: BookingManage | null;
   isEditing?: boolean;
-  onActionComplete?: () => void;
+  onActionComplete?: () => void; // เรียก reload ที่ parent
 };
 
-// BookingDetailDialog component
 const BookingDetailDialog: React.FC<Props> = ({
   open,
   onOpenChange,
@@ -56,20 +100,41 @@ const BookingDetailDialog: React.FC<Props> = ({
   isEditing = true,
   onActionComplete,
 }) => {
-
   const controlled = typeof open === "boolean";
   const [uOpen, setUOpen] = useState(false);
   const actualOpen = controlled ? (open as boolean) : uOpen;
   const setOpen = (v: boolean) => (controlled ? onOpenChange?.(v) : setUOpen(v));
-  const [booking, setBooking] = useState<BookingManage | null>(null);
+
+  // ใช้ชนิด BookingForDialog (เลิก any)
+  const [booking, setBooking] = useState<BookingForDialog | null>(null);
   useEffect(() => {
     if (actualOpen && editData) setBooking(editData);
   }, [actualOpen, editData]);
 
   const [expand, setExpand] = useState(false);
-  useEffect(() => setExpand(false), [booking?.id, actualOpen]);
+  useEffect(() => setExpand(false), [booking?.bookingId, booking?.id, actualOpen]);
 
-  const EXIT_MS = 200; 
+  const [submitting, setSubmitting] = useState<null | "approve" | "cancel">(null);
+  const EXIT_MS = 150;
+
+  // id ที่ส่งเข้า API แบบปลอดภัย
+  const bookingIdForApi = getBookingId(booking);
+
+  const handleAction = async (to: ApiStatus) => {
+    if (!booking || bookingIdForApi == null) return;
+    try {
+      setSubmitting(to === "approve" ? "approve" : "cancel");
+      const updated = await patchStatus(bookingIdForApi, to);
+      // อัปเดต UI ใน dialog ให้เห็นทันที (รอ parent reload ต่อ)
+      setBooking((prev) => (prev ? { ...prev, status: apiToUi(updated.bookingStatus) } : prev));
+      setOpen(false);
+      setTimeout(() => onActionComplete?.(), EXIT_MS);
+    } catch (e) {
+      alert((e as Error).message); // ถ้าใช้ toast แทน alert ได้
+    } finally {
+      setSubmitting(null);
+    }
+  };
 
   return (
     <Dialog open={actualOpen} onOpenChange={setOpen}>
@@ -101,9 +166,13 @@ const BookingDetailDialog: React.FC<Props> = ({
                 <dl className="space-y-3">
                   <Row label="Date">{fmtDate(booking.dateTime)}</Row>
                   <Row label="Time">
-                    <span className="font-mono">{booking.startTime} - {booking.endTime}</span>
+                    <span className="font-mono">
+                      {booking.startTime} - {booking.endTime}
+                    </span>
                   </Row>
-                  <Row label="Room"><span className="px-2 py-1 bg-gray-100 rounded-md font-medium">{booking.room}</span></Row>
+                  <Row label="Room">
+                    <span className="px-2 py-1 bg-gray-100 rounded-md font-medium">{booking.room}</span>
+                  </Row>
                   <Row label="Requested At">{fmtDateTime(booking.requestedTime)}</Row>
                 </dl>
               </section>
@@ -114,8 +183,10 @@ const BookingDetailDialog: React.FC<Props> = ({
                 <dl className="space-y-3">
                   <Row label="Booked By">{booking.bookedBy}</Row>
                   <Row label="Interpreter">{booking.interpreter || "-"}</Row>
-                  {"group" in booking && <Row label="Group">{String(booking.group).toUpperCase()}</Row>}
-                  <Row label="Status"><Status value={booking.status} /></Row>
+                  {booking?.group && <Row label="Group">{booking.group.toUpperCase()}</Row>}
+                  <Row label="Status">
+                    <Status value={booking.status} />
+                  </Row>
                 </dl>
               </section>
             </div>
@@ -124,14 +195,14 @@ const BookingDetailDialog: React.FC<Props> = ({
             <section className="rounded-xl border border-gray-200 bg-white p-4 mt-6">
               <div className="flex items-center justify-between">
                 <h3 className="text-xs font-semibold text-gray-900">Meeting Detail</h3>
-                {(booking.meetingDetail || booking.topic) && (
+                {(booking?.meetingDetail || booking?.topic) && (
                   <Button variant="outline" size="sm" onClick={() => setExpand((v) => !v)}>
                     {expand ? "Show less" : "Show more"}
                   </Button>
                 )}
               </div>
               <p className={`mt-3 text-sm leading-relaxed text-gray-800 ${expand ? "" : "line-clamp-4"}`}>
-                {booking.meetingDetail || booking.topic || "-"}
+                {booking?.meetingDetail ?? booking?.topic ?? "-"}
               </p>
             </section>
 
@@ -139,22 +210,20 @@ const BookingDetailDialog: React.FC<Props> = ({
             <div className="flex flex-col sm:flex-row gap-3 pt-6">
               <Button
                 className="flex-1 bg-emerald-600 hover:bg-emerald-700"
-                onClick={() => {
-                  setOpen(false);
-                  setTimeout(() => onActionComplete?.(), EXIT_MS);
-                }}
+                disabled={!bookingIdForApi || submitting !== null}
+                aria-busy={submitting === "approve"}
+                onClick={() => handleAction("approve")}
               >
-                Approve
+                {submitting === "approve" ? "Approving..." : "Approve"}
               </Button>
               <Button
                 variant="destructive"
                 className="flex-1"
-                onClick={() => {
-                  setOpen(false);
-                  setTimeout(() => onActionComplete?.(), EXIT_MS);
-                }}
+                disabled={!bookingIdForApi || submitting !== null}
+                aria-busy={submitting === "cancel"}
+                onClick={() => handleAction("cancel")}
               >
-                Cancel Booking
+                {submitting === "cancel" ? "Cancelling..." : "Cancel Booking"}
               </Button>
             </div>
           </div>
