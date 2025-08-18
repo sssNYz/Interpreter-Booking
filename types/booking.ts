@@ -12,6 +12,7 @@ export type Booking = {
 export type BookingData = {
   bookingId: number;
   ownerEmpCode: string;
+  ownerPrefix?: string;
   ownerName: string;
   ownerSurname: string;
   ownerEmail: string;
@@ -23,6 +24,8 @@ export type BookingData = {
   timeStart: string;
   timeEnd: string;
   interpreterId: string | null;
+  interpreterName?: string;
+  inviteEmails?: string[];
   bookingStatus: string;
   createdAt: string;
   updatedAt: string;
