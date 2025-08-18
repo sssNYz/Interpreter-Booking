@@ -7,10 +7,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-
-
-
-
 model BookingPlan {
   bookingId     Int               @id @default(autoincrement()) @map("BOOKING_ID")
   ownerEmpCode  String            @map("OWNER_EMP_CODE") @db.VarChar(64)
