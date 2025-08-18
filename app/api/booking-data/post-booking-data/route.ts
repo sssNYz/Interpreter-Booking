@@ -18,6 +18,17 @@ interface CreateBookingRequest {
 	inviteEmails?: string[]; // Array of email addresses to invite
 }
 
+// Capacity per overlapping time slot per meeting room
+const SLOT_CAPACITY = 2;
+
+// Standard API response shape
+type ApiResponse = {
+	success: boolean;
+	message?: string;
+	error?: string;
+	data?: Record<string, unknown>;
+};
+
 // Date validation helper
 const isValidDateString = (dateString: string): boolean => {
 	const date = new Date(dateString);
@@ -115,64 +126,88 @@ export async function POST(request: NextRequest) {
 
 		const { timeStart, timeEnd } = parseBookingDates(body.timeStart, body.timeEnd);
 
-
-
-		// conflict check via parameterized SQL to avoid old Prisma client selecting removed columns
-		const conflicts = await prisma.$queryRaw<Array<{ x: number }>>`
-			SELECT 1 as x FROM BOOKING_PLAN
-			WHERE MEETING_ROOM = ${body.meetingRoom}
-			AND BOOKING_STATUS <> 'cancel'
-			AND (
-				(TIME_START <= ${timeStart} AND TIME_END > ${timeStart}) OR
-				(TIME_START < ${timeEnd} AND TIME_END >= ${timeEnd}) OR
-				(TIME_START >= ${timeStart} AND TIME_END <= ${timeEnd})
-			)
-			LIMIT 1
-		`;
-		if (conflicts.length > 0) {
-			return NextResponse.json({ success: false, error: "Booking conflict", message: "The selected time slot conflicts with an existing booking" }, { status: 409 });
-		}
-
-		// Insert via parameterized SQL; quote reserved identifiers
-		await prisma.$executeRaw`
-			INSERT INTO BOOKING_PLAN (
-				\`OWNER_EMP_CODE\`, \`OWNER_GROUP\`, \`MEETING_ROOM\`, \`MEETING_DETAIL\`, \`HIGH_PRIORITY\`, \`TIME_START\`, \`TIME_END\`, \`INTERPRETER_EMP_CODE\`, \`BOOKING_STATUS\`, \`created_at\`, \`updated_at\`
-			) VALUES (
-				${body.ownerEmpCode.trim()}, ${body.ownerGroup}, ${body.meetingRoom.trim()}, ${body.meetingDetail ?? null}, ${body.highPriority ? 1 : 0}, ${timeStart}, ${timeEnd}, ${body.interpreterEmpCode ?? null}, ${body.bookingStatus || BookingStatus.waiting}, NOW(), NOW()
-			)
-		`;
-		const inserted = await prisma.$queryRaw<Array<{ id: number | bigint }>>`SELECT LAST_INSERT_ID() as id`;
-		const bookingIdValue = inserted?.[0]?.id;
-		const bookingId = bookingIdValue != null ? Number(bookingIdValue) : null;
-
-		// Persist invite emails if provided
-		if (bookingId && Array.isArray(body.inviteEmails) && body.inviteEmails.length > 0) {
-			const emailsToInsert = body.inviteEmails
-				.filter((email: string) => typeof email === "string" && email.trim().length > 0)
-				.map((email: string) => ({ bookingId, email: email.trim() }));
-			if (emailsToInsert.length > 0) {
-				await prisma.inviteEmailList.createMany({
-					data: emailsToInsert,
-					skipDuplicates: true,
-				});
+		// Use an interactive transaction to safely enforce capacity with concurrency
+		const result = await prisma.$transaction(async (tx) => {
+			// Acquire an advisory lock per meeting room to serialize overlapping checks for that room
+			const lockKey = `booking_room_${body.meetingRoom.trim()}`;
+			const lockRes = await tx.$queryRaw<Array<{ locked: number | bigint }>>`
+				SELECT GET_LOCK(${lockKey}, 5) AS locked
+			`;
+			const lockedVal = lockRes?.[0]?.locked;
+			const lockOk = lockedVal != null ? Number(lockedVal) === 1 : false;
+			if (!lockOk) {
+				throw new Error('Failed to acquire booking lock');
 			}
-		}
+			try {
+				// Count overlapping non-cancel bookings for the room
+				const counts = await tx.$queryRaw<Array<{ cnt: number | bigint }>>`
+					SELECT COUNT(*) AS cnt
+					FROM BOOKING_PLAN
+					WHERE MEETING_ROOM = ${body.meetingRoom}
+					AND BOOKING_STATUS <> 'cancel'
+					AND (
+						(TIME_START < ${timeEnd} AND TIME_END > ${timeStart})
+					)
+					FOR UPDATE
+				`;
+				const cntVal = counts?.[0]?.cnt;
+				const overlapCount = cntVal != null ? Number(cntVal) : 0;
+				if (overlapCount >= SLOT_CAPACITY) {
+					return {
+						success: false as const,
+						status: 409,
+						body: { success: false, error: 'Time slot full', message: 'The selected time slot has reached its capacity' },
+					};
+				}
 
-		return NextResponse.json(
-			{
-				success: true,
-				message: "Booking created successfully",
-				data: {
-					bookingId,
-					meetingRoom: body.meetingRoom.trim(),
-					timeStart,
-					timeEnd,
-					bookingStatus: body.bookingStatus || BookingStatus.waiting,
-					inviteEmailsSaved: Array.isArray(body.inviteEmails) ? body.inviteEmails.length : 0,
-				},
-			},
-			{ status: 201 }
-		);
+				// Insert booking
+				await tx.$executeRaw`
+					INSERT INTO BOOKING_PLAN (
+						\`OWNER_EMP_CODE\`, \`OWNER_GROUP\`, \`MEETING_ROOM\`, \`MEETING_DETAIL\`, \`HIGH_PRIORITY\`, \`TIME_START\`, \`TIME_END\`, \`INTERPRETER_EMP_CODE\`, \`BOOKING_STATUS\`, \`created_at\`, \`updated_at\`
+					) VALUES (
+						${body.ownerEmpCode.trim()}, ${body.ownerGroup}, ${body.meetingRoom.trim()}, ${body.meetingDetail ?? null}, ${body.highPriority ? 1 : 0}, ${timeStart}, ${timeEnd}, ${body.interpreterEmpCode ?? null}, ${body.bookingStatus || BookingStatus.waiting}, NOW(), NOW()
+					)
+				`;
+				const inserted = await tx.$queryRaw<Array<{ id: number | bigint }>>`SELECT LAST_INSERT_ID() as id`;
+				const bookingIdValue = inserted?.[0]?.id;
+				const bookingId = bookingIdValue != null ? Number(bookingIdValue) : null;
+
+				// Persist invite emails if provided
+				if (bookingId && Array.isArray(body.inviteEmails) && body.inviteEmails.length > 0) {
+					const emailsToInsert = body.inviteEmails
+						.filter((email: string) => typeof email === 'string' && email.trim().length > 0)
+						.map((email: string) => ({ bookingId, email: email.trim() }));
+					if (emailsToInsert.length > 0) {
+						await tx.inviteEmailList.createMany({
+							data: emailsToInsert,
+							skipDuplicates: true,
+						});
+					}
+				}
+
+				return {
+					success: true as const,
+					status: 201,
+					body: {
+						success: true,
+						message: 'Booking created successfully',
+						data: {
+							bookingId,
+							meetingRoom: body.meetingRoom.trim(),
+							timeStart,
+							timeEnd,
+							bookingStatus: body.bookingStatus || BookingStatus.waiting,
+							inviteEmailsSaved: Array.isArray(body.inviteEmails) ? body.inviteEmails.length : 0,
+						},
+					},
+				};
+			} finally {
+				// Always release the advisory lock
+				await tx.$queryRaw`SELECT RELEASE_LOCK(${lockKey})`;
+			}
+		}, { timeout: 10000 });
+
+		return NextResponse.json<ApiResponse>(result.body as ApiResponse, { status: result.status });
 	} catch (error) {
 		console.error("Error creating booking:", error);
 		return NextResponse.json({ success: false, error: "Internal server error", message: "An unexpected error occurred while creating the booking" }, { status: 500 });
