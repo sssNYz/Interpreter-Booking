@@ -12,7 +12,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
-import { FilterIcon, UserSearchIcon, XIcon } from "lucide-react";
+import { FilterIcon, UserSearchIcon, XIcon, User, Mail, Users, ListCollapse } from "lucide-react";
 
 type StatusFilter = "all" | "approve" | "waiting" | "cancel";
 
@@ -44,7 +44,7 @@ export default function BookingHistory() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
-  // const [selectedBooking, setSelectedBooking] = useState<BookingData | null>(null);
+  const [selectedBooking, setSelectedBooking] = useState<BookingData | null>(null);
 
   const [page, setPage] = useState(1);
   const pageSize = 5; // fixed 5 records per page
@@ -107,7 +107,8 @@ export default function BookingHistory() {
     goToPage(page + 1);
   };
 
-  const handleOpenDetail = () => {
+  const handleOpenDetail = (b: BookingData) => {
+    setSelectedBooking(b);
     setDetailOpen(true);
   };
 
@@ -221,9 +222,9 @@ export default function BookingHistory() {
                     <TableCell>
                       {formatTimeHHMM_UTC(start)} - {formatTimeHHMM_UTC(end)}
                     </TableCell>
-                    <TableCell>{b.interpreterId ?? "null"}</TableCell>
+                    <TableCell>{(b.interpreterName && b.interpreterName.trim()) || b.interpreterId || "-"}</TableCell>
                     <TableCell className="text-right">
-                      <Button size="sm" variant="outline" onClick={handleOpenDetail}>
+                      <Button size="sm" variant="outline" onClick={() => handleOpenDetail(b)}>
                         Detail
                       </Button>
                     </TableCell>
@@ -270,14 +271,82 @@ export default function BookingHistory() {
       </div>
 
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-[520px]" showCloseButton={false}>
           <DialogHeader>
-            <DialogTitle>Booking Detail</DialogTitle>
+            <DialogTitle className="flex items-center justify-between">
+              <span>Booking Detail</span>
+              {selectedBooking && (
+                <span className={`ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] ${getStatusStyle(selectedBooking.bookingStatus).bg} ${getStatusStyle(selectedBooking.bookingStatus).text}`}>
+                  {getStatusStyle(selectedBooking.bookingStatus).icon}
+                  {selectedBooking.bookingStatus}
+                </span>
+              )}
+            </DialogTitle>
           </DialogHeader>
-          <div className="text-sm text-muted-foreground">
-            {/* Placeholder content per requirement */}
-            Booking detail component will be built next time.
-          </div>
+          {selectedBooking && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 text-sm">
+                <User className="h-4 w-4 text-muted-foreground" />
+                <span className="font-medium">Booking By</span>
+              </div>
+              <div className="rounded-lg border p-3 bg-muted/30">
+                <div className="text-sm">
+                  {(selectedBooking.ownerPrefix ? selectedBooking.ownerPrefix + " " : "")}
+                  {selectedBooking.ownerName} {selectedBooking.ownerSurname}
+                  <span className="text-muted-foreground"> ({selectedBooking.ownerEmpCode})</span>
+                </div>
+              </div>
+
+              <div className="grid gap-1">
+                <div className="flex items-center gap-2 text-sm">
+                  <Users className="h-4 w-4 text-muted-foreground" />
+                  <span className="font-medium">Interpreter</span>
+                </div>
+                <div className="rounded-lg border p-3 text-sm">
+                  {(selectedBooking.interpreterName && selectedBooking.interpreterName.trim()) || selectedBooking.interpreterId || "Not assigned"}
+                </div>
+              </div>
+
+              <div className="grid gap-1">
+                <div className="flex items-center gap-2 text-sm">
+                  <ListCollapse className="h-4 w-4 text-muted-foreground" />
+                  <span className="font-medium">Meeting detail</span>
+                </div>
+                <div className="rounded-lg border p-3 text-sm">
+                  {(() => {
+                    const start = new Date(selectedBooking.timeStart);
+                    const end = new Date(selectedBooking.timeEnd);
+                    return (
+                      <>
+                        <div className="font-medium">{selectedBooking.meetingRoom} {formatTimeHHMM_UTC(start)} - {formatTimeHHMM_UTC(end)}</div>
+                        <div className="mt-1 whitespace-pre-wrap">{selectedBooking.meetingDetail || "-"}</div>
+                      </>
+                    );
+                  })()}
+                </div>
+              </div>
+
+              <div className="grid gap-1">
+                <div className="flex items-center gap-2 text-sm">
+                  <Mail className="h-4 w-4 text-muted-foreground" />
+                  <span className="font-medium">Email invite</span>
+                </div>
+                <div className="rounded-lg border p-3 text-sm">
+                  {selectedBooking.inviteEmails && selectedBooking.inviteEmails.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {selectedBooking.inviteEmails.map((email) => (
+                        <span key={email} className="px-2 py-0.5 rounded-full bg-muted text-foreground text-xs border">
+                          {email}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <span className="text-muted-foreground">-</span>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>
