@@ -269,15 +269,70 @@ export function BookingForm({
         inviteEmails: inviteEmails.length > 0 ? inviteEmails : undefined,
       };
 
+      const submitOnce = async (force?: boolean) => {
       const response = await fetch("/api/booking-data/post-booking-data", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(bookingData),
-      });
+          body: JSON.stringify({ ...bookingData, ...(force ? { force: true } : {}) }),
+        });
+        const result = await response.json();
+        return { response, result } as const;
+      };
 
-      const result = await response.json();
+      // First attempt without force
+      let { response, result } = await submitOnce(false);
+
+      // If overlap warning, show themed confirm toast and then force submit on OK
+      if (response.status === 409 && result?.code === "OVERLAP_WARNING") {
+        const proceed = await new Promise<boolean>((resolve) => {
+          toast.custom(
+            (t) => (
+              <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm w-[420px]">
+                <Alert className="border-none p-0">
+                  <AlertTitle className="text-gray-900">
+                    <span className="text-amber-600 font-semibold">Same room warning</span>
+                    <span className="ml-1">
+                      {result?.message || "This room already has a booking overlapping this time."}
+                    </span>
+                  </AlertTitle>
+                  <AlertDescription className="text-gray-700">
+                    Do you want to continue?
+                  </AlertDescription>
+                </Alert>
+                <div className="flex justify-end gap-2 mt-4">
+                  <button
+                    onClick={() => {
+                      toast.dismiss(t);
+                      resolve(false);
+                    }}
+                    className="bg-gray-200 text-gray-900 px-3 py-1 rounded text-xs"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => {
+                      toast.dismiss(t);
+                      resolve(true);
+                    }}
+                    className="bg-gray-900 text-white px-3 py-1 rounded text-xs"
+                  >
+                    OK
+                  </button>
+                </div>
+              </div>
+            ),
+            { duration: 10000 }
+          );
+        });
+
+        if (proceed) {
+          ({ response, result } = await submitOnce(true));
+        } else {
+          return; // user cancelled
+        }
+      }
 
       if (result.success) {
         const bookingDate = dayObj?.fullDate.toLocaleDateString("en-US", {

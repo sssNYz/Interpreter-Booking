@@ -1,6 +1,9 @@
+
 "use client";
+
 import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+
 import BookingCalendar from "@/components/BookingCalendar/booking-calendar";
 import BookingHistory from "@/components/BookingHistory/booking-history";
 
@@ -45,6 +48,7 @@ function BookingPage() {
   };
 
   return (
+
     <div className="flex flex-col gap-8 px-4 mx-auto w-full max-w-full lg:max-w-[1500px]">
       <div className="flex items-center justify-between py-2">
         <h1 className="text-2xl font-semibold">Appointments</h1>
@@ -85,7 +89,6 @@ function BookingPage() {
 
       {active === "calendar" ? (
         <div role="tabpanel" id="panel-calendar" aria-labelledby="tab-calendar" className="w-full">
-          <p className="text-sm text-muted-foreground mb-2">Select a time slot to start a booking.</p>
           <BookingCalendar />
         </div>
       ) : null}
@@ -95,6 +98,7 @@ function BookingPage() {
           <BookingHistory />
         </div>
       ) : bookingsLoaded ? null : null}
+
     </div>
   );
 }
