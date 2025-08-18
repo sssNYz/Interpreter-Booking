@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { Calendar, ChevronLeft, ChevronRight, Clock } from "lucide-react";
+import { Calendar, ChevronLeft, ChevronRight, Clock, RefreshCw, Disc } from "lucide-react";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { BookingForm } from "@/components/BookingForm/booking-form";
 
@@ -314,16 +314,17 @@ const BookingCalendar: React.FC = () => {
         <div className="flex items-center gap-2">
           <Button
             onClick={goToToday}
-            className="bg-neutral-700 text-white rounded-t-none rounded-b-3xl hover:bg-black/90 w-32 h-10"
+            className="bg-neutral-700 text-white rounded-full hover:bg-black/90 w-28 h-10"
           >
+            <Disc className="w-10 h-10 " />
             Today
           </Button>
           <Button
             onClick={() => refetch()}
-            variant="outline"
-            className="h-10"
+            className="bg-neutral-700 text-white rounded-full hover:bg-black/90 h-10 w-28"
             disabled={loading}
           >
+            <RefreshCw className={`w-10 h-10  ${loading ? "animate-spin" : ""}`} />
             {loading ? "Refreshing..." : "Refresh"}
           </Button>
           <BookingRules />
