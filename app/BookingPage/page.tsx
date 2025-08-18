@@ -89,7 +89,6 @@ function BookingPage() {
 
       {active === "calendar" ? (
         <div role="tabpanel" id="panel-calendar" aria-labelledby="tab-calendar" className="w-full">
-          <p className="text-sm text-muted-foreground mb-2">Select a time slot to start a booking.</p>
           <BookingCalendar />
         </div>
       ) : null}
