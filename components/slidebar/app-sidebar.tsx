@@ -25,7 +25,7 @@ import {
 // Submenu for Admin
 const adminItems = [
   { title: "Overview", url: "/admin-page", icon: Home },
-  { title: "Bookings management", url: "#", icon: Inbox },
+  { title: "Bookings management", url: "/admin-page/booking-manage", icon: Inbox },
   { title: "Interpreters management", url: "#", icon: Calendar },
   { title: "Reports", url: "#", icon: Search },
   { title: "Settings", url: "#", icon: Settings },
