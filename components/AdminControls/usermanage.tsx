@@ -109,7 +109,6 @@ export default function UsersManagement() {
         }
       }
     } else {
-      // ถ้า department กลับเป็น ALL ให้รีเซ็ต group/section ด้วย
       if (group !== "ALL") setGroup("ALL");
       if (section !== "ALL") setSection("ALL");
     }
@@ -130,7 +129,7 @@ export default function UsersManagement() {
     return (tree[depKey]?.[grpKey] || []).slice().sort(collator.compare);
   }, [tree, department, group, collator]);
 
-  // Fetch list by filters
+  // Fetch list by filters (ใช้ endpoint เดียวกัน)
   useEffect(() => {
     const params = {
       search,
@@ -162,21 +161,21 @@ export default function UsersManagement() {
       .finally(() => setLoading(false));
   }, [search, role, department, group, section, page, pageSize]);
 
-  // Fetch global stats once (ไม่ขึ้นกับฟิลเตอร์)
+  // Fetch global stats once (ไม่ขึ้นกับฟิลเตอร์) — ใช้ endpoint เดียวกัน
   useEffect(() => {
     (async () => {
-      const url = `/api/users?${query({
+      const url = `/api/user/get-user?${query({
         search: "",
         role: "ALL",
         department: "ALL",
         group: "ALL",
         section: "ALL",
         page: 1,
-        pageSize: 1,        // เอาหน้าเล็กสุดเพื่อลดงาน
-        includeTree: false, // ไม่ต้องใช้ tree
+        pageSize: 1,
+        includeTree: false,
       })}`;
       const res = await fetch(url);
-      if (!res.ok) return; // ไม่ critical
+      if (!res.ok) return;
       const data: ApiResponse = await res.json();
       if (data?.stats) setGlobalStats(data.stats);
     })();
@@ -213,7 +212,7 @@ export default function UsersManagement() {
         {loading && <div className="mb-4 text-sm text-gray-600">Loading users…</div>}
         {error && <div className="mb-4 text-sm text-red-600">Failed: {error}</div>}
 
-        {/* Cards — ใช้ globalStats ถ้ามี เพื่อไม่ผันตามฟิลเตอร์ */}
+        {/* Cards — ใช้ globalStats เสมอ เพื่อไม่ผันตามฟิลเตอร์ */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <Card className={THEME.card}>
             <CardContent className="p-5">
