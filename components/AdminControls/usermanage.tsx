@@ -70,10 +70,6 @@ export default function UsersManagement() {
   const [serverPage, setServerPage] = useState<number>(1);
   const [totalPages, setTotalPages] = useState<number>(1);
 
-  // UI/Request state
-  const [loading, setLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
-
   // Filters
   const [search, setSearch] = useState("");
   const [role, setRole] = useState<RoleFilter>("ALL");
@@ -143,8 +139,6 @@ export default function UsersManagement() {
     };
     const url = `/api/user/get-user?${query(params)}`;
 
-    setLoading(true);
-    setError(null);
 
     (async () => {
       const res = await fetch(url);
@@ -157,8 +151,7 @@ export default function UsersManagement() {
       setTotalPages(data.pagination?.totalPages ?? 1);
       if (data.tree) setTree(data.tree);
     })()
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : "Unknown error"))
-      .finally(() => setLoading(false));
+
   }, [search, role, department, group, section, page, pageSize]);
 
   // Fetch global stats once (ไม่ขึ้นกับฟิลเตอร์) — ใช้ endpoint เดียวกัน
@@ -208,9 +201,6 @@ export default function UsersManagement() {
 
       {/* Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Status states */}
-        {loading && <div className="mb-4 text-sm text-gray-600">Loading users…</div>}
-        {error && <div className="mb-4 text-sm text-red-600">Failed: {error}</div>}
 
         {/* Cards — ใช้ globalStats เสมอ เพื่อไม่ผันตามฟิลเตอร์ */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
@@ -483,14 +473,6 @@ export default function UsersManagement() {
                     </Button>
                   </div>
                 </div>
-              </div>
-            )}
-
-            {users.length === 0 && !loading && (
-              <div className="text-center py-12">
-                <Users className="mx-auto h-12 w-12 text-gray-400" />
-                <h3 className="mt-2 text-sm font-medium text-gray-900">No users found</h3>
-                <p className="mt-1 text-sm text-gray-500">Try adjusting your search or filters.</p>
               </div>
             )}
           </CardContent>
