@@ -185,17 +185,26 @@ export default function UsersManagement() {
 
   // ✅ ฟังก์ชันบันทึก role แล้วสั่ง refetch
   async function saveUserRoles(userId: number, roles: Role[]) {
-    const res = await fetch(`/api/user/${userId}/roles`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
+    const res = await fetch(`/api/user/put-user-role/${encodeURIComponent(String(userId))}`, {
+      method: "PUT", // ⬅️ เปลี่ยนเป็น PUT
+      headers: { "Content-Type": "application/json", "Accept": "application/json" },
       body: JSON.stringify({ roles }),
+      cache: "no-store",
     });
+
+    const ct = res.headers.get("content-type") || "";
     if (!res.ok) {
-      const msg = await res.text().catch(() => "");
-      throw new Error(msg || `Failed to save roles (${res.status})`);
+      const msg = ct.includes("application/json") ? JSON.stringify(await res.json()) : await res.text();
+      throw new Error(`(${res.status}) ${msg.slice(0, 200)}`);
     }
+    if (!ct.includes("application/json")) {
+      const text = await res.text();
+      throw new Error(`Unexpected non-JSON response: ${text.slice(0, 200)}`);
+    }
+    // ถ้าต้องการ ใช้ค่าที่ API ส่งกลับมาอัปเดต state เพิ่มเติมได้
     setRefresh((r) => r + 1);
   }
+
 
   /* -------------------------------------------
      Render
