@@ -23,6 +23,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 const BookingCalendar: React.FC = () => {
   // State for current month/year being displayed
   const [currentDate, setCurrentDate] = useState(new Date());
+  // Debounced date for fetching to avoid multiple API calls during rapid navigation
+  const [debouncedDate, setDebouncedDate] = useState(currentDate);
 
   
   // Controls whether the booking form modal is open
@@ -49,8 +51,14 @@ const BookingCalendar: React.FC = () => {
     [currentDate]
   );
 
-  // Fetch all bookings for the current month
-  const { bookings, refetch, loading } = useBookings(currentDate);
+  // Debounce currentDate → debouncedDate by 1s
+  useEffect(() => {
+    const id = window.setTimeout(() => setDebouncedDate(currentDate), 1000);
+    return () => window.clearTimeout(id);
+  }, [currentDate]);
+
+  // Fetch all bookings for the debounced month
+  const { bookings, refetch, loading } = useBookings(debouncedDate);
 
   /**
    * Check if a time slot is in the past (for today only)
