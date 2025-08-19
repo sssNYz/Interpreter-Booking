@@ -11,11 +11,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-import type {RoleCode, RoleFilter, AnyFilter, UserRow, FilterTree  } from '@/types/user';
+import type { RoleFilter, AnyFilter, UserRow, FilterTree } from '@/types/user';
 
-// -------------------------------------------------------------
-// Theme tokens
-// -------------------------------------------------------------
+/* -------------------------------------------
+   Theme tokens
+------------------------------------------- */
 const THEME = {
   page: "min-h-screen bg-[#f7f7f7] font-sans text-gray-900",
   card: "shadow-sm rounded-xl",
@@ -24,116 +24,170 @@ const THEME = {
   badgeBase: "px-3 py-1 rounded-full text-xs font-medium",
 } as const;
 
-const DELIM = " \\ "; // literal ` \ ` between parts
+/* -------------------------------------------
+   Helpers
+------------------------------------------- */
+type PageSize = 10 | 20 | 50;
 
-// -------------------------------------------------------------
-// Mock Data (deptPath format: R&D \ DEDE \ DDES)
-// -------------------------------------------------------------
-const MOCK_TREE: FilterTree = {
-  "R&D": {
-    DEDE: ["DDES", "DDET"],
-    SWE: ["Platform", "Infra"],
-  },
-  Operations: {
-    Support: ["Tier1", "Tier2"],
-    Logistics: ["Warehouse", "Transport"],
-  },
+type ApiStats = {
+  total: number;
+  admins: number;
+  interpreters: number;
 };
 
-const MOCK_USERS: UserRow[] = [
-  { id: 1, empCode: "RD01", firstNameEn: "Alice", lastNameEn: "Smith", email: "alice@corp.local", isActive: true,  deptPath: `R&D${DELIM}DEDE${DELIM}DDES`, roles: ["ADMIN"], updatedAt: new Date().toISOString() },
-  { id: 2, empCode: "RD02", firstNameEn: "Bob",   lastNameEn: "Johnson", email: "bob@corp.local",   isActive: true,  deptPath: `R&D${DELIM}SWE${DELIM}Platform`, roles: ["INTERPRETER"], updatedAt: new Date().toISOString() },
-  { id: 3, empCode: "OP01", firstNameEn: "Charlie", lastNameEn: "Brown", email: "charlie@corp.local", isActive: false, deptPath: `Operations${DELIM}Support${DELIM}Tier1`, roles: ["INTERPRETER"], updatedAt: new Date().toISOString() },
-  { id: 4, empCode: "RD03", firstNameEn: "Dana",  lastNameEn: "Lee", email: "dana@corp.local",  isActive: true,  deptPath: `R&D${DELIM}DEDE${DELIM}DDET`, roles: ["ADMIN", "INTERPRETER"], updatedAt: new Date().toISOString() },
-  // add a few more to exercise pagination (>= 6)
-  { id: 5, empCode: "RD04", firstNameEn: "Evan", lastNameEn: "Ng", email: "evan@corp.local", isActive: true, deptPath: `R&D${DELIM}SWE${DELIM}Infra`, roles: ["INTERPRETER"], updatedAt: new Date().toISOString() },
-  { id: 6, empCode: "OP02", firstNameEn: "Faye", lastNameEn: "Wong", email: "faye@corp.local", isActive: true, deptPath: `Operations${DELIM}Logistics${DELIM}Warehouse`, roles: ["INTERPRETER"], updatedAt: new Date().toISOString() },
-  { id: 7, empCode: "RD05", firstNameEn: "Gavin", lastNameEn: "Choi", email: "gavin@corp.local", isActive: true, deptPath: `R&D${DELIM}SWE${DELIM}Platform`, roles: ["ADMIN"], updatedAt: new Date().toISOString() },
-];
+type ApiPagination = {
+  page: number;
+  pageSize: PageSize;
+  total: number;
+  totalPages: number;
+};
 
-// -------------------------------------------------------------
-// Component
-// -------------------------------------------------------------
+type ApiResponse = {
+  users: UserRow[];
+  pagination: ApiPagination;
+  stats: ApiStats;
+  tree?: FilterTree;
+};
+
+const query = (params: Record<string, string | number | boolean>) =>
+  Object.entries(params)
+    .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
+    .join("&");
+
+/* -------------------------------------------
+   Component
+------------------------------------------- */
 export default function UsersManagement() {
-  // base data (mock)
-  const [users] = useState<UserRow[]>(MOCK_USERS);
-  const [tree] = useState<FilterTree>(MOCK_TREE);
+  // Data from API (list)
+  const [users, setUsers] = useState<UserRow[]>([]);
+  const [tree, setTree] = useState<FilterTree>({});
 
-  // UI state
+  // Stats
+  const [serverStats, setServerStats] = useState<ApiStats>({ total: 0, admins: 0, interpreters: 0 });
+  const [globalStats, setGlobalStats] = useState<ApiStats | null>(null); // ใช้กับการ์ดเสมอ
+
+  // Pagination from server
+  const [serverPage, setServerPage] = useState<number>(1);
+  const [totalPages, setTotalPages] = useState<number>(1);
+
+  // UI/Request state
+  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Filters
   const [search, setSearch] = useState("");
   const [role, setRole] = useState<RoleFilter>("ALL");
   const [department, setDepartment] = useState<AnyFilter>("ALL");
   const [group, setGroup] = useState<AnyFilter>("ALL");
   const [section, setSection] = useState<AnyFilter>("ALL");
 
-  // Pagination state
+  // Pagination state (client drives)
   const [page, setPage] = useState<number>(1);
-  const [pageSize, setPageSize] = useState<10 | 20 | 50>(10);
+  const [pageSize, setPageSize] = useState<PageSize>(10);
 
-  // Reset to page 1 whenever filters/search/pageSize change
+  // Reset page when filters changed
+  useEffect(() => { setPage(1); }, [search, role, department, group, section, pageSize]);
+
+  // Guard: ถ้าเลือก group/section ที่ไม่มีใน tree ให้รีเซ็ตเป็น "ALL"
   useEffect(() => {
-    setPage(1);
-  }, [search, role, department, group, section, pageSize]);
+    if (department !== "ALL") {
+      const groups = Object.keys(tree[department as string] || {});
+      if (!groups.length) {
+        if (group !== "ALL") setGroup("ALL");
+        if (section !== "ALL") setSection("ALL");
+        return;
+      }
+      if (group !== "ALL" && !groups.includes(String(group))) {
+        setGroup("ALL");
+        setSection("ALL");
+        return;
+      }
+      if (group !== "ALL") {
+        const sections = (tree[department as string]?.[group as string] ?? []);
+        if (section !== "ALL" && !sections.includes(String(section))) {
+          setSection("ALL");
+        }
+      }
+    } else {
+      // ถ้า department กลับเป็น ALL ให้รีเซ็ต group/section ด้วย
+      if (group !== "ALL") setGroup("ALL");
+      if (section !== "ALL") setSection("ALL");
+    }
+  }, [department, group, section, tree]);
 
-  // derived options (type-safe indexing)
+  // Options from tree
+  const collator = useMemo(() => new Intl.Collator(undefined, { numeric: true, sensitivity: "base" }), []);
   const groupOptions = useMemo(() => {
     if (department === "ALL") return [];
     const depKey = department as string;
-    return Object.keys(tree[depKey] || {}).sort();
-  }, [tree, department]);
+    return Object.keys(tree[depKey] || {}).sort(collator.compare);
+  }, [tree, department, collator]);
 
   const sectionOptions = useMemo(() => {
     if (department === "ALL" || group === "ALL") return [];
     const depKey = department as string;
     const grpKey = group as string;
-    return (tree[depKey]?.[grpKey] || []).slice().sort();
-  }, [tree, department, group]);
+    return (tree[depKey]?.[grpKey] || []).slice().sort(collator.compare);
+  }, [tree, department, group, collator]);
 
-  // helpers
-  const joinPath = (...parts: string[]) => parts.filter(Boolean).join(DELIM);
+  // Fetch list by filters
+  useEffect(() => {
+    const params = {
+      search,
+      role,
+      department,
+      group,
+      section,
+      page,
+      pageSize,
+      includeTree: page === 1, // ขอต้นไม้เฉพาะหน้าแรก เพื่อลด payload
+    };
+    const url = `/api/user/get-user?${query(params)}`;
 
-  // filtering (client-side on mock data)
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    const prefix = joinPath(
-      department !== "ALL" ? (department as string) : "",
-      group !== "ALL" ? (group as string) : "",
-      section !== "ALL" ? (section as string) : ""
-    );
+    setLoading(true);
+    setError(null);
 
-    return users.filter((u) => {
-      // search
-      const s = `${u.firstNameEn ?? ""} ${u.lastNameEn ?? ""} ${u.firstNameTh ?? ""} ${u.lastNameTh ?? ""} ${u.email ?? ""} ${u.empCode}`.toLowerCase();
-      const matchesSearch = q ? s.includes(q) : true;
+    (async () => {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`Failed to fetch users (${res.status})`);
+      const data: ApiResponse = await res.json();
 
-      // role
-      const matchesRole = role === "ALL" ? true : u.roles.includes(role);
+      setUsers(data.users ?? []);
+      setServerStats(data.stats ?? { total: 0, admins: 0, interpreters: 0 });
+      setServerPage(data.pagination?.page ?? 1);
+      setTotalPages(data.pagination?.totalPages ?? 1);
+      if (data.tree) setTree(data.tree);
+    })()
+      .catch((e: unknown) => setError(e instanceof Error ? e.message : "Unknown error"))
+      .finally(() => setLoading(false));
+  }, [search, role, department, group, section, page, pageSize]);
 
-      // dept prefix (R&D \ DEDE \ ...)
-      const matchesDept = prefix ? (u.deptPath?.startsWith(prefix) ?? false) : true;
-
-      return matchesSearch && matchesRole && matchesDept;
-    });
-  }, [users, search, role, department, group, section]);
-
-  // stats for current view
-  const stats = useMemo(() => {
-    const total = filtered.length;
-    const admins = filtered.filter((u) => u.roles.includes("ADMIN")).length;
-    const interpreters = filtered.filter((u) => u.roles.includes("INTERPRETER")).length;
-    return { total, admins, interpreters };
-  }, [filtered]);
-
-  // pagination slice
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const safePage = Math.min(page, totalPages);
-  const start = (safePage - 1) * pageSize;
-  const end = Math.min(filtered.length, start + pageSize);
-  const pageItems = filtered.slice(start, end);
+  // Fetch global stats once (ไม่ขึ้นกับฟิลเตอร์)
+  useEffect(() => {
+    (async () => {
+      const url = `/api/users?${query({
+        search: "",
+        role: "ALL",
+        department: "ALL",
+        group: "ALL",
+        section: "ALL",
+        page: 1,
+        pageSize: 1,        // เอาหน้าเล็กสุดเพื่อลดงาน
+        includeTree: false, // ไม่ต้องใช้ tree
+      })}`;
+      const res = await fetch(url);
+      if (!res.ok) return; // ไม่ critical
+      const data: ApiResponse = await res.json();
+      if (data?.stats) setGlobalStats(data.stats);
+    })();
+  }, []);
 
   const displayName = (u: UserRow) =>
     [u.firstNameEn ?? u.firstNameTh, u.lastNameEn ?? u.lastNameTh].filter(Boolean).join(" ") || u.empCode;
 
+  /* -------------------------------------------
+     Render
+  ------------------------------------------- */
   return (
     <div className={THEME.page}>
       {/* Header */}
@@ -155,16 +209,19 @@ export default function UsersManagement() {
 
       {/* Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Stats */}
+        {/* Status states */}
+        {loading && <div className="mb-4 text-sm text-gray-600">Loading users…</div>}
+        {error && <div className="mb-4 text-sm text-red-600">Failed: {error}</div>}
+
+        {/* Cards — ใช้ globalStats ถ้ามี เพื่อไม่ผันตามฟิลเตอร์ */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <Card className={THEME.card}>
             <CardContent className="p-5">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-gray-500">Total Users</p>
-                  <p className="text-3xl font-bold">{stats.total}</p>
+                  <p className="text-3xl font-bold">{(globalStats ?? serverStats).total}</p>
                 </div>
-                {/* color change: blue */}
                 <div className="h-12 w-12 rounded-full bg-sky-100 grid place-items-center">
                   <Users className="h-6 w-6 text-sky-600" />
                 </div>
@@ -176,9 +233,8 @@ export default function UsersManagement() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-gray-500">Admins</p>
-                  <p className="text-3xl font-bold">{stats.admins}</p>
+                  <p className="text-3xl font-bold">{(globalStats ?? serverStats).admins}</p>
                 </div>
-                {/* color change: green */}
                 <div className="h-12 w-12 rounded-full bg-green-100 grid place-items-center">
                   <Shield className="h-6 w-6 text-green-600" />
                 </div>
@@ -190,9 +246,8 @@ export default function UsersManagement() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-gray-500">Interpreters</p>
-                  <p className="text-3xl font-bold">{stats.interpreters}</p>
+                  <p className="text-3xl font-bold">{(globalStats ?? serverStats).interpreters}</p>
                 </div>
-                {/* color change: yellow */}
                 <div className="h-12 w-12 rounded-full bg-yellow-100 grid place-items-center">
                   <Languages className="h-6 w-6 text-yellow-600" />
                 </div>
@@ -249,7 +304,7 @@ export default function UsersManagement() {
                   <SelectContent>
                     <SelectItem value="ALL">All departments</SelectItem>
                     {Object.keys(tree)
-                      .sort()
+                      .sort(collator.compare)
                       .map((dep) => (
                         <SelectItem key={dep} value={dep}>
                           {dep}
@@ -311,7 +366,11 @@ export default function UsersManagement() {
         <Card className={THEME.card}>
           <CardHeader>
             <CardTitle className="text-xl">All Users</CardTitle>
-            <p className="text-sm text-gray-500">Showing {start + 1}-{end} of {filtered.length} user(s)</p>
+            <p className="text-sm text-gray-500">
+              Showing {(serverPage - 1) * pageSize + (users.length ? 1 : 0)}
+              -
+              {(serverPage - 1) * pageSize + users.length} of {serverStats.total} user(s)
+            </p>
           </CardHeader>
           <CardContent>
             <Table className="text-sm">
@@ -325,7 +384,7 @@ export default function UsersManagement() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {pageItems.map((u) => (
+                {users.map((u) => (
                   <TableRow key={u.id} className={THEME.row}>
                     <TableCell>
                       <div className="flex items-center">
@@ -386,12 +445,12 @@ export default function UsersManagement() {
             </Table>
 
             {/* Pagination Footer */}
-            {filtered.length > 6 && (
+            {serverStats.total > pageSize && (
               <div className="flex items-center justify-between pt-4">
                 {/* Rows per page */}
                 <div className="flex items-center gap-2 text-sm text-gray-600">
                   <span>Rows per page</span>
-                  <Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v) as 10 | 20 | 50)}>
+                  <Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v) as PageSize)}>
                     <SelectTrigger className="w-[100px]"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="10">10</SelectItem>
@@ -404,17 +463,22 @@ export default function UsersManagement() {
                 {/* Page controls */}
                 <div className="flex items-center gap-3 text-sm text-gray-700">
                   <span>
-                    Page {safePage} of {totalPages}
+                    Page {serverPage} of {totalPages}
                   </span>
                   <div className="flex items-center gap-1">
-                    <Button variant="outline" size="icon" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={safePage === 1}>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      disabled={serverPage === 1}
+                    >
                       <ChevronLeft className="h-4 w-4" />
                     </Button>
                     <Button
                       variant="outline"
                       size="icon"
                       onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                      disabled={safePage === totalPages}
+                      disabled={serverPage === totalPages}
                     >
                       <ChevronRight className="h-4 w-4" />
                     </Button>
@@ -423,7 +487,7 @@ export default function UsersManagement() {
               </div>
             )}
 
-            {pageItems.length === 0 && (
+            {users.length === 0 && !loading && (
               <div className="text-center py-12">
                 <Users className="mx-auto h-12 w-12 text-gray-400" />
                 <h3 className="mt-2 text-sm font-medium text-gray-900">No users found</h3>
