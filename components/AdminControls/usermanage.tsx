@@ -13,6 +13,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 import type { RoleFilter, AnyFilter, UserRow, FilterTree } from '@/types/user';
 
+// ✅ เพิ่ม import dialog + type Role
+import { UserRoleDialog } from "@/components/AdminForm/user-set-role";
+import type { Role } from "@/types/user";
+
 /* -------------------------------------------
    Theme tokens
 ------------------------------------------- */
@@ -81,6 +85,9 @@ export default function UsersManagement() {
   const [page, setPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<PageSize>(10);
 
+  // ✅ refresh state ต้องอยู่ก่อน useEffect ที่ใช้งาน (กัน TS เตือน)
+  const [refresh, setRefresh] = useState(0);
+
   // Reset page when filters changed
   useEffect(() => { setPage(1); }, [search, role, department, group, section, pageSize]);
 
@@ -139,7 +146,6 @@ export default function UsersManagement() {
     };
     const url = `/api/user/get-user?${query(params)}`;
 
-
     (async () => {
       const res = await fetch(url);
       if (!res.ok) throw new Error(`Failed to fetch users (${res.status})`);
@@ -150,9 +156,9 @@ export default function UsersManagement() {
       setServerPage(data.pagination?.page ?? 1);
       setTotalPages(data.pagination?.totalPages ?? 1);
       if (data.tree) setTree(data.tree);
-    })()
-
-  }, [search, role, department, group, section, page, pageSize]);
+    })();
+    // ✅ เพิ่ม refresh เข้า dependencies เพื่อ refetch หลัง save roles
+  }, [search, role, department, group, section, page, pageSize, refresh]);
 
   // Fetch global stats once (ไม่ขึ้นกับฟิลเตอร์) — ใช้ endpoint เดียวกัน
   useEffect(() => {
@@ -176,6 +182,20 @@ export default function UsersManagement() {
 
   const displayName = (u: UserRow) =>
     [u.firstNameEn ?? u.firstNameTh, u.lastNameEn ?? u.lastNameTh].filter(Boolean).join(" ") || u.empCode;
+
+  // ✅ ฟังก์ชันบันทึก role แล้วสั่ง refetch
+  async function saveUserRoles(userId: number, roles: Role[]) {
+    const res = await fetch(`/api/user/${userId}/roles`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ roles }),
+    });
+    if (!res.ok) {
+      const msg = await res.text().catch(() => "");
+      throw new Error(msg || `Failed to save roles (${res.status})`);
+    }
+    setRefresh((r) => r + 1);
+  }
 
   /* -------------------------------------------
      Render
@@ -400,11 +420,10 @@ export default function UsersManagement() {
                           u.roles.map((r) => (
                             <Badge
                               key={r}
-                              className={`${THEME.badgeBase} ${
-                                r === "ADMIN"
-                                  ? "bg-green-100 text-green-700 border border-green-200"
-                                  : "bg-yellow-100 text-yellow-700 border border-yellow-200"
-                              }`}
+                              className={`${THEME.badgeBase} ${r === "ADMIN"
+                                ? "bg-green-100 text-green-700 border border-green-200"
+                                : "bg-yellow-100 text-yellow-700 border border-yellow-200"
+                                }`}
                             >
                               {r}
                             </Badge>
@@ -416,18 +435,33 @@ export default function UsersManagement() {
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center justify-center">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          title="Edit roles"
-                          aria-label="Edit roles"
-                          onClick={() => console.log("open role dialog")}
-                          className="text-gray-700 hover:text-gray-900 hover:bg-gray-100"
-                        >
-                          <Edit3 className="h-4 w-4" />
-                        </Button>
+                        <UserRoleDialog
+                          user={{
+                            id: u.id,
+                            empCode: u.empCode,
+                            name: `${u.firstNameEn ?? ""} ${u.lastNameEn ?? ""}`.trim() || u.empCode,
+                            email: u.email ?? "",
+                            roles: (u.roles ?? []) as Role[],
+                          }}
+                          onSave={(roles) => saveUserRoles(u.id, roles)}
+                          // ✅ ส่ง trigger เป็นปุ่มไอคอนโดยตรง
+                          trigger={
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              title="Edit roles"
+                              aria-label="Edit roles"
+                              className="inline-flex items-center justify-center text-gray-700 hover:text-gray-900 hover:bg-gray-100"
+                            >
+                              <Edit3 className="h-4 w-4" aria-hidden="true" />
+                              <span className="sr-only">Edit roles</span>
+                            </Button>
+                          }
+                        />
                       </div>
                     </TableCell>
+
                   </TableRow>
                 ))}
               </TableBody>
