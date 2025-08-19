@@ -366,7 +366,12 @@ export function BookingForm({
           ),
           { duration: 5000 }
         );
+        // Close the form
         onOpenChange(false);
+        // Notify other components that bookings have changed
+        try {
+          window.dispatchEvent(new CustomEvent("booking:updated"));
+        } catch {}
       } else {
         toast.custom(
           (t) => (

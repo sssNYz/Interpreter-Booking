@@ -40,11 +40,12 @@ export async function GET(
       take: pageSize,
       include: {
         employee: {
-          select: { firstNameEn: true, lastNameEn: true, email: true, telExt: true },
+          select: { prefixEn: true, firstNameEn: true, lastNameEn: true, email: true, telExt: true },
         },
         interpreterEmployee: {
-          select: { empCode: true },
+          select: { empCode: true, firstNameEn: true, lastNameEn: true },
         },
+        inviteEmails: true,
       },
     } as Parameters<typeof prisma.bookingPlan.findMany>[0]),
   ]);
@@ -61,11 +62,13 @@ export async function GET(
     bookingStatus: string;
     createdAt: Date;
     updatedAt: Date;
-    employee?: { firstNameEn: string | null; lastNameEn: string | null; email: string | null; telExt: string | null } | null;
-    interpreterEmployee?: { empCode: string | null } | null;
+    employee?: { prefixEn: string | null; firstNameEn: string | null; lastNameEn: string | null; email: string | null; telExt: string | null } | null;
+    interpreterEmployee?: { empCode: string | null; firstNameEn: string | null; lastNameEn: string | null } | null;
+    inviteEmails?: Array<{ email: string }> | null;
   }>).map((b) => ({
     bookingId: b.bookingId,
     ownerEmpCode: b.ownerEmpCode,
+    ownerPrefix: b.employee?.prefixEn ?? "",
     ownerName: b.employee?.firstNameEn ?? "",
     ownerSurname: b.employee?.lastNameEn ?? "",
     ownerEmail: b.employee?.email ?? "",
@@ -77,6 +80,8 @@ export async function GET(
     timeStart: b.timeStart,
     timeEnd: b.timeEnd,
     interpreterId: b.interpreterEmployee?.empCode ?? null,
+    interpreterName: b.interpreterEmployee ? `${b.interpreterEmployee.firstNameEn ?? ""} ${b.interpreterEmployee.lastNameEn ?? ""}`.trim() : "",
+    inviteEmails: (b.inviteEmails || []).map((ie) => ie.email),
     bookingStatus: b.bookingStatus,
     createdAt: b.createdAt,
     updatedAt: b.updatedAt,
