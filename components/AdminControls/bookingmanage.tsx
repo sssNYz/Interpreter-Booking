@@ -14,7 +14,7 @@ import {
 
 import type { BookingManage as BookingMange, Stats } from "@/app/types/booking-types";
 
-import BookingDetailDialog from "../admin-form/booking-form";
+import BookingDetailDialog from "../AdminForm/booking-form";
 
 /* ========= THEME ========= */
 const PAGE_WRAPPER = "min-h-screen bg-[#f7f7f7] font-sans text-gray-900";
