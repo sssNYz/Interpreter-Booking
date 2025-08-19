@@ -17,3 +17,14 @@ export type UserRow = {
 };
 
 export type FilterTree = Record<string, Record<string, string[]>>; // Department → Group → Section
+
+export type Role = "ADMIN" | "INTERPRETER";
+
+
+export interface UserSummary {
+  id: number;
+  empCode: string;
+  name: string;
+  email?: string;
+  roles: Role[];
+}
