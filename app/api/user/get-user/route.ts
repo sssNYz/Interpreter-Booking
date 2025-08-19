@@ -3,8 +3,8 @@ import prisma from "@/prisma/prisma";
 import type { Prisma } from "@prisma/client";
 import {
   parseQuery,
-  buildDeptPrefix,
-  hasPathSegmentPrefix,
+  buildParts,
+  hasSegmentPrefix,
   buildFilterTree,
   type ParsedQuery,
 } from "@/utils/users";
@@ -12,22 +12,31 @@ import {
 export async function GET(req: NextRequest) {
   try {
     const q: ParsedQuery = parseQuery(req.url);
-    const deptPrefix = buildDeptPrefix(q.department, q.group, q.section);
+    const parts = buildParts(q.department, q.group, q.section); // ['R&D', 'DEDE', 'DDES'] หรือ []
+
+    // --------- Search block (ตัด mode ออก ถ้า prisma เก่า) ----------
+    const orSearch: Prisma.EmployeeWhereInput[] = q.search
+      ? [
+          { firstNameEn: { contains: q.search } },
+          { lastNameEn:  { contains: q.search } },
+          { firstNameTh: { contains: q.search } },
+          { lastNameTh:  { contains: q.search } },
+          { email:       { contains: q.search } },
+          { empCode:     { contains: q.search } },
+        ]
+      : [];
+
+    // --------- ลดชุดใน DB ด้วย contains ทีละ segment ----------
+    const segmentReduce: Prisma.EmployeeWhereInput[] = parts.map((p) => ({
+      deptPath: { contains: p },
+    }));
 
     const baseWhere: Prisma.EmployeeWhereInput = {
-      OR: q.search
-        ? [
-          { firstNameEn: { contains: q.search } },
-          { lastNameEn: { contains: q.search } },
-          { firstNameTh: { contains: q.search } },
-          { lastNameTh: { contains: q.search } },
-          { email: { contains: q.search } },
-          { empCode: { contains: q.search } },
-        ]
-        : undefined,
-      ...(deptPrefix ? { deptPath: { startsWith: deptPrefix } } : {}),
+      AND: [
+        ...(orSearch.length ? [{ OR: orSearch }] : []),
+        ...(segmentReduce.length ? segmentReduce : []),
+      ],
     };
-
 
     const where: Prisma.EmployeeWhereInput =
       q.role === "ALL"
@@ -45,8 +54,9 @@ export async function GET(req: NextRequest) {
       }),
     ]);
 
-    const pageRows = deptPrefix
-      ? employees.filter((e) => hasPathSegmentPrefix(e.deptPath, deptPrefix))
+    // --------- กรองซ้ำแบบ segment เพื่อความแม่นยำ ----------
+    const pageRows = parts.length
+      ? employees.filter((e) => hasSegmentPrefix(e.deptPath, parts))
       : employees;
 
     const users = pageRows.map((e) => ({
@@ -60,9 +70,10 @@ export async function GET(req: NextRequest) {
       isActive: e.isActive,
       deptPath: e.deptPath,
       roles: e.userRoles.map((r) => r.roleCode),
-      updatedAt: e.updatedAt.toISOString(), // ✅ fixed
+      updatedAt: e.updatedAt.toISOString(),
     }));
 
+    // สถิติตาม baseWhere (ไม่ผูกกับ role เฉพาะ)
     const [admins, interpreters] = await Promise.all([
       prisma.employee.count({
         where: { ...baseWhere, userRoles: { some: { roleCode: "ADMIN" } } },

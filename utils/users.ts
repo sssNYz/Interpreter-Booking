@@ -1,6 +1,5 @@
 import type { PrismaClient, RoleCode } from "@prisma/client";
 
-export const DELIM = " \\ " as const;
 export type PageSize = 10 | 20 | 50;
 export type RoleFilter = "ALL" | Extract<RoleCode, "ADMIN" | "INTERPRETER">;
 
@@ -15,11 +14,35 @@ export interface ParsedQuery {
   includeTree: boolean;
 }
 
-export interface FilterTree {
-  [department: string]: { [group: string]: string[] };
+// ---------- New: split/normalize ----------
+const SPLIT_RE = /\s*\\\s*/; // แยกด้วย backslash โดยไม่แคร์ช่องว่าง
+
+export function splitPath(path?: string | null): string[] {
+  if (!path) return [];
+  return String(path)
+    .split(SPLIT_RE)
+    .map(s => s.trim())
+    .filter(Boolean);
 }
 
-const PAGE_SIZES: ReadonlySet<number> = new Set([10, 20, 50]);
+export function buildParts(dep: string, grp: string, sec: string): string[] {
+  const parts: string[] = [];
+  if (dep !== "ALL") parts.push(dep);
+  if (grp !== "ALL") parts.push(grp);
+  if (sec !== "ALL") parts.push(sec);
+  return parts;
+}
+
+/** เทียบแบบ segment-prefix: [dep, grp, sec] ต้องตรงตามลำดับ */
+export function hasSegmentPrefix(userPath: string | null | undefined, parts: string[]): boolean {
+  if (!parts.length) return true;
+  const seg = splitPath(userPath);
+  if (parts.length > seg.length) return false;
+  for (let i = 0; i < parts.length; i++) {
+    if (seg[i] !== parts[i]) return false;
+  }
+  return true;
+}
 
 export function parseQuery(url: string): ParsedQuery {
   const sp = new URL(url).searchParams;
@@ -27,8 +50,7 @@ export function parseQuery(url: string): ParsedQuery {
   const sizeNum = Number(sp.get("pageSize") ?? 10);
 
   const roleUp = (sp.get("role") ?? "ALL").toUpperCase();
-  const role: RoleFilter =
-    roleUp === "ADMIN" || roleUp === "INTERPRETER" ? roleUp : "ALL";
+  const role: RoleFilter = roleUp === "ADMIN" || roleUp === "INTERPRETER" ? roleUp : "ALL";
 
   return {
     search: (sp.get("search") ?? "").trim(),
@@ -37,30 +59,12 @@ export function parseQuery(url: string): ParsedQuery {
     group: sp.get("group") ?? "ALL",
     section: sp.get("section") ?? "ALL",
     page: Number.isFinite(pageNum) && pageNum > 0 ? pageNum : 1,
-    pageSize: (PAGE_SIZES.has(sizeNum) ? sizeNum : 10) as PageSize,
+    pageSize: (new Set([10, 20, 50]).has(sizeNum) ? sizeNum : 10) as PageSize,
     includeTree: (sp.get("includeTree") ?? "true").toLowerCase() !== "false",
   };
 }
 
-export function buildDeptPrefix(dep: string, grp: string, sec: string): string {
-  const parts: string[] = [];
-  if (dep !== "ALL") parts.push(dep);
-  if (grp !== "ALL") parts.push(grp);
-  if (sec !== "ALL") parts.push(sec);
-  return parts.join(DELIM);
-}
-
-export function hasPathSegmentPrefix(
-  userPath: string | null | undefined,
-  prefix: string | null | undefined
-): boolean {
-  if (!prefix) return true;
-  if (!userPath) return false;
-  const seg = userPath.split(DELIM).map((s) => s.trim());
-  const pre = prefix.split(DELIM).map((s) => s.trim());
-  if (pre.length > seg.length) return false;
-  return pre.every((p, i) => seg[i] === p);
-}
+// ---------- ใช้ split แบบเดียวกันในการสร้าง tree ----------
 export async function buildFilterTree(prisma: PrismaClient) {
   const rows = await prisma.employee.findMany({
     where: { deptPath: { not: null } },
@@ -69,9 +73,7 @@ export async function buildFilterTree(prisma: PrismaClient) {
 
   const tmp: Record<string, Record<string, Set<string>>> = {};
   for (const r of rows) {
-    const [dep, grp, sec] = (r.deptPath ?? "")
-      .split(DELIM)
-      .map((s) => s.trim());
+    const [dep, grp, sec] = splitPath(r.deptPath);
     if (!dep) continue;
     tmp[dep] ??= {};
     if (!grp) continue;
@@ -79,7 +81,7 @@ export async function buildFilterTree(prisma: PrismaClient) {
     if (sec) tmp[dep][grp].add(sec);
   }
 
-  const result: FilterTree = {};
+  const result: Record<string, Record<string, string[]>> = {};
   const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
   for (const dep of Object.keys(tmp).sort(collator.compare)) {
     result[dep] = {};
