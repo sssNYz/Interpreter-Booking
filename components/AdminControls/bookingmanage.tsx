@@ -12,7 +12,7 @@ import {
   Calendar, ChevronUp, ChevronDown, SquarePen,
 } from "lucide-react";
 
-import type { BookingManage as BookingMange, Stats } from "@/app/types/booking-types";
+import type { BookingManage as BookingMange, Stats } from "@/types/booking-types";
 
 import BookingDetailDialog from "../AdminForm/booking-form";
 
