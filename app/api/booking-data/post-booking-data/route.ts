@@ -1,3 +1,4 @@
+// NOTE: Protected by middleware via cookie session
 // app/api/booking/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
