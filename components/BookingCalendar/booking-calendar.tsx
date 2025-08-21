@@ -130,21 +130,30 @@ const BookingCalendar: React.FC = () => {
   /**
    * Jump to today's date and scroll the list to today's row
    */
+  // Track whether we've already auto-scrolled for a given month to avoid jumping on data refreshes
+  const autoScrolledMonthRef = useRef<string | null>(null);
+  const forceScrollToTodayRef = useRef<boolean>(false);
+
   const goToToday = useCallback(() => {
+    // Force a scroll-to-today on next layout cycle
+    forceScrollToTodayRef.current = true;
     setCurrentDate(new Date());
   }, []);
 
   // When viewing the current month, scroll to today's row
   useEffect(() => {
     const today = new Date();
-    if (
+    const isCurrentMonth =
       currentDate.getFullYear() === today.getFullYear() &&
-      currentDate.getMonth() === today.getMonth()
-    ) {
-      // Align today's row near the center for visibility
-      rowVirtualizer.scrollToIndex(Math.max(0, today.getDate() - 1), {
-        align: "center",
-      });
+      currentDate.getMonth() === today.getMonth();
+    if (!isCurrentMonth) return;
+    const monthKey = `${currentDate.getFullYear()}-${currentDate.getMonth()}`;
+    const shouldForce = forceScrollToTodayRef.current;
+    const notYetScrolledThisMonth = autoScrolledMonthRef.current !== monthKey;
+    if (shouldForce || notYetScrolledThisMonth) {
+      rowVirtualizer.scrollToIndex(Math.max(0, today.getDate() - 1), { align: "center" });
+      autoScrolledMonthRef.current = monthKey;
+      forceScrollToTodayRef.current = false;
     }
   }, [currentDate, rowVirtualizer]);
 
@@ -152,13 +161,17 @@ const BookingCalendar: React.FC = () => {
   useEffect(() => {
     if (loading) return;
     const today = new Date();
-    if (
+    const isCurrentMonth =
       currentDate.getFullYear() === today.getFullYear() &&
-      currentDate.getMonth() === today.getMonth()
-    ) {
-      rowVirtualizer.scrollToIndex(Math.max(0, today.getDate() - 1), {
-        align: "center",
-      });
+      currentDate.getMonth() === today.getMonth();
+    if (!isCurrentMonth) return;
+    const monthKey = `${currentDate.getFullYear()}-${currentDate.getMonth()}`;
+    const shouldForce = forceScrollToTodayRef.current;
+    const notYetScrolledThisMonth = autoScrolledMonthRef.current !== monthKey;
+    if (shouldForce || notYetScrolledThisMonth) {
+      rowVirtualizer.scrollToIndex(Math.max(0, today.getDate() - 1), { align: "center" });
+      autoScrolledMonthRef.current = monthKey;
+      forceScrollToTodayRef.current = false;
     }
   }, [loading, currentDate, rowVirtualizer]);
 
