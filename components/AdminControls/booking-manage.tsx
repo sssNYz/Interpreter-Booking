@@ -12,18 +12,18 @@ import {
   Calendar, ChevronUp, ChevronDown, SquarePen,
 } from "lucide-react";
 
-import type { BookingManage as BookingMange, Stats } from "@/app/types/booking-types";
+import type { BookingManage as BookingMange, Stats } from "@/types/booking-types";
 
-import BookingDetailDialog from "../admin-form/booking-form";
+import BookingDetailDialog from "../AdminForm/booking-form";
 
 /* ========= THEME ========= */
 const PAGE_WRAPPER = "min-h-screen bg-[#f7f7f7] font-sans text-gray-900";
 
 /* ========= Constants ========= */
 const TIME_SLOTS = [
-  "08:00","08:30","09:00","09:30","10:00","10:30",
-  "11:00","11:30","12:00","12:30","13:00","13:30",
-  "14:00","14:30","15:00","15:30","16:00","16:30","17:00",
+  "08:00", "08:30", "09:00", "09:30", "10:00", "10:30",
+  "11:00", "11:30", "12:00", "12:30", "13:00", "13:30",
+  "14:00", "14:30", "15:00", "15:30", "16:00", "16:30", "17:00",
 ];
 
 const STATUS_OPTIONS = [
@@ -41,13 +41,13 @@ const parseTime = (t: string) => {
 
 const formatDate = (s: string) => {
   const d = new Date(s);
-  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
 };
 
 const formatRequestedTime = (s: string) => {
   const d = new Date(s);
-  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   const hh = `${d.getHours()}`.padStart(2, "0");
   const mm = `${d.getMinutes()}`.padStart(2, "0");
   return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()} ${hh}:${mm}`;
@@ -56,8 +56,8 @@ const formatRequestedTime = (s: string) => {
 const getFullDate = (s: string, isClient: boolean) => {
   if (!isClient) return s;
   const d = new Date(s);
-  const days = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
-  const months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+  const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
   return `${days[d.getDay()]}, ${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
 };
 
@@ -114,7 +114,7 @@ export default function BookingManagement(): React.JSX.Element {
   const [showBookingDetailDialog, setShowBookingDetailDialog] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<BookingMange | null>(null);
 
-// fetch bookings from API
+  // fetch bookings from API
   const fetchBookings = useCallback(async () => {
     try {
       setLoading(true);
@@ -134,10 +134,10 @@ export default function BookingManagement(): React.JSX.Element {
   useEffect(() => {
     setIsClient(true);
     const now = new Date();
-    const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
     setCurrentMonth(months[now.getMonth()]);
     setCurrentYear(now.getFullYear());
-    fetchBookings(); 
+    fetchBookings();
   }, [fetchBookings]);
 
 
@@ -365,7 +365,7 @@ export default function BookingManagement(): React.JSX.Element {
                                 {formatDate(booking.dateTime)}
                               </span>
                               {isClient && (
-                            <div className="absolute top-full left-0 mt-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50">
+                                <div className="absolute top-full left-0 mt-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50">
                                   {getFullDate(booking.dateTime, isClient)}
                                 </div>
                               )}
