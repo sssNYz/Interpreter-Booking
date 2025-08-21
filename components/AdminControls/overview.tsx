@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import bookingsData from '@/data/recentBookingsData.json';
 import weeklysData from '@/data/weeklyData.json';
-import type { Booking,WeeklyChartData } from '@/app/types/booking-types';
+import type { Booking,WeeklyChartData } from '@/types/booking-types';
 
 
 const recentBookings: Booking[] = bookingsData as Booking[];
