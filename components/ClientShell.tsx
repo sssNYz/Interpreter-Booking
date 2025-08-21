@@ -9,8 +9,8 @@ import { Toaster } from "@/components/ui/sonner";
 export default function ClientShell({ children }: { children: React.ReactNode }) {
 	const pathname = usePathname();
 	const router = useRouter();
-	const publicPaths = useMemo(() => new Set<string>(["/login", "/LoginPage"]), []);
-	const hideSidebar = pathname === "/login" || pathname === "/LoginPage";
+	const publicPaths = useMemo(() => new Set<string>(["/login"]), []);
+	const hideSidebar = pathname === "/login";	
 	const [ready, setReady] = useState<boolean>(publicPaths.has(pathname));
 
 	useEffect(() => {
