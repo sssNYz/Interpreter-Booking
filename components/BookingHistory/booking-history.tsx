@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
 import { FilterIcon, UserSearchIcon, XIcon, User, Mail, Users, ListCollapse, MapPin, Clock } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type StatusFilter = "all" | "approve" | "waiting" | "cancel";
 
@@ -186,11 +187,29 @@ export default function BookingHistory() {
             </TableHeader>
             <TableBody>
               {loading && (
-                <TableRow>
-                  <TableCell colSpan={5} className="py-8 text-center text-sm text-muted-foreground">
-                    Loading...
-                  </TableCell>
-                </TableRow>
+                <>
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <TableRow key={`loading-${i}`}>
+                      <TableCell>
+                        <Skeleton className="h-5 w-20 rounded-full" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="h-4 w-28" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="h-4 w-24" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="h-4 w-36" />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end">
+                          <Skeleton className="h-8 w-16" />
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </>
               )}
               {!loading && error && (
                 <TableRow>
