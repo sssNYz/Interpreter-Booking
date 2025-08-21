@@ -125,8 +125,7 @@ export function BookingForm({
         const raw = localStorage.getItem("booking.user");
         if (!raw) return;
         const parsed = JSON.parse(raw);
-        const expired = Date.now() > (parsed.storedAt || parsed.timestamp || 0) + ((parsed.ttlDays ? parsed.ttlDays * 86400000 : parsed.ttl) || 0);
-        if (expired) return;
+        // Session is now enforced by server cookie; just read profile if present
         const full = String(parsed.name || "");
         const parts = full.trim().split(/\s+/);
         const first = parts[0] || "";

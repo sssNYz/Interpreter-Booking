@@ -1,3 +1,4 @@
+// NOTE: Protected by middleware via cookie session
 import prisma from '@/prisma/prisma';
 export const dynamic = "force-dynamic";
 
