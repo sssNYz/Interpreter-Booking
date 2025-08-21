@@ -1,7 +1,7 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import { Calendar, Home, Inbox, Search, Settings, ChevronRight,LayoutDashboard,Star, LogOut } from "lucide-react"
+import { Calendar, Home, Inbox, Settings, ChevronRight, LayoutDashboard, Star, LogOut } from "lucide-react"
 
 import {
   Sidebar,
@@ -25,10 +25,9 @@ import {
 // Submenu for Admin
 const adminItems = [
   { title: "Overview", url: "/AdminPage", icon: Home },
-  { title: "Bookings management", url: "/AdminPage/booking-manage", icon: Inbox },
+  { title: "Bookings management", url: "/AdminPage/booking-manage-page", icon: Inbox },
   { title: "Interpreters management", url: "#", icon: Calendar },
-  { title: "Reports", url: "/AdminPage/user-manage", icon: Search },
-  { title: "Settings", url: "#", icon: Settings },
+  { title: "User management", url: "/AdminPage/user-manage-page", icon: Settings },
 ]
 
 export function AppSidebar() {

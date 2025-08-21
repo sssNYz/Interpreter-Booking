@@ -28,3 +28,27 @@ export interface UserSummary {
   email?: string;
   roles: Role[];
 }
+
+// --- เพิ่มลงไปใน '@/types/user.ts' ---
+
+export type PageSize = 10 | 20 | 50;
+
+export type ApiStats = {
+  total: number;
+  admins: number;
+  interpreters: number;
+};
+
+export type ApiPagination = {
+  page: number;
+  pageSize: PageSize;
+  total: number;
+  totalPages: number;
+};
+
+export type ApiResponse = {
+  users: UserRow[];
+  pagination: ApiPagination;
+  stats: ApiStats;
+  tree?: FilterTree;
+};
