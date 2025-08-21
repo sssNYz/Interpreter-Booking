@@ -10,16 +10,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-
-import type { RoleFilter, AnyFilter, UserRow, FilterTree } from '@/types/user';
-
-// ✅ เพิ่ม import dialog + type Role
 import { UserRoleDialog } from "@/components/AdminForm/user-set-role";
-import type { Role } from "@/types/user";
+import type { Role, PageSize, ApiStats, ApiResponse, RoleFilter, AnyFilter, UserRow, FilterTree } from "@/types/user";
 
-/* -------------------------------------------
-   Theme tokens
-------------------------------------------- */
+// Constants for styling
 const THEME = {
   page: "min-h-screen bg-[#f7f7f7] font-sans text-gray-900",
   card: "shadow-sm rounded-xl",
@@ -28,70 +22,37 @@ const THEME = {
   badgeBase: "px-3 py-1 rounded-full text-xs font-medium",
 } as const;
 
-/* -------------------------------------------
-   Helpers
-------------------------------------------- */
-type PageSize = 10 | 20 | 50;
-
-type ApiStats = {
-  total: number;
-  admins: number;
-  interpreters: number;
-};
-
-type ApiPagination = {
-  page: number;
-  pageSize: PageSize;
-  total: number;
-  totalPages: number;
-};
-
-type ApiResponse = {
-  users: UserRow[];
-  pagination: ApiPagination;
-  stats: ApiStats;
-  tree?: FilterTree;
-};
-
 const query = (params: Record<string, string | number | boolean>) =>
   Object.entries(params)
     .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
     .join("&");
 
-/* -------------------------------------------
-   Component
-------------------------------------------- */
+  // Users Management Component
 export default function UsersManagement() {
   // Data from API (list)
   const [users, setUsers] = useState<UserRow[]>([]);
   const [tree, setTree] = useState<FilterTree>({});
-
   // Stats
   const [serverStats, setServerStats] = useState<ApiStats>({ total: 0, admins: 0, interpreters: 0 });
   const [globalStats, setGlobalStats] = useState<ApiStats | null>(null); // ใช้กับการ์ดเสมอ
-
   // Pagination from server
   const [serverPage, setServerPage] = useState<number>(1);
   const [totalPages, setTotalPages] = useState<number>(1);
-
   // Filters
   const [search, setSearch] = useState("");
   const [role, setRole] = useState<RoleFilter>("ALL");
   const [department, setDepartment] = useState<AnyFilter>("ALL");
   const [group, setGroup] = useState<AnyFilter>("ALL");
   const [section, setSection] = useState<AnyFilter>("ALL");
-
-  // Pagination state (client drives)
+  // Local pagination state
   const [page, setPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<PageSize>(10);
-
-  // ✅ refresh state ต้องอยู่ก่อน useEffect ที่ใช้งาน (กัน TS เตือน)
+  // Refresh counter to trigger re-fetch
   const [refresh, setRefresh] = useState(0);
+  // Reset page when filters change
+  useEffect(() => { setPage(1); }, [search, role, department, group, section]);
 
-  // Reset page when filters changed
-  useEffect(() => { setPage(1); }, [search, role, department, group, section, pageSize]);
-
-  // Guard: ถ้าเลือก group/section ที่ไม่มีใน tree ให้รีเซ็ตเป็น "ALL"
+  // Reset group/section when department changes
   useEffect(() => {
     if (department !== "ALL") {
       const groups = Object.keys(tree[department as string] || {});
@@ -132,7 +93,7 @@ export default function UsersManagement() {
     return (tree[depKey]?.[grpKey] || []).slice().sort(collator.compare);
   }, [tree, department, group, collator]);
 
-  // Fetch list by filters (ใช้ endpoint เดียวกัน)
+  // Admin items for sidebar
   useEffect(() => {
     const params = {
       search,
@@ -142,9 +103,9 @@ export default function UsersManagement() {
       section,
       page,
       pageSize,
-      includeTree: page === 1, // ขอต้นไม้เฉพาะหน้าแรก เพื่อลด payload
+      includeTree: page === 1,
     };
-    const url = `/api/user/get-user?${query(params)}`;
+    const url = `/api/employees/get-employees?${query(params)}`;
 
     (async () => {
       const res = await fetch(url);
@@ -157,13 +118,12 @@ export default function UsersManagement() {
       setTotalPages(data.pagination?.totalPages ?? 1);
       if (data.tree) setTree(data.tree);
     })();
-    // ✅ เพิ่ม refresh เข้า dependencies เพื่อ refetch หลัง save roles
   }, [search, role, department, group, section, page, pageSize, refresh]);
 
-  // Fetch global stats once (ไม่ขึ้นกับฟิลเตอร์) — ใช้ endpoint เดียวกัน
+  // Fetch global stats on mountp
   useEffect(() => {
     (async () => {
-      const url = `/api/user/get-user?${query({
+      const url = `/api/employees/get-employees?${query({
         search: "",
         role: "ALL",
         department: "ALL",
@@ -183,10 +143,10 @@ export default function UsersManagement() {
   const displayName = (u: UserRow) =>
     [u.firstNameEn ?? u.firstNameTh, u.lastNameEn ?? u.lastNameTh].filter(Boolean).join(" ") || u.empCode;
 
-  // ✅ ฟังก์ชันบันทึก role แล้วสั่ง refetch
+  // Save user roles
   async function saveUserRoles(userId: number, roles: Role[]) {
-    const res = await fetch(`/api/user/put-user-role/${encodeURIComponent(String(userId))}`, {
-      method: "PUT", // ⬅️ เปลี่ยนเป็น PUT
+    const res = await fetch(`/api/employees/put-employees-role/${encodeURIComponent(String(userId))}`, {
+      method: "PUT",
       headers: { "Content-Type": "application/json", "Accept": "application/json" },
       body: JSON.stringify({ roles }),
       cache: "no-store",
@@ -201,14 +161,9 @@ export default function UsersManagement() {
       const text = await res.text();
       throw new Error(`Unexpected non-JSON response: ${text.slice(0, 200)}`);
     }
-    // ถ้าต้องการ ใช้ค่าที่ API ส่งกลับมาอัปเดต state เพิ่มเติมได้
     setRefresh((r) => r + 1);
   }
 
-
-  /* -------------------------------------------
-     Render
-  ------------------------------------------- */
   return (
     <div className={THEME.page}>
       {/* Header */}
@@ -231,7 +186,7 @@ export default function UsersManagement() {
       {/* Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
-        {/* Cards — ใช้ globalStats เสมอ เพื่อไม่ผันตามฟิลเตอร์ */}
+        {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <Card className={THEME.card}>
             <CardContent className="p-5">
@@ -430,8 +385,8 @@ export default function UsersManagement() {
                             <Badge
                               key={r}
                               className={`${THEME.badgeBase} ${r === "ADMIN"
-                                ? "bg-green-100 text-green-700 border border-green-200"
-                                : "bg-yellow-100 text-yellow-700 border border-yellow-200"
+                                  ? "bg-green-100 text-green-700 border border-green-200"
+                                  : "bg-yellow-100 text-yellow-700 border border-yellow-200"
                                 }`}
                             >
                               {r}
@@ -453,7 +408,6 @@ export default function UsersManagement() {
                             roles: (u.roles ?? []) as Role[],
                           }}
                           onSave={(roles) => saveUserRoles(u.id, roles)}
-                          // ✅ ส่ง trigger เป็นปุ่มไอคอนโดยตรง
                           trigger={
                             <Button
                               type="button"
@@ -470,33 +424,34 @@ export default function UsersManagement() {
                         />
                       </div>
                     </TableCell>
-
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
+            <div className="flex items-center justify-between pt-4">
+              {/* Rows per page */}
+              <div className="flex items-center gap-2 text-sm text-gray-600">
+                <span>Rows per page</span>
+                <Select
+                  value={String(pageSize)}
+                  onValueChange={(v) => {
+                    setPageSize(Number(v) as PageSize);
+                    setPage(1);
+                  }}
+                >
+                  <SelectTrigger className="w-[100px]"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="10">10</SelectItem>
+                    <SelectItem value="20">20</SelectItem>
+                    <SelectItem value="50">50</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
 
-            {/* Pagination Footer */}
-            {serverStats.total > pageSize && (
-              <div className="flex items-center justify-between pt-4">
-                {/* Rows per page */}
-                <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <span>Rows per page</span>
-                  <Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v) as PageSize)}>
-                    <SelectTrigger className="w-[100px]"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="10">10</SelectItem>
-                      <SelectItem value="20">20</SelectItem>
-                      <SelectItem value="50">50</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Page controls */}
+              {/* Page controls*/}
+              {totalPages > 1 ? (
                 <div className="flex items-center gap-3 text-sm text-gray-700">
-                  <span>
-                    Page {serverPage} of {totalPages}
-                  </span>
+                  <span>Page {serverPage} of {totalPages}</span>
                   <div className="flex items-center gap-1">
                     <Button
                       variant="outline"
@@ -516,8 +471,10 @@ export default function UsersManagement() {
                     </Button>
                   </div>
                 </div>
-              </div>
-            )}
+              ) : (
+                <div />
+              )}
+            </div>
           </CardContent>
         </Card>
       </div>
