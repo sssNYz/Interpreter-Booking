@@ -1,3 +1,4 @@
+// NOTE: Protected by middleware via cookie session
 import prisma from "@/prisma/prisma";
 import type { Prisma, BookingStatus as BookingStatusEnum } from "@prisma/client";
 
