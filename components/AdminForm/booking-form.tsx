@@ -3,7 +3,9 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Star, CheckCircle, XCircle, Hourglass } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
+import { RefreshCw, Star, CheckCircle, XCircle, Hourglass } from "lucide-react";
 import type { BookingManage } from "@/types/admin";
 
 /* ================= helpers: format ================= */
@@ -144,7 +146,7 @@ const InterpreterSelector: React.FC<{
     return found ? `${found.name} (${found.empCode})` : "";
   }, [options, selected]);
 
-  const load = async () => {
+  const load = React.useCallback(async () => {
     setErr("");
     setLoading(true);
     try {
@@ -157,11 +159,11 @@ const InterpreterSelector: React.FC<{
     } finally {
       setLoading(false);
     }
-  };
+  }, [bookingId, onServerVersion]);
 
   useEffect(() => {
     void load();
-  }, [bookingId]);
+  }, [load]);
 
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-4">
