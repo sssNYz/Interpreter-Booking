@@ -16,6 +16,8 @@ interface MeetingDetailsSectionProps {
   errors: Record<string, string>;
   onStartChange: (value: string) => void;
   onEndChange: (value: string) => void;
+  isStartDisabled?: (t: string) => boolean;
+  isEndDisabled?: (t: string) => boolean;
 }
 
 export function MeetingDetailsSection({
@@ -30,6 +32,8 @@ export function MeetingDetailsSection({
   errors,
   onStartChange,
   onEndChange,
+  isStartDisabled,
+  isEndDisabled,
 }: MeetingDetailsSectionProps) {
   return (
     <div className="space-y-4">
@@ -56,6 +60,8 @@ export function MeetingDetailsSection({
           endTimeError={errors.endTime}
           onStartChange={onStartChange}
           onEndChange={onEndChange}
+          isStartDisabled={isStartDisabled}
+          isEndDisabled={isEndDisabled}
         />
       </div>
 
