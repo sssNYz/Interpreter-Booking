@@ -20,7 +20,8 @@ model BookingPlan {
   bookingStatus BookingStatus     @default(waiting) @map("BOOKING_STATUS")
   createdAt     DateTime          @default(now()) @map("created_at") @db.Timestamp(0)
   updatedAt     DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamp(0)
-  employee      Employee          @relation(fields: [ownerEmpCode], references: [empCode])
+
+  employee      Employee          @relation("OwnerEmployee", fields: [ownerEmpCode], references: [empCode])
   interpreterEmployee Employee?   @relation("InterpreterEmployee", fields: [interpreterEmpCode], references: [empCode])
   inviteEmails  InviteEmailList[]
 
@@ -77,7 +78,27 @@ model Employee {
   createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamp(0)
   updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamp(0)
 
-  @@map("EMPLOYEE")
-  bookingsOwned           BookingPlan[]
+  // Relations
+  bookingsOwned           BookingPlan[] @relation("OwnerEmployee")
   bookingsAsInterpreter   BookingPlan[] @relation("InterpreterEmployee")
+  userRoles               UserRole[]    // Added this inverse relation
+
+  @@map("EMPLOYEE")
+}
+
+// Enum for user roles
+enum RoleCode {
+  ADMIN
+  INTERPRETER
+}
+
+// Model for user roles
+model UserRole {
+  userId   Int      @map("USER_ID")
+  roleCode RoleCode @map("ROLE_CODE")
+
+  employee Employee @relation(fields: [userId], references: [id])
+
+  @@id([userId, roleCode])
+  @@map("USER_ROLE")
 }
