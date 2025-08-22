@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, MouseEvent } from "react";
 import type { BookingData } from "@/types/booking";
+import { extractHHMM as extractHHMMFromUtil } from "@/utils/time";
 import { getStatusStyle } from "@/utils/status";
 // Date picker removed per requirement
 
@@ -19,19 +20,16 @@ type StatusFilter = "all" | "approve" | "waiting" | "cancel";
 
 // monthSpan no longer needed
 
-function formatDateDDMMMYYYY_UTC(d: Date) {
-  const day = String(d.getUTCDate()).padStart(2, "0");
-  const month = d
-    .toLocaleString("en-US", { month: "short", timeZone: "UTC" })
-    .toUpperCase();
-  const year = d.getUTCFullYear();
-  return `${day} ${month} ${year}`;
+function formatDateDDMMMYYYY(dateStr: string) {
+  // dateStr can be 'YYYY-MM-DD HH:mm:ss' or ISO
+  const date = (dateStr.includes('T') ? dateStr.split('T')[0] : dateStr.split(' ')[0]);
+  const [y, m, d] = date.split('-').map(Number);
+  const months = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+  return `${String(d).padStart(2, '0')} ${months[m - 1]} ${y}`;
 }
 
-function formatTimeHHMM_UTC(d: Date) {
-  const hh = String(d.getUTCHours()).padStart(2, "0");
-  const mm = String(d.getUTCMinutes()).padStart(2, "0");
-  return `${hh}:${mm}`;
+function extractHHMM(dateTimeStr: string) {
+  return extractHHMMFromUtil(dateTimeStr);
 }
 
 export default function BookingHistory() {
@@ -226,8 +224,6 @@ export default function BookingHistory() {
                 </TableRow>
               )}
               {!loading && !error && pageItems.map((b) => {
-                const start = new Date(b.timeStart);
-                const end = new Date(b.timeEnd);
                 const ss = getStatusStyle(b.bookingStatus);
                 return (
                   <TableRow key={b.bookingId}>
@@ -237,9 +233,9 @@ export default function BookingHistory() {
                         {b.bookingStatus}
                       </span>
                     </TableCell>
-                    <TableCell>{formatDateDDMMMYYYY_UTC(start)}</TableCell>
+                    <TableCell>{formatDateDDMMMYYYY(b.timeStart as unknown as string)}</TableCell>
                     <TableCell>
-                      {formatTimeHHMM_UTC(start)} - {formatTimeHHMM_UTC(end)}
+                      {extractHHMM(b.timeStart as unknown as string)} - {extractHHMM(b.timeEnd as unknown as string)}
                     </TableCell>
                     <TableCell>{(b.interpreterName && b.interpreterName.trim()) || b.interpreterId || "-"}</TableCell>
                     <TableCell className="text-right">
@@ -332,21 +328,15 @@ export default function BookingHistory() {
                   <span className="font-medium">Meeting detail</span>
                 </div>
                 <div className="rounded-lg border p-3 text-sm">
-                  {(() => {
-                    const start = new Date(selectedBooking.timeStart);
-                    const end = new Date(selectedBooking.timeEnd);
-                    return (
-                      <>
-                        <div className="font-medium flex items-center gap-2">
-                          <MapPin className="h-4 w-4 text-muted-foreground" />
-                          {selectedBooking.meetingRoom}
-                          <Clock className="h-4 w-4 text-muted-foreground ml-2" />
-                          {formatTimeHHMM_UTC(start)} - {formatTimeHHMM_UTC(end)}
-                        </div>
-                        <div className="mt-1 whitespace-pre-wrap">{selectedBooking.meetingDetail || "-"}</div>
-                      </>
-                    );
-                  })()}
+                  <>
+                    <div className="font-medium flex items-center gap-2">
+                      <MapPin className="h-4 w-4 text-muted-foreground" />
+                      {selectedBooking.meetingRoom}
+                      <Clock className="h-4 w-4 text-muted-foreground ml-2" />
+                      {extractHHMM(selectedBooking.timeStart as unknown as string)} - {extractHHMM(selectedBooking.timeEnd as unknown as string)}
+                    </div>
+                    <div className="mt-1 whitespace-pre-wrap">{selectedBooking.meetingDetail || "-"}</div>
+                  </>
                 </div>
               </div>
 
