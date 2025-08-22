@@ -22,7 +22,7 @@ export function useSlotDataForBars({
   bookings: BookingData[];
   daysInMonth: DayInfo[];
   timeSlots: string[];
-}) {
+}): { barsByDay: Map<number, BarItem[]>; occupancyByDay: Map<number, number[]> } {
   return useMemo(() => {
     const barsByDay = new Map<number, BarItem[]>();
     const occupancyByDay = new Map<number, number[]>();
@@ -35,7 +35,7 @@ export function useSlotDataForBars({
       const dayLocalStr = `${year}-${month}-${date}`;
 
       const dayBookings = bookings.filter((b) => {
-        const src = b.timeStart as unknown as string;
+        const src = b.timeStart;
         const startDateISO = src.includes("T") ? src.split("T")[0] : src.split(" ")[0];
         return startDateISO === dayLocalStr;
       });

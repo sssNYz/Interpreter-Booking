@@ -17,7 +17,7 @@ export type BookingData = {
   ownerSurname: string;
   ownerEmail: string;
   ownerTel: string;
-  ownerGroup: string;
+  ownerGroup: OwnerGroup;
   meetingRoom: string;
   meetingDetail: string;
   highPriority: boolean;
@@ -30,6 +30,8 @@ export type BookingData = {
   createdAt: string;
   updatedAt: string;
 };
+
+export type OwnerGroup = "software" | "iot" | "hardware" | "other";
 
 export type DayInfo = {
   date: number;
@@ -67,7 +69,7 @@ export type BarItem = {
   meetingDetail?: string; // meeting details
   ownerEmail?: string; // owner email
   ownerTel?: string; // owner phone
-  ownerGroup?: string; // owner group/department
+  ownerGroup?: OwnerGroup; // owner group/department
 };
 
 export type DayBars = {

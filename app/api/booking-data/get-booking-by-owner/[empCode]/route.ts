@@ -1,6 +1,8 @@
 // NOTE: Protected by middleware via cookie session
 import prisma from "@/prisma/prisma";
 import type { Prisma, BookingStatus as BookingStatusEnum } from "@prisma/client";
+import type { BookingApiResponse } from "@/types/api";
+import type { BookingData, OwnerGroup as OwnerGroupUI } from "@/types/booking";
 
 export const dynamic = "force-dynamic";
 
@@ -56,7 +58,13 @@ export async function GET(
   const extractHMS = (iso: string) => iso.split("T")[1].slice(0, 8);
   const formatDateTime = (d: Date): string => `${extractYMD(toIso(d))} ${extractHMS(toIso(d))}`;
 
-  const items = (rows as Array<{
+  const asOwnerGroup = (v: unknown): OwnerGroupUI => {
+    const s = String(v || "").toLowerCase();
+    if (s === "software" || s === "iot" || s === "hardware" || s === "other") return s as OwnerGroupUI;
+    return "other";
+  };
+
+  const items: BookingData[] = (rows as Array<{
     bookingId: number;
     ownerEmpCode: string;
     ownerGroup: string;
@@ -79,7 +87,7 @@ export async function GET(
     ownerSurname: b.employee?.lastNameEn ?? "",
     ownerEmail: b.employee?.email ?? "",
     ownerTel: b.employee?.telExt ?? "",
-    ownerGroup: b.ownerGroup,
+    ownerGroup: asOwnerGroup(b.ownerGroup),
     meetingRoom: b.meetingRoom,
     meetingDetail: b.meetingDetail ?? "",
     highPriority: b.highPriority,
@@ -93,8 +101,10 @@ export async function GET(
     updatedAt: formatDateTime(b.updatedAt),
   }));
 
+  const responseBody: BookingApiResponse = { items, total, page, pageSize };
+
   return new Response(
-    JSON.stringify({ items, total, page, pageSize }),
+    JSON.stringify(responseBody),
     { headers: { "Content-Type": "application/json" } }
   );
 }
