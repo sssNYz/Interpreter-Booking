@@ -28,30 +28,31 @@ export function useSlotData({
       const status = b.bookingStatus;
       const bookingId = b.bookingId;
 
-      const startISO = b.timeStart;
-      const endISO = b.timeEnd;
+      const startStr = typeof b.timeStart === 'string' ? b.timeStart : (b.timeStart as unknown as Date).toISOString();
+      const endStr = typeof b.timeEnd === 'string' ? b.timeEnd : (b.timeEnd as unknown as Date).toISOString();
 
-      const current = new Date(startISO);
-      const end = new Date(endISO);
+      const startParts = startStr.includes('T') ? startStr.split('T') : startStr.split(' ');
+      const endParts = endStr.includes('T') ? endStr.split('T') : endStr.split(' ');
+      const dateKey = startParts[0];
+      const startTime = startParts[1].slice(0,5);
+      const endTimeRaw = endParts[1].slice(0,5);
+      const endTime = endTimeRaw === "17:00" ? "17:00" : endTimeRaw;
 
-      // NOTE: Assumes stored times align with the displayed grid (UTC 30-min steps)
-      while (current < end) {
-        const dateKey = startISO.split("T")[0];
-        const hours = current.getUTCHours().toString().padStart(2, "0");
-        const minutes = current.getUTCMinutes().toString().padStart(2, "0");
-        const timeKey = `${hours}:${minutes}`;
+      // Step through 30-min slots between start and end using string math
+      const toMinutes = (t: string) => parseInt(t.slice(0,2),10)*60 + parseInt(t.slice(3,5),10);
+      const toTime = (m: number) => `${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`;
+      const rangeEndMinutes = endTime === "17:00" ? toMinutes("16:30") + 30 : toMinutes(endTime);
+      for (let m = toMinutes(startTime); m < rangeEndMinutes; m += 30) {
+        const timeKey = toTime(m);
         const key = `${dateKey}-${timeKey}`;
-
         bookingMap.set(key, {
           id: bookingId,
           name,
           room,
           status,
-          timeStart: b.timeStart,
-          timeEnd: b.timeEnd,
+          timeStart: b.timeStart as unknown as string,
+          timeEnd: b.timeEnd as unknown as string,
         });
-
-        current.setUTCMinutes(current.getUTCMinutes() + 30);
       }
     });
 

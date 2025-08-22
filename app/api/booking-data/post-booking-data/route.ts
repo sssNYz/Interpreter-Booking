@@ -1,7 +1,6 @@
 // NOTE: Protected by middleware via cookie session
 // app/api/booking/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
 import prisma, {OwnerGroup, BookingStatus } from '@/prisma/prisma';
 
 // Interface for the booking creation request
@@ -11,11 +10,11 @@ interface CreateBookingRequest {
 	meetingRoom: string;
 	meetingDetail?: string;
 	highPriority?: boolean;
-	timeStart: string; // ISO string or date string
-	timeEnd: string; // ISO string or date string
+	timeStart: string; // "YYYY-MM-DD HH:mm:ss"
+	timeEnd: string; // "YYYY-MM-DD HH:mm:ss"
 	interpreterEmpCode?: string | null;
 	bookingStatus?: BookingStatus;
-	timezone?: string; // Optional timezone parameter (not used for conversion, just for reference)
+	timezone?: string; // Ignored
 	inviteEmails?: string[]; // Array of email addresses to invite
 	force?: boolean; // Allow booking even if overlap exists
 }
@@ -32,10 +31,9 @@ type ApiResponse = {
 	data?: Record<string, unknown>;
 };
 
-// Date validation helper
-const isValidDateString = (dateString: string): boolean => {
-	const date = new Date(dateString);
-	return !isNaN(date.getTime());
+// Date validation helper: strict "YYYY-MM-DD HH:mm:ss"
+const isValidDateString = (s: string): boolean => {
+	return /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(s);
 };
 
 // Validation function
@@ -62,11 +60,11 @@ const validateBookingData = (
 	}
 
 	if (!data.timeStart || !isValidDateString(data.timeStart)) {
-		errors.push("timeStart is required and must be a valid ISO date string");
+		errors.push("timeStart is required and must be 'YYYY-MM-DD HH:mm:ss'");
 	}
 
 	if (!data.timeEnd || !isValidDateString(data.timeEnd)) {
-		errors.push("timeEnd is required and must be a valid ISO date string");
+		errors.push("timeEnd is required and must be 'YYYY-MM-DD HH:mm:ss'");
 	}
 
 	// Validate time range
@@ -76,9 +74,7 @@ const validateBookingData = (
 		isValidDateString(data.timeStart) &&
 		isValidDateString(data.timeEnd)
 	) {
-		const startDate = formatInTimeZone(new Date(data.timeStart), "Asia/Bangkok", "yyyy-MM-dd HH:mm:ss zzz");
-		const endDate = formatInTimeZone(new Date(data.timeEnd), "Asia/Bangkok", "yyyy-MM-dd HH:mm:ss zzz");
-		if (startDate >= endDate) {
+		if (data.timeStart >= data.timeEnd) {
 			errors.push("timeEnd must be after timeStart");
 		}
 	}
@@ -115,12 +111,9 @@ const validateBookingData = (
 	};
 };
 
-// Simple date parsing without timezone conversion
+// No conversion; use provided strings directly
 const parseBookingDates = (timeStart: string, timeEnd: string) => {
-	return {
-		timeStart: fromZonedTime(new Date(timeStart), ""),
-		timeEnd: fromZonedTime(new Date(timeEnd), ""),
-	};
+	return { timeStart, timeEnd };
 };
 
 export async function POST(request: NextRequest) {

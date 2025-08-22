@@ -51,6 +51,11 @@ export async function GET(
     } as Parameters<typeof prisma.bookingPlan.findMany>[0]),
   ]);
 
+  const toIso = (d: Date) => d.toISOString();
+  const extractYMD = (iso: string) => iso.split("T")[0];
+  const extractHMS = (iso: string) => iso.split("T")[1].slice(0, 8);
+  const formatDateTime = (d: Date): string => `${extractYMD(toIso(d))} ${extractHMS(toIso(d))}`;
+
   const items = (rows as Array<{
     bookingId: number;
     ownerEmpCode: string;
@@ -78,14 +83,14 @@ export async function GET(
     meetingRoom: b.meetingRoom,
     meetingDetail: b.meetingDetail ?? "",
     highPriority: b.highPriority,
-    timeStart: b.timeStart,
-    timeEnd: b.timeEnd,
+    timeStart: formatDateTime(b.timeStart),
+    timeEnd: formatDateTime(b.timeEnd),
     interpreterId: b.interpreterEmployee?.empCode ?? null,
     interpreterName: b.interpreterEmployee ? `${b.interpreterEmployee.firstNameEn ?? ""} ${b.interpreterEmployee.lastNameEn ?? ""}`.trim() : "",
     inviteEmails: (b.inviteEmails || []).map((ie) => ie.email),
     bookingStatus: b.bookingStatus,
-    createdAt: b.createdAt,
-    updatedAt: b.updatedAt,
+    createdAt: formatDateTime(b.createdAt),
+    updatedAt: formatDateTime(b.updatedAt),
   }));
 
   return new Response(
