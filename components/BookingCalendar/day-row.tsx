@@ -26,7 +26,7 @@ type Props = {
 
 const DayRow: React.FC<Props> = ({
   day,
-  currentDate: _currentDate,
+  // currentDate is not used in this component
   timeSlots,
   bars,
   occupancy,
@@ -38,11 +38,18 @@ const DayRow: React.FC<Props> = ({
   const isPastDay = day.isPast;
   const [openBarId, setOpenBarId] = useState<number | null>(null);
   const longPressTimerRef = useRef<number | null>(null);
+  const hoverOpenTimerRef = useRef<number | null>(null);
 
   const clearLongPressTimer = () => {
     if (longPressTimerRef.current !== null) {
       window.clearTimeout(longPressTimerRef.current);
       longPressTimerRef.current = null;
+    }
+  };
+  const clearHoverOpenTimer = () => {
+    if (hoverOpenTimerRef.current !== null) {
+      window.clearTimeout(hoverOpenTimerRef.current);
+      hoverOpenTimerRef.current = null;
     }
   };
   return (
@@ -140,21 +147,38 @@ const DayRow: React.FC<Props> = ({
                     height: BAR_HEIGHT,
                     borderRadius: 4,
                   }}
-                  onMouseEnter={() => setOpenBarId(bar.bookingId)}
+                  onMouseEnter={() => {
+                    clearHoverOpenTimer();
+                    clearLongPressTimer();
+                    hoverOpenTimerRef.current = window.setTimeout(() => {
+                      setOpenBarId(bar.bookingId);
+                    }, 1000);
+                  }}
                   onMouseLeave={() => {
                     clearLongPressTimer();
+                    clearHoverOpenTimer();
                     setOpenBarId((current) => (current === bar.bookingId ? null : current));
                   }}
                   onPointerDown={() => {
                     clearLongPressTimer();
+                    clearHoverOpenTimer();
                     // Long-press to open on touch devices
                     longPressTimerRef.current = window.setTimeout(() => {
                       setOpenBarId(bar.bookingId);
                     }, 200);
                   }}
-                  onPointerUp={clearLongPressTimer}
-                  onPointerCancel={clearLongPressTimer}
-                  onPointerLeave={clearLongPressTimer}
+                  onPointerUp={() => {
+                    clearLongPressTimer();
+                    clearHoverOpenTimer();
+                  }}
+                  onPointerCancel={() => {
+                    clearLongPressTimer();
+                    clearHoverOpenTimer();
+                  }}
+                  onPointerLeave={() => {
+                    clearLongPressTimer();
+                    clearHoverOpenTimer();
+                  }}
                 />
               </HoverCardTrigger>
                              <HoverCardContent>

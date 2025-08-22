@@ -7,68 +7,27 @@ import {
   SheetTitle,
   SheetClose,
 } from "@/components/ui/sheet";
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectLabel,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useMemo, useState, useEffect } from "react";
-import {
-  X,
-  Plus,
-  Calendar,
-  Clock,
-  Users,
-  Mail,
-  Phone,
-  BadgeInfo,
-} from "lucide-react";
-import { Switch } from "../ui/switch";
-import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
+import { generateStandardTimeSlots, generateEndTimeSlots, timeToMinutes, formatYmdFromDate, buildDateTimeString, isValidStartTime, isValidTimeRange } from "@/utils/time";
+import { Calendar, Clock } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { toast } from "sonner";
-
-
-type BookingFormProps = {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  selectedSlot?: {
-
-    day: number;
-    slot: string;
-  };
-  daysInMonth: {
-    date: number;
-    dayName: string;
-    fullDate: Date;
-    isPast: boolean;
-  }[];
-  interpreters?: {
-    interpreterId: number;
-    interpreterName: string;
-    interpreterSurname: string;
-  }[];
-  rooms?: string[];
-};
-
-type OwnerGroup = "software" | "iot" | "hardware" | "other";
+import type { OwnerGroup } from "@/types/booking";
+import type { BookingFormProps } from "@/types/props";
+import { MAX_LANES } from "@/utils/constants";
+import { PersonalInfoSection } from "@/components/BookingForm/sections/PersonalInfoSection";
+import { MeetingDetailsSection } from "@/components/BookingForm/sections/MeetingDetailsSection";
+import { AdditionalOptionsSection } from "@/components/BookingForm/sections/AdditionalOptionsSection";
+import { InviteEmailsSection } from "@/components/BookingForm/sections/InviteEmailsSection";
 export function BookingForm({
   open,
   onOpenChange,
   selectedSlot,
-
   daysInMonth,
   interpreters = [],
+  dayOccupancy,
 }: BookingFormProps) {
   // Form state
   const [startTime, setStartTime] = useState<string>("");
@@ -125,8 +84,7 @@ export function BookingForm({
         const raw = localStorage.getItem("booking.user");
         if (!raw) return;
         const parsed = JSON.parse(raw);
-        const expired = Date.now() > (parsed.storedAt || parsed.timestamp || 0) + ((parsed.ttlDays ? parsed.ttlDays * 86400000 : parsed.ttl) || 0);
-        if (expired) return;
+        // Session is now enforced by server cookie; just read profile if present
         const full = String(parsed.name || "");
         const parts = full.trim().split(/\s+/);
         const first = parts[0] || "";
@@ -139,47 +97,18 @@ export function BookingForm({
     }
   }, [open]);
 
-  // Time slots generation
-  const slotsTime = useMemo(() => {
+  // Time slots generation (unified)
+  const slotsTime = useMemo(() => generateStandardTimeSlots(), []);
 
-    const times = [];
-    for (let hour = 8; hour < 18; hour++) {
-      if (hour === 12) {
-        times.push(`${hour}:00`, `${hour}:20`);
-        continue;
-      }
-      if (hour === 13) {
-        times.push(`${hour}:10`, `${hour}:30`);
-        continue;
-      }
-      if (hour === 17) {
-        times.push(`${hour}:00`);
-        continue;
-      }
-      times.push(`${hour.toString().padStart(2, "0")}:00`);
-      times.push(`${hour.toString().padStart(2, "0")}:30`);
-    }
-    return times;
-  }, []);
-
-  // Function to convert time string to minutes for comparison
-  const timeToMinutes = (time: string): number => {
-
-    const [hours, minutes] = time.split(":").map(Number);
-
-    return hours * 60 + minutes;
-  };
+  // timeToMinutes unified from utils/time
 
   // Get available end times based on selected start time
   const availableEndTimes = useMemo(() => {
-
-    if (!startTime) return slotsTime;
+    if (!startTime) return generateEndTimeSlots();
+    const endSlots = generateEndTimeSlots();
     const startMinutes = timeToMinutes(startTime);
-    return slotsTime.filter((time) => {
-      const endMinutes = timeToMinutes(time);
-      return endMinutes > startMinutes;
-    });
-  }, [startTime, slotsTime]);
+    return endSlots.filter((time) => timeToMinutes(time) > startMinutes);
+  }, [startTime]);
 
 
   // Reset end time if it becomes invalid
@@ -190,11 +119,25 @@ export function BookingForm({
     }
   };
 
-  const getLocalDateString = (date: Date) => {
-    const year = date.getFullYear();
-    const month = `${date.getMonth() + 1}`.padStart(2, "0");
-    const day = `${date.getDate()}`.padStart(2, "0");
-    return `${year}-${month}-${day}`;
+  const getLocalDateString = (date: Date) => formatYmdFromDate(date);
+
+  // Occupancy-aware disabling
+  const isStartDisabled = (t: string) => {
+    if (!dayOccupancy) return false;
+    const idx = slotsTime.indexOf(t);
+    return idx >= 0 && dayOccupancy[idx] >= MAX_LANES;
+  };
+
+  const isEndDisabled = (t: string) => {
+    if (!dayOccupancy || !startTime) return false;
+    const startIdx = slotsTime.indexOf(startTime);
+    const endIdx = slotsTime.indexOf(t);
+    const endExclusive = endIdx === -1 ? slotsTime.length : endIdx;
+    if (endExclusive <= startIdx) return true;
+    for (let i = startIdx; i < endExclusive; i++) {
+      if (dayOccupancy[i] >= MAX_LANES) return true;
+    }
+    return false;
   };
 
   // Email management functions
@@ -224,6 +167,8 @@ export function BookingForm({
     if (!meetingRoom.trim()) newErrors.meetingRoom = "Meeting room is required";
     if (!startTime) newErrors.startTime = "Start time is required";
     if (!endTime) newErrors.endTime = "End time is required";
+    if (startTime && !isValidStartTime(startTime)) newErrors.startTime = "Invalid start time";
+    if (startTime && endTime && !isValidTimeRange(startTime, endTime)) newErrors.endTime = "End must be after start";
 
     setErrors(newErrors);
     console.log("ERROR IS = ", newErrors);
@@ -238,11 +183,10 @@ export function BookingForm({
     setIsSubmitting(true);
 
     try {
-      // Create the datetime strings
-
+      // Create the datetime strings (plain strings YYYY-MM-DD HH:mm:ss)
       const localDate = getLocalDateString(dayObj.fullDate);
-      const startDateTime = `${localDate}T${startTime}:00.000`;
-      const endDateTime = `${localDate}T${endTime}:00.000`;
+      const startDateTime = buildDateTimeString(localDate, startTime);
+      const endDateTime = buildDateTimeString(localDate, endTime);
 
       // Get empCode from localStorage
       const raw = localStorage.getItem("booking.user");
@@ -269,15 +213,70 @@ export function BookingForm({
         inviteEmails: inviteEmails.length > 0 ? inviteEmails : undefined,
       };
 
+      const submitOnce = async (force?: boolean) => {
       const response = await fetch("/api/booking-data/post-booking-data", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(bookingData),
-      });
+          body: JSON.stringify({ ...bookingData, ...(force ? { force: true } : {}) }),
+        });
+        const result = await response.json();
+        return { response, result } as const;
+      };
 
-      const result = await response.json();
+      // First attempt without force
+      let { response, result } = await submitOnce(false);
+
+      // If overlap warning, show themed confirm toast and then force submit on OK
+      if (response.status === 409 && result?.code === "OVERLAP_WARNING") {
+        const proceed = await new Promise<boolean>((resolve) => {
+          toast.custom(
+            (t) => (
+              <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm w-[420px]">
+                <Alert className="border-none p-0">
+                  <AlertTitle className="text-gray-900">
+                    <span className="text-amber-600 font-semibold">Same room warning</span>
+                    <span className="ml-1">
+                      {result?.message || "This room already has a booking overlapping this time."}
+                    </span>
+                  </AlertTitle>
+                  <AlertDescription className="text-gray-700">
+                    Do you want to continue?
+                  </AlertDescription>
+                </Alert>
+                <div className="flex justify-end gap-2 mt-4">
+                  <button
+                    onClick={() => {
+                      toast.dismiss(t);
+                      resolve(false);
+                    }}
+                    className="bg-gray-200 text-gray-900 px-3 py-1 rounded text-xs"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => {
+                      toast.dismiss(t);
+                      resolve(true);
+                    }}
+                    className="bg-gray-900 text-white px-3 py-1 rounded text-xs"
+                  >
+                    OK
+                  </button>
+                </div>
+              </div>
+            ),
+            { duration: 10000 }
+          );
+        });
+
+        if (proceed) {
+          ({ response, result } = await submitOnce(true));
+        } else {
+          return; // user cancelled
+        }
+      }
 
       if (result.success) {
         const bookingDate = dayObj?.fullDate.toLocaleDateString("en-US", {
@@ -311,7 +310,12 @@ export function BookingForm({
           ),
           { duration: 5000 }
         );
+        // Close the form
         onOpenChange(false);
+        // Notify other components that bookings have changed
+        try {
+          window.dispatchEvent(new CustomEvent("booking:updated"));
+        } catch {}
       } else {
         toast.custom(
           (t) => (
@@ -390,298 +394,48 @@ export function BookingForm({
         </SheetHeader>
         <ScrollArea className="focus-visible:ring-ring/50 size-full rounded-3xl  transition-[color,box-shadow] overflow-auto">
           <div className="grid gap-6 py-6 px-6">
-            {/* Personal Information Section */}
-            <div className="space-y-4">
-              {/*title*/}
-              <h3 className="flex text-lg font-semibold border-b pb-2 ml-auto">
-                Personal Information
-              </h3>
-              {/*full name */}
-              <div className="grid grid-cols-2 gap-4">
-                {/*first name */}
-                <div className="grid gap-2">
-                  <Label htmlFor="ownerName">First Name *</Label>
-                  <Input
-                    id="ownerName"
-                    placeholder="Your first name"
-                    value={ownerName}
-                    readOnly
-                    className="bg-muted cursor-not-allowed"
-                  />
-                  {errors.ownerName && (
-                    <p className="text-red-500 text-sm">{errors.ownerName}</p>
-                  )}
-                </div>
-                {/*last name */}
-                <div className="grid gap-2">
-                  <Label htmlFor="ownerSurname">Last Name *</Label>
-                  <Input
-                    id="ownerSurname"
-                    placeholder="Your last name"
-                    value={ownerSurname}
-                    readOnly
-                    className="bg-muted cursor-not-allowed"
-                  />
-                  {errors.ownerSurname && (
-                    <p className="text-red-500 text-sm">
-                      {errors.ownerSurname}
-                    </p>
-                  )}
-                </div>
-              </div>
+            <PersonalInfoSection
+              ownerName={ownerName}
+              ownerSurname={ownerSurname}
+              ownerEmail={ownerEmail}
+              ownerTel={ownerTel}
+              ownerGroup={ownerGroup}
+              errors={errors}
+              onGroupChange={setOwnerGroup}
+            />
 
-              <div className="grid gap-2">
-                <Label htmlFor="ownerEmail" className="flex items-center gap-2">
-                  <Mail className="h-4 w-4" />
-                  Email *
-                </Label>
-                <Input
-                  id="ownerEmail"
-                  type="email"
-                  placeholder="your.email@example.com"
-                  value={ownerEmail}
-                  readOnly
-                  className="bg-muted cursor-not-allowed"
-                />
-                {errors.ownerEmail && (
-                  <p className="text-red-500 text-sm">{errors.ownerEmail}</p>
-                )}
-              </div>
+            <MeetingDetailsSection
+              meetingRoom={meetingRoom}
+              setMeetingRoom={(v) => setMeetingRoom(v)}
+              meetingDetail={meetingDetail}
+              setMeetingDetail={(v) => setMeetingDetail(v)}
+              startTime={startTime}
+              endTime={endTime}
+              slotsTime={slotsTime}
+              availableEndTimes={availableEndTimes}
+              errors={errors}
+              onStartChange={handleStartTimeChange}
+              onEndChange={setEndTime}
+              isStartDisabled={isStartDisabled}
+              isEndDisabled={isEndDisabled}
+            />
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="ownerTel" className="flex items-center gap-2">
-                    <Phone className="h-4 w-4" />
-                    Phone *
-                  </Label>
-                  <Input
-                    id="ownerTel"
-                    placeholder="0123456789"
-                    value={ownerTel}
-                    readOnly
-                    className="bg-muted cursor-not-allowed"
-                  />
-                  {errors.ownerTel && (
-                    <p className="text-red-500 text-sm">{errors.ownerTel}</p>
-                  )}
-                </div>
+            <AdditionalOptionsSection
+              highPriority={highPriority}
+              setHighPriority={(v) => setHighPriority(v)}
+              interpreterId={interpreterId}
+              setInterpreterId={(v) => setInterpreterId(v)}
+              interpreters={interpreters}
+            />
 
-                <div className="grid gap-2">
-                  <Label htmlFor="ownerGroup">Department</Label>
-                  <Select
-                    value={ownerGroup}
-                    onValueChange={(value: OwnerGroup) => setOwnerGroup(value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      
-                      <SelectItem value="software">Software</SelectItem>
-                      <SelectItem value="iot">IoT</SelectItem>
-                      <SelectItem value="hardware">Hardware</SelectItem>
-                      <SelectItem value="other">Other</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </div>
-
-            {/* Meeting Details Section */}
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold border-b pb-2">
-                Meeting Details
-              </h3>
-              {/*Room and Time */}
-              <div className="grid grid-cols-2 gap-4">
-                {/*meeting room */}
-                <div className="grid gap-2">
-                  <Label htmlFor="meetingRoom">Meeting Room *</Label>
-                  <Input
-                    id="meetingRoom"
-                    placeholder="meetingRoom"
-                    value={meetingRoom}
-                    onChange={(e) => setMeetingRoom(e.target.value)}
-                    className={errors.meetingRoom ? "border-red-500" : ""}
-                  />
-                </div>
-                {/* Time Selection */}
-                <div className="grid gap-2 justify-center">
-                  <Label className="flex items-center gap-2">
-                    <Clock className="h-4 w-4" />
-                    Meeting Time *
-                  </Label>
-                  <div className="flex items-center gap-4">
-                    <Select
-                      value={startTime}
-                      onValueChange={handleStartTimeChange}
-                    >
-                      <SelectTrigger
-                        className={`w-[135px] ${
-                          errors.startTime ? "border-red-500" : ""
-                        }`}
-                      >
-                        <SelectValue placeholder="Start Time" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectGroup>
-                          <SelectLabel>Start Time</SelectLabel>
-                          {slotsTime.map((time) => (
-                            <SelectItem key={time} value={time}>
-                              {time}
-                            </SelectItem>
-                          ))}
-                        </SelectGroup>
-                      </SelectContent>
-                    </Select>
-
-                    <span className="text-muted-foreground">to</span>
-
-                    <Select
-                      value={endTime}
-                      onValueChange={setEndTime}
-                      disabled={!startTime}
-                    >
-                      <SelectTrigger
-                        className={`w-[135px] ${
-                          errors.endTime ? "border-red-500" : ""
-                        }`}
-                      >
-                        <SelectValue placeholder="End Time" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectGroup>
-                          <SelectLabel>End Time</SelectLabel>
-                          {availableEndTimes.map((time) => (
-                            <SelectItem key={time} value={time}>
-                              {time}
-                            </SelectItem>
-                          ))}
-                        </SelectGroup>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  {(errors.startTime || errors.endTime) && (
-                    <p className="text-red-500 text-sm">
-                      {errors.startTime || errors.endTime}
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              {/*Meeting Description*/}
-              <div className="grid gap-2">
-                <Label htmlFor="meetingDetail">Meeting Description</Label>
-                <Textarea
-                  id="meetingDetail"
-                  placeholder="Brief description of the meeting..."
-                  value={meetingDetail}
-                  onChange={(e) => setMeetingDetail(e.target.value)}
-                  rows={3}
-                />
-              </div>
-            </div>
-
-            {/* Additional Options Section */}
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold border-b pb-2">
-                Additional Options
-              </h3>
-
-              <div className="flex items-center space-x-2">
-                <Switch
-                  id="highPriority"
-                  checked={highPriority}
-                  onCheckedChange={(checked) =>
-                    setHighPriority(checked === true)
-                  }
-                />
-                <Label
-                  htmlFor="highPriority"
-                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                >
-                  High Priority Meeting
-                  <Tooltip>
-                    <TooltipTrigger>
-                      <BadgeInfo className="h-4 w-4" />
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Read Define</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </Label>
-              </div>
-
-              {interpreters.length > 0 && (
-                <div className="grid gap-2">
-                  <Label htmlFor="interpreterId">Interpreter (Optional)</Label>
-                  <Select
-                    value={interpreterId}
-                    onValueChange={setInterpreterId}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select an interpreter" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="">No Interpreter</SelectItem>
-                      {interpreters.map((interpreter) => (
-                        <SelectItem
-                          key={interpreter.interpreterId}
-                          value={interpreter.interpreterId.toString()}
-                        >
-                          {interpreter.interpreterName}{" "}
-                          {interpreter.interpreterSurname}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-            </div>
-
-            {/* Invite Emails Section */}
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold border-b pb-2 flex items-center gap-2">
-                <Users className="h-4 w-4" />
-                Invite Participants
-              </h3>
-
-              <div className="flex gap-2">
-                <Input
-                  placeholder="email@example.com"
-                  value={newEmail}
-                  onChange={(e) => setNewEmail(e.target.value)}
-                  onKeyPress={(e) => e.key === "Enter" && addInviteEmail()}
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={addInviteEmail}
-                  disabled={!newEmail || !isValidEmail(newEmail)}
-                >
-                  <Plus className="h-4 w-4" />
-                </Button>
-              </div>
-
-              {inviteEmails.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {inviteEmails.map((email, index) => (
-                    <Badge
-                      key={index}
-                      variant="secondary"
-                      className="flex items-center gap-1"
-                    >
-                      {email}
-                      <X
-                        className="h-3 w-3 cursor-pointer hover:text-red-500"
-                        onClick={() => removeInviteEmail(email)}
-                      />
-                    </Badge>
-                  ))}
-                </div>
-              )}
-            </div>
+            <InviteEmailsSection
+              inviteEmails={inviteEmails}
+              newEmail={newEmail}
+              setNewEmail={(v) => setNewEmail(v)}
+              addInviteEmail={addInviteEmail}
+              removeInviteEmail={removeInviteEmail}
+              isValidEmail={isValidEmail}
+            />
           </div>
         </ScrollArea>
         <SheetFooter className="border-t pt-4">
