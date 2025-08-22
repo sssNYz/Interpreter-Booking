@@ -8,6 +8,7 @@ export type BookingFormProps = {
     slot: string;
   };
   daysInMonth: DayInfo[];
+  dayOccupancy?: number[];
   interpreters?: {
     interpreterId: number;
     interpreterName: string;

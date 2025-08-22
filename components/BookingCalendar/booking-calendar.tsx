@@ -439,6 +439,11 @@ const BookingCalendar: React.FC = () => {
         onOpenChange={setIsFormOpen}
         selectedSlot={selectedSlot}
         daysInMonth={daysInMonth}
+        dayOccupancy={
+          selectedSlot
+            ? occupancyByDay.get(selectedSlot.day - 1) ?? Array(timeSlots.length).fill(0)
+            : undefined
+        }
       />
 
       

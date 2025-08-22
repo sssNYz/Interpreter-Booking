@@ -20,6 +20,8 @@ interface TimeRangeSelectorProps {
   endTimeError?: string;
   onStartChange: (value: string) => void;
   onEndChange: (value: string) => void;
+  isStartDisabled?: (t: string) => boolean;
+  isEndDisabled?: (t: string) => boolean;
 }
 
 export function TimeRangeSelector({
@@ -31,6 +33,8 @@ export function TimeRangeSelector({
   endTimeError,
   onStartChange,
   onEndChange,
+  isStartDisabled,
+  isEndDisabled,
 }: TimeRangeSelectorProps) {
   const hasError = Boolean(startTimeError || endTimeError);
 
@@ -48,11 +52,19 @@ export function TimeRangeSelector({
           <SelectContent>
             <SelectGroup>
               <SelectLabel>Start Time</SelectLabel>
-              {slotsTime.map((time) => (
-                <SelectItem key={time} value={time}>
-                  {time}
-                </SelectItem>
-              ))}
+              {slotsTime.map((time) => {
+                const disabled = isStartDisabled?.(time);
+                return (
+                  <SelectItem 
+                    key={time} 
+                    value={time} 
+                    disabled={disabled}
+                    className={disabled ? "text-neutral-500 data-[disabled]:text-neutral-500" : ""}
+                  >
+                    {time}
+                  </SelectItem>
+                );
+              })}
             </SelectGroup>
           </SelectContent>
         </Select>
@@ -66,11 +78,19 @@ export function TimeRangeSelector({
           <SelectContent>
             <SelectGroup>
               <SelectLabel>End Time</SelectLabel>
-              {availableEndTimes.map((time) => (
-                <SelectItem key={time} value={time}>
-                  {time}
-                </SelectItem>
-              ))}
+              {availableEndTimes.map((time) => {
+                const disabled = isEndDisabled?.(time);
+                return (
+                  <SelectItem 
+                    key={time} 
+                    value={time} 
+                    disabled={disabled}
+                    className={disabled ? "text-neutral-500 data-[disabled]:text-neutral-500" : ""}
+                  >
+                    {time}
+                  </SelectItem>
+                );
+              })}
             </SelectGroup>
           </SelectContent>
         </Select>

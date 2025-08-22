@@ -16,6 +16,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { toast } from "sonner";
 import type { OwnerGroup } from "@/types/booking";
 import type { BookingFormProps } from "@/types/props";
+import { MAX_LANES } from "@/utils/constants";
 import { PersonalInfoSection } from "@/components/BookingForm/sections/PersonalInfoSection";
 import { MeetingDetailsSection } from "@/components/BookingForm/sections/MeetingDetailsSection";
 import { AdditionalOptionsSection } from "@/components/BookingForm/sections/AdditionalOptionsSection";
@@ -26,6 +27,7 @@ export function BookingForm({
   selectedSlot,
   daysInMonth,
   interpreters = [],
+  dayOccupancy,
 }: BookingFormProps) {
   // Form state
   const [startTime, setStartTime] = useState<string>("");
@@ -118,6 +120,25 @@ export function BookingForm({
   };
 
   const getLocalDateString = (date: Date) => formatYmdFromDate(date);
+
+  // Occupancy-aware disabling
+  const isStartDisabled = (t: string) => {
+    if (!dayOccupancy) return false;
+    const idx = slotsTime.indexOf(t);
+    return idx >= 0 && dayOccupancy[idx] >= MAX_LANES;
+  };
+
+  const isEndDisabled = (t: string) => {
+    if (!dayOccupancy || !startTime) return false;
+    const startIdx = slotsTime.indexOf(startTime);
+    const endIdx = slotsTime.indexOf(t);
+    const endExclusive = endIdx === -1 ? slotsTime.length : endIdx;
+    if (endExclusive <= startIdx) return true;
+    for (let i = startIdx; i < endExclusive; i++) {
+      if (dayOccupancy[i] >= MAX_LANES) return true;
+    }
+    return false;
+  };
 
   // Email management functions
   const addInviteEmail = () => {
@@ -395,6 +416,8 @@ export function BookingForm({
               errors={errors}
               onStartChange={handleStartTimeChange}
               onEndChange={setEndTime}
+              isStartDisabled={isStartDisabled}
+              isEndDisabled={isEndDisabled}
             />
 
             <AdditionalOptionsSection
