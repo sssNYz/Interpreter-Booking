@@ -7,39 +7,19 @@ import {
   SheetTitle,
   SheetClose,
 } from "@/components/ui/sheet";
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectLabel,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useMemo, useState, useEffect } from "react";
 import { generateStandardTimeSlots, generateEndTimeSlots, timeToMinutes, formatYmdFromDate, buildDateTimeString, isValidStartTime, isValidTimeRange } from "@/utils/time";
-import {
-  X,
-  Plus,
-  Calendar,
-  Clock,
-  Users,
-  Mail,
-  Phone,
-  BadgeInfo,
-} from "lucide-react";
-import { Switch } from "../ui/switch";
-import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
+import { Calendar, Clock } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { toast } from "sonner";
 import type { OwnerGroup } from "@/types/booking";
 import type { BookingFormProps } from "@/types/props";
+import { PersonalInfoSection } from "@/components/BookingForm/sections/PersonalInfoSection";
+import { MeetingDetailsSection } from "@/components/BookingForm/sections/MeetingDetailsSection";
+import { AdditionalOptionsSection } from "@/components/BookingForm/sections/AdditionalOptionsSection";
+import { InviteEmailsSection } from "@/components/BookingForm/sections/InviteEmailsSection";
 export function BookingForm({
   open,
   onOpenChange,
@@ -393,298 +373,46 @@ export function BookingForm({
         </SheetHeader>
         <ScrollArea className="focus-visible:ring-ring/50 size-full rounded-3xl  transition-[color,box-shadow] overflow-auto">
           <div className="grid gap-6 py-6 px-6">
-            {/* Personal Information Section */}
-            <div className="space-y-4">
-              {/*title*/}
-              <h3 className="flex text-lg font-semibold border-b pb-2 ml-auto">
-                Personal Information
-              </h3>
-              {/*full name */}
-              <div className="grid grid-cols-2 gap-4">
-                {/*first name */}
-                <div className="grid gap-2">
-                  <Label htmlFor="ownerName">First Name *</Label>
-                  <Input
-                    id="ownerName"
-                    placeholder="Your first name"
-                    value={ownerName}
-                    readOnly
-                    className="bg-muted cursor-not-allowed"
-                  />
-                  {errors.ownerName && (
-                    <p className="text-red-500 text-sm">{errors.ownerName}</p>
-                  )}
-                </div>
-                {/*last name */}
-                <div className="grid gap-2">
-                  <Label htmlFor="ownerSurname">Last Name *</Label>
-                  <Input
-                    id="ownerSurname"
-                    placeholder="Your last name"
-                    value={ownerSurname}
-                    readOnly
-                    className="bg-muted cursor-not-allowed"
-                  />
-                  {errors.ownerSurname && (
-                    <p className="text-red-500 text-sm">
-                      {errors.ownerSurname}
-                    </p>
-                  )}
-                </div>
-              </div>
+            <PersonalInfoSection
+              ownerName={ownerName}
+              ownerSurname={ownerSurname}
+              ownerEmail={ownerEmail}
+              ownerTel={ownerTel}
+              ownerGroup={ownerGroup}
+              errors={errors}
+              onGroupChange={setOwnerGroup}
+            />
 
-              <div className="grid gap-2">
-                <Label htmlFor="ownerEmail" className="flex items-center gap-2">
-                  <Mail className="h-4 w-4" />
-                  Email *
-                </Label>
-                <Input
-                  id="ownerEmail"
-                  type="email"
-                  placeholder="your.email@example.com"
-                  value={ownerEmail}
-                  readOnly
-                  className="bg-muted cursor-not-allowed"
-                />
-                {errors.ownerEmail && (
-                  <p className="text-red-500 text-sm">{errors.ownerEmail}</p>
-                )}
-              </div>
+            <MeetingDetailsSection
+              meetingRoom={meetingRoom}
+              setMeetingRoom={(v) => setMeetingRoom(v)}
+              meetingDetail={meetingDetail}
+              setMeetingDetail={(v) => setMeetingDetail(v)}
+              startTime={startTime}
+              endTime={endTime}
+              slotsTime={slotsTime}
+              availableEndTimes={availableEndTimes}
+              errors={errors}
+              onStartChange={handleStartTimeChange}
+              onEndChange={setEndTime}
+            />
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="ownerTel" className="flex items-center gap-2">
-                    <Phone className="h-4 w-4" />
-                    Phone *
-                  </Label>
-                  <Input
-                    id="ownerTel"
-                    placeholder="0123456789"
-                    value={ownerTel}
-                    readOnly
-                    className="bg-muted cursor-not-allowed"
-                  />
-                  {errors.ownerTel && (
-                    <p className="text-red-500 text-sm">{errors.ownerTel}</p>
-                  )}
-                </div>
+            <AdditionalOptionsSection
+              highPriority={highPriority}
+              setHighPriority={(v) => setHighPriority(v)}
+              interpreterId={interpreterId}
+              setInterpreterId={(v) => setInterpreterId(v)}
+              interpreters={interpreters}
+            />
 
-                <div className="grid gap-2">
-                  <Label htmlFor="ownerGroup">Department</Label>
-                  <Select
-                    value={ownerGroup}
-                    onValueChange={(value: OwnerGroup) => setOwnerGroup(value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      
-                      <SelectItem value="software">Software</SelectItem>
-                      <SelectItem value="iot">IoT</SelectItem>
-                      <SelectItem value="hardware">Hardware</SelectItem>
-                      <SelectItem value="other">Other</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </div>
-
-            {/* Meeting Details Section */}
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold border-b pb-2">
-                Meeting Details
-              </h3>
-              {/*Room and Time */}
-              <div className="grid grid-cols-2 gap-4">
-                {/*meeting room */}
-                <div className="grid gap-2">
-                  <Label htmlFor="meetingRoom">Meeting Room *</Label>
-                  <Input
-                    id="meetingRoom"
-                    placeholder="meetingRoom"
-                    value={meetingRoom}
-                    onChange={(e) => setMeetingRoom(e.target.value)}
-                    className={errors.meetingRoom ? "border-red-500" : ""}
-                  />
-                </div>
-                {/* Time Selection */}
-                <div className="grid gap-2 justify-center">
-                  <Label className="flex items-center gap-2">
-                    <Clock className="h-4 w-4" />
-                    Meeting Time *
-                  </Label>
-                  <div className="flex items-center gap-4">
-                    <Select
-                      value={startTime}
-                      onValueChange={handleStartTimeChange}
-                    >
-                      <SelectTrigger
-                        className={`w-[135px] ${
-                          errors.startTime ? "border-red-500" : ""
-                        }`}
-                      >
-                        <SelectValue placeholder="Start Time" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectGroup>
-                          <SelectLabel>Start Time</SelectLabel>
-                          {slotsTime.map((time) => (
-                            <SelectItem key={time} value={time}>
-                              {time}
-                            </SelectItem>
-                          ))}
-                        </SelectGroup>
-                      </SelectContent>
-                    </Select>
-
-                    <span className="text-muted-foreground">to</span>
-
-                    <Select
-                      value={endTime}
-                      onValueChange={setEndTime}
-                      disabled={!startTime}
-                    >
-                      <SelectTrigger
-                        className={`w-[135px] ${
-                          errors.endTime ? "border-red-500" : ""
-                        }`}
-                      >
-                        <SelectValue placeholder="End Time" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectGroup>
-                          <SelectLabel>End Time</SelectLabel>
-                          {availableEndTimes.map((time) => (
-                            <SelectItem key={time} value={time}>
-                              {time}
-                            </SelectItem>
-                          ))}
-                        </SelectGroup>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  {(errors.startTime || errors.endTime) && (
-                    <p className="text-red-500 text-sm">
-                      {errors.startTime || errors.endTime}
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              {/*Meeting Description*/}
-              <div className="grid gap-2">
-                <Label htmlFor="meetingDetail">Meeting Description</Label>
-                <Textarea
-                  id="meetingDetail"
-                  placeholder="Brief description of the meeting..."
-                  value={meetingDetail}
-                  onChange={(e) => setMeetingDetail(e.target.value)}
-                  rows={3}
-                />
-              </div>
-            </div>
-
-            {/* Additional Options Section */}
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold border-b pb-2">
-                Additional Options
-              </h3>
-
-              <div className="flex items-center space-x-2">
-                <Switch
-                  id="highPriority"
-                  checked={highPriority}
-                  onCheckedChange={(checked) =>
-                    setHighPriority(checked === true)
-                  }
-                />
-                <Label
-                  htmlFor="highPriority"
-                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                >
-                  High Priority Meeting
-                  <Tooltip>
-                    <TooltipTrigger>
-                      <BadgeInfo className="h-4 w-4" />
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Read Define</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </Label>
-              </div>
-
-              {interpreters.length > 0 && (
-                <div className="grid gap-2">
-                  <Label htmlFor="interpreterId">Interpreter (Optional)</Label>
-                  <Select
-                    value={interpreterId}
-                    onValueChange={setInterpreterId}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select an interpreter" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="">No Interpreter</SelectItem>
-                      {interpreters.map((interpreter) => (
-                        <SelectItem
-                          key={interpreter.interpreterId}
-                          value={interpreter.interpreterId.toString()}
-                        >
-                          {interpreter.interpreterName}{" "}
-                          {interpreter.interpreterSurname}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-            </div>
-
-            {/* Invite Emails Section */}
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold border-b pb-2 flex items-center gap-2">
-                <Users className="h-4 w-4" />
-                Invite Participants
-              </h3>
-
-              <div className="flex gap-2">
-                <Input
-                  placeholder="email@example.com"
-                  value={newEmail}
-                  onChange={(e) => setNewEmail(e.target.value)}
-                  onKeyPress={(e) => e.key === "Enter" && addInviteEmail()}
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={addInviteEmail}
-                  disabled={!newEmail || !isValidEmail(newEmail)}
-                >
-                  <Plus className="h-4 w-4" />
-                </Button>
-              </div>
-
-              {inviteEmails.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {inviteEmails.map((email, index) => (
-                    <Badge
-                      key={index}
-                      variant="secondary"
-                      className="flex items-center gap-1"
-                    >
-                      {email}
-                      <X
-                        className="h-3 w-3 cursor-pointer hover:text-red-500"
-                        onClick={() => removeInviteEmail(email)}
-                      />
-                    </Badge>
-                  ))}
-                </div>
-              )}
-            </div>
+            <InviteEmailsSection
+              inviteEmails={inviteEmails}
+              newEmail={newEmail}
+              setNewEmail={(v) => setNewEmail(v)}
+              addInviteEmail={addInviteEmail}
+              removeInviteEmail={removeInviteEmail}
+              isValidEmail={isValidEmail}
+            />
           </div>
         </ScrollArea>
         <SheetFooter className="border-t pt-4">
