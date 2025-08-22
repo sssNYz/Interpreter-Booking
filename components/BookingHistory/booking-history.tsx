@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, MouseEvent } from "react";
 import type { BookingData } from "@/types/booking";
+import { extractHHMM as extractHHMMFromUtil } from "@/utils/time";
 import { getStatusStyle } from "@/utils/status";
 // Date picker removed per requirement
 
@@ -12,25 +13,23 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
-import { FilterIcon, UserSearchIcon, XIcon } from "lucide-react";
+import { FilterIcon, UserSearchIcon, XIcon, User, Mail, Users, ListCollapse, MapPin, Clock } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type StatusFilter = "all" | "approve" | "waiting" | "cancel";
 
 // monthSpan no longer needed
 
-function formatDateDDMMMYYYY_UTC(d: Date) {
-  const day = String(d.getUTCDate()).padStart(2, "0");
-  const month = d
-    .toLocaleString("en-US", { month: "short", timeZone: "UTC" })
-    .toUpperCase();
-  const year = d.getUTCFullYear();
-  return `${day} ${month} ${year}`;
+function formatDateDDMMMYYYY(dateStr: string) {
+  // dateStr can be 'YYYY-MM-DD HH:mm:ss' or ISO
+  const date = (dateStr.includes('T') ? dateStr.split('T')[0] : dateStr.split(' ')[0]);
+  const [y, m, d] = date.split('-').map(Number);
+  const months = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+  return `${String(d).padStart(2, '0')} ${months[m - 1]} ${y}`;
 }
 
-function formatTimeHHMM_UTC(d: Date) {
-  const hh = String(d.getUTCHours()).padStart(2, "0");
-  const mm = String(d.getUTCMinutes()).padStart(2, "0");
-  return `${hh}:${mm}`;
+function extractHHMM(dateTimeStr: string) {
+  return extractHHMMFromUtil(dateTimeStr);
 }
 
 export default function BookingHistory() {
@@ -44,7 +43,7 @@ export default function BookingHistory() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
-  // const [selectedBooking, setSelectedBooking] = useState<BookingData | null>(null);
+  const [selectedBooking, setSelectedBooking] = useState<BookingData | null>(null);
 
   const [page, setPage] = useState(1);
   const pageSize = 5; // fixed 5 records per page
@@ -107,7 +106,8 @@ export default function BookingHistory() {
     goToPage(page + 1);
   };
 
-  const handleOpenDetail = () => {
+  const handleOpenDetail = (b: BookingData) => {
+    setSelectedBooking(b);
     setDetailOpen(true);
   };
 
@@ -185,11 +185,29 @@ export default function BookingHistory() {
             </TableHeader>
             <TableBody>
               {loading && (
-                <TableRow>
-                  <TableCell colSpan={5} className="py-8 text-center text-sm text-muted-foreground">
-                    Loading...
-                  </TableCell>
-                </TableRow>
+                <>
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <TableRow key={`loading-${i}`}>
+                      <TableCell>
+                        <Skeleton className="h-5 w-20 rounded-full" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="h-4 w-28" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="h-4 w-24" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="h-4 w-36" />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end">
+                          <Skeleton className="h-8 w-16" />
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </>
               )}
               {!loading && error && (
                 <TableRow>
@@ -206,8 +224,6 @@ export default function BookingHistory() {
                 </TableRow>
               )}
               {!loading && !error && pageItems.map((b) => {
-                const start = new Date(b.timeStart);
-                const end = new Date(b.timeEnd);
                 const ss = getStatusStyle(b.bookingStatus);
                 return (
                   <TableRow key={b.bookingId}>
@@ -217,13 +233,13 @@ export default function BookingHistory() {
                         {b.bookingStatus}
                       </span>
                     </TableCell>
-                    <TableCell>{formatDateDDMMMYYYY_UTC(start)}</TableCell>
+                    <TableCell>{formatDateDDMMMYYYY(b.timeStart as unknown as string)}</TableCell>
                     <TableCell>
-                      {formatTimeHHMM_UTC(start)} - {formatTimeHHMM_UTC(end)}
+                      {extractHHMM(b.timeStart as unknown as string)} - {extractHHMM(b.timeEnd as unknown as string)}
                     </TableCell>
-                    <TableCell>{b.interpreterId ?? "null"}</TableCell>
+                    <TableCell>{(b.interpreterName && b.interpreterName.trim()) || b.interpreterId || "-"}</TableCell>
                     <TableCell className="text-right">
-                      <Button size="sm" variant="outline" onClick={handleOpenDetail}>
+                      <Button size="sm" variant="outline" onClick={() => handleOpenDetail(b)}>
                         Detail
                       </Button>
                     </TableCell>
@@ -270,14 +286,81 @@ export default function BookingHistory() {
       </div>
 
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-[520px]" showCloseButton={false}>
           <DialogHeader>
-            <DialogTitle>Booking Detail</DialogTitle>
+            <DialogTitle className="flex items-center justify-between">
+              <span>Booking Detail</span>
+              {selectedBooking && (
+                <span className={`ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] ${getStatusStyle(selectedBooking.bookingStatus).bg} ${getStatusStyle(selectedBooking.bookingStatus).text}`}>
+                  {getStatusStyle(selectedBooking.bookingStatus).icon}
+                  {selectedBooking.bookingStatus}
+                </span>
+              )}
+            </DialogTitle>
           </DialogHeader>
-          <div className="text-sm text-muted-foreground">
-            {/* Placeholder content per requirement */}
-            Booking detail component will be built next time.
-          </div>
+          {selectedBooking && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 text-sm">
+                <User className="h-4 w-4 text-muted-foreground" />
+                <span className="font-medium">Booking By</span>
+              </div>
+              <div className="rounded-lg border p-3 bg-muted/30">
+                <div className="text-sm">
+                  {(selectedBooking.ownerPrefix ? selectedBooking.ownerPrefix + " " : "")}
+                  {selectedBooking.ownerName} {selectedBooking.ownerSurname}
+                  <span className="text-muted-foreground"> ({selectedBooking.ownerEmpCode})</span>
+                </div>
+              </div>
+
+              <div className="grid gap-1">
+                <div className="flex items-center gap-2 text-sm">
+                  <Users className="h-4 w-4 text-muted-foreground" />
+                  <span className="font-medium">Interpreter</span>
+                </div>
+                <div className="rounded-lg border p-3 text-sm">
+                  {(selectedBooking.interpreterName && selectedBooking.interpreterName.trim()) || selectedBooking.interpreterId || "Not assigned"}
+                </div>
+              </div>
+
+              <div className="grid gap-1">
+                <div className="flex items-center gap-2 text-sm">
+                  <ListCollapse className="h-4 w-4 text-muted-foreground" />
+                  <span className="font-medium">Meeting detail</span>
+                </div>
+                <div className="rounded-lg border p-3 text-sm">
+                  <>
+                    <div className="font-medium flex items-center gap-2">
+                      <MapPin className="h-4 w-4 text-muted-foreground" />
+                      {selectedBooking.meetingRoom}
+                      <Clock className="h-4 w-4 text-muted-foreground ml-2" />
+                      {extractHHMM(selectedBooking.timeStart as unknown as string)} - {extractHHMM(selectedBooking.timeEnd as unknown as string)}
+                    </div>
+                    <div className="mt-1 whitespace-pre-wrap">{selectedBooking.meetingDetail || "-"}</div>
+                  </>
+                </div>
+              </div>
+
+              <div className="grid gap-1">
+                <div className="flex items-center gap-2 text-sm">
+                  <Mail className="h-4 w-4 text-muted-foreground" />
+                  <span className="font-medium">Email invite</span>
+                </div>
+                <div className="rounded-lg border p-3 text-sm">
+                  {selectedBooking.inviteEmails && selectedBooking.inviteEmails.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {selectedBooking.inviteEmails.map((email) => (
+                        <span key={email} className="px-2 py-0.5 rounded-full bg-muted text-foreground text-xs border">
+                          {email}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <span className="text-muted-foreground">-</span>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

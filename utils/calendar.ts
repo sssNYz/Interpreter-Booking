@@ -1,24 +1,8 @@
 import type { DayInfo } from "@/types/booking";
+import { generateStandardTimeSlots } from "@/utils/time";
 
 export const generateTimeSlots = () => {
-  const slots: string[] = [];
-  for (let hour = 8; hour < 18; hour++) {
-    if (hour === 12) {
-      slots.push(`${hour}:00`, `${hour}:20`);
-      continue;
-    }
-    if (hour === 13) {
-      slots.push(`${hour}:10`, `${hour}:30`);
-      continue;
-    }
-    if (hour === 17) {
-      slots.push(`${hour}:00`);
-      continue;
-    }
-    slots.push(`${hour.toString().padStart(2, "0")}:00`);
-    slots.push(`${hour.toString().padStart(2, "0")}:30`);
-  }
-  return slots;
+  return generateStandardTimeSlots();
 };
 
 export const getDaysInMonth = (date: Date): DayInfo[] => {

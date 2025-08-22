@@ -3,10 +3,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
-import { Star, CheckCircle, XCircle, Hourglass, RefreshCw } from "lucide-react";
-import type { BookingManage } from "@/types/booking-types";
+import { Star, CheckCircle, XCircle, Hourglass } from "lucide-react";
+import type { BookingManage } from "@/types/admin";
 
 /* ================= helpers: format ================= */
 const fmtDate = (ymd: string) => {
