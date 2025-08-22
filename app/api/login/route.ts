@@ -1,12 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/prisma/prisma";
+import { createSessionCookie, DEFAULT_TTL_SECONDS, SESSION_COOKIE_NAME } from "@/lib/auth/session";
+import type { LoginRequest, LoginResponse } from "@/types/auth";
 
 const REF_API_URL = process.env.REF_API_URL || "http://192.168.1.184/api/login";
-
-type LoginRequest = {
-	empCode: string;
-	oldPassword: string;
-};
 
 export async function POST(req: NextRequest) {
 	let body: LoginRequest;
@@ -96,7 +93,9 @@ export async function POST(req: NextRequest) {
             SELECT ID, EMAIL, EMP_CODE, FIRST_NAME_EN, LAST_NAME_EN, TEL_EXT FROM EMPLOYEE WHERE EMP_CODE = ${empCodeFromRef} LIMIT 1
         `;
     	const row = rows[0];
-    	return NextResponse.json({
+        // Set HttpOnly session cookie with sliding TTL
+        const session = createSessionCookie(empCodeFromRef, DEFAULT_TTL_SECONDS);
+        const res = NextResponse.json<LoginResponse>({
 			ok: true,
 			user: {
 				id: String(row?.ID ?? ""),
@@ -105,10 +104,20 @@ export async function POST(req: NextRequest) {
                 email: row?.EMAIL ?? null,
                 phone: row?.TEL_EXT ?? null,
 			},
-		});
+        });
+        res.cookies.set({
+            name: SESSION_COOKIE_NAME,
+            value: session.value,
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: "lax",
+            path: "/",
+            maxAge: session.maxAge,
+        });
+        return res;
     } catch (err) {
         console.error("[/api/login] unexpected error", { error: err instanceof Error ? err.message : String(err) });
-        return NextResponse.json({ ok: false, message: "Login error" }, { status: 500 });
+        return NextResponse.json<LoginResponse>({ ok: false, message: "Login error" }, { status: 500 });
 	}
 }
 
