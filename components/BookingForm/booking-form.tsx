@@ -38,36 +38,12 @@ import { Switch } from "../ui/switch";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { toast } from "sonner";
-
-
-type BookingFormProps = {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  selectedSlot?: {
-
-    day: number;
-    slot: string;
-  };
-  daysInMonth: {
-    date: number;
-    dayName: string;
-    fullDate: Date;
-    isPast: boolean;
-  }[];
-  interpreters?: {
-    interpreterId: number;
-    interpreterName: string;
-    interpreterSurname: string;
-  }[];
-  rooms?: string[];
-};
-
-type OwnerGroup = "software" | "iot" | "hardware" | "other";
+import type { OwnerGroup } from "@/types/booking";
+import type { BookingFormProps } from "@/types/props";
 export function BookingForm({
   open,
   onOpenChange,
   selectedSlot,
-
   daysInMonth,
   interpreters = [],
 }: BookingFormProps) {

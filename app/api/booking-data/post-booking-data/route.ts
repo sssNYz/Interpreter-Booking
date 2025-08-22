@@ -2,34 +2,15 @@
 // app/api/booking/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import prisma, {OwnerGroup, BookingStatus } from '@/prisma/prisma';
+import type { CreateBookingRequest } from '@/types/booking-requests';
+import type { ApiResponse } from '@/types/api';
 
-// Interface for the booking creation request
-interface CreateBookingRequest {
-	ownerEmpCode: string;
-	ownerGroup: OwnerGroup;
-	meetingRoom: string;
-	meetingDetail?: string;
-	highPriority?: boolean;
-	timeStart: string; // "YYYY-MM-DD HH:mm:ss"
-	timeEnd: string; // "YYYY-MM-DD HH:mm:ss"
-	interpreterEmpCode?: string | null;
-	bookingStatus?: BookingStatus;
-	timezone?: string; // Ignored
-	inviteEmails?: string[]; // Array of email addresses to invite
-	force?: boolean; // Allow booking even if overlap exists
-}
+// Interface moved to '@/types/booking-requests'
 
 // Global capacity across all rooms
 const GLOBAL_SLOT_CAPACITY = 2;
 
-// Standard API response shape
-type ApiResponse = {
-	success: boolean;
-	message?: string;
-	error?: string;
-	code?: string;
-	data?: Record<string, unknown>;
-};
+// Standard API response shape moved to '@/types/api'
 
 // Date validation helper: strict "YYYY-MM-DD HH:mm:ss"
 const isValidDateString = (s: string): boolean => {

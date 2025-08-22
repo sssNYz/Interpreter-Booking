@@ -4,7 +4,7 @@ import React, { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Star, CheckCircle, XCircle, Hourglass } from "lucide-react";
-import type { BookingManage } from "@/types/booking-types";
+import type { BookingManage } from "@/types/admin";
 
  // Format date and time for display
 const fmtDate = (ymd: string) => {

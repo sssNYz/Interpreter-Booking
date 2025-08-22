@@ -12,7 +12,8 @@ import {
   Calendar, ChevronUp, ChevronDown, SquarePen,
 } from "lucide-react";
 
-import type { BookingManage as BookingMange, Stats } from "@/types/booking-types";
+import type { BookingManage as BookingMange, Stats } from "@/types/admin";
+import type { StatusOption } from "@/types/admin";
 import { generateStandardTimeSlots } from "@/utils/time";
 
 import BookingDetailDialog from "../AdminForm/booking-form";
@@ -23,7 +24,7 @@ const PAGE_WRAPPER = "min-h-screen bg-[#f7f7f7] font-sans text-gray-900";
 /* ========= Constants ========= */
 const TIME_SLOTS = generateStandardTimeSlots();
 
-const STATUS_OPTIONS = [
+const STATUS_OPTIONS: Array<{ value: StatusOption; label: string }> = [
   { value: "all", label: "All Status" },
   { value: "Wait", label: "Wait" },
   { value: "Approve", label: "Approve" },
