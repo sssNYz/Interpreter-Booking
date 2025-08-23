@@ -262,6 +262,7 @@ const BookingCalendar: React.FC = () => {
         </ScrollArea>
       </div>
 
+
       {/* Bottom controls and legend */}
       <div className="flex items-center justify-between mt-3 gap-3">
         {/* Left: controls */}
