@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useRef, useState } from "react";
@@ -15,7 +14,9 @@ function BookingPage() {
   const searchParams = useSearchParams();
   const initialTab = (searchParams.get("tab") as TabKey) || "calendar";
   const [active, setActive] = useState<TabKey>(initialTab);
-  const [bookingsLoaded, setBookingsLoaded] = useState<boolean>(initialTab === "bookings");
+  const [bookingsLoaded, setBookingsLoaded] = useState<boolean>(
+    initialTab === "bookings"
+  );
 
   useEffect(() => {
     const sp = new URLSearchParams(searchParams.toString());
@@ -34,7 +35,10 @@ function BookingPage() {
     else hisRef.current?.focus();
   };
 
-  const onKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>, self: TabKey) => {
+  const onKeyDown = (
+    e: React.KeyboardEvent<HTMLButtonElement>,
+    self: TabKey
+  ) => {
     if (e.key === "ArrowRight") {
       e.preventDefault();
       focusNext(self, 1);
@@ -48,13 +52,16 @@ function BookingPage() {
   };
 
   return (
-
     <div className="flex flex-col gap-8 px-4 mx-auto w-full max-w-full lg:max-w-[1500px]">
       <div className="flex items-center justify-between py-2">
         <h1 className="text-2xl font-semibold">Appointments</h1>
       </div>
 
-      <div role="tablist" aria-label="Appointment sections" className="flex gap-2 border-b">
+      <div
+        role="tablist"
+        aria-label="Appointment sections"
+        className="flex gap-2 border-b"
+      >
         <button
           ref={calRef}
           role="tab"
@@ -65,7 +72,9 @@ function BookingPage() {
           onClick={() => setActive("calendar")}
           onKeyDown={(e) => onKeyDown(e, "calendar")}
           className={`min-h-[44px] px-3 py-2 border-b-2 transition-colors ${
-            active === "calendar" ? "font-semibold border-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
+            active === "calendar"
+              ? "font-semibold border-foreground"
+              : "border-transparent text-muted-foreground hover:text-foreground"
           }`}
         >
           Calendar
@@ -80,7 +89,9 @@ function BookingPage() {
           onClick={() => setActive("bookings")}
           onKeyDown={(e) => onKeyDown(e, "bookings")}
           className={`min-h-[44px] px-3 py-2 border-b-2 transition-colors ${
-            active === "bookings" ? "font-semibold border-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
+            active === "bookings"
+              ? "font-semibold border-foreground"
+              : "border-transparent text-muted-foreground hover:text-foreground"
           }`}
         >
           My bookings
@@ -88,18 +99,29 @@ function BookingPage() {
       </div>
 
       {active === "calendar" ? (
-        <div role="tabpanel" id="panel-calendar" aria-labelledby="tab-calendar" className="w-full">
-          <p className="text-sm text-muted-foreground mb-2">Select a time slot to start a booking.</p>
+        <div
+          role="tabpanel"
+          id="panel-calendar"
+          aria-labelledby="tab-calendar"
+          className="w-full"
+        >
+          <p className="text-sm text-muted-foreground mb-2">
+            Select a time slot to start a booking.
+          </p>
           <BookingCalendar />
         </div>
       ) : null}
 
       {active === "bookings" ? (
-        <div role="tabpanel" id="panel-bookings" aria-labelledby="tab-bookings" className="w-full">
+        <div
+          role="tabpanel"
+          id="panel-bookings"
+          aria-labelledby="tab-bookings"
+          className="w-full"
+        >
           <BookingHistory />
         </div>
       ) : bookingsLoaded ? null : null}
-
     </div>
   );
 }
