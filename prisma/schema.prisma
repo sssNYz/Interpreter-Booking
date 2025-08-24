@@ -8,22 +8,22 @@ datasource db {
 }
 
 model BookingPlan {
-  bookingId     Int               @id @default(autoincrement()) @map("BOOKING_ID")
-  ownerEmpCode  String            @map("OWNER_EMP_CODE") @db.VarChar(64)
-  ownerGroup    OwnerGroup        @map("OWNER_GROUP")
-  meetingRoom   String            @map("MEETING_ROOM") @db.VarChar(50)
-  meetingDetail String?           @map("MEETING_DETAIL") @db.Text
-  highPriority  Boolean           @default(false) @map("HIGH_PRIORITY")
-  timeStart     DateTime          @map("TIME_START") @db.DateTime(0)
-  timeEnd       DateTime          @map("TIME_END") @db.DateTime(0)
-  interpreterEmpCode String?      @map("INTERPRETER_EMP_CODE") @db.VarChar(64)
-  bookingStatus BookingStatus     @default(waiting) @map("BOOKING_STATUS")
-  createdAt     DateTime          @default(now()) @map("created_at") @db.Timestamp(0)
-  updatedAt     DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamp(0)
+  bookingId          Int           @id @default(autoincrement()) @map("BOOKING_ID")
+  ownerEmpCode       String        @map("OWNER_EMP_CODE") @db.VarChar(64)
+  ownerGroup         OwnerGroup    @map("OWNER_GROUP")
+  meetingRoom        String        @map("MEETING_ROOM") @db.VarChar(50)
+  meetingDetail      String?       @map("MEETING_DETAIL") @db.Text
+  highPriority       Boolean       @default(false) @map("HIGH_PRIORITY")
+  timeStart          DateTime      @map("TIME_START") @db.DateTime(0)
+  timeEnd            DateTime      @map("TIME_END") @db.DateTime(0)
+  interpreterEmpCode String?       @map("INTERPRETER_EMP_CODE") @db.VarChar(64)
+  bookingStatus      BookingStatus @default(waiting) @map("BOOKING_STATUS")
+  createdAt          DateTime      @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt          DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamp(0)
 
-  employee      Employee          @relation("OwnerEmployee", fields: [ownerEmpCode], references: [empCode])
-  interpreterEmployee Employee?   @relation("InterpreterEmployee", fields: [interpreterEmpCode], references: [empCode])
-  inviteEmails  InviteEmailList[]
+  employee            Employee          @relation("OwnerEmployee", fields: [ownerEmpCode], references: [empCode])
+  interpreterEmployee Employee?         @relation("InterpreterEmployee", fields: [interpreterEmpCode], references: [empCode])
+  inviteEmails        InviteEmailList[]
 
   @@index([ownerEmpCode], map: "BOOKING_PLAN_OWNER_EMP_CODE_idx")
   @@index([interpreterEmpCode], map: "BOOKING_PLAN_INTERPRETER_EMP_CODE_idx")
@@ -59,29 +59,29 @@ enum BookingStatus {
 }
 
 model Employee {
-  id             Int       @id @default(autoincrement()) @map("ID")
-  empCode        String    @unique @map("EMP_CODE") @db.VarChar(64)
-  prefixEn       String?   @map("PREFIX_EN") @db.VarChar(32)
-  firstNameEn    String?   @map("FIRST_NAME_EN") @db.VarChar(255)
-  lastNameEn     String?   @map("LAST_NAME_EN") @db.VarChar(255)
-  prefixTh       String?   @map("PREFIX_TH") @db.VarChar(32)
-  firstNameTh    String?   @map("FIRST_NAME_TH") @db.VarChar(255)
-  lastNameTh     String?   @map("LAST_NAME_TH") @db.VarChar(255)
-  fno            String?   @map("FNO") @db.VarChar(64)
-  deptPath       String?   @map("DEPT_PATH") @db.VarChar(512)
-  positionTitle  String?   @map("POSITION_TITLE") @db.VarChar(255)
-  email          String?   @map("EMAIL") @db.VarChar(255)
-  telExt         String?   @map("TEL_EXT") @db.VarChar(64)
-  isActive       Boolean   @default(true) @map("IS_ACTIVE")
-  lastLoginAt    DateTime? @map("LAST_LOGIN_AT")
-  syncedAt       DateTime? @map("SYNCED_AT")
-  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamp(0)
-  updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamp(0)
+  id            Int       @id @default(autoincrement()) @map("ID")
+  empCode       String    @unique @map("EMP_CODE") @db.VarChar(64)
+  prefixEn      String?   @map("PREFIX_EN") @db.VarChar(32)
+  firstNameEn   String?   @map("FIRST_NAME_EN") @db.VarChar(255)
+  lastNameEn    String?   @map("LAST_NAME_EN") @db.VarChar(255)
+  prefixTh      String?   @map("PREFIX_TH") @db.VarChar(32)
+  firstNameTh   String?   @map("FIRST_NAME_TH") @db.VarChar(255)
+  lastNameTh    String?   @map("LAST_NAME_TH") @db.VarChar(255)
+  fno           String?   @map("FNO") @db.VarChar(64)
+  deptPath      String?   @map("DEPT_PATH") @db.VarChar(512)
+  positionTitle String?   @map("POSITION_TITLE") @db.VarChar(255)
+  email         String?   @map("EMAIL") @db.VarChar(255)
+  telExt        String?   @map("TEL_EXT") @db.VarChar(64)
+  isActive      Boolean   @default(true) @map("IS_ACTIVE")
+  lastLoginAt   DateTime? @map("LAST_LOGIN_AT")
+  syncedAt      DateTime? @map("SYNCED_AT")
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt     DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamp(0)
 
   // Relations
-  bookingsOwned           BookingPlan[] @relation("OwnerEmployee")
-  bookingsAsInterpreter   BookingPlan[] @relation("InterpreterEmployee")
-  userRoles               UserRole[]    // Added this inverse relation
+  bookingsOwned         BookingPlan[] @relation("OwnerEmployee")
+  bookingsAsInterpreter BookingPlan[] @relation("InterpreterEmployee")
+  userRoles             UserRole[] // Added this inverse relation
 
   @@map("EMPLOYEE")
 }
