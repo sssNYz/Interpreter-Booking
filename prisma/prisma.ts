@@ -1,4 +1,12 @@
-import { PrismaClient, OwnerGroup, BookingStatus } from "@prisma/client";
+import {
+  PrismaClient,
+  OwnerGroup,
+  BookingStatus,
+  MeetingType,
+  RecurrenceType,
+  EndType,
+  WeekOrder,
+} from "@prisma/client";
 
 declare global {
   var prisma: PrismaClient | undefined;
@@ -12,4 +20,12 @@ const prisma = globalForPrisma.prisma ?? new PrismaClient();
 
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
 
-export { prisma as default, OwnerGroup, BookingStatus };
+export {
+  prisma as default,
+  OwnerGroup,
+  BookingStatus,
+  MeetingType,
+  RecurrenceType,
+  EndType,
+  WeekOrder,
+};

@@ -12,6 +12,7 @@ model BookingPlan {
   ownerEmpCode       String        @map("OWNER_EMP_CODE") @db.VarChar(64)
   ownerGroup         OwnerGroup    @map("OWNER_GROUP")
   meetingRoom        String        @map("MEETING_ROOM") @db.VarChar(50)
+  meetingType        MeetingType?  @map("MEETING_TYPE")
   meetingDetail      String?       @map("MEETING_DETAIL") @db.Text
   highPriority       Boolean       @default(false) @map("HIGH_PRIORITY")
   timeStart          DateTime      @map("TIME_START") @db.DateTime(0)
@@ -21,12 +22,28 @@ model BookingPlan {
   createdAt          DateTime      @default(now()) @map("created_at") @db.Timestamp(0)
   updatedAt          DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamp(0)
 
+  // Recurrence fields
+  isRecurring              Boolean         @default(false) @map("IS_RECURRING")
+  recurrenceType           RecurrenceType? @map("RECURRENCE_TYPE")
+  recurrenceInterval       Int?            @map("RECURRENCE_INTERVAL")
+  recurrenceEndType        EndType?        @map("RECURRENCE_END_TYPE")
+  recurrenceEndDate        DateTime?       @map("RECURRENCE_END_DATE") @db.DateTime(0)
+  recurrenceEndOccurrences Int?            @map("RECURRENCE_END_OCCURRENCES")
+  recurrenceWeekdays       String?         @map("RECURRENCE_WEEKDAYS") @db.VarChar(32) // CSV e.g. "mon,tue"
+  recurrenceMonthday       Int?            @map("RECURRENCE_MONTHDAY")
+  recurrenceWeekOrder      WeekOrder?      @map("RECURRENCE_WEEK_ORDER")
+  parentBookingId          Int?            @map("PARENT_BOOKING_ID")
+
   employee            Employee          @relation("OwnerEmployee", fields: [ownerEmpCode], references: [empCode])
   interpreterEmployee Employee?         @relation("InterpreterEmployee", fields: [interpreterEmpCode], references: [empCode])
   inviteEmails        InviteEmailList[]
+  // self-referencing relation for recurring series
+  recurringBookings   BookingPlan[]     @relation("RecurringBookings")
+  parentBooking       BookingPlan?      @relation("RecurringBookings", fields: [parentBookingId], references: [bookingId])
 
   @@index([ownerEmpCode], map: "BOOKING_PLAN_OWNER_EMP_CODE_idx")
   @@index([interpreterEmpCode], map: "BOOKING_PLAN_INTERPRETER_EMP_CODE_idx")
+  @@index([parentBookingId], map: "BOOKING_PLAN_PARENT_BOOKING_ID_idx")
   @@map("BOOKING_PLAN")
 }
 
@@ -50,12 +67,45 @@ enum OwnerGroup {
   @@map("owner_group")
 }
 
+// Meeting type options
+enum MeetingType {
+  DR
+  VIP
+  Weekly
+  General
+  Augent
+  Other
+}
+
 enum BookingStatus {
   approve
   cancel
   waiting
 
   @@map("booking_status")
+}
+
+// Recurrence support enums
+enum RecurrenceType {
+  daily
+  weekly
+  biweekly
+  monthly
+  custom
+}
+
+enum EndType {
+  never
+  on_date
+  after_occurrences
+}
+
+enum WeekOrder {
+  first
+  second
+  third
+  fourth
+  last
 }
 
 model Employee {
