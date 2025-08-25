@@ -28,7 +28,6 @@ import type { BookingFormProps } from "@/types/props";
 import { MAX_LANES } from "@/utils/constants";
 import { PersonalInfoSection } from "@/components/BookingForm/sections/PersonalInfoSection";
 import { MeetingDetailsSection } from "@/components/BookingForm/sections/MeetingDetailsSection";
-import { AdditionalOptionsSection } from "@/components/BookingForm/sections/AdditionalOptionsSection";
 import { InviteEmailsSection } from "@/components/BookingForm/sections/InviteEmailsSection";
 import {
   Select,
@@ -803,10 +802,11 @@ export function BookingForm({
             </strong>
           </SheetDescription>
         </SheetHeader>
-        <ScrollArea className="size-full overflow-auto">
+        <ScrollArea className="size-full overflow-hidden">
           <form className="space-y-8 p-6" role="form" aria-label="Interpreter booking form">
             <fieldset className="space-y-6">
               <legend className="sr-only">Personal Information</legend>
+          
               <PersonalInfoSection
                 ownerName={ownerName}
                 ownerSurname={ownerSurname}
@@ -1184,14 +1184,7 @@ export function BookingForm({
               />
             </fieldset>
 
-            <fieldset className="space-y-6">
-              <legend className="sr-only">Additional Options</legend>
-              <AdditionalOptionsSection
-                interpreterId={interpreterId}
-                setInterpreterId={(v) => setInterpreterId(v)}
-                interpreters={interpreters}
-              />
-            </fieldset>
+          
 
             <fieldset className="space-y-6">
               <legend className="sr-only">Invite Participants</legend>
