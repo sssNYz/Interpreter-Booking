@@ -23,19 +23,21 @@ export function AdditionalOptionsSection({
   interpreters,
 }: AdditionalOptionsSectionProps) {
   return (
-    <div className="space-y-4">
-      <h3 className="text-lg font-semibold border-b pb-2">
+    <div className="space-y-6">
+      <h2 className="text-lg font-semibold text-foreground border-b border-border pb-3">
         Additional Options
-      </h3>
+      </h2>
 
       {interpreters.length > 0 && (
-        <div className="grid gap-2">
-          <Label htmlFor="interpreterId">Interpreter (Optional)</Label>
+        <div className="space-y-2">
+          <Label htmlFor="interpreterId" className="text-sm font-medium text-foreground">
+            Interpreter <span className="text-muted-foreground">(Optional)</span>
+          </Label>
           <Select
             value={interpreterId || "none"}
             onValueChange={(v) => setInterpreterId(v === "none" ? "" : v)}
           >
-            <SelectTrigger>
+            <SelectTrigger id="interpreterId" className="w-full">
               <SelectValue placeholder="Select an interpreter" />
             </SelectTrigger>
             <SelectContent>

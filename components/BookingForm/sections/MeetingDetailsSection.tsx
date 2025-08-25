@@ -50,30 +50,44 @@ export function MeetingDetailsSection({
   repeatSection,
 }: MeetingDetailsSectionProps) {
   return (
-    <div className="space-y-4">
-      <h3 className="text-lg font-semibold border-b pb-2">Meeting Details</h3>
+    <div className="space-y-6">
+      <h2 className="text-lg font-semibold text-foreground border-b border-border pb-3">
+        Meeting Details
+      </h2>
 
-      <div className="grid grid-cols-2 gap-4">
-        <div className="grid gap-2">
-          <Label htmlFor="meetingRoom">Meeting Room *</Label>
+      {/* Line 1: Meeting Room, Meeting Type, Meeting Time */}
+      <div className="grid grid-cols-1 sm:grid-cols-[0.5fr_0.5fr_1fr] gap-4">
+        <div className="space-y-2">
+          <Label htmlFor="meetingRoom" className="text-sm font-medium text-foreground">
+            Meeting Room <span className="text-destructive">*</span>
+          </Label>
           <Input
             id="meetingRoom"
-            placeholder="meetingRoom"
+            placeholder="Enter meeting room"
             value={meetingRoom}
             onChange={(e) => setMeetingRoom(e.target.value)}
-            className={errors.meetingRoom ? "border-red-500" : ""}
+            className={errors.meetingRoom ? "border-destructive focus:border-destructive" : ""}
+            aria-describedby={errors.meetingRoom ? "meetingRoom-error" : undefined}
           />
+          {errors.meetingRoom && (
+            <p id="meetingRoom-error" className="text-destructive text-sm" role="alert">
+              {errors.meetingRoom}
+            </p>
+          )}
         </div>
 
-        <div className="grid gap-2">
-          <Label htmlFor="meetingType">Meeting Type *</Label>
+        <div className="space-y-2">
+          <Label htmlFor="meetingType" className="text-sm font-medium text-foreground">
+            Meeting Type <span className="text-destructive">*</span>
+          </Label>
           <Select
             value={meetingType ?? undefined}
             onValueChange={(v) => setMeetingType && setMeetingType(v)}
           >
             <SelectTrigger
               id="meetingType"
-              className={`w-full ${errors.meetingType ? "border-red-500" : ""}`}
+              className={`w-full ${errors.meetingType ? "border-destructive focus:border-destructive" : ""}`}
+              aria-describedby={errors.meetingType ? "meetingType-error" : undefined}
             >
               <SelectValue placeholder="Select type" />
             </SelectTrigger>
@@ -86,13 +100,16 @@ export function MeetingDetailsSection({
               <SelectItem value="Other">Other</SelectItem>
             </SelectContent>
           </Select>
+          {errors.meetingType && (
+            <p id="meetingType-error" className="text-destructive text-sm" role="alert">
+              {errors.meetingType}
+            </p>
+          )}
         </div>
-      </div>
 
-      <div className="grid grid-cols-2 gap-4 items-start">
-        <div className="grid gap-2">
-          <Label className="flex items-center gap-2" htmlFor="startTimeInline">
-            Meeting Time *
+        <div className="space-y-2">
+          <Label className="text-sm font-medium text-foreground" htmlFor="meeting-time">
+            Meeting Time <span className="text-destructive">*</span>
           </Label>
           <TimeRangeSelector
             startTime={startTime}
@@ -107,26 +124,35 @@ export function MeetingDetailsSection({
             isEndDisabled={isEndDisabled}
             showLabel={false}
           />
+          {(errors.startTime || errors.endTime) && (
+            <p className="text-destructive text-sm" role="alert">
+              {errors.startTime || errors.endTime}
+            </p>
+          )}
         </div>
-        {repeatSection && (
-          <div className="space-y-2">
-            {repeatSection}
-          </div>
-        )}
       </div>
 
-      <div className="grid gap-2">
-        <Label htmlFor="meetingDetail">Meeting Description</Label>
+      {/* Line 2, 3, 4: Repeat Section (if provided) */}
+      {repeatSection && (
+        <div className="space-y-4">
+          {repeatSection}
+        </div>
+      )}
+
+      {/* Line 4: Meeting Description */}
+      <div className="space-y-2">
+        <Label htmlFor="meetingDetail" className="text-sm font-medium text-foreground">
+          Meeting Description <span className="text-muted-foreground">(Optional)</span>
+        </Label>
         <Textarea
           id="meetingDetail"
           placeholder="Brief description of the meeting..."
           value={meetingDetail}
           onChange={(e) => setMeetingDetail(e.target.value)}
           rows={3}
+          className="resize-none"
         />
       </div>
-
-      
     </div>
   );
 }
