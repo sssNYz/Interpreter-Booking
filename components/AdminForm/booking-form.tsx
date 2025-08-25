@@ -4,7 +4,6 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
 import { RefreshCw, Star, CheckCircle, XCircle, Hourglass } from "lucide-react";
 import type { BookingManage } from "@/types/admin";
 
@@ -40,9 +39,9 @@ const Status: React.FC<{ value: BookingManage["status"] }> = ({ value }) => {
 };
 
 const Row: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
-  <div className="grid grid-cols-12 items-start gap-2">
-    <dt className="col-span-4 text-xs font-medium text-gray-600">{label}</dt>
-    <dd className="col-span-8 text-sm text-gray-900">{children}</dd>
+  <div className="grid grid-cols-12 items-start gap-3 sm:gap-4">
+    <dt className="col-span-4 text-xs font-semibold text-gray-700 tracking-tight">{label}</dt>
+    <dd className="col-span-8 min-w-0 text-sm text-gray-900 break-words">{children}</dd>
   </div>
 );
 
@@ -177,7 +176,10 @@ const InterpreterSelector: React.FC<{
       <div className="grid gap-3">
         <div className="text-sm text-gray-700">
           Current:{" "}
-          <span className="font-medium inline-block max-w-full truncate break-words align-bottom" title={currentDisplayName || undefined}>
+          <span
+            className="font-medium inline-block max-w-full truncate break-words align-bottom"
+            title={currentDisplayName || undefined}
+          >
             {currentDisplayName || "-"}
           </span>
         </div>
@@ -201,7 +203,14 @@ const InterpreterSelector: React.FC<{
                 placeholder={loading ? "Loading..." : options.length ? "Select interpreter" : "No available interpreters"}
               />
             </SelectTrigger>
-            <SelectContent className="w-[var(--radix-select-trigger-width)] max-w-[min(56rem,calc(100vw-2rem))]">
+            <SelectContent
+              className="
+                w-[var(--radix-select-trigger-width)]
+                max-w-[min(56rem,calc(100vw-2rem))]
+                max-h-[60vh] overflow-auto
+                z-50
+              "
+            >
               {options.map((o) => (
                 <SelectItem key={o.empCode} value={o.empCode} className="max-w-full">
                   <span className="block truncate max-w-[52rem]" title={`${o.name} (${o.empCode})`}>
@@ -314,8 +323,14 @@ const BookingDetailDialog: React.FC<Props> = ({ open, onOpenChange, editData, is
       <DialogContent
         onOpenAutoFocus={(e) => e.preventDefault()}
         onCloseAutoFocus={(e) => e.preventDefault()}
-        className="max-w-4xl w-[min(96vw,64rem)] max-h-[calc(100dvh-6rem)] overflow-hidden p-0"
+        className="
+          grid grid-rows-[auto,1fr,auto]
+          w-[min(96vw,56rem)] max-w-4xl
+          max-h-[calc(100dvh-6rem)]
+          overflow-hidden p-0
+        "
       >
+        {/* Header */}
         <DialogHeader className="px-6 pt-6 pb-3">
           <DialogTitle className="flex items-center gap-3 text-lg sm:text-xl font-semibold">
             {isEditing ? "Booking Details" : "Create Booking"}
@@ -328,97 +343,107 @@ const BookingDetailDialog: React.FC<Props> = ({ open, onOpenChange, editData, is
           </DialogTitle>
         </DialogHeader>
 
-        {!booking ? (
-          <div className="px-6 pb-6 text-sm text-gray-600">No booking selected.</div>
-        ) : (
-          <div className="px-6 pb-0">
-            {/* Balanced layout: 6/6 on md+ */}
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
-              {/* Left (Schedule) */}
-              <section className="rounded-xl border border-gray-200 bg-white p-4 md:col-span-6">
-                <h3 className="text-xs font-semibold text-gray-900 mb-3">Schedule</h3>
-                <dl className="space-y-2">
-                  <Row label="Date">{fmtDate(booking.dateTime)}</Row>
-                  <Row label="Time">
-                    <span className="font-mono text-sm tracking-tight">
-                      {booking.startTime} - {booking.endTime}
-                    </span>
-                  </Row>
-                  <Row label="Room">
-                    <span className="px-2 py-0.5 bg-gray-100 rounded-md font-medium text-sm">{booking.room}</span>
-                  </Row>
-                  <Row label="Requested At">{fmtDateTime(booking.requestedTime)}</Row>
-                </dl>
-              </section>
+        {/* Scrollable Body */}
+        <div className="px-6 pb-4 overflow-y-auto min-w-0">
+          {!booking ? (
+            <div className="pb-6 text-sm text-gray-600">No booking selected.</div>
+          ) : (
+            <>
+              {/* 2-column grid on md+ */}
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+                {/* 1) Left-Top: Schedule */}
+                <section className="rounded-xl border border-gray-200 bg-white p-4 md:col-span-6 order-1 min-w-0">
+                  <h3 className="text-xs font-semibold text-gray-900 mb-3">Schedule</h3>
+                  <dl className="space-y-3">
+                    <Row label="Date">{fmtDate(booking.dateTime)}</Row>
+                    <Row label="Time">
+                      <span className="font-mono text-sm tracking-tight">
+                        {booking.startTime} - {booking.endTime}
+                      </span>
+                    </Row>
+                    <Row label="Room">
+                      <span className="px-2 py-0.5 bg-gray-100 rounded-md font-medium text-sm">{booking.room}</span>
+                    </Row>
+                    <Row label="Requested At">{fmtDateTime(booking.requestedTime)}</Row>
+                  </dl>
+                </section>
 
-              {/* Right (People & Status) */}
-              <section className="rounded-xl border border-gray-200 bg-white p-4 md:col-span-6">
-                <h3 className="text-xs font-semibold text-gray-900 mb-3">People & Status</h3>
-                <dl className="space-y-2">
-                  <Row label="Booked By">{booking.bookedBy}</Row>
-                  <Row label="Interpreter">
-                    <span className="truncate max-w-full inline-block">{booking.interpreter || "-"}</span>
-                  </Row>
-                  {booking?.group && <Row label="Group">{booking.group.toUpperCase()}</Row>}
-                  <Row label="Status">
-                    <Status value={booking.status} />
-                  </Row>
-                </dl>
+                {/* 2) Right-Top: People & Status */}
+                <section className="rounded-xl border border-gray-200 bg-white p-4 md:col-span-6 order-2 min-w-0">
+                  <h3 className="text-xs font-semibold text-gray-900 mb-3">People & Status</h3>
+                  <dl className="space-y-3">
+                    <Row label="Booked By">
+                      <span className="truncate max-w-full inline-block" title={booking.bookedBy}>
+                        {booking.bookedBy}
+                      </span>
+                    </Row>
+                    <Row label="Interpreter">
+                      <span className="truncate max-w-full inline-block" title={booking.interpreter || undefined}>
+                        {booking.interpreter || "-"}
+                      </span>
+                    </Row>
+                    {booking?.group && <Row label="Group">{booking.group.toUpperCase()}</Row>}
+                    <Row label="Status">
+                      <Status value={booking.status} />
+                    </Row>
+                  </dl>
+                </section>
 
-                <Separator className="my-4" />
-                <InterpreterSelector
-                  bookingId={bookingIdForApi ?? 0}
-                  currentDisplayName={booking.interpreter}
-                  disabled={booking.status === "Cancel" || bookingIdForApi == null}
-                  onSelect={(code) => setPendingEmpCode(code)}
-                  onServerVersion={(v) => setServerVersion(v)}
-                />
-              </section>
-            </div>
+                {/* 3) Left-Bottom: Interpreter (separate card) */}
+                <section className="rounded-xl border border-gray-200 bg-white p-4 md:col-span-6 order-3 min-w-0">
+                  <InterpreterSelector
+                    bookingId={bookingIdForApi ?? 0}
+                    currentDisplayName={booking.interpreter}
+                    disabled={booking.status === "Cancel" || bookingIdForApi == null}
+                    onSelect={(code) => setPendingEmpCode(code)}
+                    onServerVersion={(v) => setServerVersion(v)}
+                  />
+                </section>
 
-            {/* Detail */}
-            <section className="rounded-xl border border-gray-200 bg-white p-4 mt-6 mb-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-xs font-semibold text-gray-900">Meeting Detail</h3>
-                {(booking?.meetingDetail || booking?.topic) && (
-                  <Button variant="outline" size="sm" onClick={() => setExpand((v) => !v)}>
-                    {expand ? "Show less" : "Show more"}
-                  </Button>
-                )}
+                {/* 4) Right-Bottom: Meeting Detail (moved up) */}
+                <section className="rounded-xl border border-gray-200 bg-white p-4 md:col-span-6 order-4 min-w-0">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-xs font-semibold text-gray-900">Meeting Detail</h3>
+                    {(booking?.meetingDetail || booking?.topic) && (
+                      <Button variant="outline" size="sm" onClick={() => setExpand((v) => !v)}>
+                        {expand ? "Show less" : "Show more"}
+                      </Button>
+                    )}
+                  </div>
+                  <p className={`mt-3 text-sm leading-relaxed text-gray-800 break-words ${expand ? "" : "line-clamp-4"}`}>
+                    {booking?.meetingDetail ?? booking?.topic ?? "-"}
+                  </p>
+                </section>
               </div>
-              <p className={`mt-3 text-sm leading-relaxed text-gray-800 ${expand ? "" : "line-clamp-4"}`}>
-                {booking?.meetingDetail ?? booking?.topic ?? "-"}
-              </p>
-            </section>
+            </>
+          )}
+        </div>
 
-            {/* Sticky Footer Actions */}
-            <div className="sticky bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] flex flex-col sm:flex-row gap-3">
-              <Button
-                className="flex-1 h-11 text-base bg-emerald-600 hover:bg-emerald-700"
-                disabled={!canApprove || submitting === "cancel"}
-                aria-busy={submitting === "approve" || submitting === "apply"}
-                onClick={handleApproveOrApply}
-                title={booking?.status === "Wait" ? "Approve booking with selected interpreter" : "Apply interpreter change"}
-              >
-                {booking?.status === "Wait"
-                  ? submitting === "approve" ? "Approving..." : "Approve"
-                  : submitting === "apply" ? "Applying..." : "Apply"}
-              </Button>
-              <Button
-                variant="destructive"
-                className="flex-1 h-11 text-base"
-                disabled={!bookingIdForApi || submitting !== null}
-                aria-busy={submitting === "cancel"}
-                onClick={handleCancel}
-              >
-                {submitting === "cancel" ? "Cancelling..." : "Cancel Booking"}
-              </Button>
-            </div>
-          </div>
-        )}
+        {/* Footer */}
+        <div className="bg-white border-t border-gray-200 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] flex flex-col sm:flex-row gap-3">
+          <Button
+            className="flex-1 h-11 text-base bg-emerald-600 hover:bg-emerald-700"
+            disabled={!canApprove || submitting === "cancel"}
+            aria-busy={submitting === "approve" || submitting === "apply"}
+            onClick={handleApproveOrApply}
+            title={booking?.status === "Wait" ? "Approve booking with selected interpreter" : "Apply interpreter change"}
+          >
+            {booking?.status === "Wait"
+              ? submitting === "approve" ? "Approving..." : "Approve"
+              : submitting === "apply" ? "Applying..." : "Apply"}
+          </Button>
+          <Button
+            variant="destructive"
+            className="flex-1 h-11 text-base"
+            disabled={!bookingIdForApi || submitting !== null}
+            aria-busy={submitting === "cancel"}
+            onClick={handleCancel}
+          >
+            {submitting === "cancel" ? "Cancelling..." : "Cancel Booking"}
+          </Button>
+        </div>
       </DialogContent>
     </Dialog>
   );
 };
-
 export default BookingDetailDialog;
