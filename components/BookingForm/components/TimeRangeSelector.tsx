@@ -23,6 +23,8 @@ interface TimeRangeSelectorProps {
   isStartDisabled?: (t: string) => boolean;
   isEndDisabled?: (t: string) => boolean;
   showLabel?: boolean;
+  openDropdown?: string | null;
+  setOpenDropdown?: (value: string | null) => void;
 }
 
 export function TimeRangeSelector({
@@ -37,6 +39,8 @@ export function TimeRangeSelector({
   isStartDisabled,
   isEndDisabled,
   showLabel = true,
+  openDropdown,
+  setOpenDropdown,
 }: TimeRangeSelectorProps) {
 
   return (
@@ -49,7 +53,12 @@ export function TimeRangeSelector({
       )}
       <div className="flex flex-col sm:flex-row sm:items-center gap-3">
         <div className="flex-1 min-w-0">
-          <Select value={startTime} onValueChange={onStartChange}>
+          <Select 
+            value={startTime} 
+            onValueChange={onStartChange}
+            open={openDropdown === "startTime"}
+            onOpenChange={(open) => setOpenDropdown?.(open ? "startTime" : null)}
+          >
             <SelectTrigger 
               className={`w-full ${startTimeError ? "border-destructive focus:border-destructive" : ""}`}
               aria-label="Select start time"
@@ -83,7 +92,13 @@ export function TimeRangeSelector({
         </div>
 
         <div className="flex-1 min-w-0">
-          <Select value={endTime} onValueChange={onEndChange} disabled={!startTime}>
+          <Select 
+            value={endTime} 
+            onValueChange={onEndChange} 
+            disabled={!startTime}
+            open={openDropdown === "endTime"}
+            onOpenChange={(open) => setOpenDropdown?.(open ? "endTime" : null)}
+          >
             <SelectTrigger 
               className={`w-full ${endTimeError ? "border-destructive focus:border-destructive" : ""}`}
               aria-label="Select end time"

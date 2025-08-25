@@ -29,6 +29,8 @@ interface MeetingDetailsSectionProps {
   isStartDisabled?: (t: string) => boolean;
   isEndDisabled?: (t: string) => boolean;
   repeatSection?: React.ReactNode;
+  openDropdown?: string | null;
+  setOpenDropdown?: (value: string | null) => void;
 }
 
 export function MeetingDetailsSection({
@@ -48,6 +50,8 @@ export function MeetingDetailsSection({
   isStartDisabled,
   isEndDisabled,
   repeatSection,
+  openDropdown,
+  setOpenDropdown,
 }: MeetingDetailsSectionProps) {
   return (
     <div className="space-y-6">
@@ -83,6 +87,8 @@ export function MeetingDetailsSection({
           <Select
             value={meetingType ?? undefined}
             onValueChange={(v) => setMeetingType && setMeetingType(v)}
+            open={openDropdown === "meetingType"}
+            onOpenChange={(open) => setOpenDropdown?.(open ? "meetingType" : null)}
           >
             <SelectTrigger
               id="meetingType"
@@ -123,6 +129,8 @@ export function MeetingDetailsSection({
             isStartDisabled={isStartDisabled}
             isEndDisabled={isEndDisabled}
             showLabel={false}
+            openDropdown={openDropdown}
+            setOpenDropdown={setOpenDropdown}
           />
           {(errors.startTime || errors.endTime) && (
             <p className="text-destructive text-sm" role="alert">
