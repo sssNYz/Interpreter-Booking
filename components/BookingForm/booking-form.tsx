@@ -800,70 +800,153 @@ export function BookingForm({
             </strong>
           </SheetDescription>
         </SheetHeader>
-        <ScrollArea className="focus-visible:ring-ring/50 size-full rounded-3xl  transition-[color,box-shadow] overflow-auto">
-          <div className="grid gap-6 py-6 px-6">
-            <PersonalInfoSection
-              ownerName={ownerName}
-              ownerSurname={ownerSurname}
-              ownerEmail={ownerEmail}
-              ownerTel={ownerTel}
-              ownerGroup={ownerGroup}
-              errors={errors}
-              onGroupChange={setOwnerGroup}
-            />
+        <ScrollArea className="size-full overflow-auto">
+          <form className="space-y-8 p-6" role="form" aria-label="Interpreter booking form">
+            <fieldset className="space-y-6">
+              <legend className="sr-only">Personal Information</legend>
+              <PersonalInfoSection
+                ownerName={ownerName}
+                ownerSurname={ownerSurname}
+                ownerEmail={ownerEmail}
+                ownerTel={ownerTel}
+                ownerGroup={ownerGroup}
+                errors={errors}
+                onGroupChange={setOwnerGroup}
+              />
+            </fieldset>
 
-            <MeetingDetailsSection
-              meetingRoom={meetingRoom}
-              setMeetingRoom={(v) => setMeetingRoom(v)}
-              meetingType={meetingType}
-              setMeetingType={(v) => setMeetingType(v)}
-              meetingDetail={meetingDetail}
-              setMeetingDetail={(v) => setMeetingDetail(v)}
-              startTime={startTime}
-              endTime={endTime}
-              slotsTime={slotsTime}
-              availableEndTimes={availableEndTimes}
-              errors={errors}
-              onStartChange={handleStartTimeChange}
-              onEndChange={setEndTime}
-              isStartDisabled={isStartDisabled}
-              isEndDisabled={isEndDisabled}
-              repeatSection={
-                <>
-                  <label className="text-sm font-medium" htmlFor="repeatSelect">
-                    Repeat
-                  </label>
-                  <div className="flex items-center justify-between">
-                    <Select
-                      value={repeatChoice}
-                      onValueChange={(v: "none" | RecurrenceTypeUi) =>
-                        handleRepeatChange(v)
-                      }
-                    >
-                      <SelectTrigger id="repeatSelect" className="w-44">
-                        <SelectValue placeholder="No repeat" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">No repeat</SelectItem>
-                        <SelectItem value="daily">Daily</SelectItem>
-                        <SelectItem value="weekly">
-                          Weekly on {dayObj?.dayName || "day"}
-                        </SelectItem>
-                        <SelectItem value="biweekly">
-                          2 Weekly on {dayObj?.dayName || "day"}
-                        </SelectItem>
-                        <SelectItem value="monthly">
-                          Monthly on day{" "}
-                          {selectedSlot?.day || dayObj?.fullDate.getDate() || 1}
-                        </SelectItem>
-                        <SelectItem value="custom">Custom…</SelectItem>
-                      </SelectContent>
-                    </Select>
+            <fieldset className="space-y-6">
+              <legend className="sr-only">Meeting Details and Schedule</legend>
+              <MeetingDetailsSection
+                meetingRoom={meetingRoom}
+                setMeetingRoom={(v) => setMeetingRoom(v)}
+                meetingType={meetingType}
+                setMeetingType={(v) => setMeetingType(v)}
+                meetingDetail={meetingDetail}
+                setMeetingDetail={(v) => setMeetingDetail(v)}
+                startTime={startTime}
+                endTime={endTime}
+                slotsTime={slotsTime}
+                availableEndTimes={availableEndTimes}
+                errors={errors}
+                onStartChange={handleStartTimeChange}
+                onEndChange={setEndTime}
+                isStartDisabled={isStartDisabled}
+                isEndDisabled={isEndDisabled}
+                repeatSection={
+                  <div className="space-y-4">
+                    {/* First row: Repeat Schedule and Until */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-foreground" htmlFor="repeatSelect">
+                          Repeat Schedule
+                        </label>
+                        <Select
+                          value={repeatChoice}
+                          onValueChange={(v: "none" | RecurrenceTypeUi) =>
+                            handleRepeatChange(v)
+                          }
+                        >
+                          <SelectTrigger id="repeatSelect" className="w-full">
+                            <SelectValue placeholder="No repeat" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">No repeat</SelectItem>
+                            <SelectItem value="daily">Daily</SelectItem>
+                            <SelectItem value="weekly">
+                              Weekly on {dayObj?.dayName || "day"}
+                            </SelectItem>
+                            <SelectItem value="biweekly">
+                              2 Weekly on {dayObj?.dayName || "day"}
+                            </SelectItem>
+                            <SelectItem value="monthly">
+                              Monthly on day{" "}
+                              {selectedSlot?.day || dayObj?.fullDate.getDate() || 1}
+                            </SelectItem>
+                            <SelectItem value="custom">Custom…</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-foreground">
+                          Until...
+                        </label>
+                        <Select
+                          value={repeatChoice !== "none" ? (recurrenceEndType === "never" ? "on_date" : recurrenceEndType) : ""}
+                          onValueChange={(v) => setRecurrenceEndType(v as EndTypeUi)}
+                          disabled={repeatChoice === "none"}
+                        >
+                          <SelectTrigger 
+                            className={`w-full ${repeatChoice === "none" ? "opacity-50 cursor-not-allowed" : ""}`} 
+                            aria-label="Select how recurrence should end"
+                          >
+                            <SelectValue placeholder="Repeat Option" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="on_date">On date</SelectItem>
+                            <SelectItem value="after_occurrences">After occurrences</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    {/* Second row: Until options (date/occurrences) if repeat is selected */}
                     {repeatChoice !== "none" && (
-                      <div className="text-sm text-muted-foreground ml-4">
-                        {repeatSummary}
+                      <div className="space-y-3">
+                        {recurrenceEndType === "on_date" && (
+                          <div className="space-y-2">
+                            <Input
+                              type="date"
+                              value={recurrenceEndDate ? recurrenceEndDate.split(" ")[0] : ""}
+                              onChange={(e) => {
+                                const ymd = e.target.value;
+                                setRecurrenceEndDate(ymd ? `${ymd} 00:00:00` : "");
+                              }}
+                              className="w-full"
+                              aria-label="Select end date for recurrence"
+                              placeholder="Repeat Option"
+                            />
+                          </div>
+                        )}
+                        
+                        {recurrenceEndType === "after_occurrences" && (
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-3">
+                              <span className="text-sm text-muted-foreground whitespace-nowrap">After</span>
+                              <Input
+                                type="number"
+                                min={1}
+                                value={recurrenceEndOccurrences ?? 5}
+                                onChange={(e) =>
+                                  setRecurrenceEndOccurrences(
+                                    Math.max(1, Number(e.target.value) || 1)
+                                  )
+                                }
+                                className="w-20"
+                                aria-label="Number of occurrences"
+                              />
+                              <span className="text-sm text-muted-foreground whitespace-nowrap">occurrences</span>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
+
+                    {/* Third row: Summary - Full width */}
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-foreground">
+                        Summary
+                      </label>
+                      <div className="p-3 bg-muted/50 rounded-md border min-h-[60px] flex items-center w-full">
+                        {repeatChoice !== "none" && repeatSummary ? (
+                          <span className="text-sm text-muted-foreground">{repeatSummary}</span>
+                        ) : (
+                          <span className="text-sm text-muted-foreground italic">No repeat selected</span>
+                        )}
+                      </div>
+                    </div>
+                      
                     {repeatChoice === "custom" && (
                       <Dialog open={customOpen} onOpenChange={setCustomOpen}>
                         <DialogTrigger asChild>
@@ -1085,86 +1168,50 @@ export function BookingForm({
                         </DialogContent>
                       </Dialog>
                     )}
-                    {repeatChoice !== "none" && (
-                      <div className="space-y-2">
-                        <div className="text-sm">End</div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <Select
-                            value={recurrenceEndType === "never" ? "on_date" : recurrenceEndType}
-                            onValueChange={(v) => setRecurrenceEndType(v as EndTypeUi)}
-                          >
-                            <SelectTrigger className="w-40">
-                              <SelectValue placeholder="Select end" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="on_date">On date</SelectItem>
-                              <SelectItem value="after_occurrences">After occurrences</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          {recurrenceEndType === "on_date" && (
-                            <Input
-                              type="date"
-                              value={recurrenceEndDate ? recurrenceEndDate.split(" ")[0] : ""}
-                              onChange={(e) => {
-                                const ymd = e.target.value;
-                                setRecurrenceEndDate(ymd ? `${ymd} 00:00:00` : "");
-                              }}
-                              className="w-48"
-                            />
-                          )}
-                          {recurrenceEndType === "after_occurrences" && (
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm">After</span>
-                              <Input
-                                type="number"
-                                min={1}
-                                value={recurrenceEndOccurrences ?? 5}
-                                onChange={(e) =>
-                                  setRecurrenceEndOccurrences(
-                                    Math.max(1, Number(e.target.value) || 1)
-                                  )
-                                }
-                                className="w-24"
-                              />
-                              <span className="text-sm">occurrences</span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
                   </div>
-                </>
-              }
-            />
+                }
+              />
+            </fieldset>
 
-            <AdditionalOptionsSection
-              interpreterId={interpreterId}
-              setInterpreterId={(v) => setInterpreterId(v)}
-              interpreters={interpreters}
-            />
+            <fieldset className="space-y-6">
+              <legend className="sr-only">Additional Options</legend>
+              <AdditionalOptionsSection
+                interpreterId={interpreterId}
+                setInterpreterId={(v) => setInterpreterId(v)}
+                interpreters={interpreters}
+              />
+            </fieldset>
 
-            <InviteEmailsSection
-              inviteEmails={inviteEmails}
-              newEmail={newEmail}
-              setNewEmail={(v) => setNewEmail(v)}
-              addInviteEmail={addInviteEmail}
-              removeInviteEmail={removeInviteEmail}
-              isValidEmail={isValidEmail}
-            />
-          </div>
+            <fieldset className="space-y-6">
+              <legend className="sr-only">Invite Participants</legend>
+              <InviteEmailsSection
+                inviteEmails={inviteEmails}
+                newEmail={newEmail}
+                setNewEmail={(v) => setNewEmail(v)}
+                addInviteEmail={addInviteEmail}
+                removeInviteEmail={removeInviteEmail}
+                isValidEmail={isValidEmail}
+              />
+            </fieldset>
+          </form>
         </ScrollArea>
-        <SheetFooter className="border-t pt-4">
-          <div className="flex gap-2 w-full">
+        <SheetFooter className="border-t pt-6 pb-4">
+          <div className="flex flex-col-reverse sm:flex-row gap-3 w-full">
             <SheetClose asChild>
-              <Button variant="outline" className="flex-1">
+              <Button 
+                variant="outline" 
+                className="flex-1 min-h-11"
+                type="button"
+              >
                 Cancel
               </Button>
             </SheetClose>
             <Button
               onClick={handleSubmit}
               disabled={isSubmitting}
-              className="flex-1"
+              className="flex-1 min-h-11"
               variant="default"
+              type="submit"
             >
               {isSubmitting ? "Creating..." : "Create Booking"}
             </Button>
