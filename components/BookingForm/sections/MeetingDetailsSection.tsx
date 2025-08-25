@@ -10,6 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Presentation } from "lucide-react";
 
 interface MeetingDetailsSectionProps {
   meetingRoom: string;
@@ -55,9 +56,10 @@ export function MeetingDetailsSection({
 }: MeetingDetailsSectionProps) {
   return (
     <div className="space-y-6">
-      <h2 className="text-lg font-semibold text-foreground border-b border-border pb-3">
-        Meeting Details
-      </h2>
+      <div className="flex items-center gap-2 border-b border-border pb-3">
+        <Presentation className="h-5 w-5 text-muted-foreground" />
+        <h2 className="text-lg font-semibold text-foreground">Meeting Details</h2>
+      </div>
 
       {/* Line 1: Meeting Room, Meeting Type, Meeting Time */}
       <div className="grid grid-cols-1 sm:grid-cols-[0.5fr_0.5fr_1fr] gap-4">
@@ -84,6 +86,7 @@ export function MeetingDetailsSection({
           <Label htmlFor="meetingType" className="text-sm font-medium text-foreground">
             Meeting Type <span className="text-destructive">*</span>
           </Label>
+          
           <Select
             value={meetingType ?? undefined}
             onValueChange={(v) => setMeetingType && setMeetingType(v)}

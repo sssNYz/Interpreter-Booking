@@ -1,7 +1,7 @@
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Mail, Phone } from "lucide-react";
+import { Mail, Phone, User } from "lucide-react";
 import type { OwnerGroup } from "@/types/booking";
 
 interface PersonalInfoSectionProps {
@@ -29,9 +29,10 @@ export function PersonalInfoSection({
 }: PersonalInfoSectionProps) {
   return (
     <div className="space-y-6">
-      <h2 className="text-lg font-semibold text-foreground border-b border-border pb-3">
-        Personal Information
-      </h2>
+      <div className="flex items-center gap-2 border-b border-border pb-3">
+        <User className="h-5 w-5 text-muted-foreground" />
+        <h2 className="text-lg font-semibold text-foreground">Personal Information</h2>
+      </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-2">
