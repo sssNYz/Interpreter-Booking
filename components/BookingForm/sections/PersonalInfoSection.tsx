@@ -12,6 +12,8 @@ interface PersonalInfoSectionProps {
   ownerGroup: OwnerGroup;
   errors: Record<string, string>;
   onGroupChange: (value: OwnerGroup) => void;
+  openDropdown?: string | null;
+  setOpenDropdown?: (value: string | null) => void;
 }
 
 export function PersonalInfoSection({
@@ -22,6 +24,8 @@ export function PersonalInfoSection({
   ownerGroup,
   errors,
   onGroupChange,
+  openDropdown,
+  setOpenDropdown,
 }: PersonalInfoSectionProps) {
   return (
     <div className="space-y-6">
@@ -114,7 +118,12 @@ export function PersonalInfoSection({
           <Label htmlFor="ownerGroup" className="text-sm font-medium text-foreground">
             Department
           </Label>
-          <Select value={ownerGroup} onValueChange={(v: OwnerGroup) => onGroupChange(v)}>
+          <Select 
+            value={ownerGroup} 
+            onValueChange={(v: OwnerGroup) => onGroupChange(v)}
+            open={openDropdown === "department"}
+            onOpenChange={(open) => setOpenDropdown?.(open ? "department" : null)}
+          >
             <SelectTrigger id="ownerGroup" className="w-full">
               <SelectValue />
             </SelectTrigger>

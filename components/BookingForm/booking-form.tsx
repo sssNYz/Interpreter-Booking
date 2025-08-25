@@ -113,6 +113,9 @@ export function BookingForm({
   // Loading and error states
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  
+  // Dropdown state management - only one dropdown can be open at a time
+  const [openDropdown, setOpenDropdown] = useState<string | null>(null);
 
   // Set default start time based on selected slot
   useEffect(() => {
@@ -812,6 +815,8 @@ export function BookingForm({
                 ownerGroup={ownerGroup}
                 errors={errors}
                 onGroupChange={setOwnerGroup}
+                openDropdown={openDropdown}
+                setOpenDropdown={setOpenDropdown}
               />
             </fieldset>
 
@@ -833,6 +838,8 @@ export function BookingForm({
                 onEndChange={setEndTime}
                 isStartDisabled={isStartDisabled}
                 isEndDisabled={isEndDisabled}
+                openDropdown={openDropdown}
+                setOpenDropdown={setOpenDropdown}
                 repeatSection={
                   <div className="space-y-4">
                     {/* First row: Repeat Schedule and Until */}
@@ -846,6 +853,8 @@ export function BookingForm({
                           onValueChange={(v: "none" | RecurrenceTypeUi) =>
                             handleRepeatChange(v)
                           }
+                          open={openDropdown === "repeatSchedule"}
+                          onOpenChange={(open) => setOpenDropdown(open ? "repeatSchedule" : null)}
                         >
                           <SelectTrigger id="repeatSelect" className="w-full">
                             <SelectValue placeholder="No repeat" />
@@ -876,6 +885,8 @@ export function BookingForm({
                           value={repeatChoice !== "none" ? (recurrenceEndType === "never" ? "on_date" : recurrenceEndType) : ""}
                           onValueChange={(v) => setRecurrenceEndType(v as EndTypeUi)}
                           disabled={repeatChoice === "none"}
+                          open={openDropdown === "until"}
+                          onOpenChange={(open) => setOpenDropdown(open ? "until" : null)}
                         >
                           <SelectTrigger 
                             className={`w-full ${repeatChoice === "none" ? "opacity-50 cursor-not-allowed" : ""}`} 
