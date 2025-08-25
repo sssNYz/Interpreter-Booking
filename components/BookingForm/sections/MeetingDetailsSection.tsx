@@ -53,8 +53,8 @@ export function MeetingDetailsSection({
     <div className="space-y-4">
       <h3 className="text-lg font-semibold border-b pb-2">Meeting Details</h3>
 
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
-        <div className="grid gap-2 md:col-span-1 min-w-0">
+      <div className="grid grid-cols-2 gap-4">
+        <div className="grid gap-2">
           <Label htmlFor="meetingRoom">Meeting Room *</Label>
           <Input
             id="meetingRoom"
@@ -65,19 +65,19 @@ export function MeetingDetailsSection({
           />
         </div>
 
-        <div className="grid gap-2 md:col-span-1 min-w-0">
-          <Label htmlFor="meetingType">Meeting Type</Label>
+        <div className="grid gap-2">
+          <Label htmlFor="meetingType">Meeting Type *</Label>
           <Select
-            value={meetingType ?? "none"}
-            onValueChange={(v) =>
-              setMeetingType && setMeetingType(v === "none" ? null : v)
-            }
+            value={meetingType ?? undefined}
+            onValueChange={(v) => setMeetingType && setMeetingType(v)}
           >
-            <SelectTrigger id="meetingType" className="w-full">
-              <SelectValue placeholder="Select type (optional)" />
+            <SelectTrigger
+              id="meetingType"
+              className={`w-full ${errors.meetingType ? "border-red-500" : ""}`}
+            >
+              <SelectValue placeholder="Select type" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="none">No type</SelectItem>
               <SelectItem value="DR">DR</SelectItem>
               <SelectItem value="VIP">VIP</SelectItem>
               <SelectItem value="Weekly">Weekly</SelectItem>
@@ -87,9 +87,13 @@ export function MeetingDetailsSection({
             </SelectContent>
           </Select>
         </div>
+      </div>
 
-        <div className="grid gap-2 min-w-0 md:col-span-3">
-          <Label>Meeting Time *</Label>
+      <div className="grid grid-cols-2 gap-4 items-start">
+        <div className="grid gap-2">
+          <Label className="flex items-center gap-2" htmlFor="startTimeInline">
+            Meeting Time *
+          </Label>
           <TimeRangeSelector
             startTime={startTime}
             endTime={endTime}
@@ -101,8 +105,14 @@ export function MeetingDetailsSection({
             onEndChange={onEndChange}
             isStartDisabled={isStartDisabled}
             isEndDisabled={isEndDisabled}
+            showLabel={false}
           />
         </div>
+        {repeatSection && (
+          <div className="space-y-2">
+            {repeatSection}
+          </div>
+        )}
       </div>
 
       <div className="grid gap-2">
@@ -116,7 +126,7 @@ export function MeetingDetailsSection({
         />
       </div>
 
-      {repeatSection && <div className="space-y-2">{repeatSection}</div>}
+      
     </div>
   );
 }

@@ -22,6 +22,7 @@ interface TimeRangeSelectorProps {
   onEndChange: (value: string) => void;
   isStartDisabled?: (t: string) => boolean;
   isEndDisabled?: (t: string) => boolean;
+  showLabel?: boolean;
 }
 
 export function TimeRangeSelector({
@@ -35,15 +36,17 @@ export function TimeRangeSelector({
   onEndChange,
   isStartDisabled,
   isEndDisabled,
+  showLabel = true,
 }: TimeRangeSelectorProps) {
-  const hasError = Boolean(startTimeError || endTimeError);
 
   return (
-    <div className="grid gap-2 justify-center">
-      <Label className="flex items-center gap-2">
-        <Clock className="h-4 w-4" />
-        Meeting Time *
-      </Label>
+    <div className="grid gap-2 justify-start">
+      {showLabel && (
+        <Label className="flex items-center gap-2">
+          <Clock className="h-4 w-4" />
+          Meeting Time *
+        </Label>
+      )}
       <div className="flex items-center gap-4">
         <Select value={startTime} onValueChange={onStartChange}>
           <SelectTrigger className={`w-[135px] ${startTimeError ? "border-red-500" : ""}`}>
@@ -95,9 +98,7 @@ export function TimeRangeSelector({
           </SelectContent>
         </Select>
       </div>
-      {hasError && (
-        <p className="text-red-500 text-sm">{startTimeError || endTimeError}</p>
-      )}
+      {/* Keep borders via startTimeError/endTimeError but hide inline text alert */}
     </div>
   );
 }

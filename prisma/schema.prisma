@@ -12,9 +12,8 @@ model BookingPlan {
   ownerEmpCode       String        @map("OWNER_EMP_CODE") @db.VarChar(64)
   ownerGroup         OwnerGroup    @map("OWNER_GROUP")
   meetingRoom        String        @map("MEETING_ROOM") @db.VarChar(50)
-  meetingType        MeetingType?  @map("MEETING_TYPE")
+  meetingType        MeetingType   @map("MEETING_TYPE")
   meetingDetail      String?       @map("MEETING_DETAIL") @db.Text
-  highPriority       Boolean       @default(false) @map("HIGH_PRIORITY")
   timeStart          DateTime      @map("TIME_START") @db.DateTime(0)
   timeEnd            DateTime      @map("TIME_END") @db.DateTime(0)
   interpreterEmpCode String?       @map("INTERPRETER_EMP_CODE") @db.VarChar(64)
@@ -81,6 +80,7 @@ enum BookingStatus {
   approve
   cancel
   waiting
+  complet
 
   @@map("booking_status")
 }
