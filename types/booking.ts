@@ -20,7 +20,6 @@ export type BookingData = {
   ownerGroup: OwnerGroup;
   meetingRoom: string;
   meetingDetail: string;
-  highPriority: boolean;
   timeStart: string;
   timeEnd: string;
   interpreterId: string | null;

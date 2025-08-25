@@ -62,13 +62,11 @@ const validateBookingData = (
     errors.push("meetingRoom must be 50 characters or less");
   }
 
-  // Optional meeting type validation
-  if (data.meetingType !== undefined && data.meetingType !== null) {
-    if (!Object.values(MeetingType).includes(data.meetingType)) {
-      errors.push(
-        `meetingType must be one of: ${Object.values(MeetingType).join(", ")}`
-      );
-    }
+  // Required meeting type validation
+  if (!data.meetingType || !Object.values(MeetingType).includes(data.meetingType)) {
+    errors.push(
+      `meetingType is required and must be one of: ${Object.values(MeetingType).join(", ")}`
+    );
   }
 
   if (!data.timeStart || !isValidDateString(data.timeStart)) {
@@ -92,13 +90,9 @@ const validateBookingData = (
   }
 
   if (
-    data.highPriority !== undefined &&
-    typeof data.highPriority !== "boolean"
+    data.force !== undefined &&
+    typeof data.force !== "boolean"
   ) {
-    errors.push("highPriority must be a boolean");
-  }
-
-  if (data.force !== undefined && typeof data.force !== "boolean") {
     errors.push("force must be a boolean");
   }
 
@@ -281,11 +275,12 @@ const generateOccurrences = (
     recurrenceWeekdays?: string | null; // csv
     recurrenceMonthday?: number | null;
     recurrenceWeekOrder?: WeekOrder | null;
+    skipWeekends?: boolean | null;
   }
 ): Occurrence[] => {
   const occurrences: Occurrence[] = [];
   const startDate = toDate(baseStart);
-  const endDate = toDate(baseEnd);
+  // const endDate = toDate(baseEnd);
   // const durationMs = endDate.getTime() - startDate.getTime();
 
   // Determine limit
@@ -298,16 +293,20 @@ const generateOccurrences = (
     remainingChildren = Math.max(0, settings.recurrenceEndOccurrences - 1); // exclude parent
   }
 
-  const untilDate: Date | null =
+   // Treat end date as an inclusive "Until" day (compare date-only)
+  const untilYmd: string | null =
     settings.recurrenceEndType === "on_date" && settings.recurrenceEndDate
-      ? toDate(settings.recurrenceEndDate)
+      ? String(settings.recurrenceEndDate).split(" ")[0]
       : null;
 
   const interval = Math.max(1, settings.recurrenceInterval || 1);
 
   const pushIfWithin = (candidateStart: Date) => {
     if (occurrences.length >= maxTotal) return false;
-    if (untilDate && candidateStart > untilDate) return false;
+    if (untilYmd) {
+      const candidateYmd = formatYmd(candidateStart);
+      if (candidateYmd > untilYmd) return false;
+    }
     if (
       remainingChildren !== Infinity &&
       occurrences.length >= remainingChildren
@@ -324,9 +323,30 @@ const generateOccurrences = (
 
   const type = settings.recurrenceType || "weekly";
   if (type === "daily") {
-    for (let i = 1; i < maxTotal; i++) {
-      const candidate = addDays(startDate, i * interval);
-      if (!pushIfWithin(candidate)) break;
+    if (settings.recurrenceEndType === "after_occurrences") {
+      // Iterate day by day and only count/push Mon–Fri until desired occurrences reached
+      let dayOffset = 1;
+      let eligibleWorkdayCount = 0;
+      while (occurrences.length < maxTotal) {
+        const candidate = addDays(startDate, dayOffset);
+        dayOffset += 1;
+        const weekday = candidate.getDay(); // 0=Sun, 6=Sat
+        const isWeekend = weekday === 0 || weekday === 6;
+        if (isWeekend) continue;
+        eligibleWorkdayCount += 1;
+        // Respect interval by only pushing every Nth workday
+        if (eligibleWorkdayCount % interval !== 0) continue;
+        if (!pushIfWithin(candidate)) break;
+      }
+    } else {
+      for (let i = 1; i < maxTotal; i++) {
+        const candidate = addDays(startDate, i * interval);
+        if (settings.skipWeekends) {
+          const wd = candidate.getDay();
+          if (wd === 0 || wd === 6) continue;
+        }
+        if (!pushIfWithin(candidate)) break;
+      }
     }
   } else if (type === "weekly" || type === "biweekly" || type === "custom") {
     const actualInterval = type === "biweekly" ? 2 : interval;
@@ -353,6 +373,9 @@ const generateOccurrences = (
       }
       for (const wd of weekdays) {
         const candidate = addDays(weekStart, wd);
+        if (settings.skipWeekends && (wd === 0 || wd === 6)) {
+          continue;
+        }
         // skip the original date itself; only children
         if (candidate.getTime() === startDate.getTime()) continue;
         if (!pushIfWithin(candidate)) {
@@ -380,11 +403,21 @@ const generateOccurrences = (
           settings.recurrenceWeekOrder
         );
       } else {
-        candidate = new Date(
-          base.getFullYear(),
-          base.getMonth(),
-          Math.min(monthday, 28)
-        );
+        const yr = base.getFullYear();
+        const mo = base.getMonth();
+        const lastDay = new Date(yr, mo + 1, 0).getDate();
+        if (monthday > lastDay) {
+          // target day (e.g., 29/30/31) does not exist this month; skip
+          continue;
+        }
+        candidate = new Date(yr, mo, monthday);
+      }
+      if (settings.skipWeekends) {
+        const wd = candidate.getDay();
+        if (wd === 0 || wd === 6) {
+          // skip weekend occurrences when requested
+          continue;
+        }
       }
       if (!pushIfWithin(candidate)) break;
     }
@@ -500,15 +533,13 @@ export async function POST(request: NextRequest) {
           // 3) Insert parent booking (capacity still enforced by the global lock + check)
           await tx.$executeRaw`
 					INSERT INTO BOOKING_PLAN (
-						\`OWNER_EMP_CODE\`, \`OWNER_GROUP\`, \`MEETING_ROOM\`, \`MEETING_TYPE\`, \`MEETING_DETAIL\`, \`HIGH_PRIORITY\`, \`TIME_START\`, \`TIME_END\`, \`INTERPRETER_EMP_CODE\`, \`BOOKING_STATUS\`,
+						\`OWNER_EMP_CODE\`, \`OWNER_GROUP\`, \`MEETING_ROOM\`, \`MEETING_TYPE\`, \`MEETING_DETAIL\`, \`TIME_START\`, \`TIME_END\`, \`INTERPRETER_EMP_CODE\`, \`BOOKING_STATUS\`,
 						\`IS_RECURRING\`, \`RECURRENCE_TYPE\`, \`RECURRENCE_INTERVAL\`, \`RECURRENCE_END_TYPE\`, \`RECURRENCE_END_DATE\`, \`RECURRENCE_END_OCCURRENCES\`, \`RECURRENCE_WEEKDAYS\`, \`RECURRENCE_MONTHDAY\`, \`RECURRENCE_WEEK_ORDER\`,
 						\`created_at\`, \`updated_at\`
 					) VALUES (
 						${body.ownerEmpCode.trim()}, ${body.ownerGroup}, ${body.meetingRoom.trim()}, ${
             body.meetingType ?? null
-          }, ${body.meetingDetail ?? null}, ${
-            body.highPriority ? 1 : 0
-          }, ${timeStart}, ${timeEnd}, ${body.interpreterEmpCode ?? null}, ${
+          }, ${body.meetingDetail ?? null}, ${timeStart}, ${timeEnd}, ${body.interpreterEmpCode ?? null}, ${
             body.bookingStatus || BookingStatus.waiting
           },
 						${body.isRecurring ? 1 : 0}, ${body.recurrenceType ?? null}, ${
@@ -562,6 +593,7 @@ export async function POST(request: NextRequest) {
               recurrenceWeekdays: body.recurrenceWeekdays ?? null,
               recurrenceMonthday: body.recurrenceMonthday ?? null,
               recurrenceWeekOrder: body.recurrenceWeekOrder ?? null,
+              skipWeekends: body.skipWeekends ?? null,
             });
             for (const o of occ) {
               // capacity check per child
@@ -586,11 +618,11 @@ export async function POST(request: NextRequest) {
 
               await tx.$executeRaw`
 							INSERT INTO BOOKING_PLAN (
-								\`OWNER_EMP_CODE\`, \`OWNER_GROUP\`, \`MEETING_ROOM\`, \`MEETING_TYPE\`, \`MEETING_DETAIL\`, \`HIGH_PRIORITY\`, \`TIME_START\`, \`TIME_END\`, \`INTERPRETER_EMP_CODE\`, \`BOOKING_STATUS\`, \`PARENT_BOOKING_ID\`, \`created_at\`, \`updated_at\`
+								\`OWNER_EMP_CODE\`, \`OWNER_GROUP\`, \`MEETING_ROOM\`, \`MEETING_TYPE\`, \`MEETING_DETAIL\`, \`TIME_START\`, \`TIME_END\`, \`INTERPRETER_EMP_CODE\`, \`BOOKING_STATUS\`, \`PARENT_BOOKING_ID\`, \`created_at\`, \`updated_at\`
 							) VALUES (
 								${body.ownerEmpCode.trim()}, ${body.ownerGroup}, ${body.meetingRoom.trim()}, ${
                 body.meetingType ?? null
-              }, ${body.meetingDetail ?? null}, ${body.highPriority ? 1 : 0}, ${
+              }, ${body.meetingDetail ?? null}, ${
                 o.timeStart
               }, ${o.timeEnd}, ${body.interpreterEmpCode ?? null}, ${
                 body.bookingStatus || BookingStatus.waiting

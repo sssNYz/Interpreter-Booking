@@ -6,17 +6,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
-import { BadgeInfo } from "lucide-react";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 
 interface AdditionalOptionsSectionProps {
-  highPriority: boolean;
-  setHighPriority: (value: boolean) => void;
   interpreterId: string;
   setInterpreterId: (value: string) => void;
   interpreters: Array<{
@@ -27,8 +18,6 @@ interface AdditionalOptionsSectionProps {
 }
 
 export function AdditionalOptionsSection({
-  highPriority,
-  setHighPriority,
   interpreterId,
   setInterpreterId,
   interpreters,
@@ -38,28 +27,6 @@ export function AdditionalOptionsSection({
       <h3 className="text-lg font-semibold border-b pb-2">
         Additional Options
       </h3>
-
-      <div className="flex items-center space-x-2">
-        <Switch
-          id="highPriority"
-          checked={highPriority}
-          onCheckedChange={(checked) => setHighPriority(checked === true)}
-        />
-        <Label
-          htmlFor="highPriority"
-          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-        >
-          High Priority Meeting
-          <Tooltip>
-            <TooltipTrigger>
-              <BadgeInfo className="h-4 w-4" />
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>Read Define</p>
-            </TooltipContent>
-          </Tooltip>
-        </Label>
-      </div>
 
       {interpreters.length > 0 && (
         <div className="grid gap-2">
