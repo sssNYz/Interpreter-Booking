@@ -73,6 +73,7 @@ export function BookingForm({
     "dr_type" | "meeting_type" | null
   >(null);
   const [meetingDetail, setMeetingDetail] = useState<string>("");
+  const [applicableModel, setApplicableModel] = useState<string>("");
   const [interpreterId, setInterpreterId] = useState<string>("");
   const [inviteEmails, setInviteEmails] = useState<string[]>([]);
   const [newEmail, setNewEmail] = useState<string>("");
@@ -143,6 +144,7 @@ export function BookingForm({
       setOwnerGroup("software");
       setMeetingRoom("");
       setMeetingDetail("");
+      setApplicableModel("");
       setMeetingType(null);
       setDrType(null);
       setOtherType("");
@@ -848,6 +850,7 @@ export function BookingForm({
         meetingRoom: meetingRoom.trim(),
         meetingType: meetingType as MeetingType,
         meetingDetail: meetingDetail.trim() || undefined,
+        applicableModel: applicableModel.trim() || undefined,
         timeStart: startDateTime,
         timeEnd: endDateTime,
         bookingStatus: "waiting",
@@ -1140,6 +1143,8 @@ export function BookingForm({
                 setOtherType={(v) => handleOtherTypeChange(v)}
                 meetingDetail={meetingDetail}
                 setMeetingDetail={(v) => setMeetingDetail(v)}
+                applicableModel={applicableModel}
+                setApplicableModel={(v) => setApplicableModel(v)}
                 startTime={startTime}
                 endTime={endTime}
                 slotsTime={slotsTime}

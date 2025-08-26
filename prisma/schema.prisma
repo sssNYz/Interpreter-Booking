@@ -14,6 +14,7 @@ model BookingPlan {
   meetingRoom        String        @map("MEETING_ROOM") @db.VarChar(50)
   meetingType        MeetingType   @map("MEETING_TYPE")
   meetingDetail      String?       @map("MEETING_DETAIL") @db.Text
+  applicableModel    String?       @map("APPLICABLE_MODEL") @db.VarChar(255)
   timeStart          DateTime      @map("TIME_START") @db.DateTime(0)
   timeEnd            DateTime      @map("TIME_END") @db.DateTime(0)
   interpreterEmpCode String?       @map("INTERPRETER_EMP_CODE") @db.VarChar(64)
