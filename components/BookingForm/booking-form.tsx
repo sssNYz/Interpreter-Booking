@@ -20,7 +20,7 @@ import {
   isValidTimeRange,
 } from "@/utils/time";
 import { Calendar, Clock } from "lucide-react";
-import type { MeetingType } from "@/prisma/prisma";
+import type { MeetingType, DRType } from "@/prisma/prisma";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { toast } from "sonner";
 import type { OwnerGroup } from "@/types/booking";
@@ -46,7 +46,7 @@ import {
 } from "@/components/ui/dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Toggle } from "@/components/ui/toggle";
-import { } from "@/components/ui/popover";
+import {} from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 export function BookingForm({
@@ -67,6 +67,11 @@ export function BookingForm({
   const [ownerGroup, setOwnerGroup] = useState<OwnerGroup>("software");
   const [meetingRoom, setMeetingRoom] = useState<string>("");
   const [meetingType, setMeetingType] = useState<string | null>(null);
+  const [drType, setDrType] = useState<DRType | null>(null);
+  const [otherType, setOtherType] = useState<string>("");
+  const [otherTypeScope, setOtherTypeScope] = useState<
+    "dr_type" | "meeting_type" | null
+  >(null);
   const [meetingDetail, setMeetingDetail] = useState<string>("");
   const [interpreterId, setInterpreterId] = useState<string>("");
   const [inviteEmails, setInviteEmails] = useState<string[]>([]);
@@ -107,12 +112,11 @@ export function BookingForm({
     useState<WeekOrderUi | null>(null);
   const [customOpen, setCustomOpen] = useState<boolean>(false);
   const [monthlyMode, setMonthlyMode] = useState<MonthlyMode>("by_day");
-  
 
   // Loading and error states
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  
+
   // Dropdown state management - only one dropdown can be open at a time
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
 
@@ -140,6 +144,9 @@ export function BookingForm({
       setMeetingRoom("");
       setMeetingDetail("");
       setMeetingType(null);
+      setDrType(null);
+      setOtherType("");
+      setOtherTypeScope(null);
       setInterpreterId("");
       setInviteEmails([]);
       setNewEmail("");
@@ -180,6 +187,22 @@ export function BookingForm({
   const slotsTime = useMemo(() => generateStandardTimeSlots(), []);
 
   // timeToMinutes unified from utils/time
+  // after setMeetingType is declared:
+  const handleMeetingTypeChange = (v: string | null) => {
+    setMeetingType(v);
+    // Clear dependent fields first
+    setDrType(null);
+    setOtherType("");
+    setOtherTypeScope(null);
+
+    if (v === "DR") {
+      // user will choose drType; if they later pick "Other", scope becomes "dr_type"
+      // leave scope null for now
+    } else if (v === "Other") {
+      // Other meetings always require otherType, with meeting scope
+      setOtherTypeScope("meeting_type");
+    }
+  };
 
   // Get available end times based on selected start time
   const availableEndTimes = useMemo(() => {
@@ -201,7 +224,8 @@ export function BookingForm({
 
   // Phase 5: summary helpers
   const formatOrdinalDay = (n: number) => {
-    const s = ["th", "st", "nd", "rd"]; const v = n % 100;
+    const s = ["th", "st", "nd", "rd"];
+    const v = n % 100;
     return `${n}${s[(v - 20) % 10] || s[v] || s[0]}`;
   };
   const formatShortDateFromYmd = (ymd: string) => {
@@ -210,12 +234,23 @@ export function BookingForm({
     return dt.toLocaleDateString("en-US", { day: "numeric", month: "short" });
   };
   const weekdayCodeToShort = (code: string) => {
-    const map: Record<string, string> = { sun: "Sun", mon: "Mon", tue: "Tue", wed: "Wed", thu: "Thu", fri: "Fri", sat: "Sat" };
+    const map: Record<string, string> = {
+      sun: "Sun",
+      mon: "Mon",
+      tue: "Tue",
+      wed: "Wed",
+      thu: "Thu",
+      fri: "Fri",
+      sat: "Sat",
+    };
     return map[code] || code;
   };
   const formatWeekdayCsv = useMemo(() => {
     return (csv: string | null | undefined) => {
-      const list = (csv || "").split(",").filter(Boolean).map((c) => weekdayCodeToShort(c.trim()));
+      const list = (csv || "")
+        .split(",")
+        .filter(Boolean)
+        .map((c) => weekdayCodeToShort(c.trim()));
       return list.join(", ");
     };
   }, []);
@@ -223,27 +258,56 @@ export function BookingForm({
   const repeatSummary = useMemo(() => {
     if (repeatChoice === "none") return "";
     const type = (recurrenceType || repeatChoice) as RecurrenceTypeUi;
-    const interval = Math.max(1, recurrenceInterval ?? (repeatChoice === "biweekly" ? 2 : 1));
+    const interval = Math.max(
+      1,
+      recurrenceInterval ?? (repeatChoice === "biweekly" ? 2 : 1)
+    );
     let base = "Repeat ";
 
     if (type === "daily") {
       base += interval > 1 ? `every ${interval} days` : "daily";
     } else if (type === "weekly" || type === "biweekly" || type === "custom") {
       const fallbackWdCode = dayObj?.fullDate
-        ? ["sun","mon","tue","wed","thu","fri","sat"][dayObj.fullDate.getDay()]
+        ? ["sun", "mon", "tue", "wed", "thu", "fri", "sat"][
+            dayObj.fullDate.getDay()
+          ]
         : "mon";
-      const weekdaysText = formatWeekdayCsv(recurrenceWeekdays) || weekdayCodeToShort(fallbackWdCode);
-      const weeksLabel = type === "biweekly" ? "every 2 weeks" : interval > 1 ? `every ${interval} weeks` : "weekly";
+      const weekdaysText =
+        formatWeekdayCsv(recurrenceWeekdays) ||
+        weekdayCodeToShort(fallbackWdCode);
+      const weeksLabel =
+        type === "biweekly"
+          ? "every 2 weeks"
+          : interval > 1
+          ? `every ${interval} weeks`
+          : "weekly";
       base += `${weeksLabel} on ${weekdaysText}`;
     } else if (type === "monthly") {
       const hasNth = Boolean(recurrenceWeekOrder && recurrenceWeekdays);
-      if (hasNth && recurrenceWeekOrder && recurrenceWeekdays && monthlyMode === "by_nth") {
-        const ordLabel = recurrenceWeekOrder.charAt(0).toUpperCase() + recurrenceWeekOrder.slice(1);
-        const dayLabel = weekdayCodeToShort((recurrenceWeekdays || "").split(",")[0] || "");
-        base += interval > 1 ? `every ${interval} months on ${ordLabel} ${dayLabel}` : `monthly on ${ordLabel} ${dayLabel}`;
+      if (
+        hasNth &&
+        recurrenceWeekOrder &&
+        recurrenceWeekdays &&
+        monthlyMode === "by_nth"
+      ) {
+        const ordLabel =
+          recurrenceWeekOrder.charAt(0).toUpperCase() +
+          recurrenceWeekOrder.slice(1);
+        const dayLabel = weekdayCodeToShort(
+          (recurrenceWeekdays || "").split(",")[0] || ""
+        );
+        base +=
+          interval > 1
+            ? `every ${interval} months on ${ordLabel} ${dayLabel}`
+            : `monthly on ${ordLabel} ${dayLabel}`;
       } else if (monthlyMode === "by_day") {
-        const md = recurrenceMonthday ?? (selectedSlot?.day || dayObj?.fullDate.getDate() || 1);
-        base += interval > 1 ? `every ${interval} months on day ${md}` : `monthly on day ${md}`;
+        const md =
+          recurrenceMonthday ??
+          (selectedSlot?.day || dayObj?.fullDate.getDate() || 1);
+        base +=
+          interval > 1
+            ? `every ${interval} months on day ${md}`
+            : `monthly on day ${md}`;
       }
     }
 
@@ -260,7 +324,21 @@ export function BookingForm({
       return `${base} until ${formatShortDateFromYmd(ymd)}`;
     }
     return base;
-  }, [repeatChoice, recurrenceType, recurrenceInterval, recurrenceWeekdays, recurrenceMonthday, recurrenceWeekOrder, recurrenceEndType, recurrenceEndDate, recurrenceEndOccurrences, selectedSlot?.day, dayObj?.fullDate, formatWeekdayCsv, monthlyMode]);
+  }, [
+    repeatChoice,
+    recurrenceType,
+    recurrenceInterval,
+    recurrenceWeekdays,
+    recurrenceMonthday,
+    recurrenceWeekOrder,
+    recurrenceEndType,
+    recurrenceEndDate,
+    recurrenceEndOccurrences,
+    selectedSlot?.day,
+    dayObj?.fullDate,
+    formatWeekdayCsv,
+    monthlyMode,
+  ]);
 
   // Phase 4: weekend preview helpers
   const isWeekend = (d: Date) => {
@@ -271,10 +349,17 @@ export function BookingForm({
     const only = ymd.split(" ")[0];
     return new Date(`${only}T00:00:00`);
   };
-  const addDaysLocal = (d: Date, n: number) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+  const addDaysLocal = (d: Date, n: number) =>
+    new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
   const addWeeksLocal = (d: Date, n: number) => addDaysLocal(d, n * 7);
-  const addMonthsLocal = (d: Date, n: number) => new Date(d.getFullYear(), d.getMonth() + n, d.getDate());
-  const nthWeekdayOfMonth = (year: number, monthIndex: number, weekday: number, order: WeekOrderUi): Date => {
+  const addMonthsLocal = (d: Date, n: number) =>
+    new Date(d.getFullYear(), d.getMonth() + n, d.getDate());
+  const nthWeekdayOfMonth = (
+    year: number,
+    monthIndex: number,
+    weekday: number,
+    order: WeekOrderUi
+  ): Date => {
     const firstOfMonth = new Date(year, monthIndex, 1);
     const firstWeekdayIndex = firstOfMonth.getDay();
     let dayOfMonth = 1 + ((7 + weekday - firstWeekdayIndex) % 7);
@@ -298,10 +383,20 @@ export function BookingForm({
   const previewRecurringDates = (): Date[] => {
     if (!dayObj || repeatChoice === "none") return [];
     const type = (recurrenceType || repeatChoice) as RecurrenceTypeUi;
-    const interval = Math.max(1, recurrenceInterval ?? (repeatChoice === "biweekly" ? 2 : 1));
+    const interval = Math.max(
+      1,
+      recurrenceInterval ?? (repeatChoice === "biweekly" ? 2 : 1)
+    );
     const maxTotal = 52;
-    const until = recurrenceEndType === "on_date" && recurrenceEndDate ? parseYmd(recurrenceEndDate) : null;
-    const start = new Date(dayObj.fullDate.getFullYear(), dayObj.fullDate.getMonth(), dayObj.fullDate.getDate());
+    const until =
+      recurrenceEndType === "on_date" && recurrenceEndDate
+        ? parseYmd(recurrenceEndDate)
+        : null;
+    const start = new Date(
+      dayObj.fullDate.getFullYear(),
+      dayObj.fullDate.getMonth(),
+      dayObj.fullDate.getDate()
+    );
     const dates: Date[] = [];
     const pushIf = (d: Date) => {
       if (dates.length >= maxTotal) return false;
@@ -320,10 +415,18 @@ export function BookingForm({
       const weekdays = csv
         ? csv
             .split(",")
-            .map((d) => ["sun","mon","tue","wed","thu","fri","sat"].indexOf(d.trim()))
+            .map((d) =>
+              ["sun", "mon", "tue", "wed", "thu", "fri", "sat"].indexOf(
+                d.trim()
+              )
+            )
             .filter((n) => n >= 0)
         : [start.getDay()];
-      let weekStart = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+      let weekStart = new Date(
+        start.getFullYear(),
+        start.getMonth(),
+        start.getDate()
+      );
       weekStart = addDaysLocal(weekStart, -weekStart.getDay());
       for (let w = 0; w < maxTotal; w++) {
         if (w >= 1) weekStart = addWeeksLocal(weekStart, actualInterval);
@@ -336,13 +439,22 @@ export function BookingForm({
     } else if (type === "monthly") {
       const csv = (recurrenceWeekdays || "").trim();
       const hasNth = Boolean(recurrenceWeekOrder && csv);
-      const weekdayIndex = csv ? ["sun","mon","tue","wed","thu","fri","sat"].indexOf(csv.split(",")[0].trim()) : start.getDay();
+      const weekdayIndex = csv
+        ? ["sun", "mon", "tue", "wed", "thu", "fri", "sat"].indexOf(
+            csv.split(",")[0].trim()
+          )
+        : start.getDay();
       const monthday = recurrenceMonthday ?? start.getDate();
       for (let m = 1; m < maxTotal; m++) {
         const base = addMonthsLocal(start, m * interval);
         let cand: Date | null = null;
         if (hasNth && recurrenceWeekOrder) {
-          cand = nthWeekdayOfMonth(base.getFullYear(), base.getMonth(), weekdayIndex, recurrenceWeekOrder);
+          cand = nthWeekdayOfMonth(
+            base.getFullYear(),
+            base.getMonth(),
+            weekdayIndex,
+            recurrenceWeekOrder
+          );
         } else {
           const yr = base.getFullYear();
           const mo = base.getMonth();
@@ -449,6 +561,91 @@ export function BookingForm({
   };
 
   // Email management functions
+  // --- Helpers (regex) ---
+  const DOT_ATOM_LOCAL = /^[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+(\.[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+)*$/;
+  const DOMAIN_LABEL = /^(?!-)[A-Za-z0-9-]{1,63}(?<!-)$/;
+  const TLD_RX = /^[A-Za-z]{2,63}$/;
+
+  // --- Core validation with reasons ---
+  type EmailCheck = { email: string; valid: boolean; reasons: string[] };
+
+  const validateEmailReasoned = (email: string): EmailCheck => {
+    const reasons: string[] = [];
+    const e = email.trim();
+
+    if (!e) {
+      reasons.push("empty");
+      return { email: e, valid: false, reasons };
+    }
+
+    const atCount = (e.match(/@/g) || []).length;
+    if (atCount !== 1) {
+      reasons.push("must contain exactly one @");
+      return { email: e, valid: false, reasons };
+    }
+
+    const [rawLocal, rawDomain] = e.split("@");
+    if (!rawLocal) reasons.push("missing local part");
+    if (!rawDomain) reasons.push("missing domain part");
+
+    if (e.length > 254) reasons.push("address too long (>254)");
+
+    // Local checks
+    if (rawLocal) {
+      if (rawLocal.length > 64) reasons.push("local part too long (>64)");
+      if (rawLocal.startsWith(".") || rawLocal.endsWith(".")) {
+        reasons.push("local part starts/ends with dot");
+      }
+      if (rawLocal.includes("..")) reasons.push("local part has consecutive dots");
+      if (!DOT_ATOM_LOCAL.test(rawLocal)) {
+        reasons.push("invalid characters in local part (dot-atom only)");
+      }
+    }
+
+    // Domain checks
+    if (rawDomain) {
+      const domain = rawDomain.endsWith(".") ? rawDomain.slice(0, -1) : rawDomain;
+      if (!domain) {
+        reasons.push("empty domain");
+      } else {
+        if (domain.length > 253) reasons.push("domain too long (>253)");
+        const labels = domain.split(".");
+        if (labels.some((l) => l.length === 0)) reasons.push("empty domain label");
+        if (labels.some((l) => !DOMAIN_LABEL.test(l))) reasons.push("bad domain label");
+        const tld = labels[labels.length - 1];
+        if (!TLD_RX.test(tld)) reasons.push("bad TLD (letters only, length ≥ 2)");
+      }
+    }
+
+    return { email: e, valid: reasons.length === 0, reasons };
+  };
+
+  const splitAndValidateEmails = (raw: string): { valid: string[]; invalid: EmailCheck[] } => {
+    const tokens = raw
+      .split(/[\,\s]+/)
+      .map((t) => t.trim())
+      .filter(Boolean);
+
+    // dedupe (case-insensitive on domain)
+    const seen = new Set<string>();
+    const uniq = tokens.filter((e) => {
+      const [l, d] = e.split("@");
+      const key = d ? `${l}@${d.toLowerCase()}` : e.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+    const valid: string[] = [];
+    const invalid: EmailCheck[] = [];
+
+    for (const e of uniq) {
+      const check = validateEmailReasoned(e);
+      if (check.valid) valid.push(check.email);
+      else invalid.push(check);
+    }
+    return { valid, invalid };
+  };
   const addInviteEmail = () => {
     if (
       newEmail &&
@@ -465,7 +662,39 @@ export function BookingForm({
   };
 
   const isValidEmail = (email: string): boolean => {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    return validateEmailReasoned(email).valid;
+  };
+
+  const addMultipleEmails = (emails: string[]) => {
+    const raw = emails.join(" ");
+    const { valid, invalid } = splitAndValidateEmails(raw);
+    const toAdd = valid.filter((e) => !inviteEmails.includes(e));
+    const duplicates = valid.filter((e) => inviteEmails.includes(e));
+
+    if (toAdd.length > 0) {
+      setInviteEmails([...inviteEmails, ...toAdd]);
+    }
+
+    return {
+      added: toAdd,
+      invalid,
+      duplicates,
+    } as const;
+  };
+
+  const handleDrTypeChange = (v: DRType | null) => {
+    setDrType(v);
+    if (v === "Other") {
+      setOtherTypeScope("dr_type");
+    } else {
+      setOtherType("");
+      setOtherTypeScope(null);
+    }
+  };
+
+  const handleOtherTypeChange = (v: string) => {
+    setOtherType(v);
+    // Scope is already set by meeting/DR logic, no need to touch here
   };
 
   // Form validation
@@ -474,6 +703,38 @@ export function BookingForm({
 
     if (!meetingRoom.trim()) newErrors.meetingRoom = "Meeting room is required";
     if (!meetingType) newErrors.meetingType = "Meeting type is required";
+    // --- after existing meetingType/start/end validations ---
+    if (meetingType === "DR") {
+      if (!drType) newErrors.drType = "DR type is required";
+      if (drType === "Other") {
+        if (!otherType.trim())
+          newErrors.otherType = "Please specify the other DR type";
+        if (otherTypeScope !== "dr_type")
+          newErrors.otherType = "Internal error: scope must be 'dr_type'";
+      } else {
+        if (otherType.trim())
+          newErrors.otherType =
+            "Do not fill 'Other type' unless DR type is 'Other'";
+        if (otherTypeScope)
+          newErrors.otherType =
+            "Internal error: scope must be empty unless DR type is 'Other'";
+      }
+    } else if (meetingType === "Other") {
+      if (!otherType.trim())
+        newErrors.otherType = "Please specify the other meeting type";
+      if (otherTypeScope !== "meeting_type")
+        newErrors.otherType = "Internal error: scope must be 'meeting_type'";
+      if (drType)
+        newErrors.drType = "Do not select DR type for 'Other' meeting";
+    } else {
+      if (drType)
+        newErrors.drType = `DR type is not allowed for ${meetingType}`;
+      if (otherType.trim())
+        newErrors.otherType = `Other type is not allowed for ${meetingType}`;
+      if (otherTypeScope)
+        newErrors.otherType = `Other type scope is not allowed for ${meetingType}`;
+    }
+
     if (!startTime) newErrors.startTime = "Start time is required";
     if (!endTime) newErrors.endTime = "End time is required";
     if (startTime && !isValidStartTime(startTime))
@@ -512,14 +773,19 @@ export function BookingForm({
       const preview = previewRecurringDates();
       const hasWeekend = preview.some((d) => isWeekend(d));
       if (hasWeekend) {
-        const choice = await new Promise<"skip"|"cancel">((resolve) => {
+        const choice = await new Promise<"skip" | "cancel">((resolve) => {
           toast.custom(
             (t) => (
               <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm w-[420px]">
                 <Alert className="border-none p-0">
                   <AlertTitle className="text-gray-900">
-                    <span className="text-amber-600 font-semibold">Weekend included</span>
-                    <span className="ml-1"> Some occurrences fall on Sat/Sun.</span>
+                    <span className="text-amber-600 font-semibold">
+                      Weekend included
+                    </span>
+                    <span className="ml-1">
+                      {" "}
+                      Some occurrences fall on Sat/Sun.
+                    </span>
                   </AlertTitle>
                   <AlertDescription className="text-gray-700">
                     Choose an option.
@@ -527,13 +793,19 @@ export function BookingForm({
                 </Alert>
                 <div className="flex justify-end gap-2 mt-4">
                   <button
-                    onClick={() => { toast.dismiss(t); resolve("cancel"); }}
+                    onClick={() => {
+                      toast.dismiss(t);
+                      resolve("cancel");
+                    }}
                     className="bg-gray-200 text-gray-900 px-3 py-1 rounded text-xs"
                   >
                     Cancel All
                   </button>
                   <button
-                    onClick={() => { toast.dismiss(t); resolve("skip"); }}
+                    onClick={() => {
+                      toast.dismiss(t);
+                      resolve("skip");
+                    }}
                     className="bg-blue-600 text-white px-3 py-1 rounded text-xs"
                   >
                     Cancel weekend
@@ -570,7 +842,7 @@ export function BookingForm({
         return;
       }
 
-      const bookingData = {
+      const bookingDataBase = {
         ownerEmpCode: empCode,
         ownerGroup,
         meetingRoom: meetingRoom.trim(),
@@ -578,9 +850,40 @@ export function BookingForm({
         meetingDetail: meetingDetail.trim() || undefined,
         timeStart: startDateTime,
         timeEnd: endDateTime,
-        bookingStatus: "waiting", // Default to waiting
+        bookingStatus: "waiting",
         inviteEmails: inviteEmails.length > 0 ? inviteEmails : undefined,
-      };
+      } as const;
+
+      // NEW — add the 3 fields in a way that matches server rules
+      const typeExtras: Record<string, unknown> = {};
+      if (meetingType === "DR") {
+        // Map Prisma enum values to database enum values for raw SQL
+        const drTypeMap: Record<DRType, string> = {
+          'PR_PR': 'PR-PR',
+          'DR_k': 'DR-k', 
+          'DR_II': 'DR-II',
+          'DR_I': 'DR-I',
+          'Other': 'Other'
+        };
+        typeExtras.drType = drType ? drTypeMap[drType] : null;
+        if (drType === "Other") {
+          typeExtras.otherType = otherType.trim();
+          typeExtras.otherTypeScope = "dr_type";
+        } else {
+          typeExtras.otherType = null;
+          typeExtras.otherTypeScope = null;
+        }
+      } else if (meetingType === "Other") {
+        typeExtras.drType = null;
+        typeExtras.otherType = otherType.trim();
+        typeExtras.otherTypeScope = "meeting_type";
+      } else {
+        typeExtras.drType = null;
+        typeExtras.otherType = null;
+        typeExtras.otherTypeScope = null;
+      }
+
+      const bookingData = { ...bookingDataBase, ...typeExtras };
 
       // Merge recurrence into payload
       let recurrencePayload: Record<string, unknown> = {};
@@ -803,10 +1106,14 @@ export function BookingForm({
           </SheetDescription>
         </SheetHeader>
         <ScrollArea className="size-full overflow-hidden">
-          <form className="space-y-8 p-6" role="form" aria-label="Interpreter booking form">
+          <form
+            className="space-y-8 p-6"
+            role="form"
+            aria-label="Interpreter booking form"
+          >
             <fieldset className="space-y-6">
               <legend className="sr-only">Personal Information</legend>
-          
+
               <PersonalInfoSection
                 ownerName={ownerName}
                 ownerSurname={ownerSurname}
@@ -826,7 +1133,11 @@ export function BookingForm({
                 meetingRoom={meetingRoom}
                 setMeetingRoom={(v) => setMeetingRoom(v)}
                 meetingType={meetingType}
-                setMeetingType={(v) => setMeetingType(v)}
+                setMeetingType={(v) => handleMeetingTypeChange(v)}
+                drType={drType}
+                setDrType={(v: DRType | null) => handleDrTypeChange(v)}
+                otherType={otherType}
+                setOtherType={(v) => handleOtherTypeChange(v)}
                 meetingDetail={meetingDetail}
                 setMeetingDetail={(v) => setMeetingDetail(v)}
                 startTime={startTime}
@@ -840,67 +1151,15 @@ export function BookingForm({
                 isEndDisabled={isEndDisabled}
                 openDropdown={openDropdown}
                 setOpenDropdown={setOpenDropdown}
+                repeatChoice={repeatChoice}
+                handleRepeatChange={handleRepeatChange}
+                recurrenceEndType={recurrenceEndType}
+                setRecurrenceEndType={setRecurrenceEndType}
+                dayObj={dayObj}
+                selectedSlot={selectedSlot}
                 repeatSection={
                   <div className="space-y-4">
-                    {/* First row: Repeat Schedule and Until */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium text-foreground" htmlFor="repeatSelect">
-                          Repeat Schedule
-                        </label>
-                        <Select
-                          value={repeatChoice}
-                          onValueChange={(v: "none" | RecurrenceTypeUi) =>
-                            handleRepeatChange(v)
-                          }
-                          open={openDropdown === "repeatSchedule"}
-                          onOpenChange={(open) => setOpenDropdown(open ? "repeatSchedule" : null)}
-                        >
-                          <SelectTrigger id="repeatSelect" className="w-full">
-                            <SelectValue placeholder="No repeat" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="none">No repeat</SelectItem>
-                            <SelectItem value="daily">Daily</SelectItem>
-                            <SelectItem value="weekly">
-                              Weekly on {dayObj?.dayName || "day"}
-                            </SelectItem>
-                            <SelectItem value="biweekly">
-                              2 Weekly on {dayObj?.dayName || "day"}
-                            </SelectItem>
-                            <SelectItem value="monthly">
-                              Monthly on day{" "}
-                              {selectedSlot?.day || dayObj?.fullDate.getDate() || 1}
-                            </SelectItem>
-                            <SelectItem value="custom">Custom…</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium text-foreground">
-                          Until...
-                        </label>
-                        <Select
-                          value={repeatChoice !== "none" ? (recurrenceEndType === "never" ? "on_date" : recurrenceEndType) : ""}
-                          onValueChange={(v) => setRecurrenceEndType(v as EndTypeUi)}
-                          disabled={repeatChoice === "none"}
-                          open={openDropdown === "until"}
-                          onOpenChange={(open) => setOpenDropdown(open ? "until" : null)}
-                        >
-                          <SelectTrigger 
-                            className={`w-full ${repeatChoice === "none" ? "opacity-50 cursor-not-allowed" : ""}`} 
-                            aria-label="Select how recurrence should end"
-                          >
-                            <SelectValue placeholder="Repeat Option" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="on_date">On date</SelectItem>
-                            <SelectItem value="after_occurrences">After occurrences</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
+                    {/* Additional repeat options (date/occurrences) */}
 
                     {/* Second row: Until options (date/occurrences) if repeat is selected */}
                     {repeatChoice !== "none" && (
@@ -909,10 +1168,16 @@ export function BookingForm({
                           <div className="space-y-2">
                             <Input
                               type="date"
-                              value={recurrenceEndDate ? recurrenceEndDate.split(" ")[0] : ""}
+                              value={
+                                recurrenceEndDate
+                                  ? recurrenceEndDate.split(" ")[0]
+                                  : ""
+                              }
                               onChange={(e) => {
                                 const ymd = e.target.value;
-                                setRecurrenceEndDate(ymd ? `${ymd} 00:00:00` : "");
+                                setRecurrenceEndDate(
+                                  ymd ? `${ymd} 00:00:00` : ""
+                                );
                               }}
                               className="w-full"
                               aria-label="Select end date for recurrence"
@@ -920,11 +1185,13 @@ export function BookingForm({
                             />
                           </div>
                         )}
-                        
+
                         {recurrenceEndType === "after_occurrences" && (
                           <div className="space-y-2">
                             <div className="flex items-center gap-3">
-                              <span className="text-sm text-muted-foreground whitespace-nowrap">After</span>
+                              <span className="text-sm text-muted-foreground whitespace-nowrap">
+                                After
+                              </span>
                               <Input
                                 type="number"
                                 min={1}
@@ -937,7 +1204,9 @@ export function BookingForm({
                                 className="w-20"
                                 aria-label="Number of occurrences"
                               />
-                              <span className="text-sm text-muted-foreground whitespace-nowrap">occurrences</span>
+                              <span className="text-sm text-muted-foreground whitespace-nowrap">
+                                occurrences
+                              </span>
                             </div>
                           </div>
                         )}
@@ -946,18 +1215,19 @@ export function BookingForm({
 
                     {/* Third row: Summary - Full width */}
                     <div className="space-y-2">
-                      <label className="text-sm font-medium text-foreground">
-                        Summary
-                      </label>
                       <div className="p-3 bg-muted/50 rounded-md border min-h-[60px] flex items-center w-full">
                         {repeatChoice !== "none" && repeatSummary ? (
-                          <span className="text-sm text-muted-foreground">{repeatSummary}</span>
+                          <span className="text-sm text-muted-foreground">
+                            {repeatSummary}
+                          </span>
                         ) : (
-                          <span className="text-sm text-muted-foreground italic">No repeat selected</span>
+                          <span className="text-sm text-muted-foreground italic">
+                            No repeat selected
+                          </span>
                         )}
                       </div>
                     </div>
-                      
+
                     {repeatChoice === "custom" && (
                       <Dialog open={customOpen} onOpenChange={setCustomOpen}>
                         <DialogTrigger asChild>
@@ -1090,29 +1360,52 @@ export function BookingForm({
                                           );
                                         } else {
                                           setRecurrenceMonthday(null);
-                                          if (!recurrenceWeekdays) setRecurrenceWeekdays("mon");
-                                          if (!recurrenceWeekOrder) setRecurrenceWeekOrder("first");
+                                          if (!recurrenceWeekdays)
+                                            setRecurrenceWeekdays("mon");
+                                          if (!recurrenceWeekOrder)
+                                            setRecurrenceWeekOrder("first");
                                         }
                                       }}
                                       className="grid grid-cols-2 gap-4"
                                     >
                                       <div>
                                         <div className="flex items-center gap-2 mb-2">
-                                          <RadioGroupItem value="by_day" id="modeByDay" />
-                                          <label htmlFor="modeByDay" className="text-sm">By day of month</label>
+                                          <RadioGroupItem
+                                            value="by_day"
+                                            id="modeByDay"
+                                          />
+                                          <label
+                                            htmlFor="modeByDay"
+                                            className="text-sm"
+                                          >
+                                            By day of month
+                                          </label>
                                         </div>
                                         <div className="space-y-2 pl-6">
-                                          <div className="text-sm">On day (1..31)</div>
+                                          <div className="text-sm">
+                                            On day (1..31)
+                                          </div>
                                           <Input
                                             type="number"
                                             min={1}
                                             max={31}
-                                            value={(monthlyMode === "by_day"
-                                              ? (recurrenceMonthday ?? (selectedSlot?.day || dayObj?.fullDate.getDate() || 1))
-                                              : (recurrenceMonthday ?? 1))}
+                                            value={
+                                              monthlyMode === "by_day"
+                                                ? recurrenceMonthday ??
+                                                  (selectedSlot?.day ||
+                                                    dayObj?.fullDate.getDate() ||
+                                                    1)
+                                                : recurrenceMonthday ?? 1
+                                            }
                                             onChange={(e) =>
                                               setRecurrenceMonthday(
-                                                Math.min(31, Math.max(1, Number(e.target.value) || 1))
+                                                Math.min(
+                                                  31,
+                                                  Math.max(
+                                                    1,
+                                                    Number(e.target.value) || 1
+                                                  )
+                                                )
                                               )
                                             }
                                             disabled={monthlyMode !== "by_day"}
@@ -1122,43 +1415,91 @@ export function BookingForm({
                                       </div>
                                       <div>
                                         <div className="flex items-center gap-2 mb-2">
-                                          <RadioGroupItem value="by_nth" id="modeByNth" />
-                                          <label htmlFor="modeByNth" className="text-sm">By nth weekday</label>
+                                          <RadioGroupItem
+                                            value="by_nth"
+                                            id="modeByNth"
+                                          />
+                                          <label
+                                            htmlFor="modeByNth"
+                                            className="text-sm"
+                                          >
+                                            By nth weekday
+                                          </label>
                                         </div>
                                         <div className="space-y-2 pl-6">
                                           <div className="flex gap-2">
                                             <Select
-                                              value={recurrenceWeekOrder ?? undefined}
-                                              onValueChange={(v) => setRecurrenceWeekOrder(v as WeekOrderUi)}
-                                              disabled={monthlyMode !== "by_nth"}
+                                              value={
+                                                recurrenceWeekOrder ?? undefined
+                                              }
+                                              onValueChange={(v) =>
+                                                setRecurrenceWeekOrder(
+                                                  v as WeekOrderUi
+                                                )
+                                              }
+                                              disabled={
+                                                monthlyMode !== "by_nth"
+                                              }
                                             >
                                               <SelectTrigger className="w-32">
                                                 <SelectValue placeholder="Order" />
                                               </SelectTrigger>
                                               <SelectContent>
-                                                <SelectItem value="first">First</SelectItem>
-                                                <SelectItem value="second">Second</SelectItem>
-                                                <SelectItem value="third">Third</SelectItem>
-                                                <SelectItem value="fourth">Fourth</SelectItem>
-                                                <SelectItem value="last">Last</SelectItem>
+                                                <SelectItem value="first">
+                                                  First
+                                                </SelectItem>
+                                                <SelectItem value="second">
+                                                  Second
+                                                </SelectItem>
+                                                <SelectItem value="third">
+                                                  Third
+                                                </SelectItem>
+                                                <SelectItem value="fourth">
+                                                  Fourth
+                                                </SelectItem>
+                                                <SelectItem value="last">
+                                                  Last
+                                                </SelectItem>
                                               </SelectContent>
                                             </Select>
                                             <Select
-                                              value={(recurrenceWeekdays || "").split(",")[0] || undefined}
-                                              onValueChange={(v) => setRecurrenceWeekdays(v)}
-                                              disabled={monthlyMode !== "by_nth"}
+                                              value={
+                                                (
+                                                  recurrenceWeekdays || ""
+                                                ).split(",")[0] || undefined
+                                              }
+                                              onValueChange={(v) =>
+                                                setRecurrenceWeekdays(v)
+                                              }
+                                              disabled={
+                                                monthlyMode !== "by_nth"
+                                              }
                                             >
                                               <SelectTrigger className="w-32">
                                                 <SelectValue placeholder="Day" />
                                               </SelectTrigger>
                                               <SelectContent>
-                                                <SelectItem value="sun">Sunday</SelectItem>
-                                                <SelectItem value="mon">Monday</SelectItem>
-                                                <SelectItem value="tue">Tuesday</SelectItem>
-                                                <SelectItem value="wed">Wednesday</SelectItem>
-                                                <SelectItem value="thu">Thursday</SelectItem>
-                                                <SelectItem value="fri">Friday</SelectItem>
-                                                <SelectItem value="sat">Saturday</SelectItem>
+                                                <SelectItem value="sun">
+                                                  Sunday
+                                                </SelectItem>
+                                                <SelectItem value="mon">
+                                                  Monday
+                                                </SelectItem>
+                                                <SelectItem value="tue">
+                                                  Tuesday
+                                                </SelectItem>
+                                                <SelectItem value="wed">
+                                                  Wednesday
+                                                </SelectItem>
+                                                <SelectItem value="thu">
+                                                  Thursday
+                                                </SelectItem>
+                                                <SelectItem value="fri">
+                                                  Friday
+                                                </SelectItem>
+                                                <SelectItem value="sat">
+                                                  Saturday
+                                                </SelectItem>
                                               </SelectContent>
                                             </Select>
                                           </div>
@@ -1184,8 +1525,6 @@ export function BookingForm({
               />
             </fieldset>
 
-          
-
             <fieldset className="space-y-6">
               <legend className="sr-only">Invite Participants</legend>
               <InviteEmailsSection
@@ -1195,6 +1534,7 @@ export function BookingForm({
                 addInviteEmail={addInviteEmail}
                 removeInviteEmail={removeInviteEmail}
                 isValidEmail={isValidEmail}
+                addMultipleEmails={addMultipleEmails}
               />
             </fieldset>
           </form>
@@ -1202,8 +1542,8 @@ export function BookingForm({
         <SheetFooter className="border-t pt-6 pb-4">
           <div className="flex flex-col-reverse sm:flex-row gap-3 w-full">
             <SheetClose asChild>
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 className="flex-1 min-h-11"
                 type="button"
               >

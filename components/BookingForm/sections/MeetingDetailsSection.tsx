@@ -11,6 +11,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Presentation } from "lucide-react";
+import type { DRType } from "@/prisma/prisma";
 
 interface MeetingDetailsSectionProps {
   meetingRoom: string;
@@ -19,6 +20,11 @@ interface MeetingDetailsSectionProps {
   setMeetingType?: (value: string | null) => void;
   meetingDetail: string;
   setMeetingDetail: (value: string) => void;
+
+  drType?: DRType | null;
+  setDrType?: (value: DRType | null) => void;
+  otherType?: string;
+  setOtherType?: (value: string) => void;
 
   startTime: string;
   endTime: string;
@@ -32,6 +38,12 @@ interface MeetingDetailsSectionProps {
   repeatSection?: React.ReactNode;
   openDropdown?: string | null;
   setOpenDropdown?: (value: string | null) => void;
+  repeatChoice: "none" | "daily" | "weekly" | "biweekly" | "monthly" | "custom";
+  handleRepeatChange: (value: "none" | "daily" | "weekly" | "biweekly" | "monthly" | "custom") => void;
+  recurrenceEndType: "never" | "on_date" | "after_occurrences";
+  setRecurrenceEndType: (value: "never" | "on_date" | "after_occurrences") => void;
+  dayObj?: { dayName?: string; fullDate?: Date };
+  selectedSlot?: { day?: number; slot?: string };
 }
 
 export function MeetingDetailsSection({
@@ -39,6 +51,10 @@ export function MeetingDetailsSection({
   setMeetingRoom,
   meetingType,
   setMeetingType,
+  drType,
+  setDrType,
+  otherType,
+  setOtherType,
   meetingDetail,
   setMeetingDetail,
   startTime,
@@ -53,6 +69,12 @@ export function MeetingDetailsSection({
   repeatSection,
   openDropdown,
   setOpenDropdown,
+  repeatChoice,
+  handleRepeatChange,
+  recurrenceEndType,
+  setRecurrenceEndType,
+  dayObj,
+  selectedSlot,
 }: MeetingDetailsSectionProps) {
   return (
     <div className="space-y-6">
@@ -61,8 +83,8 @@ export function MeetingDetailsSection({
         <h2 className="text-lg font-semibold text-foreground">Meeting Details</h2>
       </div>
 
-      {/* Line 1: Meeting Room, Meeting Type, Meeting Time */}
-      <div className="grid grid-cols-1 sm:grid-cols-[0.5fr_0.5fr_1fr] gap-4">
+      {/* Line 1: Meeting Room, Meeting Type, DR Type, Other Type */}
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
         <div className="space-y-2">
           <Label htmlFor="meetingRoom" className="text-sm font-medium text-foreground">
             Meeting Room <span className="text-destructive">*</span>
@@ -75,11 +97,7 @@ export function MeetingDetailsSection({
             className={errors.meetingRoom ? "border-destructive focus:border-destructive" : ""}
             aria-describedby={errors.meetingRoom ? "meetingRoom-error" : undefined}
           />
-          {errors.meetingRoom && (
-            <p id="meetingRoom-error" className="text-destructive text-sm" role="alert">
-              {errors.meetingRoom}
-            </p>
-          )}
+
         </div>
 
         <div className="space-y-2">
@@ -109,14 +127,60 @@ export function MeetingDetailsSection({
               <SelectItem value="Other">Other</SelectItem>
             </SelectContent>
           </Select>
-          {errors.meetingType && (
-            <p id="meetingType-error" className="text-destructive text-sm" role="alert">
-              {errors.meetingType}
-            </p>
-          )}
+
         </div>
 
         <div className="space-y-2">
+          <Label htmlFor="drType" className="text-sm font-medium text-foreground">
+            DR Type 
+          </Label>
+          <Select
+            value={drType ?? undefined}
+            onValueChange={(v: DRType) => setDrType && setDrType(v)}
+            open={openDropdown === "drType"}
+            onOpenChange={(open) => setOpenDropdown?.(open ? "drType" : null)}
+            disabled={meetingType !== "DR"}
+          >
+            <SelectTrigger 
+              id="drType" 
+              className={`w-full ${errors.drType ? "border-destructive focus:border-destructive" : ""} ${meetingType !== "DR" ? "opacity-50 cursor-not-allowed" : ""}`}
+              aria-describedby={errors.drType ? "drType-error" : undefined}
+            >
+              <SelectValue placeholder="Select DR type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="PR_PR">PR-PR</SelectItem>
+              <SelectItem value="DR_k">DR-k</SelectItem>
+              <SelectItem value="DR_II">DR-II</SelectItem>
+              <SelectItem value="DR_I">DR-I</SelectItem>
+              <SelectItem value="Other">Other</SelectItem>
+            </SelectContent>
+          </Select>
+
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="otherType" className="text-sm font-medium text-foreground">
+            Other Type
+          </Label>
+          <Input
+            id="otherType"
+            placeholder={meetingType === "DR" ? "Describe DR type..." : "Describe meeting type..."}
+            value={otherType || ""}
+            onChange={(e) => setOtherType && setOtherType(e.target.value)}
+            className={`${errors.otherType ? "border-destructive focus:border-destructive" : ""} ${((meetingType === "DR" && drType === "Other") || meetingType === "Other") ? "" : "opacity-50 cursor-not-allowed"}`}
+            aria-describedby={errors.otherType ? "otherType-error" : undefined}
+            maxLength={255}
+            disabled={!((meetingType === "DR" && drType === "Other") || meetingType === "Other")}
+          />
+
+        </div>
+      </div>
+
+
+            {/* Line 2: Meeting Time, Repeat Schedule, Until... */}
+      <div className="grid grid-cols-1 sm:grid-cols-[2fr_1fr_1fr] gap-4 items-start">
+        <div className="space-y-1">
           <Label className="text-sm font-medium text-foreground" htmlFor="meeting-time">
             Meeting Time <span className="text-destructive">*</span>
           </Label>
@@ -135,15 +199,90 @@ export function MeetingDetailsSection({
             openDropdown={openDropdown}
             setOpenDropdown={setOpenDropdown}
           />
-          {(errors.startTime || errors.endTime) && (
-            <p className="text-destructive text-sm" role="alert">
-              {errors.startTime || errors.endTime}
-            </p>
-          )}
+        </div>
+
+        <div className="space-y-2">
+          <label
+            className="text-sm font-medium text-foreground"
+            htmlFor="repeatSelect"
+          >
+            Repeat Schedule
+          </label>
+          <Select
+            value={repeatChoice}
+            onValueChange={(v: "none" | "daily" | "weekly" | "biweekly" | "monthly" | "custom") =>
+              handleRepeatChange && handleRepeatChange(v)
+            }
+            open={openDropdown === "repeatSchedule"}
+            onOpenChange={(open) =>
+              setOpenDropdown?.(open ? "repeatSchedule" : null)
+            }
+          >
+            <SelectTrigger id="repeatSelect" className="w-full">
+              <SelectValue placeholder="No repeat" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">No repeat</SelectItem>
+              <SelectItem value="daily">Daily</SelectItem>
+              <SelectItem value="weekly">
+                Weekly on {dayObj?.dayName || "day"}
+              </SelectItem>
+              <SelectItem value="biweekly">
+                2 Weekly on {dayObj?.dayName || "day"}
+              </SelectItem>
+              <SelectItem value="monthly">
+                Monthly on day{" "}
+                {selectedSlot?.day ||
+                  dayObj?.fullDate?.getDate() ||
+                  1}
+              </SelectItem>
+              <SelectItem value="custom">Custom…</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-foreground">
+            Until...
+          </label>
+          <Select
+            value={
+              repeatChoice !== "none"
+                ? recurrenceEndType === "never"
+                  ? "on_date"
+                  : recurrenceEndType
+                : ""
+            }
+            onValueChange={(v) =>
+              setRecurrenceEndType && setRecurrenceEndType(v as "never" | "on_date" | "after_occurrences")
+            }
+            disabled={repeatChoice === "none"}
+            open={openDropdown === "until"}
+            onOpenChange={(open) =>
+              setOpenDropdown?.(open ? "until" : null)
+            }
+          >
+            <SelectTrigger
+              className={`w-full ${
+                repeatChoice === "none"
+                  ? "opacity-50 cursor-not-allowed"
+                  : ""
+              }`}
+              aria-label="Select how recurrence should end"
+            >
+              <SelectValue placeholder="Repeat Option" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="on_date">On date</SelectItem>
+              <SelectItem value="after_occurrences">
+                After occurrences
+              </SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
-      {/* Line 2, 3, 4: Repeat Section (if provided) */}
+      {/* Line 3: Repeat Section (if provided) */}
       {repeatSection && (
         <div className="space-y-4">
           {repeatSection}

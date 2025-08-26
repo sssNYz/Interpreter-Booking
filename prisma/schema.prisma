@@ -21,6 +21,12 @@ model BookingPlan {
   createdAt          DateTime      @default(now()) @map("created_at") @db.Timestamp(0)
   updatedAt          DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamp(0)
 
+  // DR Type options (when Meeting Type is "DR")
+  drType         DRType?         @map("DR_TYPE")
+  // Other Type options (when Meeting Type is "DR")
+  otherType      String?         @map("OTHER_TYPE") @db.VarChar(255)
+  otherTypeScope OtherTypeScope? @map("OTHER_TYPE_SCOPE")
+
   // Recurrence fields
   isRecurring              Boolean         @default(false) @map("IS_RECURRING")
   recurrenceType           RecurrenceType? @map("RECURRENCE_TYPE")
@@ -43,6 +49,9 @@ model BookingPlan {
   @@index([ownerEmpCode], map: "BOOKING_PLAN_OWNER_EMP_CODE_idx")
   @@index([interpreterEmpCode], map: "BOOKING_PLAN_INTERPRETER_EMP_CODE_idx")
   @@index([parentBookingId], map: "BOOKING_PLAN_PARENT_BOOKING_ID_idx")
+  // Indexes for DR Type and Other Type
+  @@index([drType], map: "BOOKING_PLAN_DR_TYPE_idx")
+  @@index([otherTypeScope], map: "BOOKING_PLAN_OTHER_TYPE_SCOPE_idx")
   @@map("BOOKING_PLAN")
 }
 
@@ -55,6 +64,25 @@ model InviteEmailList {
 
   @@unique([bookingId, email], name: "unique_booking_email")
   @@map("INVITE_EMAIL_LIST")
+}
+
+// DR Type options (when Meeting Type is "DR")
+enum DRType {
+  PR_PR @map("PR-PR")
+  DR_k  @map("DR-k")
+  DR_II @map("DR-II")
+  DR_I  @map("DR-I")
+  Other @map("Other")
+
+  @@map("dr_type")
+}
+
+// Other Type options (when Meeting Type is "DR")
+enum OtherTypeScope {
+  meeting_type
+  dr_type
+
+  @@map("other_type_scope")
 }
 
 enum OwnerGroup {
