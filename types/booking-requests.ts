@@ -1,5 +1,5 @@
 import type { OwnerGroup } from "./booking";
-import type { BookingStatus, MeetingType, RecurrenceType, EndType, WeekOrder } from "@/prisma/prisma";
+import type { BookingStatus, MeetingType, RecurrenceType, EndType, WeekOrder, OtherTypeScope, DRType } from "@/prisma/prisma";
 
 export interface CreateBookingRequest {
   ownerEmpCode: string;
@@ -14,6 +14,10 @@ export interface CreateBookingRequest {
   timezone?: string;
   inviteEmails?: string[];
   force?: boolean;
+
+  drType?: DRType | null;
+  otherType?: string | null;
+  otherTypeScope?: OtherTypeScope | null;
 
   // Recurrence fields
   isRecurring?: boolean;

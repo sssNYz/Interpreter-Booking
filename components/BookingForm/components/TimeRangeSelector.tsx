@@ -44,7 +44,7 @@ export function TimeRangeSelector({
 }: TimeRangeSelectorProps) {
 
   return (
-    <div className="space-y-3">
+    <div className="">
       {showLabel && (
         <Label className="flex items-center gap-2 text-sm font-medium text-foreground">
           <Clock className="h-4 w-4" />
