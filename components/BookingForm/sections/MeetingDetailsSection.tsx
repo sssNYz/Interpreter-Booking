@@ -20,6 +20,8 @@ interface MeetingDetailsSectionProps {
   setMeetingType?: (value: string | null) => void;
   meetingDetail: string;
   setMeetingDetail: (value: string) => void;
+  applicableModel?: string;
+  setApplicableModel?: (value: string) => void;
 
   drType?: DRType | null;
   setDrType?: (value: DRType | null) => void;
@@ -57,6 +59,8 @@ export function MeetingDetailsSection({
   setOtherType,
   meetingDetail,
   setMeetingDetail,
+  applicableModel,
+  setApplicableModel,
   startTime,
   endTime,
   slotsTime,
@@ -301,6 +305,20 @@ export function MeetingDetailsSection({
           onChange={(e) => setMeetingDetail(e.target.value)}
           rows={3}
           className="resize-none"
+        />
+      </div>
+
+      {/* Line 5: Applicable Model */}
+      <div className="space-y-2">
+        <Label htmlFor="applicableModel" className="text-sm font-medium text-foreground">
+          Applicable Model <span className="text-muted-foreground">(Optional)</span>
+        </Label>
+        <Input
+          id="applicableModel"
+          placeholder="Enter applicable model..."
+          value={applicableModel || ""}
+          onChange={(e) => setApplicableModel && setApplicableModel(e.target.value)}
+          maxLength={255}
         />
       </div>
     </div>

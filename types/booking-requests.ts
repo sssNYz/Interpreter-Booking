@@ -7,6 +7,7 @@ export interface CreateBookingRequest {
   meetingRoom: string;
   meetingType: MeetingType;
   meetingDetail?: string;
+  applicableModel?: string | null;
   timeStart: string; // "YYYY-MM-DD HH:mm:ss"
   timeEnd: string; // "YYYY-MM-DD HH:mm:ss"
   interpreterEmpCode?: string | null;

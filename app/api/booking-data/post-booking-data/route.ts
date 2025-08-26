@@ -600,14 +600,14 @@
             // 3) Insert parent booking (capacity still enforced by the global lock + check)
             await tx.$executeRaw`
             INSERT INTO BOOKING_PLAN (
-              \`OWNER_EMP_CODE\`, \`OWNER_GROUP\`, \`MEETING_ROOM\`, \`MEETING_TYPE\`, \`MEETING_DETAIL\`, \`TIME_START\`, \`TIME_END\`, \`INTERPRETER_EMP_CODE\`, \`BOOKING_STATUS\`,
+              \`OWNER_EMP_CODE\`, \`OWNER_GROUP\`, \`MEETING_ROOM\`, \`MEETING_TYPE\`, \`MEETING_DETAIL\`, \`APPLICABLE_MODEL\`, \`TIME_START\`, \`TIME_END\`, \`INTERPRETER_EMP_CODE\`, \`BOOKING_STATUS\`,
               \`DR_TYPE\`, \`OTHER_TYPE\`, \`OTHER_TYPE_SCOPE\`,
               \`IS_RECURRING\`, \`RECURRENCE_TYPE\`, \`RECURRENCE_INTERVAL\`, \`RECURRENCE_END_TYPE\`, \`RECURRENCE_END_DATE\`, \`RECURRENCE_END_OCCURRENCES\`, \`RECURRENCE_WEEKDAYS\`, \`RECURRENCE_MONTHDAY\`, \`RECURRENCE_WEEK_ORDER\`,
               \`created_at\`, \`updated_at\`
             ) VALUES (
               ${body.ownerEmpCode.trim()}, ${body.ownerGroup}, ${body.meetingRoom.trim()}, ${
               body.meetingType ?? null
-            }, ${body.meetingDetail ?? null}, ${timeStart}, ${timeEnd}, ${body.interpreterEmpCode ?? null}, ${
+            }, ${body.meetingDetail ?? null}, ${body.applicableModel ?? null}, ${timeStart}, ${timeEnd}, ${body.interpreterEmpCode ?? null}, ${
               body.bookingStatus || BookingStatus.waiting
             },
               ${body.drType ?? null}, ${body.otherType ?? null}, ${body.otherTypeScope ?? null},
@@ -687,13 +687,13 @@
 
                 await tx.$executeRaw`
                 INSERT INTO BOOKING_PLAN (
-                  \`OWNER_EMP_CODE\`, \`OWNER_GROUP\`, \`MEETING_ROOM\`, \`MEETING_TYPE\`, \`MEETING_DETAIL\`, \`TIME_START\`, \`TIME_END\`, \`INTERPRETER_EMP_CODE\`, \`BOOKING_STATUS\`, \`PARENT_BOOKING_ID\`,
+                  \`OWNER_EMP_CODE\`, \`OWNER_GROUP\`, \`MEETING_ROOM\`, \`MEETING_TYPE\`, \`MEETING_DETAIL\`, \`APPLICABLE_MODEL\`, \`TIME_START\`, \`TIME_END\`, \`INTERPRETER_EMP_CODE\`, \`BOOKING_STATUS\`, \`PARENT_BOOKING_ID\`,
                   \`DR_TYPE\`, \`OTHER_TYPE\`, \`OTHER_TYPE_SCOPE\`,
                   \`created_at\`, \`updated_at\`
                 ) VALUES (
                   ${body.ownerEmpCode.trim()}, ${body.ownerGroup}, ${body.meetingRoom.trim()}, ${
                   body.meetingType ?? null
-                }, ${body.meetingDetail ?? null}, ${
+                }, ${body.meetingDetail ?? null}, ${body.applicableModel ?? null}, ${
                   o.timeStart
                 }, ${o.timeEnd}, ${body.interpreterEmpCode ?? null}, ${
                   body.bookingStatus || BookingStatus.waiting
