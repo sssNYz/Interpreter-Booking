@@ -54,7 +54,6 @@ export function BookingForm({
   onOpenChange,
   selectedSlot,
   daysInMonth,
-  interpreters = [],
   dayOccupancy,
 }: BookingFormProps) {
   // Form state
@@ -74,7 +73,6 @@ export function BookingForm({
   >(null);
   const [meetingDetail, setMeetingDetail] = useState<string>("");
   const [applicableModel, setApplicableModel] = useState<string>("");
-  const [interpreterId, setInterpreterId] = useState<string>("");
   const [inviteEmails, setInviteEmails] = useState<string[]>([]);
   const [newEmail, setNewEmail] = useState<string>("");
 
@@ -149,7 +147,6 @@ export function BookingForm({
       setDrType(null);
       setOtherType("");
       setOtherTypeScope(null);
-      setInterpreterId("");
       setInviteEmails([]);
       setNewEmail("");
       setErrors({});
