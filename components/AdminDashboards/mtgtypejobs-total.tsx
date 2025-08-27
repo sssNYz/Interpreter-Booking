@@ -238,21 +238,21 @@ export function TypesTab({ ctx }: { ctx: DashboardCtx }) {
         </CardHeader>
         <CardContent className="h-[320px]">
           <div className="w-full h-full">
-            <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%">
               <BarChart
                 data={monthBarData}
                 margin={{ top: 8, right: 12, left: 8, bottom: 0 }}
               >
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="type" />
-                <YAxis />
-                <Tooltip />
-                <Legend />
-                {interpreters.map((p) => (
-                  <Bar key={p} dataKey={p} name={p} fill={interpreterColors[p]} />
-                ))}
-              </BarChart>
-            </ResponsiveContainer>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="type" />
+                  <YAxis />
+                  <Tooltip />
+                  <Legend />
+                  {interpreters.map((p) => (
+                    <Bar key={p} dataKey={p} name={p} fill={interpreterColors[p]} />
+                  ))}
+                </BarChart>
+              </ResponsiveContainer>
           </div>
         </CardContent>
       </Card>
