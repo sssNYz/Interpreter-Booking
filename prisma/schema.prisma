@@ -1,104 +1,156 @@
 generator client {
   provider = "prisma-client-js"
 }
-
 datasource db {
   provider = "mysql"
   url      = env("DATABASE_URL")
 }
-
 model BookingPlan {
-  bookingId     Int               @id @default(autoincrement()) @map("BOOKING_ID")
-  ownerEmpCode  String            @map("OWNER_EMP_CODE") @db.VarChar(64)
-  ownerGroup    OwnerGroup        @map("OWNER_GROUP")
-  meetingRoom   String            @map("MEETING_ROOM") @db.VarChar(50)
-  meetingDetail String?           @map("MEETING_DETAIL") @db.Text
-  highPriority  Boolean           @default(false) @map("HIGH_PRIORITY")
-  timeStart     DateTime          @map("TIME_START") @db.DateTime(0)
-  timeEnd       DateTime          @map("TIME_END") @db.DateTime(0)
-  interpreterEmpCode String?      @map("INTERPRETER_EMP_CODE") @db.VarChar(64)
-  bookingStatus BookingStatus     @default(waiting) @map("BOOKING_STATUS")
-  createdAt     DateTime          @default(now()) @map("created_at") @db.Timestamp(0)
-  updatedAt     DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamp(0)
-
-  employee      Employee          @relation("OwnerEmployee", fields: [ownerEmpCode], references: [empCode])
-  interpreterEmployee Employee?   @relation("InterpreterEmployee", fields: [interpreterEmpCode], references: [empCode])
-  inviteEmails  InviteEmailList[]
-
+  bookingId          Int           @id @default(autoincrement()) @map("BOOKING_ID")
+  ownerEmpCode       String        @map("OWNER_EMP_CODE") @db.VarChar(64)
+  ownerGroup         OwnerGroup    @map("OWNER_GROUP")
+  meetingRoom        String        @map("MEETING_ROOM") @db.VarChar(50)
+  meetingType        MeetingType   @map("MEETING_TYPE")
+  meetingDetail      String?       @map("MEETING_DETAIL") @db.Text
+  applicableModel    String?       @map("APPLICABLE_MODEL") @db.VarChar(255)
+  timeStart          DateTime      @map("TIME_START") @db.DateTime(0)
+  timeEnd            DateTime      @map("TIME_END") @db.DateTime(0)
+  interpreterEmpCode String?       @map("INTERPRETER_EMP_CODE") @db.VarChar(64)
+  bookingStatus      BookingStatus @default(waiting) @map("BOOKING_STATUS")
+  createdAt          DateTime      @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt          DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamp(0)
+  // DR Type options (when Meeting Type is "DR")
+  drType         DRType?         @map("DR_TYPE")
+  // Other Type options (when Meeting Type is "DR")
+  otherType      String?         @map("OTHER_TYPE") @db.VarChar(255)
+  otherTypeScope OtherTypeScope? @map("OTHER_TYPE_SCOPE")
+  // Recurrence fields
+  isRecurring              Boolean         @default(false) @map("IS_RECURRING")
+  recurrenceType           RecurrenceType? @map("RECURRENCE_TYPE")
+  recurrenceInterval       Int?            @map("RECURRENCE_INTERVAL")
+  recurrenceEndType        EndType?        @map("RECURRENCE_END_TYPE")
+  recurrenceEndDate        DateTime?       @map("RECURRENCE_END_DATE") @db.DateTime(0)
+  recurrenceEndOccurrences Int?            @map("RECURRENCE_END_OCCURRENCES")
+  recurrenceWeekdays       String?         @map("RECURRENCE_WEEKDAYS") @db.VarChar(32) // CSV e.g. "mon,tue"
+  recurrenceMonthday       Int?            @map("RECURRENCE_MONTHDAY")
+  recurrenceWeekOrder      WeekOrder?      @map("RECURRENCE_WEEK_ORDER")
+  parentBookingId          Int?            @map("PARENT_BOOKING_ID")
+  employee            Employee          @relation("OwnerEmployee", fields: [ownerEmpCode], references: [empCode])
+  interpreterEmployee Employee?         @relation("InterpreterEmployee", fields: [interpreterEmpCode], references: [empCode])
+  inviteEmails        InviteEmailList[]
+  // self-referencing relation for recurring series
+  recurringBookings   BookingPlan[]     @relation("RecurringBookings")
+  parentBooking       BookingPlan?      @relation("RecurringBookings", fields: [parentBookingId], references: [bookingId])
   @@index([ownerEmpCode], map: "BOOKING_PLAN_OWNER_EMP_CODE_idx")
   @@index([interpreterEmpCode], map: "BOOKING_PLAN_INTERPRETER_EMP_CODE_idx")
+  @@index([parentBookingId], map: "BOOKING_PLAN_PARENT_BOOKING_ID_idx")
+  // Indexes for DR Type and Other Type
+  @@index([drType], map: "BOOKING_PLAN_DR_TYPE_idx")
+  @@index([otherTypeScope], map: "BOOKING_PLAN_OTHER_TYPE_SCOPE_idx")
   @@map("BOOKING_PLAN")
 }
-
 model InviteEmailList {
   emailListId Int         @id @default(autoincrement()) @map("EMAIL_LIST_ID")
   bookingId   Int         @map("BOOKING_ID")
   email       String      @map("EMAIL") @db.VarChar(255)
   invitedAt   DateTime    @default(now()) @map("invited_at") @db.Timestamp(0)
   bookingPlan BookingPlan @relation(fields: [bookingId], references: [bookingId], onDelete: Cascade)
-
   @@unique([bookingId, email], name: "unique_booking_email")
   @@map("INVITE_EMAIL_LIST")
 }
-
+// DR Type options (when Meeting Type is "DR")
+enum DRType {
+  PR_PR @map("PR-PR")
+  DR_k  @map("DR-k")
+  DR_II @map("DR-II")
+  DR_I  @map("DR-I")
+  Other @map("Other")
+  @@map("dr_type")
+}
+// Other Type options (when Meeting Type is "DR")
+enum OtherTypeScope {
+  meeting_type
+  dr_type
+  @@map("other_type_scope")
+}
 enum OwnerGroup {
   iot
   hardware
   software
   other
-
   @@map("owner_group")
 }
-
+// Meeting type options
+enum MeetingType {
+  DR
+  VIP
+  Weekly
+  General
+  Augent
+  Other
+}
 enum BookingStatus {
   approve
   cancel
   waiting
-
+  complet
   @@map("booking_status")
 }
-
+// Recurrence support enums
+enum RecurrenceType {
+  daily
+  weekly
+  biweekly
+  monthly
+  custom
+}
+enum EndType {
+  never
+  on_date
+  after_occurrences
+}
+enum WeekOrder {
+  first
+  second
+  third
+  fourth
+  last
+}
 model Employee {
-  id             Int       @id @default(autoincrement()) @map("ID")
-  empCode        String    @unique @map("EMP_CODE") @db.VarChar(64)
-  prefixEn       String?   @map("PREFIX_EN") @db.VarChar(32)
-  firstNameEn    String?   @map("FIRST_NAME_EN") @db.VarChar(255)
-  lastNameEn     String?   @map("LAST_NAME_EN") @db.VarChar(255)
-  prefixTh       String?   @map("PREFIX_TH") @db.VarChar(32)
-  firstNameTh    String?   @map("FIRST_NAME_TH") @db.VarChar(255)
-  lastNameTh     String?   @map("LAST_NAME_TH") @db.VarChar(255)
-  fno            String?   @map("FNO") @db.VarChar(64)
-  deptPath       String?   @map("DEPT_PATH") @db.VarChar(512)
-  positionTitle  String?   @map("POSITION_TITLE") @db.VarChar(255)
-  email          String?   @map("EMAIL") @db.VarChar(255)
-  telExt         String?   @map("TEL_EXT") @db.VarChar(64)
-  isActive       Boolean   @default(true) @map("IS_ACTIVE")
-  lastLoginAt    DateTime? @map("LAST_LOGIN_AT")
-  syncedAt       DateTime? @map("SYNCED_AT")
-  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamp(0)
-  updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamp(0)
-
+  id            Int       @id @default(autoincrement()) @map("ID")
+  empCode       String    @unique @map("EMP_CODE") @db.VarChar(64)
+  prefixEn      String?   @map("PREFIX_EN") @db.VarChar(32)
+  firstNameEn   String?   @map("FIRST_NAME_EN") @db.VarChar(255)
+  lastNameEn    String?   @map("LAST_NAME_EN") @db.VarChar(255)
+  prefixTh      String?   @map("PREFIX_TH") @db.VarChar(32)
+  firstNameTh   String?   @map("FIRST_NAME_TH") @db.VarChar(255)
+  lastNameTh    String?   @map("LAST_NAME_TH") @db.VarChar(255)
+  fno           String?   @map("FNO") @db.VarChar(64)
+  deptPath      String?   @map("DEPT_PATH") @db.VarChar(512)
+  positionTitle String?   @map("POSITION_TITLE") @db.VarChar(255)
+  email         String?   @map("EMAIL") @db.VarChar(255)
+  telExt        String?   @map("TEL_EXT") @db.VarChar(64)
+  isActive      Boolean   @default(true) @map("IS_ACTIVE")
+  lastLoginAt   DateTime? @map("LAST_LOGIN_AT")
+  syncedAt      DateTime? @map("SYNCED_AT")
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt     DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamp(0)
   // Relations
-  bookingsOwned           BookingPlan[] @relation("OwnerEmployee")
-  bookingsAsInterpreter   BookingPlan[] @relation("InterpreterEmployee")
-  userRoles               UserRole[]    // Added this inverse relation
-
+  bookingsOwned         BookingPlan[] @relation("OwnerEmployee")
+  bookingsAsInterpreter BookingPlan[] @relation("InterpreterEmployee")
+  userRoles             UserRole[] // Added this inverse relation
   @@map("EMPLOYEE")
 }
-
 // Enum for user roles
 enum RoleCode {
   ADMIN
   INTERPRETER
 }
-
 // Model for user roles
 model UserRole {
   userId   Int      @map("USER_ID")
   roleCode RoleCode @map("ROLE_CODE")
-
   employee Employee @relation(fields: [userId], references: [id])
-
   @@id([userId, roleCode])
   @@map("USER_ROLE")
 }
