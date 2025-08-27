@@ -1,374 +1,483 @@
 "use client";
-import React, { useState } from 'react';
-import { Calendar, Clock, Users, TrendingUp, Filter } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import bookingsData from '@/data/recentBookingsData.json';
-import weeklysData from '@/data/weeklyData.json';
-import type { AdminRecentBooking as Booking, WeeklyChartData } from '@/types/admin';
 
+import React, { useMemo, useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { CalendarDays, Users, Clock, BarChart2 } from "lucide-react";
 
-const recentBookings: Booking[] = bookingsData as Booking[];
-const weeklyData: WeeklyChartData[] = weeklysData as WeeklyChartData[];
+import { JobsTab } from "@/components/AdminDashboards/jobs-total";
+import { HoursTab } from "@/components/AdminDashboards/timejobs-total";
+import { DeptTab } from "@/components/AdminDashboards/deptjobs-total";
+import { TypesTab } from "@/components/AdminDashboards/mtgtypejobs-total";
 
-// Subcomponents using shadcn/ui
-const StatCard = ({
+import type {
+  DashboardCtx,
+  OwnerGroup,
+  MeetingType,
+  InterpreterName,
+  MonthName,
+  MonthlyDataRow,
+  JobsRow,
+  HoursRow,
+  DeptBarsRow,
+  TypesBarsRow,
+  TypesTableRow,
+} from "@/types/overview";
+import { OwnerGroupLabel as OGLabel } from "@/types/overview";
+
+/* ---------------- Theme wrapper (match Booking page) ---------------- */
+const PAGE_WRAPPER = "min-h-screen bg-[#f7f7f7] font-sans text-gray-900";
+
+/* ---------------- Utilities & mini UI ---------------- */
+function sumValues(obj: Record<string, number>) {
+  return Object.values(obj).reduce((a: number, b: number) => a + (b || 0), 0);
+}
+const diffClass = (v: number) => (v < 0 ? "text-red-600" : v > 0 ? "text-emerald-600" : "text-muted-foreground");
+const diffRange = (values: number[]) => {
+  if (!values.length) return 0;
+  let mn = Number.POSITIVE_INFINITY,
+    mx = Number.NEGATIVE_INFINITY;
+  for (const v of values) {
+    const n = Number(v) || 0;
+    mn = Math.min(mn, n);
+    mx = Math.max(mx, n);
+  }
+  return mx - mn;
+};
+
+const Stat = ({
   icon: Icon,
   label,
   value,
-  trend,
 }: {
-  icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
+  icon: React.ComponentType<{ size?: number }>;
   label: string;
   value: React.ReactNode;
-  trend?: string;
 }) => (
-  <Card className="hover:shadow-md transition-shadow">
-    <CardContent className="p-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm font-medium text-muted-foreground">{label}</p>
-          <p className="text-3xl font-bold mt-2">{value}</p>
-        </div>
-        <div className="bg-blue-50 p-3 rounded-full">
-          <Icon className="h-6 w-6 text-blue-600" />
-        </div>
-      </div>
-      {trend && (
-        <div className="flex items-center mt-4 text-sm">
-          <TrendingUp className="h-4 w-4 text-green-500 mr-1" />
-          <span className="text-green-600 font-medium">{trend}</span>
-          <span className="text-muted-foreground ml-1">vs last week</span>
-        </div>
-      )}
-    </CardContent>
-  </Card>
+  <div className="flex items-center gap-3">
+    <div className="p-2 rounded-xl bg-muted">
+      <Icon size={18} />
+    </div>
+    <div>
+      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className="text-lg font-semibold">{value}</div>
+    </div>
+  </div>
 );
 
+// minutes -> "H.MM hr" or "N min"
+function formatMinutes(mins: number): string {
+  if (!Number.isFinite(mins)) return "0 min";
+  const sign = mins < 0 ? "-" : "";
+  const abs = Math.abs(Math.round(mins));
+  const h = Math.floor(abs / 60);
+  const m = abs % 60;
+  return h > 0 ? `${sign}${h}.${String(m).padStart(2, "0")} hr` : `${sign}${abs} min`;
+}
 
-const WeeklyChart = ({ data }: { data: WeeklyChartData[] }) => {
-  const totalBookings = data.reduce((sum, item) => sum + item.value, 0);
-
-  return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle>Weekly Booking Overview</CardTitle>
-            <CardDescription>Track your booking patterns throughout the week</CardDescription>
-          </div>
-          <div className="text-sm text-muted-foreground">
-            Total: <span className="font-semibold text-foreground">{totalBookings} bookings</span>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="h-72">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={data} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-              <XAxis
-                dataKey="day"
-                axisLine={false}
-                tickLine={false}
-                tick={{ fontSize: 12, fill: '#64748b' }}
-              />
-              <YAxis
-                axisLine={false}
-                tickLine={false}
-                tick={{ fontSize: 12, fill: '#64748b' }}
-              />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: '#1e293b',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '8px',
-                  fontSize: '12px',
-                  boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
-                }}
-                cursor={{ fill: 'rgba(59, 130, 246, 0.05)' }}
-              />
-              <Bar
-                dataKey="value"
-                fill="#3b82f6"
-                radius={[4, 4, 0, 0]}
-                maxBarSize={50}
-              />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </CardContent>
-    </Card>
-  );
+const getCurrentFiscalMonthLabel = (now = new Date()): MonthName => {
+  const mths: MonthName[] = ["Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", "Jan", "Feb", "Mar"];
+  const map: Record<number, number> = { 0: 9, 1: 10, 2: 11, 3: 0, 4: 1, 5: 2, 6: 3, 7: 4, 8: 5, 9: 6, 10: 7, 11: 8 };
+  return mths[map[now.getMonth()]];
 };
 
-const StatusBadge = ({ status }: { status: 'Approve' | 'Wait' | 'Cancel' }) => {
-  const statusConfig: Record<
-    'Approve' | 'Wait' | 'Cancel',
-    {
-      variant:'destructive' | 'default' | 'secondary';
-      label: string;
-      className: string;
-    }
-  > = {
-    Approve: {
-      variant: 'default',
-      label: 'Approved',
-      className: 'bg-emerald-100 text-emerald-800 hover:bg-emerald-100'
-    },
-    Wait: {
-      variant: 'secondary',
-      label: 'Waiting',
-      className: 'bg-amber-100 text-amber-800 hover:bg-amber-100'
-    },
-    Cancel: {
-      variant: 'destructive',
-      label: 'Cancelled',
-      className: 'bg-red-100 text-red-800 hover:bg-red-100'
-    }
+/* ---------------- Mock data (aligned with Prisma enums) ---------------- */
+const years: number[] = [2025];
+const months: MonthName[] = ["Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", "Jan", "Feb", "Mar"];
+const interpreters: InterpreterName[] = ["Kiaotchitra", "Pitchaporn"];
+const departments: OwnerGroup[] = ["hardware", "software", "iot", "other"];
+
+const palette = ["#2563eb", "#16a34a", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4", "#f97316", "#10b981", "#dc2626"];
+const interpreterColors: Record<InterpreterName, string> = Object.fromEntries(
+  interpreters.map((n, i) => [n, palette[i % palette.length]])
+) as Record<InterpreterName, string>;
+
+const TYPE_OTHER_KEY = "Other";
+const typeLimit = 8;
+
+// month rows -> include jobsByInterpreter, hoursByInterpreter, deptMeetings, deptByInterpreter, typeByInterpreter (Prisma MeetingType keys)
+const sampleMonthlyData: MonthlyDataRow[] = months.map((m, i) => {
+  const year = 2025;
+  const jobsByInterpreter: Record<InterpreterName, number> = {
+    Kiaotchitra: [8, 7, 5, 21, 0, 0, 0, 0, 0, 0, 0, 0][i] ?? 0,
+    Pitchaporn: [7, 5, 5, 19, 0, 0, 0, 0, 0, 0, 0, 0][i] ?? 0,
   };
-
-  const config = statusConfig[status] || statusConfig.Wait;
-
-  return (
-    <Badge variant={config.variant} className={config.className}>
-      {config.label}
-    </Badge>
-  );
-};
-
-const RecentBookingTable = ({ bookings }: { bookings: Booking[] }) => {
-  const [timeFilter, setTimeFilter] = useState('today');
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-
-  // Get unique years from bookings data
-  const getAvailableYears = () => {
-    const years = bookings.map(booking => new Date(booking.dateTime).getFullYear());
-    return [...new Set(years)].sort((a, b) => b - a); // Sort descending (newest first)
+  const hoursByInterpreter: Record<InterpreterName, number> = {
+    Kiaotchitra: [15, 12, 10, 40, 0, 0, 0, 0, 0, 0, 0, 0][i] ?? 0,
+    Pitchaporn: [14, 11, 9, 38, 0, 0, 0, 0, 0, 0, 0, 0][i] ?? 0,
   };
+  const deptMeetings: Record<OwnerGroup, number> = {
+    hardware: [15, 12, 10, 40, 0, 0, 0, 0, 0, 0, 0, 0][i] ?? 0,
+    software: [5, 4, 2, 50, 0, 0, 0, 0, 0, 0, 0, 0][i] ?? 0,
+    iot: [2, 3, 0, 32, 0, 0, 0, 0, 0, 0, 0, 0][i] ?? 0,
+    other: [0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0][i] ?? 0,
+  };
+  const deptByInterpreter: Record<InterpreterName, Record<OwnerGroup, number>> = {
+    Kiaotchitra: { hardware: [8, 7, 5, 21][i] ?? 0, software: [4, 2, 0, 23][i] ?? 0, iot: [0, 0, 0, 16][i] ?? 0, other: [0, 0, 0, 2][i] ?? 0 },
+    Pitchaporn: { hardware: [7, 5, 5, 19][i] ?? 0, software: [1, 2, 0, 27][i] ?? 0, iot: [2, 3, 0, 16][i] ?? 0, other: [0, 0, 0, 2][i] ?? 0 },
+  };
+  const typeByInterpreter: Record<InterpreterName, Record<MeetingType, number>> = {
+    Kiaotchitra: { DR: [2, 2, 1, 3][i] ?? 0, VIP: [1, 1, 1, 2][i] ?? 0, Weekly: [2, 1, 1, 2][i] ?? 0, General: [3, 2, 1, 5][i] ?? 0, Augent: [1, 1, 0, 1][i] ?? 0, Other: [1, 0, 0, 1][i] ?? 0 },
+    Pitchaporn: { DR: [2, 1, 1, 4][i] ?? 0, VIP: [1, 1, 1, 1][i] ?? 0, Weekly: [1, 1, 1, 2][i] ?? 0, General: [2, 2, 1, 6][i] ?? 0, Augent: [1, 1, 0, 1][i] ?? 0, Other: [0, 0, 0, 1][i] ?? 0 },
+  };
+  return { year, month: m, jobsByInterpreter, hoursByInterpreter, deptMeetings, deptByInterpreter, typeByInterpreter };
+});
 
-  const availableYears = getAvailableYears();
+/* ---------------- Main component ---------------- */
+export default function Page() {
+  const [activeYear, setActiveYear] = useState<number>(years[0]);
+  const [agg, setAgg] = useState<"month" | "year">("month");
+  const currentMonthLabel = getCurrentFiscalMonthLabel();
 
-  const filterBookings = (bookings: Booking[], filter: string, yearValue: number) => {
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  // year filter
+  const yearData = useMemo<MonthlyDataRow[]>(() => sampleMonthlyData.filter((d) => d.year === activeYear), [activeYear]);
 
-    return bookings.filter(booking => {
-      const bookingDate = new Date(booking.dateTime);
-
-      switch (filter) {
-        case 'today':
-          const bookingDay = new Date(bookingDate.getFullYear(), bookingDate.getMonth(), bookingDate.getDate());
-          return bookingDay.getTime() === today.getTime();
-
-        case 'week':
-          const weekStart = new Date(today);
-          weekStart.setDate(today.getDate() - today.getDay());
-          const weekEnd = new Date(weekStart);
-          weekEnd.setDate(weekStart.getDate() + 6);
-          weekEnd.setHours(23, 59, 59, 999);
-          return bookingDate >= weekStart && bookingDate <= weekEnd;
-
-        case 'month':
-          return bookingDate.getMonth() === now.getMonth() &&
-            bookingDate.getFullYear() === now.getFullYear();
-
-        case 'year':
-          return bookingDate.getFullYear() === yearValue;
-
-        case 'all':
-          return true;
-
-        default:
-          return true;
-      }
+  // collect types present in this year
+  const typesList = useMemo<MeetingType[]>(() => {
+    const set = new Set<MeetingType>();
+    yearData.forEach((row) => {
+      (Object.values(row.typeByInterpreter) as Array<Record<MeetingType, number>>).forEach((obj) => {
+        (Object.keys(obj) as MeetingType[]).forEach((k) => set.add(k));
+      });
     });
+    return Array.from(set);
+  }, [yearData]);
+
+  // KPI
+  const kpiMonthData = useMemo(() => yearData.find((d) => d.month === currentMonthLabel), [yearData, currentMonthLabel]);
+  const kpiMonth = {
+    jobs: kpiMonthData ? sumValues(kpiMonthData.jobsByInterpreter) : 0,
+    hours: kpiMonthData ? sumValues(kpiMonthData.hoursByInterpreter) : 0,
+    dept: kpiMonthData ? sumValues(kpiMonthData.deptMeetings) : 0,
   };
+  const kpiYearJobs = useMemo(() => yearData.reduce((a, r) => a + sumValues(r.jobsByInterpreter), 0), [yearData]);
+  const kpiYearHours = useMemo(() => yearData.reduce((a, r) => a + sumValues(r.hoursByInterpreter), 0), [yearData]);
+  const kpiYearDept = useMemo(() => yearData.reduce((a, r) => a + sumValues(r.deptMeetings), 0), [yearData]);
+  const kpiJobs = agg === "year" ? kpiYearJobs : kpiMonth.jobs;
+  const kpiHours = agg === "year" ? kpiYearHours : kpiMonth.hours;
+  const kpiDept = agg === "year" ? kpiYearDept : kpiMonth.dept;
 
-  const filteredBookings = filterBookings(bookings, timeFilter, selectedYear);
-
-  const getFilterLabel = () => {
-    switch (timeFilter) {
-      case 'today': return 'Today';
-      case 'week': return 'This Week';
-      case 'month': return 'This Month';
-      case 'year': return `Year ${selectedYear}`;
-      case 'all': return 'All Time';
-      default: return 'Unknown';
-    }
-  };
-
-  const handleTimeFilterChange = (value: string) => {
-    setTimeFilter(value);
-    // If switching to year filter and current selected year doesn't have data, 
-    // set to the first available year
-    if (value === 'year' && !availableYears.includes(selectedYear)) {
-      setSelectedYear(availableYears[0] || new Date().getFullYear());
-    }
-  };
-
-  return (
-    <Card>
-      <CardHeader className="pb-4">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <CardTitle>Recent Bookings</CardTitle>
-            <CardDescription>
-              Showing {filteredBookings.length} booking{filteredBookings.length !== 1 ? 's' : ''} • {getFilterLabel()}
-            </CardDescription>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <Filter className="h-4 w-4 text-muted-foreground" />
-
-            {/* Primary Time Filter */}
-            <Select value={timeFilter} onValueChange={handleTimeFilterChange}>
-              <SelectTrigger className="w-32">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="today">Today</SelectItem>
-                <SelectItem value="week">This Week</SelectItem>
-                <SelectItem value="month">This Month</SelectItem>
-                <SelectItem value="year">Year</SelectItem>
-                <SelectItem value="all">All Time</SelectItem>
-              </SelectContent>
-            </Select>
-
-            {/* Year Selector (only show when "Year" is selected) */}
-            {timeFilter === 'year' && (
-              <Select value={selectedYear.toString()} onValueChange={(value) => setSelectedYear(parseInt(value))}>
-                <SelectTrigger className="w-24">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {availableYears.map(year => (
-                    <SelectItem key={year} value={year.toString()}>
-                      {year}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="p-0">
-        {filteredBookings.length === 0 ? (
-          <div className="px-6 py-12 text-center">
-            <Calendar className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-            <h3 className="text-sm font-medium mb-2">No bookings found</h3>
-            <p className="text-sm text-muted-foreground">
-              No bookings match the selected time period: {getFilterLabel()}
-            </p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-border">
-              <thead className="bg-muted/50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                    Date/Time
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                    Interpreter
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                    Room
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                    Topic
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                    Booked By
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                    Status
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-background divide-y divide-border">
-                {filteredBookings
-                  .sort((a, b) => new Date(b.dateTime).getTime() - new Date(a.dateTime).getTime()) // Sort by date, newest first
-                  .map((booking) => (
-                    <tr key={booking.id} className="hover:bg-muted/50 transition-colors">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        {booking.dateTime}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        {booking.interpreter}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
-                        {booking.room}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-muted-foreground max-w-xs">
-                        <div className="truncate" title={booking.topic}>
-                          {booking.topic}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
-                        {booking.bookedBy}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <StatusBadge status={booking.status} />
-                      </td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+  // Datasets
+  const totalJobsStack = useMemo<JobsRow[]>(
+    () =>
+      yearData.map((row) => {
+        const base: Record<string, number | string> = { month: row.month, total: sumValues(row.jobsByInterpreter) };
+        Object.entries(row.jobsByInterpreter).forEach(([k, v]) => {
+          base[k] = v;
+        });
+        return base as JobsRow;
+      }),
+    [yearData]
   );
-};
 
-// Main Overview Component
-const Overview = () => {
+  const totalHoursLineMinutes = useMemo<HoursRow[]>(
+    () =>
+      yearData.map((row) => {
+        const base: Record<string, number | string> = { month: row.month, total: sumValues(row.hoursByInterpreter) * 60 };
+        interpreters.forEach((itp) => {
+          base[itp] = (row.hoursByInterpreter[itp] || 0) * 60;
+        });
+        return base as HoursRow;
+      }),
+    [yearData]
+  );
+
+  // footers
+  const jobsFooter = useMemo(() => {
+    const perInterpreter = interpreters.map((itp) =>
+      months.reduce((acc, m) => acc + (yearData.find((d) => d.month === m)?.jobsByInterpreter?.[itp] || 0), 0)
+    );
+    return { perInterpreter, grand: perInterpreter.reduce((a, b) => a + b, 0), diff: diffRange(perInterpreter) };
+  }, [yearData]);
+
+  const hoursFooter = useMemo(() => {
+    const perInterpreter = interpreters.map((itp) =>
+      months.reduce((acc, m) => acc + (yearData.find((d) => d.month === m)?.hoursByInterpreter?.[itp] || 0), 0)
+    );
+    return { perInterpreter, grand: perInterpreter.reduce((a, b) => a + b, 0), diff: diffRange(perInterpreter) };
+  }, [yearData]);
+
+  // ===== Dept grouped bars (Month x Department) =====
+  const deptBarsFlat = useMemo<DeptBarsRow[]>(() => {
+    const rows: DeptBarsRow[] = [];
+    months.forEach((m) => {
+      const r = yearData.find((d) => d.month === m);
+      departments.forEach((dept) => {
+        const base: Record<string, number | string> = { month: m, group: OGLabel[dept] };
+        interpreters.forEach((itp) => {
+          base[itp] = r?.deptByInterpreter?.[itp]?.[dept] || 0;
+        });
+        rows.push(base as DeptBarsRow);
+      });
+    });
+    return rows;
+  }, [yearData]);
+
+  const deptMGIFooter = useMemo(() => {
+    const perInterpreter = interpreters.map((itp) =>
+      months.reduce((acc, m) => {
+        const r = yearData.find((d) => d.month === m);
+        return acc + departments.reduce((s, dept) => s + (r?.deptByInterpreter?.[itp]?.[dept] || 0), 0);
+      }, 0)
+    );
+    const grand = perInterpreter.reduce((a, b) => a + b, 0);
+    const diff = diffRange(perInterpreter);
+    return { perInterpreter, grand, diff };
+  }, [yearData]);
+
+  // ===== Types grouped bars (Month x Type), Top8+Other supported =====
+  const typesSorted = useMemo(() => {
+    const totals: Record<string, number> = {};
+    typesList.forEach((t) => {
+      const sumForType = months.reduce((sum, m) => {
+        const monthRow = yearData.find((d) => d.month === m);
+        const byInterpreters = interpreters.reduce(
+          (acc, itp) => acc + (monthRow?.typeByInterpreter?.[itp]?.[t] ?? 0),
+          0
+        );
+        return sum + byInterpreters;
+      }, 0);
+      totals[t] = sumForType;
+    });
+    return [...typesList].sort((a, b) => totals[b] - totals[a]);
+  }, [typesList, yearData]);
+
+  const hasOverflowTypes = typesSorted.length > typeLimit;
+  const displayList = (hasOverflowTypes ? typesSorted.slice(0, typeLimit) : typesSorted) as string[];
+  const listForBars = hasOverflowTypes ? [...displayList, TYPE_OTHER_KEY] : displayList;
+
+  const typesBarsFlat = useMemo<TypesBarsRow[]>(() => {
+    const rows: TypesBarsRow[] = [];
+    months.forEach((m) => {
+      const monthRow = yearData.find((d) => d.month === m);
+      listForBars.forEach((t) => {
+        const base: Record<string, number | string> = { month: m, type: t };
+        interpreters.forEach((itp) => {
+          if (t === TYPE_OTHER_KEY && hasOverflowTypes) {
+            const otherSum = typesSorted.slice(typeLimit).reduce((s, tt) => s + (monthRow?.typeByInterpreter?.[itp]?.[tt as MeetingType] || 0), 0);
+            base[itp] = otherSum;
+          } else {
+            base[itp] = monthRow?.typeByInterpreter?.[itp]?.[t as MeetingType] || 0;
+          }
+        });
+        rows.push(base as TypesBarsRow);
+      });
+    });
+    return rows;
+  }, [yearData, listForBars, hasOverflowTypes, typesSorted]);
+
+  // Types tables
+  const typesTableA_Rows = useMemo<TypesTableRow<MonthName>[]>(() => {
+    const rows: TypesTableRow<MonthName>[] = [];
+    listForBars.forEach((t) => {
+      const rowBase: Record<string, number | string> = { type: t, TOTAL: 0 };
+      months.forEach((m) => {
+        const monthRow = yearData.find((d) => d.month === m);
+        const value =
+          t === TYPE_OTHER_KEY && hasOverflowTypes
+            ? typesSorted
+                .slice(typeLimit)
+                .reduce(
+                  (s, tt) =>
+                    s + interpreters.reduce((a, itp) => a + (monthRow?.typeByInterpreter?.[itp]?.[tt as MeetingType] || 0), 0),
+                  0
+                )
+            : interpreters.reduce((a, itp) => a + (monthRow?.typeByInterpreter?.[itp]?.[t as MeetingType] || 0), 0);
+        rowBase[m] = value;
+      });
+      rowBase.TOTAL = months.reduce((a, m) => a + (rowBase[m] as number), 0);
+      rows.push(rowBase as TypesTableRow<MonthName>);
+    });
+    return rows;
+  }, [yearData, listForBars, hasOverflowTypes, typesSorted]);
+
+  const typesTableA_Footer = useMemo(() => {
+    const perMonth = months.map((m) => {
+      const monthRow = yearData.find((d) => d.month === m);
+      return typesSorted.reduce(
+        (s, t) => s + interpreters.reduce((a, itp) => a + (monthRow?.typeByInterpreter?.[itp]?.[t] || 0), 0),
+        0
+      );
+    });
+    const grand = perMonth.reduce((a, b) => a + b, 0);
+    return { perMonth, grand };
+  }, [yearData, typesSorted]);
+
+  const typesMGIFooter = useMemo(() => {
+    const perInterpreter = interpreters.map((itp) =>
+      months.reduce((acc, m) => {
+        const monthRow = yearData.find((d) => d.month === m);
+        return acc + typesSorted.reduce((s, t) => s + (monthRow?.typeByInterpreter?.[itp]?.[t] || 0), 0);
+      }, 0)
+    );
+    const grand = perInterpreter.reduce((a, b) => a + b, 0);
+    const diff = diffRange(perInterpreter);
+    return { perInterpreter, grand, diff };
+  }, [yearData, typesSorted]);
+
+  // dynamic widths for scrollable grouped charts
+  const BAND_PX = 90;
+  const deptChartWidthPx = useMemo(() => Math.max(months.length * departments.length * BAND_PX, 900), []);
+  const visibleTypesCount = hasOverflowTypes ? displayList.length + 1 : displayList.length;
+  const typesChartWidthPx = useMemo(() => Math.max(months.length * visibleTypesCount * BAND_PX, 900), [visibleTypesCount]);
+
+  // year options
+  const yearOptions = years.map((y) => (
+    <SelectItem key={y} value={String(y)}>
+      {y}
+    </SelectItem>
+  ));
+
+  // context for child tabs
+  const ctx: DashboardCtx = {
+    activeYear,
+    interpreters,
+    months,
+    departments,
+    totalJobsStack,
+    jobsFooter,
+    totalHoursLineMinutes,
+    hoursFooter,
+    formatMinutes,
+    deptBarsFlat,
+    deptChartWidthPx,
+    deptMGIFooter,
+    typesBarsFlat,
+    typesChartWidthPx,
+    typesTableA_Rows,
+    typesTableA_Footer,
+    typesMGIFooter,
+    displayTypes: displayList,
+    hasOverflowTypes,
+    typesSorted,
+    typeLimit,
+    interpreterColors,
+    diffClass,
+    diffRange,
+    yearData,
+  };
+
   return (
-    <div className="min-h-screen bg-background">
-      <div className="max-w-7xl mx-auto p-6">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold">Admin Overview</h1>
-          <p className="text-muted-foreground mt-2">Monitor your interpreter booking system performance and manage requests</p>
+    <div className={PAGE_WRAPPER}>
+      {/* Top Header (same style as Booking page) */}
+      <div className="border-b bg-white border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
+            <div className="flex items-center space-x-3">
+              <div className="bg-gray-900 text-white rounded-full p-2">
+                <BarChart2 className="h-5 w-5" />
+              </div>
+              <div>
+                <h1 className="text-xl font-semibold text-gray-900">Analytics Overview</h1>
+                <p className="text-sm text-gray-500">Monthly jobs, time, departments, and meeting types</p>
+              </div>
+            </div>
+            {/* Controls (Year + Month/Year) — desktop */}
+            <div className="hidden md:flex items-center gap-3">
+              <Select value={String(activeYear)} onValueChange={(v) => setActiveYear(Number(v))}>
+                <SelectTrigger className="w-[140px]">
+                  <SelectValue placeholder="Year" />
+                </SelectTrigger>
+                <SelectContent>{yearOptions}</SelectContent>
+              </Select>
+              <div className="flex gap-1">
+                <Button size="sm" variant={agg === "month" ? "default" : "outline"} onClick={() => setAgg("month")}>
+                  Month
+                </Button>
+                <Button size="sm" variant={agg === "year" ? "default" : "outline"} onClick={() => setAgg("year")}>
+                  Year
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Body container */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        {/* Controls — mobile */}
+        <div className="md:hidden flex items-center justify-between gap-3 mb-4">
+          <Select value={String(activeYear)} onValueChange={(v) => setActiveYear(Number(v))}>
+            <SelectTrigger className="w-[140px]">
+              <SelectValue placeholder="Year" />
+            </SelectTrigger>
+            <SelectContent>{yearOptions}</SelectContent>
+          </Select>
+          <div className="flex gap-1">
+            <Button size="sm" variant={agg === "month" ? "default" : "outline"} onClick={() => setAgg("month")}>
+              Month
+            </Button>
+            <Button size="sm" variant={agg === "year" ? "default" : "outline"} onClick={() => setAgg("year")}>
+              Year
+            </Button>
+          </div>
         </div>
 
-        {/* Status Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <StatCard
-            icon={Calendar}
-            label="Today's Bookings"
-            value="12"
-            trend="+20%"
-          />
-          <StatCard
-            icon={Clock}
-            label="Waiting Approvals"
-            value="3"
-            trend="-12%"
-          />
-          <StatCard
-            icon={Users}
-            label="Active Interpreters"
-            value="6"
-            trend="+5%"
-          />
+        {/* KPI cards */}
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">
+                Total Jobs ({agg === "year" ? `Year ${activeYear}` : `Month ${currentMonthLabel}`})
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Stat icon={BarChart2} label="Total Jobs" value={kpiJobs} />
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">
+                Total Time ({agg === "year" ? `Year ${activeYear}` : `Month ${currentMonthLabel}`})
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Stat icon={Clock} label="Total Time" value={formatMinutes(kpiHours * 60)} />
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Meetings by Dept ({agg === "year" ? "Year" : "Month"})</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Stat icon={Users} label="Meetings by Dept" value={kpiDept} />
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Period</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Stat icon={CalendarDays} label={agg === "year" ? "Year" : "Month"} value={agg === "year" ? activeYear : currentMonthLabel} />
+            </CardContent>
+          </Card>
         </div>
 
-        {/* Weekly Chart */}
-        <div className="mb-8">
-          <WeeklyChart data={weeklyData} />
-        </div>
+        {/* Tabs */}
+        <Tabs defaultValue="jobs" className="w-full">
+          <TabsList className="grid grid-cols-2 lg:grid-cols-4 mb-4">
+            <TabsTrigger value="jobs">Total Jobs</TabsTrigger>
+            <TabsTrigger value="hours">Total Hours</TabsTrigger>
+            <TabsTrigger value="dept">Dept Meetings</TabsTrigger>
+            <TabsTrigger value="types">Meeting Types</TabsTrigger>
+          </TabsList>
 
-        {/* Recent Bookings Table */}
-        <RecentBookingTable bookings={recentBookings} />
+          <TabsContent value="jobs">
+            <JobsTab ctx={ctx} />
+          </TabsContent>
+          <TabsContent value="hours">
+            <HoursTab ctx={ctx} />
+          </TabsContent>
+          <TabsContent value="dept">
+            <DeptTab ctx={ctx} />
+          </TabsContent>
+          <TabsContent value="types">
+            <TypesTab ctx={ctx} />
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );
-};
-
-export default Overview;
+}
