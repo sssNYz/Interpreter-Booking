@@ -142,7 +142,9 @@ export default function Page() {
   const [deptData, setDeptData] = useState<{
     deptMGIFooter?: { grand: number };
     months?: string[];
-    deptBarsFlat?: Array<{ total: number }>;
+    yearData?: Array<{
+      deptMeetings: Record<string, number>;
+    }>;
   } | null>(null);
   const [typesData, setTypesData] = useState<{
     typesMGIFooter?: { grand: number };
@@ -222,9 +224,31 @@ export default function Page() {
   }, [yearData]);
 
   // KPI - Use API data from existing endpoints
-  const kpiJobs = agg === "year" ? (jobsData?.jobsFooter?.grand || 0) : (jobsData?.months && jobsData.months.length > 0 ? jobsData?.totalJobsStack?.[jobsData.months.length - 1]?.total || 0 : 0);
-  const kpiHours = agg === "year" ? (hoursData?.hoursFooter?.grand || 0) : (hoursData?.months && hoursData.months.length > 0 ? hoursData?.totalHoursLineMinutes?.[hoursData.months.length - 1]?.total || 0 : 0);
-  const kpiDept = agg === "year" ? (deptData?.deptMGIFooter?.grand || 0) : (deptData?.months && deptData.months.length > 0 ? deptData?.deptBarsFlat?.reduce((sum: number, item: { total: number }) => sum + (item.total || 0), 0) || 0 : 0);
+  const kpiJobs = agg === "year" 
+    ? (jobsData?.jobsFooter?.grand || 0) 
+    : (() => {
+        if (!jobsData?.months || !jobsData?.totalJobsStack) return 0;
+        const currentMonthIndex = jobsData.months.indexOf(currentMonthLabel);
+        return currentMonthIndex >= 0 ? jobsData.totalJobsStack[currentMonthIndex]?.total || 0 : 0;
+      })();
+  
+  const kpiHours = agg === "year" 
+    ? (hoursData?.hoursFooter?.grand || 0) 
+    : (() => {
+        if (!hoursData?.months || !hoursData?.totalHoursLineMinutes) return 0;
+        const currentMonthIndex = hoursData.months.indexOf(currentMonthLabel);
+        return currentMonthIndex >= 0 ? hoursData.totalHoursLineMinutes[currentMonthIndex]?.total || 0 : 0;
+      })();
+  
+  const kpiDept = agg === "year" 
+    ? (deptData?.deptMGIFooter?.grand || 0) 
+    : (() => {
+        if (!deptData?.months || !deptData?.yearData) return 0;
+        const currentMonthIndex = deptData.months.indexOf(currentMonthLabel);
+        if (currentMonthIndex < 0) return 0;
+        const currentMonthData = deptData.yearData[currentMonthIndex];
+        return currentMonthData ? Object.values(currentMonthData.deptMeetings).reduce((sum: number, val: number) => sum + (val || 0), 0) : 0;
+      })();
 
   // Datasets
   const totalJobsStack = useMemo<JobsRow[]>(
