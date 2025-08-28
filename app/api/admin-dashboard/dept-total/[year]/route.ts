@@ -1,13 +1,15 @@
+// app/api/admin-dashboard/dept/[year]/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/prisma/prisma";
 
-// ✅ Use your shared types
+// ใช้ type กลางของคุณ
 import type {
   MonthName,
   MonthlyDataRow,
   FooterByInterpreter,
   InterpreterName,
   OwnerGroup,
+  MeetingType,
 } from "@/types/overview";
 
 const MONTH_LABELS: MonthName[] = [
@@ -15,15 +17,16 @@ const MONTH_LABELS: MonthName[] = [
 ];
 
 const DEPARTMENTS: OwnerGroup[] = ["iot", "hardware", "software", "other"];
+const MEETING_TYPES: MeetingType[] = ["DR", "VIP", "Weekly", "General", "Augent", "Other"];
+
+type Params = { year?: string };
 
 const getUtcMonthIndex = (d: Date) => d.getUTCMonth();
 const getMonthLabel = (d: Date): MonthName => MONTH_LABELS[getUtcMonthIndex(d)];
 
-type Params = { year?: string };
-
 export async function GET(
   req: NextRequest,
-  ctx: { params: Promise<Params> } // App Router: params may be a Promise -> must await
+  ctx: { params: Promise<Params> } // ต้อง await ตาม App Router
 ) {
   try {
     const { year: paramYear } = await ctx.params;
@@ -37,11 +40,11 @@ export async function GET(
     const rangeStart = new Date(Date.UTC(yearNum, 0, 1, 0, 0, 0));
     const rangeEnd   = new Date(Date.UTC(yearNum + 1, 0, 1, 0, 0, 0));
 
-    // Pull only what we need for department aggregations
+    // ดึงเฉพาะ field ที่ต้องใช้
     const records = await prisma.bookingPlan.findMany({
       where: {
         timeStart: { gte: rangeStart, lt: rangeEnd },
-        interpreterEmpCode: { not: null }, // only bookings with an interpreter
+        interpreterEmpCode: { not: null },
       },
       select: {
         timeStart: true,
@@ -53,33 +56,40 @@ export async function GET(
       },
     });
 
-    // Map empCode -> display name (first last OR empCode)
-    const empCodeToName = new Map<string, InterpreterName>();
+    // สร้าง mapping empCode -> display name
+    const empCodeToName: Map<string, InterpreterName> = new Map();
     for (const r of records) {
-      const empCode = r.interpreterEmpCode as string;
-      const first = r.interpreterEmployee?.firstNameEn?.trim() ?? "";
-      const last  = r.interpreterEmployee?.lastNameEn?.trim() ?? "";
-      const name  = (`${first} ${last}`.trim() || empCode) as InterpreterName;
+      const empCode = r.interpreterEmpCode as string; // not null ตาม where
+      const first = (r.interpreterEmployee?.firstNameEn ?? "").trim();
+      const last  = (r.interpreterEmployee?.lastNameEn ?? "").trim();
+      const name: InterpreterName = ( `${first} ${last}`.trim() || empCode ) as InterpreterName;
       empCodeToName.set(empCode, name);
     }
 
     const interpreters: InterpreterName[] = Array.from(new Set(empCodeToName.values()))
       .sort((a, b) => a.localeCompare(b));
 
-    // Build 12 month rows conforming to MonthlyDataRow
-    const yearData: MonthlyDataRow[] = MONTH_LABELS.map((m) => {
-      // Initialize zeros for every interpreter and group
-      const jobsByInterpreter: Record<InterpreterName, number> = {} as any;
-      const hoursByInterpreter: Record<InterpreterName, number> = {} as any;
-      const deptByInterpreter: Record<InterpreterName, Record<OwnerGroup, number>> = {} as any;
-      const typeByInterpreter: Record<InterpreterName, Record<any, number>> = {} as any;
+    // สร้าง helper สำหรับ zero objects ให้ตรง type
+    const zeroOwnerGroup = (): Record<OwnerGroup, number> => ({
+      iot: 0, hardware: 0, software: 0, other: 0,
+    });
+
+    const zeroMeetingType = (): Record<MeetingType, number> => ({
+      DR: 0, VIP: 0, Weekly: 0, General: 0, Augent: 0, Other: 0,
+    });
+
+    // เตรียม yearData 12 เดือน ให้ตรง MonthlyDataRow แบบ type-safe
+    const yearData: MonthlyDataRow[] = MONTH_LABELS.map((m): MonthlyDataRow => {
+      const jobsByInterpreter: Record<InterpreterName, number> = {};
+      const hoursByInterpreter: Record<InterpreterName, number> = {};
+      const deptByInterpreter: Record<InterpreterName, Record<OwnerGroup, number>> = {};
+      const typeByInterpreter: Record<InterpreterName, Record<MeetingType, number>> = {};
 
       for (const itp of interpreters) {
         jobsByInterpreter[itp] = 0;
         hoursByInterpreter[itp] = 0;
-        deptByInterpreter[itp] = { iot: 0, hardware: 0, software: 0, other: 0 };
-        // You’re not using meeting types in this tab, but the shape requires it
-        typeByInterpreter[itp] = {} as Record<any, number>;
+        deptByInterpreter[itp] = zeroOwnerGroup();
+        typeByInterpreter[itp] = zeroMeetingType(); // แม้แท็บนี้ยังไม่ใช้ แต่คงโครงสร้างให้ครบ
       }
 
       return {
@@ -87,37 +97,39 @@ export async function GET(
         month: m,
         jobsByInterpreter,
         hoursByInterpreter,
-        deptMeetings: { iot: 0, hardware: 0, software: 0, other: 0 },
+        deptMeetings: zeroOwnerGroup(),
         deptByInterpreter,
         typeByInterpreter,
       };
     });
 
-    // Aggregate: per-month department totals + per-interpreter per-department
+    // รวมค่า: ต่อเดือน × แผนก และ ต่อเดือน × แผนก × ล่าม
     for (const r of records) {
-      const start = new Date(r.timeStart);
-      const monthLabel = getMonthLabel(start);
+      const monthLabel = getMonthLabel(new Date(r.timeStart));
       const row = yearData[MONTH_LABELS.indexOf(monthLabel)];
 
-      const dept = r.ownerGroup as OwnerGroup; // Prisma enum aligns with your union
+      const dept = r.ownerGroup as OwnerGroup;
       row.deptMeetings[dept] += 1;
 
       const itp = empCodeToName.get(r.interpreterEmpCode as string) as InterpreterName;
       row.deptByInterpreter[itp][dept] += 1;
     }
 
-    // Footer: per-interpreter totals across ALL months & ALL groups
-    const perInterpreter: FooterByInterpreter["perInterpreter"] = interpreters.map((itp) =>
+    // Footer รวมทั้งปีสำหรับตารางใหญ่: perInterpreter / grand / diff
+    const perInterpreter: number[] = interpreters.map((itp) =>
       yearData.reduce((sumMonths, r) => {
-        const perMonthSum = DEPARTMENTS.reduce(
-          (s, g) => s + (r.deptByInterpreter[itp]?.[g] ?? 0),
-          0
-        );
+        let perMonthSum = 0;
+        for (const g of DEPARTMENTS) {
+          perMonthSum += r.deptByInterpreter[itp][g] ?? 0;
+        }
         return sumMonths + perMonthSum;
       }, 0)
     );
+
     const grand = perInterpreter.reduce((a, b) => a + b, 0);
     const diff  = perInterpreter.length ? Math.max(...perInterpreter) - Math.min(...perInterpreter) : 0;
+
+    const footer: FooterByInterpreter = { perInterpreter, grand, diff };
 
     return NextResponse.json({
       months: MONTH_LABELS,
@@ -125,8 +137,7 @@ export async function GET(
       departments: DEPARTMENTS,
       year: yearNum,
       yearData,
-      // “Month × Group × Interpreter” footer for your big table
-      deptMGIFooter: { perInterpreter, grand, diff } as FooterByInterpreter,
+      deptMGIFooter: footer,
     });
   } catch (e) {
     console.error(e);
