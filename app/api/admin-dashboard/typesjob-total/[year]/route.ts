@@ -177,12 +177,18 @@ export async function GET(
     const typesMGIFooter: FooterByInterpreter = { perInterpreter, grand, diff };
 
     // ===== ส่งผลลัพธ์ =====
-    return NextResponse.json({
+    const result = {
       months: MONTH_LABELS,
       interpreters,
       year: yearNum,
       yearData,
       typesMGIFooter,
+    };
+
+    return NextResponse.json(result, {
+      headers: {
+        'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600',
+      },
     });
   } catch (e) {
     console.error(e);

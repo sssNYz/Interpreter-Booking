@@ -131,13 +131,19 @@ export async function GET(
 
     const footer: FooterByInterpreter = { perInterpreter, grand, diff };
 
-    return NextResponse.json({
+    const result = {
       months: MONTH_LABELS,
       interpreters,
       departments: DEPARTMENTS,
       year: yearNum,
       yearData,
       deptMGIFooter: footer,
+    };
+
+    return NextResponse.json(result, {
+      headers: {
+        'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600',
+      },
     });
   } catch (e) {
     console.error(e);

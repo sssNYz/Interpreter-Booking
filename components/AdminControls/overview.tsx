@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
@@ -129,7 +129,83 @@ const sampleMonthlyData: MonthlyDataRow[] = months.map((m, i) => {
 export default function Page() {
   const [activeYear, setActiveYear] = useState<number>(years[0]);
   const [agg, setAgg] = useState<"month" | "year">("month");
+  const [jobsData, setJobsData] = useState<{
+    jobsFooter?: { grand: number };
+    months?: string[];
+    totalJobsStack?: Array<{ total: number }>;
+  } | null>(null);
+  const [hoursData, setHoursData] = useState<{
+    hoursFooter?: { grand: number };
+    months?: string[];
+    totalHoursLineMinutes?: Array<{ total: number }>;
+  } | null>(null);
+  const [deptData, setDeptData] = useState<{
+    deptMGIFooter?: { grand: number };
+    months?: string[];
+    deptBarsFlat?: Array<{ total: number }>;
+  } | null>(null);
+  const [typesData, setTypesData] = useState<{
+    typesMGIFooter?: { grand: number };
+    months?: string[];
+  } | null>(null);
+
   const currentMonthLabel = getCurrentFiscalMonthLabel();
+
+  // Fetch data from existing admin-dashboard APIs with optimized caching
+  useEffect(() => {
+    let alive = true;
+
+    Promise.all([
+      fetch(`/api/admin-dashboard/jobs-total/${activeYear}`, { 
+        cache: "force-cache",
+        next: { revalidate: 300 } // Cache for 5 minutes
+      }),
+      fetch(`/api/admin-dashboard/timejobs-total/${activeYear}`, { 
+        cache: "force-cache",
+        next: { revalidate: 300 }
+      }),
+      fetch(`/api/admin-dashboard/dept-total/${activeYear}`, { 
+        cache: "force-cache",
+        next: { revalidate: 300 }
+      }),
+      fetch(`/api/admin-dashboard/typesjob-total/${activeYear}`, { 
+        cache: "force-cache",
+        next: { revalidate: 300 }
+      })
+    ])
+      .then(async (responses) => {
+        if (!alive) return;
+        
+        const [jobsRes, hoursRes, deptRes, typesRes] = responses;
+        
+        if (jobsRes.ok) {
+          const jobsData = await jobsRes.json();
+          setJobsData(jobsData);
+        }
+        
+        if (hoursRes.ok) {
+          const hoursData = await hoursRes.json();
+          setHoursData(hoursData);
+        }
+        
+        if (deptRes.ok) {
+          const deptData = await deptRes.json();
+          setDeptData(deptData);
+        }
+        
+        if (typesRes.ok) {
+          const typesData = await typesRes.json();
+          setTypesData(typesData);
+        }
+      })
+      .catch((e) => {
+        if (alive) {
+          console.error("Error fetching dashboard data:", e);
+        }
+      });
+
+    return () => { alive = false; };
+  }, [activeYear]);
 
   // year filter
   const yearData = useMemo<MonthlyDataRow[]>(() => sampleMonthlyData.filter((d) => d.year === activeYear), [activeYear]);
@@ -145,19 +221,10 @@ export default function Page() {
     return Array.from(set);
   }, [yearData]);
 
-  // KPI
-  const kpiMonthData = useMemo(() => yearData.find((d) => d.month === currentMonthLabel), [yearData, currentMonthLabel]);
-  const kpiMonth = {
-    jobs: kpiMonthData ? sumValues(kpiMonthData.jobsByInterpreter) : 0,
-    hours: kpiMonthData ? sumValues(kpiMonthData.hoursByInterpreter) : 0,
-    dept: kpiMonthData ? sumValues(kpiMonthData.deptMeetings) : 0,
-  };
-  const kpiYearJobs = useMemo(() => yearData.reduce((a, r) => a + sumValues(r.jobsByInterpreter), 0), [yearData]);
-  const kpiYearHours = useMemo(() => yearData.reduce((a, r) => a + sumValues(r.hoursByInterpreter), 0), [yearData]);
-  const kpiYearDept = useMemo(() => yearData.reduce((a, r) => a + sumValues(r.deptMeetings), 0), [yearData]);
-  const kpiJobs = agg === "year" ? kpiYearJobs : kpiMonth.jobs;
-  const kpiHours = agg === "year" ? kpiYearHours : kpiMonth.hours;
-  const kpiDept = agg === "year" ? kpiYearDept : kpiMonth.dept;
+  // KPI - Use API data from existing endpoints
+  const kpiJobs = agg === "year" ? (jobsData?.jobsFooter?.grand || 0) : (jobsData?.months && jobsData.months.length > 0 ? jobsData?.totalJobsStack?.[jobsData.months.length - 1]?.total || 0 : 0);
+  const kpiHours = agg === "year" ? (hoursData?.hoursFooter?.grand || 0) : (hoursData?.months && hoursData.months.length > 0 ? hoursData?.totalHoursLineMinutes?.[hoursData.months.length - 1]?.total || 0 : 0);
+  const kpiDept = agg === "year" ? (deptData?.deptMGIFooter?.grand || 0) : (deptData?.months && deptData.months.length > 0 ? deptData?.deptBarsFlat?.reduce((sum: number, item: { total: number }) => sum + (item.total || 0), 0) || 0 : 0);
 
   // Datasets
   const totalJobsStack = useMemo<JobsRow[]>(
@@ -278,12 +345,12 @@ export default function Page() {
         const value =
           t === TYPE_OTHER_KEY && hasOverflowTypes
             ? typesSorted
-                .slice(typeLimit)
-                .reduce(
-                  (s, tt) =>
-                    s + interpreters.reduce((a, itp) => a + (monthRow?.typeByInterpreter?.[itp]?.[tt as MeetingType] || 0), 0),
-                  0
-                )
+              .slice(typeLimit)
+              .reduce(
+                (s, tt) =>
+                  s + interpreters.reduce((a, itp) => a + (monthRow?.typeByInterpreter?.[itp]?.[tt as MeetingType] || 0), 0),
+                0
+              )
             : interpreters.reduce((a, itp) => a + (monthRow?.typeByInterpreter?.[itp]?.[t as MeetingType] || 0), 0);
         rowBase[m] = value;
       });
@@ -423,9 +490,9 @@ export default function Page() {
                 Total Jobs ({agg === "year" ? `Year ${activeYear}` : `Month ${currentMonthLabel}`})
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              <Stat icon={BarChart2} label="Total Jobs" value={kpiJobs} />
-            </CardContent>
+                         <CardContent>
+               <Stat icon={BarChart2} label="Total Jobs" value={kpiJobs} />
+             </CardContent>
           </Card>
           <Card>
             <CardHeader className="pb-2">
@@ -433,17 +500,17 @@ export default function Page() {
                 Total Time ({agg === "year" ? `Year ${activeYear}` : `Month ${currentMonthLabel}`})
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              <Stat icon={Clock} label="Total Time" value={formatMinutes(kpiHours * 60)} />
-            </CardContent>
+                         <CardContent>
+               <Stat icon={Clock} label="Total Time" value={formatMinutes(kpiHours)} />
+             </CardContent>
           </Card>
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-base">Meetings by Dept ({agg === "year" ? "Year" : "Month"})</CardTitle>
             </CardHeader>
-            <CardContent>
-              <Stat icon={Users} label="Meetings by Dept" value={kpiDept} />
-            </CardContent>
+                         <CardContent>
+               <Stat icon={Users} label="Meetings by Dept" value={kpiDept} />
+             </CardContent>
           </Card>
           <Card>
             <CardHeader className="pb-2">
@@ -455,6 +522,8 @@ export default function Page() {
           </Card>
         </div>
 
+
+
         {/* Tabs */}
         <Tabs defaultValue="jobs" className="w-full">
           <TabsList className="grid grid-cols-2 lg:grid-cols-4 mb-4">
@@ -463,19 +532,20 @@ export default function Page() {
             <TabsTrigger value="dept">Dept Meetings</TabsTrigger>
             <TabsTrigger value="types">Meeting Types</TabsTrigger>
           </TabsList>
-
           <TabsContent value="jobs">
-            <JobsTab ctx={ctx} />
+            <JobsTab year={activeYear} />
           </TabsContent>
           <TabsContent value="hours">
-            <HoursTab ctx={ctx} />
+            <HoursTab year={activeYear} />
           </TabsContent>
           <TabsContent value="dept">
-            <DeptTab ctx={ctx} />
+            <DeptTab year={activeYear} />  
           </TabsContent>
           <TabsContent value="types">
-            <TypesTab ctx={ctx} />
+            <TypesTab year={activeYear} /> 
           </TabsContent>
+
+
         </Tabs>
       </div>
     </div>

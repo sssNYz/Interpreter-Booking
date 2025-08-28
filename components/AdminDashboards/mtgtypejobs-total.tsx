@@ -1,4 +1,4 @@
-// app/(dashboard)/components/TypesTab.tsx
+"use client";
 import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -137,18 +137,17 @@ function getMTValue(
 export function TypesTab({ year }: { year: number }) {
   // ---- hooks (ลำดับต้องคงที่) ----
   const [data, setData] = React.useState<TypesApiResponse | null>(null);
-  const [loading, setLoading] = React.useState<boolean>(true);
-  const [error, setError] = React.useState<string | null>(null);
   const [selectedMonth, setSelectedMonth] = React.useState<MonthName | "">("");
   const [showAllMonths, setShowAllMonths] = React.useState<boolean>(false);
 
   // fetch API
   React.useEffect(() => {
     let alive = true;
-    setLoading(true);
-    setError(null);
 
-    fetch(`/api/admin-dashboard/typesjob-total/${year}`, { cache: "no-store" })
+    fetch(`/api/admin-dashboard/typesjob-total/${year}`, { 
+      cache: "force-cache",
+      next: { revalidate: 300 }
+    })
       .then(async (r) => {
         if (!r.ok) throw new Error(`Failed (${r.status})`);
         const j = (await r.json()) as TypesApiResponse;
@@ -157,8 +156,9 @@ export function TypesTab({ year }: { year: number }) {
         // ตั้ง dropdown ให้เป็น "เดือนปฏิทินปัจจุบัน"
         setSelectedMonth((prev) => (prev ? prev : getCurrentCalendarMonth(j.months)));
       })
-      .catch((e) => alive && setError((e as Error).message))
-      .finally(() => alive && setLoading(false));
+      .catch((e) => {
+        if (alive) console.error("Error fetching types data:", e);
+      });
 
     return () => { alive = false; };
   }, [year]);
@@ -255,9 +255,7 @@ export function TypesTab({ year }: { year: number }) {
     return { perInterpreter, grand, diff };
   }, [showAllMonths, typesMGIFooter, yearData, selectedMonth, interpreters]);
 
-  // UI states
-  if (loading) return <div className="p-4 text-sm text-gray-600">Loading types data…</div>;
-  if (error) return <div className="p-4 text-sm text-red-600">{error}</div>;
+
 
   return (
     <>

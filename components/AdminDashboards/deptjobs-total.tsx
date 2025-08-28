@@ -1,3 +1,4 @@
+"use client";
 import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -70,17 +71,16 @@ function diffClass(v: number): string {
 export function DeptTab({ year }: { year: number }) {
   // hooks ต้องอยู่บนสุด
   const [data, setData] = React.useState<DeptApiResponse | null>(null);
-  const [loading, setLoading] = React.useState<boolean>(true);
-  const [error, setError] = React.useState<string | null>(null);
   const [selectedMonth, setSelectedMonth] = React.useState<MonthName | "">("");
   const [showAllMonths, setShowAllMonths] = React.useState<boolean>(false);
 
   React.useEffect(() => {
     let alive = true;
-    setLoading(true);
-    setError(null);
 
-    fetch(`/api/admin-dashboard/dept-total/${year}`, { cache: "no-store" })
+    fetch(`/api/admin-dashboard/dept-total/${year}`, { 
+      cache: "force-cache",
+      next: { revalidate: 300 }
+    })
       .then(async (r) => {
         if (!r.ok) throw new Error(`Failed (${r.status})`);
         const j = (await r.json()) as DeptApiResponse;
@@ -90,8 +90,9 @@ export function DeptTab({ year }: { year: number }) {
           setSelectedMonth((prev) => (prev ? prev : getCurrentCalendarMonth(j.months)));
         }
       })
-      .catch((e) => alive && setError((e as Error).message))
-      .finally(() => alive && setLoading(false));
+      .catch((e) => {
+        if (alive) console.error("Error fetching dept data:", e);
+      });
 
     return () => { alive = false; };
   }, [year]);
@@ -147,8 +148,7 @@ export function DeptTab({ year }: { year: number }) {
     return { perInterpreter, grand, diff };
   }, [showAllMonths, deptMGIFooter, interpreters, monthsToRender, yearData, departments]);
 
-  if (loading) return <div className="p-4 text-sm text-gray-600">Loading department data…</div>;
-  if (error) return <div className="p-4 text-sm text-red-600">{error}</div>;
+
 
   return (
     <>

@@ -36,21 +36,21 @@ function formatHoursDecimal(mins: number): string {
 
 export function HoursTab({ year }: { year: number }) {
   const [data, setData] = React.useState<ApiResponse | null>(null);
-  const [loading, setLoading] = React.useState<boolean>(true);
-  const [error, setError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     let alive = true;
-    setLoading(true);
-    setError(null);
-    fetch(`/api/admin-dashboard/timejobs-total/${year}`, { cache: "no-store" })
+    fetch(`/api/admin-dashboard/timejobs-total/${year}`, { 
+      cache: "force-cache",
+      next: { revalidate: 300 }
+    })
       .then(async (r) => {
         if (!r.ok) throw new Error(`Failed (${r.status})`);
         const j = (await r.json()) as ApiResponse;
         if (alive) setData(j);
       })
-      .catch((e) => alive && setError((e as Error).message))
-      .finally(() => alive && setLoading(false));
+      .catch((e) => {
+        if (alive) console.error("Error fetching hours data:", e);
+      });
     return () => {
       alive = false;
     };
@@ -67,8 +67,6 @@ export function HoursTab({ year }: { year: number }) {
     return map;
   }, [data]);
 
-  if (loading) return <div className="p-4 text-sm text-gray-600">Loading time…</div>;
-  if (error) return <div className="p-4 text-sm text-red-600">{error}</div>;
   if (!data) return null;
 
   const { interpreters, totalHoursLineMinutes, hoursFooter } = data;

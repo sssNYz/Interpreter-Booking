@@ -96,12 +96,18 @@ export async function GET(
     const diff =
       perInterpreter.length ? Math.max(...perInterpreter) - Math.min(...perInterpreter) : 0;
 
-    return NextResponse.json({
+    const result = {
       months: MONTH_LABELS,
       interpreters,
       totalHoursLineMinutes: rows,
       hoursFooter: { perInterpreter, grand, diff } as FooterByInterpreter,
       year: yearNum,
+    };
+
+    return NextResponse.json(result, {
+      headers: {
+        'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600',
+      },
     });
   } catch (e) {
     console.error(e);
