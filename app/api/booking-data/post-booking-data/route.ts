@@ -11,7 +11,8 @@
     DRType,
   } from "@/prisma/prisma";
   import type { CreateBookingRequest } from "@/types/booking-requests";
-  import type { ApiResponse } from "@/types/api";
+import type { ApiResponse } from "@/types/api";
+import type { RunResult } from "@/types/assignment";
 
   // Interface moved to '@/types/booking-requests'
 
@@ -748,6 +749,7 @@
                     ? body.inviteEmails.length
                     : 0,
                   recurringChildrenInserted: childrenInserted,
+                  autoAssignment: null as RunResult | null, // Will be set after transaction
                 },
               },
             };
@@ -757,6 +759,23 @@
         },
         { timeout: 10000 }
       );
+
+      // Auto-assign interpreter AFTER transaction commits (if enabled and no interpreter specified)
+      let autoAssignmentResult = null;
+      if (result.body.success && result.body.data.bookingId && !body.interpreterEmpCode) {
+        try {
+          console.log(`🚀 Starting auto-assignment for booking ${result.body.data.bookingId} (after transaction)`);
+          const { run } = await import("@/lib/assignment/run");
+          autoAssignmentResult = await run(result.body.data.bookingId);
+          console.log(`📊 Auto-assignment result:`, autoAssignmentResult);
+          
+          // Update the response with auto-assignment result
+          result.body.data.autoAssignment = autoAssignmentResult;
+        } catch (error) {
+          console.error("❌ Auto-assignment failed:", error);
+          result.body.data.autoAssignment = { status: "escalated", reason: "auto-assignment error" };
+        }
+      }
 
       return NextResponse.json<ApiResponse>(result.body as ApiResponse, {
         status: result.status,
