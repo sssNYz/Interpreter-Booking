@@ -11,6 +11,7 @@ import { JobsTab } from "@/components/AdminDashboards/jobs-total";
 import { HoursTab } from "@/components/AdminDashboards/timejobs-total";
 import { DeptTab } from "@/components/AdminDashboards/deptjobs-total";
 import { TypesTab } from "@/components/AdminDashboards/mtgtypejobs-total";
+import { AssignmentLogsTab } from "@/components/AdminDashboards/assignment-logs";
 
 import type {
   DashboardCtx,
@@ -129,6 +130,7 @@ const sampleMonthlyData: MonthlyDataRow[] = months.map((m, i) => {
 export default function Page() {
   const [activeYear, setActiveYear] = useState<number>(years[0]);
   const [agg, setAgg] = useState<"month" | "year">("month");
+  const [activeTab, setActiveTab] = useState<string>("jobs");
   const [jobsData, setJobsData] = useState<{
     jobsFooter?: { grand: number };
     months?: string[];
@@ -158,43 +160,43 @@ export default function Page() {
     let alive = true;
 
     Promise.all([
-      fetch(`/api/admin-dashboard/jobs-total/${activeYear}`, { 
+      fetch(`/api/admin-dashboard/jobs-total/${activeYear}`, {
         cache: "force-cache",
-        next: { revalidate: 300 } // Cache for 5 minutes
+        next: { revalidate: 300 },
       }),
-      fetch(`/api/admin-dashboard/timejobs-total/${activeYear}`, { 
+      fetch(`/api/admin-dashboard/timejobs-total/${activeYear}`, {
         cache: "force-cache",
-        next: { revalidate: 300 }
+        next: { revalidate: 300 },
       }),
-      fetch(`/api/admin-dashboard/dept-total/${activeYear}`, { 
+      fetch(`/api/admin-dashboard/dept-total/${activeYear}`, {
         cache: "force-cache",
-        next: { revalidate: 300 }
+        next: { revalidate: 300 },
       }),
-      fetch(`/api/admin-dashboard/typesjob-total/${activeYear}`, { 
+      fetch(`/api/admin-dashboard/typesjob-total/${activeYear}`, {
         cache: "force-cache",
-        next: { revalidate: 300 }
-      })
+        next: { revalidate: 300 },
+      }),
     ])
       .then(async (responses) => {
         if (!alive) return;
-        
+
         const [jobsRes, hoursRes, deptRes, typesRes] = responses;
-        
+
         if (jobsRes.ok) {
           const jobsData = await jobsRes.json();
           setJobsData(jobsData);
         }
-        
+
         if (hoursRes.ok) {
           const hoursData = await hoursRes.json();
           setHoursData(hoursData);
         }
-        
+
         if (deptRes.ok) {
           const deptData = await deptRes.json();
           setDeptData(deptData);
         }
-        
+
         if (typesRes.ok) {
           const typesData = await typesRes.json();
           setTypesData(typesData);
@@ -206,11 +208,16 @@ export default function Page() {
         }
       });
 
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+    };
   }, [activeYear]);
 
   // year filter
-  const yearData = useMemo<MonthlyDataRow[]>(() => sampleMonthlyData.filter((d) => d.year === activeYear), [activeYear]);
+  const yearData = useMemo<MonthlyDataRow[]>(
+    () => sampleMonthlyData.filter((d) => d.year === activeYear),
+    [activeYear]
+  );
 
   // collect types present in this year
   const typesList = useMemo<MeetingType[]>(() => {
@@ -224,31 +231,36 @@ export default function Page() {
   }, [yearData]);
 
   // KPI - Use API data from existing endpoints
-  const kpiJobs = agg === "year" 
-    ? (jobsData?.jobsFooter?.grand || 0) 
-    : (() => {
-        if (!jobsData?.months || !jobsData?.totalJobsStack) return 0;
-        const currentMonthIndex = jobsData.months.indexOf(currentMonthLabel);
-        return currentMonthIndex >= 0 ? jobsData.totalJobsStack[currentMonthIndex]?.total || 0 : 0;
-      })();
-  
-  const kpiHours = agg === "year" 
-    ? (hoursData?.hoursFooter?.grand || 0) 
-    : (() => {
-        if (!hoursData?.months || !hoursData?.totalHoursLineMinutes) return 0;
-        const currentMonthIndex = hoursData.months.indexOf(currentMonthLabel);
-        return currentMonthIndex >= 0 ? hoursData.totalHoursLineMinutes[currentMonthIndex]?.total || 0 : 0;
-      })();
-  
-  const kpiDept = agg === "year" 
-    ? (deptData?.deptMGIFooter?.grand || 0) 
-    : (() => {
-        if (!deptData?.months || !deptData?.yearData) return 0;
-        const currentMonthIndex = deptData.months.indexOf(currentMonthLabel);
-        if (currentMonthIndex < 0) return 0;
-        const currentMonthData = deptData.yearData[currentMonthIndex];
-        return currentMonthData ? Object.values(currentMonthData.deptMeetings).reduce((sum: number, val: number) => sum + (val || 0), 0) : 0;
-      })();
+  const kpiJobs =
+    agg === "year"
+      ? jobsData?.jobsFooter?.grand || 0
+      : (() => {
+          if (!jobsData?.months || !jobsData?.totalJobsStack) return 0;
+          const currentMonthIndex = jobsData.months.indexOf(currentMonthLabel);
+          return currentMonthIndex >= 0 ? jobsData.totalJobsStack[currentMonthIndex]?.total || 0 : 0;
+        })();
+
+  const kpiHours =
+    agg === "year"
+      ? hoursData?.hoursFooter?.grand || 0
+      : (() => {
+          if (!hoursData?.months || !hoursData?.totalHoursLineMinutes) return 0;
+          const currentMonthIndex = hoursData.months.indexOf(currentMonthLabel);
+          return currentMonthIndex >= 0 ? hoursData.totalHoursLineMinutes[currentMonthIndex]?.total || 0 : 0;
+        })();
+
+  const kpiDept =
+    agg === "year"
+      ? deptData?.deptMGIFooter?.grand || 0
+      : (() => {
+          if (!deptData?.months || !deptData?.yearData) return 0;
+          const currentMonthIndex = deptData.months.indexOf(currentMonthLabel);
+          if (currentMonthIndex < 0) return 0;
+          const currentMonthData = deptData.yearData[currentMonthIndex];
+          return currentMonthData
+            ? Object.values(currentMonthData.deptMeetings).reduce((sum: number, val: number) => sum + (val || 0), 0)
+            : 0;
+        })();
 
   // Datasets
   const totalJobsStack = useMemo<JobsRow[]>(
@@ -324,10 +336,7 @@ export default function Page() {
     typesList.forEach((t) => {
       const sumForType = months.reduce((sum, m) => {
         const monthRow = yearData.find((d) => d.month === m);
-        const byInterpreters = interpreters.reduce(
-          (acc, itp) => acc + (monthRow?.typeByInterpreter?.[itp]?.[t] ?? 0),
-          0
-        );
+        const byInterpreters = interpreters.reduce((acc, itp) => acc + (monthRow?.typeByInterpreter?.[itp]?.[t] ?? 0), 0);
         return sum + byInterpreters;
       }, 0);
       totals[t] = sumForType;
@@ -347,7 +356,9 @@ export default function Page() {
         const base: Record<string, number | string> = { month: m, type: t };
         interpreters.forEach((itp) => {
           if (t === TYPE_OTHER_KEY && hasOverflowTypes) {
-            const otherSum = typesSorted.slice(typeLimit).reduce((s, tt) => s + (monthRow?.typeByInterpreter?.[itp]?.[tt as MeetingType] || 0), 0);
+            const otherSum = typesSorted
+              .slice(typeLimit)
+              .reduce((s, tt) => s + (monthRow?.typeByInterpreter?.[itp]?.[tt as MeetingType] || 0), 0);
             base[itp] = otherSum;
           } else {
             base[itp] = monthRow?.typeByInterpreter?.[itp]?.[t as MeetingType] || 0;
@@ -369,12 +380,12 @@ export default function Page() {
         const value =
           t === TYPE_OTHER_KEY && hasOverflowTypes
             ? typesSorted
-              .slice(typeLimit)
-              .reduce(
-                (s, tt) =>
-                  s + interpreters.reduce((a, itp) => a + (monthRow?.typeByInterpreter?.[itp]?.[tt as MeetingType] || 0), 0),
-                0
-              )
+                .slice(typeLimit)
+                .reduce(
+                  (s, tt) =>
+                    s + interpreters.reduce((a, itp) => a + (monthRow?.typeByInterpreter?.[itp]?.[tt as MeetingType] || 0), 0),
+                  0
+                )
             : interpreters.reduce((a, itp) => a + (monthRow?.typeByInterpreter?.[itp]?.[t as MeetingType] || 0), 0);
         rowBase[m] = value;
       });
@@ -421,7 +432,7 @@ export default function Page() {
     </SelectItem>
   ));
 
-  // context for child tabs
+  // context for child tabs (kept, even if not used directly here)
   const ctx: DashboardCtx = {
     activeYear,
     interpreters,
@@ -481,6 +492,10 @@ export default function Page() {
                   Year
                 </Button>
               </div>
+              {/* Only one Logs button on the head */}
+              <Button size="sm" variant="secondary" onClick={() => setActiveTab("logs")}>
+                View Logs
+              </Button>
             </div>
           </div>
         </div>
@@ -514,9 +529,9 @@ export default function Page() {
                 Total Jobs ({agg === "year" ? `Year ${activeYear}` : `Month ${currentMonthLabel}`})
               </CardTitle>
             </CardHeader>
-                         <CardContent>
-               <Stat icon={BarChart2} label="Total Jobs" value={kpiJobs} />
-             </CardContent>
+            <CardContent>
+              <Stat icon={BarChart2} label="Total Jobs" value={kpiJobs} />
+            </CardContent>
           </Card>
           <Card>
             <CardHeader className="pb-2">
@@ -524,17 +539,17 @@ export default function Page() {
                 Total Time ({agg === "year" ? `Year ${activeYear}` : `Month ${currentMonthLabel}`})
               </CardTitle>
             </CardHeader>
-                         <CardContent>
-               <Stat icon={Clock} label="Total Time" value={formatMinutes(kpiHours)} />
-             </CardContent>
+            <CardContent>
+              <Stat icon={Clock} label="Total Time" value={formatMinutes(kpiHours)} />
+            </CardContent>
           </Card>
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-base">Meetings by Dept ({agg === "year" ? "Year" : "Month"})</CardTitle>
             </CardHeader>
-                         <CardContent>
-               <Stat icon={Users} label="Meetings by Dept" value={kpiDept} />
-             </CardContent>
+            <CardContent>
+              <Stat icon={Users} label="Meetings by Dept" value={kpiDept} />
+            </CardContent>
           </Card>
           <Card>
             <CardHeader className="pb-2">
@@ -546,16 +561,16 @@ export default function Page() {
           </Card>
         </div>
 
-
-
         {/* Tabs */}
-        <Tabs defaultValue="jobs" className="w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          {/* Removed 'Logs' trigger — use only the head button */}
           <TabsList className="grid grid-cols-2 lg:grid-cols-4 mb-4">
             <TabsTrigger value="jobs">Total Jobs</TabsTrigger>
             <TabsTrigger value="hours">Total Hours</TabsTrigger>
             <TabsTrigger value="dept">Dept Meetings</TabsTrigger>
             <TabsTrigger value="types">Meeting Types</TabsTrigger>
           </TabsList>
+
           <TabsContent value="jobs">
             <JobsTab year={activeYear} />
           </TabsContent>
@@ -563,13 +578,14 @@ export default function Page() {
             <HoursTab year={activeYear} />
           </TabsContent>
           <TabsContent value="dept">
-            <DeptTab year={activeYear} />  
+            <DeptTab year={activeYear} />
           </TabsContent>
           <TabsContent value="types">
-            <TypesTab year={activeYear} /> 
+            <TypesTab year={activeYear} />
           </TabsContent>
-
-
+          <TabsContent value="logs">
+            <AssignmentLogsTab />
+          </TabsContent>
         </Tabs>
       </div>
     </div>
