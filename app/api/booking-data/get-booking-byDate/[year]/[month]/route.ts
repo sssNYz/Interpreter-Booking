@@ -63,7 +63,6 @@ export async function GET(
     ownerGroup: string;
     meetingRoom: string;
     meetingDetail: string | null;
-    highPriority: boolean;
     timeStart: Date;
     timeEnd: Date;
     bookingStatus: string;
