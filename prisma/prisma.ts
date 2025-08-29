@@ -6,9 +6,11 @@ import {
   RecurrenceType,
   EndType,
   WeekOrder,
+  DRType,  
+  OtherTypeScope,
 } from "@prisma/client";
 
-declare global {
+  declare global {
   var prisma: PrismaClient | undefined;
 }
 
@@ -28,4 +30,6 @@ export {
   RecurrenceType,
   EndType,
   WeekOrder,
+  DRType,
+  OtherTypeScope,
 };

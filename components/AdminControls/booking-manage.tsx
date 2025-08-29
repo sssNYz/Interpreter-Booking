@@ -8,7 +8,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
-  ChevronLeft, ChevronRight, Star, Clock, Info, CheckCircle, XCircle, Hourglass,
+  ChevronLeft, ChevronRight, Clock, Info, CheckCircle, XCircle, Hourglass,
   Calendar, ChevronUp, ChevronDown, SquarePen,
 } from "lucide-react";
 
@@ -221,10 +221,6 @@ export default function BookingManagement(): React.JSX.Element {
             <Info className="h-5 w-5 text-blue-600" />
             <span className="font-semibold text-blue-800">Legend:</span>
           </div>
-          <div className="flex items-center gap-2">
-            <Star className="h-5 w-5 text-amber-500 fill-amber-500" />
-            <span className="text-blue-700">= DR (High Priority Meeting)</span>
-          </div>
         </div>
 
         {/* Summary Cards */}
@@ -368,14 +364,7 @@ export default function BookingManagement(): React.JSX.Element {
                                 </div>
                               )}
                             </div>
-                            {booking.isDR && (
-                              <div className="group relative">
-                                <Star className="h-4 w-4 text-amber-500 fill-amber-500 cursor-help" />
-                                <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50">
-                                  High Priority Meeting (DR)
-                                </div>
-                              </div>
-                            )}
+                            {/* DR indicator removed */}
                           </div>
                         </td>
                         <td className="px-4 py-4">
