@@ -1,99 +1,92 @@
 import { NextRequest, NextResponse } from "next/server";
-import { loadPolicy, updatePolicy } from "@/lib/assignment/policy";
-import type { AssignmentPolicy } from "@/types/assignment";
+import { loadPolicy, updatePolicy, loadMeetingTypePriorities, updateMeetingTypePriority, applyModeThresholds } from "@/lib/assignment/policy";
+import prisma from "@/prisma/prisma";
 
 export async function GET() {
   try {
     const policy = await loadPolicy();
+    const priorities = await loadMeetingTypePriorities();
     
     return NextResponse.json({
       success: true,
-      data: policy
+      data: {
+        policy,
+        priorities
+      }
     });
   } catch (error) {
-    console.error("Error fetching auto-assign config:", error);
+    console.error("Error loading auto-assignment config:", error);
     return NextResponse.json(
-      {
-        success: false,
-        error: "Failed to fetch configuration"
-      },
+      { success: false, error: "Failed to load configuration" },
       { status: 500 }
     );
   }
 }
 
-export async function PUT(request: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     
-    // Validate required fields
-    const { autoAssignEnabled, fairnessWindowDays, maxGapHours, minAdvanceDays, w_fair, w_urgency, w_lrs } = body;
-    
-    // Basic validation
-    if (typeof autoAssignEnabled !== 'boolean') {
-      return NextResponse.json(
-        { success: false, error: "autoAssignEnabled must be a boolean" },
-        { status: 400 }
-      );
+    // Update policy if provided
+    if (body.policy) {
+      await updatePolicy(body.policy);
     }
     
-    if (fairnessWindowDays !== undefined && (typeof fairnessWindowDays !== 'number' || fairnessWindowDays < 7 || fairnessWindowDays > 90)) {
-      return NextResponse.json(
-        { success: false, error: "fairnessWindowDays must be between 7 and 90" },
-        { status: 400 }
-      );
+    // Update meeting type priorities if provided
+    if (body.priorities && Array.isArray(body.priorities)) {
+      console.log(`Processing ${body.priorities.length} priorities:`, body.priorities);
+      
+      for (const priority of body.priorities) {
+        if (priority.meetingType && priority.priorityValue !== undefined) {
+          console.log(`Processing priority for ${priority.meetingType}:`, priority);
+          
+          try {
+            // Try to update existing priority
+            const activePolicy = body.policy ? await updatePolicy(body.policy) : await loadPolicy();
+            const adjusted = applyModeThresholds({
+              meetingType: priority.meetingType,
+              urgentThresholdDays: priority.urgentThresholdDays,
+              generalThresholdDays: priority.generalThresholdDays
+            }, activePolicy.mode);
+            await updateMeetingTypePriority(priority.meetingType, {
+              priorityValue: priority.priorityValue,
+              urgentThresholdDays: adjusted.urgentThresholdDays,
+              generalThresholdDays: adjusted.generalThresholdDays
+            });
+            console.log(`Updated priority for ${priority.meetingType}`);
+          } catch (error) {
+            // If update fails, create new priority
+            console.log(`Creating new priority for ${priority.meetingType} (update failed: ${error instanceof Error ? error.message : 'Unknown error'})`);
+            await prisma.meetingTypePriority.create({
+              data: {
+                meetingType: priority.meetingType as "DR" | "VIP" | "Weekly" | "General" | "Augent" | "Other",
+                priorityValue: priority.priorityValue,
+                urgentThresholdDays: priority.urgentThresholdDays,
+                generalThresholdDays: priority.generalThresholdDays
+              }
+            });
+            console.log(`Created new priority for ${priority.meetingType}`);
+          }
+        }
+      }
     }
     
-    if (maxGapHours !== undefined && (typeof maxGapHours !== 'number' || maxGapHours < 1 || maxGapHours > 100)) {
-      return NextResponse.json(
-        { success: false, error: "maxGapHours must be between 1 and 100" },
-        { status: 400 }
-      );
-    }
-    
-    if (minAdvanceDays !== undefined && (typeof minAdvanceDays !== 'number' || minAdvanceDays < 0 || minAdvanceDays > 30)) {
-      return NextResponse.json(
-        { success: false, error: "minAdvanceDays must be between 0 and 30" },
-        { status: 400 }
-      );
-    }
-    
-    if (w_fair !== undefined && (typeof w_fair !== 'number' || w_fair < 0 || w_fair > 5)) {
-      return NextResponse.json(
-        { success: false, error: "w_fair must be between 0 and 5" },
-        { status: 400 }
-      );
-    }
-    
-    if (w_urgency !== undefined && (typeof w_urgency !== 'number' || w_urgency < 0 || w_urgency > 5)) {
-      return NextResponse.json(
-        { success: false, error: "w_urgency must be between 0 and 5" },
-        { status: 400 }
-      );
-    }
-    
-    if (w_lrs !== undefined && (typeof w_lrs !== 'number' || w_lrs < 0 || w_lrs > 5)) {
-      return NextResponse.json(
-        { success: false, error: "w_lrs must be between 0 and 5" },
-        { status: 400 }
-      );
-    }
-    
-    // Update policy
-    const updatedPolicy = await updatePolicy(body);
+    // Return updated configuration
+    const updatedPolicy = await loadPolicy();
+    const updatedPriorities = await loadMeetingTypePriorities();
     
     return NextResponse.json({
       success: true,
-      message: "Configuration updated successfully",
-      data: updatedPolicy
+      data: {
+        policy: updatedPolicy,
+        priorities: updatedPriorities
+      },
+      message: "Configuration updated successfully"
     });
   } catch (error) {
-    console.error("Error updating auto-assign config:", error);
+    console.error("Error updating auto-assignment config:", error);
     return NextResponse.json(
-      {
-        success: false,
-        error: "Failed to update configuration"
-      },
+      { success: false, error: "Failed to update configuration" },
       { status: 500 }
     );
   }

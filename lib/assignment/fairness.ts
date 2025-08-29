@@ -2,6 +2,79 @@ import prisma from "@/prisma/prisma";
 import type { HoursSnapshot } from "@/types/assignment";
 
 /**
+ * Get active interpreters with INTERPRETER role
+ */
+export async function getActiveInterpreters(): Promise<Array<{ empCode: string }>> {
+  try {
+    const interpreters = await prisma.employee.findMany({
+      where: {
+        isActive: true,
+        userRoles: {
+          some: {
+            roleCode: "INTERPRETER"
+          }
+        }
+      },
+      select: {
+        empCode: true
+      }
+    });
+    
+    return interpreters;
+  } catch (error) {
+    console.error("Error getting active interpreters:", error);
+    return [];
+  }
+}
+
+/**
+ * Get interpreter hours for the specified window
+ */
+export async function getInterpreterHours(
+  interpreters: Array<{ empCode: string }>, 
+  fairnessWindowDays: number
+): Promise<HoursSnapshot> {
+  const cutoffDate = new Date();
+  cutoffDate.setDate(cutoffDate.getDate() - fairnessWindowDays);
+
+  try {
+    // Query all completed and active bookings within the window
+    const bookings = await prisma.bookingPlan.findMany({
+      where: {
+        AND: [
+          { createdAt: { gte: cutoffDate } },
+          { bookingStatus: { not: 'cancel' } },
+          { interpreterEmpCode: { not: null } }
+        ]
+      },
+      select: {
+        interpreterEmpCode: true,
+        timeStart: true,
+        timeEnd: true,
+      }
+    });
+
+    // Calculate hours per interpreter
+    const hoursMap: HoursSnapshot = {};
+    
+    for (const booking of bookings) {
+      if (!booking.interpreterEmpCode) continue;
+      
+      const start = new Date(booking.timeStart);
+      const end = new Date(booking.timeEnd);
+      const durationHours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+      
+      hoursMap[booking.interpreterEmpCode] = (hoursMap[booking.interpreterEmpCode] || 0) + durationHours;
+    }
+
+    return hoursMap;
+  } catch (error) {
+    console.error("Error getting interpreter hours:", error);
+    return {};
+  }
+}
+
+/**
  * Get rolling hours for all interpreters within the specified window
  */
 export async function getRollingHours(fairnessWindowDays: number): Promise<HoursSnapshot> {
