@@ -99,16 +99,30 @@ model UserRole {
 model AutoAssignmentConfig {
   id                 Int      @id @default(autoincrement()) @map("ID")
   autoAssignEnabled  Boolean  @default(true) @map("AUTO_ASSIGN_ENABLED")
+  mode               String   @default("NORMAL") @map("MODE")
   fairnessWindowDays Int      @default(30) @map("FAIRNESS_WINDOW_DAYS")
   maxGapHours        Int      @default(10) @map("MAX_GAP_HOURS")
   minAdvanceDays     Int      @default(2) @map("MIN_ADVANCE_DAYS")
   w_fair             Float    @default(1.2) @map("W_FAIR")
   w_urgency          Float    @default(0.5) @map("W_URGENCY")
   w_lrs              Float    @default(0.3) @map("W_LRS")
+  drConsecutivePenalty Float  @default(-0.7) @map("DR_CONSECUTIVE_PENALTY")
   createdAt          DateTime @default(now()) @map("created_at") @db.Timestamp(0)
   updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamp(0)
 
   @@map("AUTO_ASSIGNMENT_CONFIG")
+}
+
+model MeetingTypePriority {
+  id                  Int         @id @default(autoincrement()) @map("ID")
+  meetingType         MeetingType @unique @map("MEETING_TYPE")
+  priorityValue       Int         @map("PRIORITY_VALUE")
+  urgentThresholdDays Int         @map("URGENT_THRESHOLD_DAYS")
+  generalThresholdDays Int        @map("GENERAL_THRESHOLD_DAYS")
+  createdAt           DateTime    @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt           DateTime    @updatedAt @map("updated_at") @db.Timestamp(0)
+
+  @@map("MEETING_TYPE_PRIORITY")
 }
 
 model AssignmentLog {

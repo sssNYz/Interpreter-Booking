@@ -1,205 +1,302 @@
 import prisma from "@/prisma/prisma";
 import type { Prisma } from "@prisma/client";
+import type { RunResult, CandidateResult, HoursSnapshot, AssignmentLogData, AssignmentPolicy } from "@/types/assignment";
 import { loadPolicy } from "./policy";
-import { 
-  getRollingHours, 
-  applyHardGapFilter, 
-  snapshotHours, 
-  projectPostHours 
-} from "./fairness";
-import { computeUrgencyScore } from "./urgency";
-import { getDaysSinceLastAssignment } from "./lrs";
-import { createCandidateResults } from "./scoring";
-import type { RunResult, AssignmentLogData, HoursSnapshot } from "@/types/assignment";
+import { getActiveInterpreters, getInterpreterHours } from "./fairness";
+import { computeEnhancedUrgencyScore } from "./urgency";
+import { rankByScore } from "./scoring";
+import { isDRMeeting } from "./dr-history";
+import { shouldAssignImmediately, bookingPool, processPoolEntries } from "./pool";
 
 /**
- * Main orchestrator for auto-assignment
+ * Main assignment function for a single booking
  */
-export async function run(bookingId: number): Promise<RunResult> {
+export async function runAssignment(bookingId: number): Promise<RunResult> {
+  console.log(`🚀 Starting assignment for booking ${bookingId}`);
+  
   try {
-    // 1. Load policy configuration
-    const cfg = await loadPolicy();
-    if (!cfg.autoAssignEnabled) {
-      return { 
-        status: "escalated", 
-        reason: "auto-assign disabled" 
+    // Load current policy
+    const policy = await loadPolicy();
+    
+    if (!policy.autoAssignEnabled) {
+      console.log("❌ Auto-assignment is disabled");
+      return {
+        status: "escalated",
+        reason: "auto-assign disabled"
       };
     }
 
-    // 2. Load booking details
+    // Get booking details
     const booking = await prisma.bookingPlan.findUnique({
       where: { bookingId },
       select: {
+        bookingId: true,
         timeStart: true,
         timeEnd: true,
+        meetingType: true,
         interpreterEmpCode: true,
-        bookingStatus: true
+        meetingDetail: true
       }
     });
 
     if (!booking) {
-      return { 
-        status: "escalated", 
-        reason: "booking not found" 
+      console.log(`❌ Booking ${bookingId} not found`);
+      return {
+        status: "escalated",
+        reason: "booking not found"
       };
     }
 
     // Check if already assigned
     if (booking.interpreterEmpCode) {
-      return { 
-        status: "assigned", 
-        interpreterId: booking.interpreterEmpCode,
-        note: "already assigned" 
-      };
-    }
-
-    // 3. Get active interpreters
-    const interpreters = await prisma.employee.findMany({
-      where: {
-        isActive: true,
-        userRoles: {
-          some: {
-            roleCode: "INTERPRETER"
-          }
-        }
-      },
-      select: {
-        empCode: true
-      }
-    });
-
-    if (interpreters.length === 0) {
-      return { 
-        status: "escalated", 
-        reason: "no active interpreters found" 
-      };
-    }
-
-    // 4. Calculate booking duration
-    const startTime = new Date(booking.timeStart);
-    const endTime = new Date(booking.timeEnd);
-    const durationHours = (endTime.getTime() - startTime.getTime()) / (1000 * 60 * 60);
-
-    // 5. Get rolling hours and apply hard filter
-    const hours = await getRollingHours(cfg.fairnessWindowDays);
-    const interpreterIds = interpreters.map(i => i.empCode);
-    const eligible = applyHardGapFilter(
-      interpreterIds,
-      hours,
-      durationHours,
-      cfg.maxGapHours
-    );
-
-    // 6. Create pre-snapshot for logging
-    const preSnapshot = snapshotHours(hours, interpreterIds);
-
-    if (eligible.length === 0) {
-      // No eligible candidates - escalate
-      const logData: AssignmentLogData = {
-        bookingId,
-        status: "escalated",
-        reason: "no eligible under maxGapHours",
-        preHoursSnapshot: preSnapshot,
-        maxGapHours: cfg.maxGapHours,
-        fairnessWindowDays: cfg.fairnessWindowDays
-      };
-
-      await logAssignment(logData);
-      return { 
-        status: "escalated", 
-        reason: "no eligible under maxGapHours" 
-      };
-    }
-
-    // 7. Compute urgency score
-    const urgencyScore = computeUrgencyScore(startTime, cfg.minAdvanceDays);
-
-    // 8. Create candidate results with full breakdown
-    const allCandidates = interpreterIds.map(id => ({
-      empCode: id,
-      currentHours: hours[id] || 0
-    }));
-
-    const breakdown = await createCandidateResults(
-      allCandidates,
-      eligible,
-      hours,
-      urgencyScore,
-      cfg,
-      cfg.fairnessWindowDays,
-      cfg.maxGapHours
-    );
-
-    // 9. Select winner (highest scoring eligible candidate)
-    const eligibleCandidates = breakdown.filter(c => c.eligible);
-    if (eligibleCandidates.length === 0) {
-      return { 
-        status: "escalated", 
-        reason: "no eligible candidates found" 
-      };
-    }
-    
-    // Sort by total score (highest first)
-    eligibleCandidates.sort((a, b) => b.scores.total - a.scores.total);
-    const winner = eligibleCandidates[0];
-    
-    console.log(`🏆 Winner selected: ${winner.empCode} with score ${winner.scores.total.toFixed(3)}`);
-
-    // 10. Transaction: assign interpreter and log
-    return await prisma.$transaction(async (tx) => {
-      // Re-check booking is still unassigned
-      const fresh = await tx.bookingPlan.findUnique({
-        where: { bookingId },
-        select: { interpreterEmpCode: true }
-      });
-
-      if (fresh?.interpreterEmpCode) {
-        return { 
-          status: "assigned", 
-          interpreterId: fresh.interpreterEmpCode, 
-          note: "already assigned" 
-        };
-      }
-
-      // Assign interpreter and update status to approve
-      // Business Rule: When interpreterEmpCode is assigned, bookingStatus must be "approve"
-      await tx.bookingPlan.update({
-        where: { bookingId },
-        data: { 
-          interpreterEmpCode: winner.empCode,
-          bookingStatus: "approve"
-        }
-      });
-
-      // Create post-snapshot
-      const postSnapshot = projectPostHours(preSnapshot, winner.empCode, durationHours);
-
-      // Log assignment
-      const logData: AssignmentLogData = {
-        bookingId,
-        interpreterEmpCode: winner.empCode,
+      console.log(`✅ Booking ${bookingId} already has interpreter ${booking.interpreterEmpCode}`);
+      return {
         status: "assigned",
-        preHoursSnapshot: preSnapshot,
-        postHoursSnapshot: postSnapshot,
-        scoreBreakdown: winner.scores,
-        maxGapHours: cfg.maxGapHours,
-        fairnessWindowDays: cfg.fairnessWindowDays
+        interpreterId: booking.interpreterEmpCode,
+        reason: "already assigned"
       };
+    }
 
-      await logAssignment(logData, tx);
-
-      return { 
-        status: "assigned", 
-        interpreterId: winner.empCode, 
-        breakdown 
+    // Check if booking should be assigned immediately or sent to pool
+    const isUrgent = await shouldAssignImmediately(booking.timeStart, booking.meetingType);
+    
+    if (!isUrgent) {
+      console.log(`📥 Booking ${bookingId} is not urgent, adding to pool`);
+      
+      const poolEntry = await bookingPool.addToPool(
+        booking.bookingId,
+        booking.meetingType,
+        booking.timeStart,
+        booking.timeEnd
+      );
+      
+      return {
+        status: "pooled",
+        reason: `Non-urgent booking added to pool (decision window: ${poolEntry.decisionWindowTime.toISOString()})`,
+        poolEntry
       };
+    }
+
+    // Proceed with immediate assignment
+    console.log(`⚡ Booking ${bookingId} is urgent, proceeding with immediate assignment`);
+    
+    return await performAssignment(booking, policy);
+    
+  } catch (error) {
+    console.error(`❌ Error in assignment for booking ${bookingId}:`, error);
+    return {
+      status: "escalated",
+      reason: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`
+    };
+  }
+}
+
+/**
+ * Process all pool entries that are ready for assignment
+ */
+export async function processPool(): Promise<RunResult[]> {
+  console.log("🔄 Processing booking pool...");
+  
+  const readyEntries = await processPoolEntries();
+  const results: RunResult[] = [];
+  
+  if (readyEntries.length === 0) {
+    console.log("📭 No pool entries ready for assignment");
+    return [];
+  }
+  
+  // Load current policy
+  const policy = await loadPolicy();
+  
+  for (const entry of readyEntries) {
+    try {
+      console.log(`🔄 Processing pool entry for booking ${entry.bookingId}`);
+      
+      // Get current booking details
+      const booking = await prisma.bookingPlan.findUnique({
+        where: { bookingId: entry.bookingId },
+        select: {
+          bookingId: true,
+          timeStart: true,
+          timeEnd: true,
+          meetingType: true,
+          interpreterEmpCode: true,
+          meetingDetail: true
+        }
+      });
+      
+      if (!booking) {
+        console.log(`❌ Pool entry ${entry.bookingId} not found in database, removing from pool`);
+        bookingPool.removeFromPool(entry.bookingId);
+        results.push({
+          status: "escalated",
+          reason: "booking not found in database"
+        });
+        continue;
+      }
+      
+      // Check if already assigned
+      if (booking.interpreterEmpCode) {
+        console.log(`✅ Pool entry ${entry.bookingId} already assigned, removing from pool`);
+        bookingPool.removeFromPool(entry.bookingId);
+        results.push({
+          status: "assigned",
+          interpreterId: booking.interpreterEmpCode,
+          reason: "already assigned"
+        });
+        continue;
+      }
+      
+      // Perform assignment
+      const result = await performAssignment(booking, policy);
+      
+      // Remove from pool if assignment was successful
+      if (result.status === "assigned") {
+        bookingPool.removeFromPool(entry.bookingId);
+      }
+      
+      results.push(result);
+      
+    } catch (error) {
+      console.error(`❌ Error processing pool entry ${entry.bookingId}:`, error);
+      results.push({
+        status: "escalated",
+        reason: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`
+      });
+    }
+  }
+  
+  return results;
+}
+
+/**
+ * Perform the actual assignment logic
+ */
+async function performAssignment(booking: {
+  bookingId: number;
+  timeStart: Date;
+  timeEnd: Date;
+  meetingType: string;
+  interpreterEmpCode: string | null;
+  meetingDetail: string | null;
+}, policy: AssignmentPolicy): Promise<RunResult> {
+  const isDR = isDRMeeting(booking.meetingType);
+  
+  // Get active interpreters
+  const interpreters = await getActiveInterpreters();
+  if (interpreters.length === 0) {
+    console.log("❌ No active interpreters found");
+    return {
+      status: "escalated",
+      reason: "no active interpreters found"
+    };
+  }
+
+  // Get current hour distribution
+  const preHoursSnapshot = await getInterpreterHours(interpreters, policy.fairnessWindowDays);
+  
+  // Compute urgency score using enhanced algorithm
+  const urgencyScore = await computeEnhancedUrgencyScore(
+    booking.timeStart,
+    booking.meetingType,
+    policy.minAdvanceDays
+  );
+  
+  console.log(`📊 Urgency score for ${booking.meetingType}: ${urgencyScore.toFixed(3)}`);
+
+  // Simulate assignment to each interpreter to check fairness
+  const eligibleIds: string[] = [];
+  for (const interpreter of interpreters) {
+    const simulatedHours = { ...preHoursSnapshot };
+    simulatedHours[interpreter.empCode] = (simulatedHours[interpreter.empCode] || 0) + 1; // assume 1 hour
+    
+    const hours = Object.values(simulatedHours);
+    const gap = Math.max(...hours) - Math.min(...hours);
+    
+    if (gap <= policy.maxGapHours) {
+      eligibleIds.push(interpreter.empCode);
+    }
+  }
+
+  if (eligibleIds.length === 0) {
+    console.log(`❌ No eligible interpreters under max gap ${policy.maxGapHours}h`);
+    return {
+      status: "escalated",
+      reason: `no eligible under maxGapHours`
+    };
+  }
+
+  // Rank candidates by score
+  const candidates = interpreters.map(interpreter => ({
+    empCode: interpreter.empCode,
+    currentHours: preHoursSnapshot[interpreter.empCode] || 0,
+    daysSinceLastAssignment: 0 // Will be computed in rankByScore
+  }));
+  
+  const rankedResults = await rankByScore(
+    candidates,
+    preHoursSnapshot,
+    urgencyScore,
+    policy.mode,
+    policy.fairnessWindowDays,
+    policy.maxGapHours,
+    isDR,
+    policy.drConsecutivePenalty,
+    policy.mode === 'CUSTOM' ? { w_fair: policy.w_fair, w_urgency: policy.w_urgency, w_lrs: policy.w_lrs } : undefined
+  );
+
+  // Get top candidate
+  const topCandidate = rankedResults[0];
+  if (!topCandidate || !topCandidate.eligible) {
+    console.log("❌ No eligible candidates after scoring");
+    return {
+      status: "escalated",
+      reason: "no eligible candidates after scoring"
+    };
+  }
+
+  // Assign interpreter
+  try {
+    await prisma.bookingPlan.update({
+      where: { bookingId: booking.bookingId },
+      data: { 
+        interpreterEmpCode: topCandidate.empCode,
+        bookingStatus: 'approve' // Auto-approve when interpreter is assigned
+      }
     });
+
+    // Get post-assignment hour snapshot
+    const postHoursSnapshot = await getInterpreterHours(interpreters, policy.fairnessWindowDays);
+
+    // Log assignment
+    await logAssignment({
+      bookingId: booking.bookingId,
+      interpreterEmpCode: topCandidate.empCode,
+      status: "assigned",
+      reason: `Assigned to ${topCandidate.empCode} (score: ${topCandidate.scores.total.toFixed(3)})`,
+      preHoursSnapshot,
+      postHoursSnapshot,
+      scoreBreakdown: topCandidate.scores,
+      maxGapHours: policy.maxGapHours,
+      fairnessWindowDays: policy.fairnessWindowDays,
+      mode: policy.mode
+    });
+
+    console.log(`✅ Successfully assigned booking ${booking.bookingId} to ${topCandidate.empCode}`);
+    console.log(`📊 Final scores: Fairness=${topCandidate.scores.fairness.toFixed(3)}, Urgency=${topCandidate.scores.urgency.toFixed(3)}, LRS=${topCandidate.scores.lrs.toFixed(3)}, Total=${topCandidate.scores.total.toFixed(3)}`);
+
+    return {
+      status: "assigned",
+      interpreterId: topCandidate.empCode,
+      breakdown: rankedResults,
+      note: `Assigned using ${policy.mode} mode`
+    };
 
   } catch (error) {
-    console.error("Error in auto-assignment:", error);
-    return { 
-      status: "escalated", 
-      reason: `error: ${error instanceof Error ? error.message : 'unknown error'}` 
+    console.error(`❌ Error updating booking ${booking.bookingId}:`, error);
+    return {
+      status: "escalated",
+      reason: `Database error: ${error instanceof Error ? error.message : 'Unknown error'}`
     };
   }
 }
@@ -207,28 +304,37 @@ export async function run(bookingId: number): Promise<RunResult> {
 /**
  * Log assignment decision
  */
-async function logAssignment(
-  logData: AssignmentLogData, 
-  tx?: Prisma.TransactionClient
-): Promise<void> {
-  const prismaClient = tx || prisma;
-  
+async function logAssignment(logData: AssignmentLogData): Promise<void> {
   try {
-    await prismaClient.assignmentLog.create({
+    await prisma.assignmentLog.create({
       data: {
         bookingId: logData.bookingId,
         interpreterEmpCode: logData.interpreterEmpCode,
         status: logData.status,
         reason: logData.reason,
-        preHoursSnapshot: logData.preHoursSnapshot,
-        postHoursSnapshot: logData.postHoursSnapshot,
+        preHoursSnapshot: logData.preHoursSnapshot as Prisma.InputJsonValue,
+        postHoursSnapshot: logData.postHoursSnapshot as Prisma.InputJsonValue,
         scoreBreakdown: logData.scoreBreakdown as unknown as Prisma.InputJsonValue,
         maxGapHours: logData.maxGapHours,
         fairnessWindowDays: logData.fairnessWindowDays
       }
     });
   } catch (error) {
-    console.error("Error logging assignment:", error);
-    // Don't fail assignment if logging fails
+    console.error("❌ Error logging assignment:", error);
   }
+}
+
+/**
+ * Get pool status for monitoring
+ */
+export async function getPoolStatus() {
+  const { getPoolStatus } = await import("./pool");
+  return getPoolStatus();
+}
+
+/**
+ * Legacy function for backward compatibility
+ */
+export async function run(bookingId: number): Promise<RunResult> {
+  return runAssignment(bookingId);
 }

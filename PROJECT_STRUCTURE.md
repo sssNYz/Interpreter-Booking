@@ -1,7 +1,7 @@
 # Interpreter-Booking Project Structure
 
 ## Project Overview
-This is a Next.js-based interpreter booking system with TypeScript, featuring user authentication, booking management, and admin controls.
+This is a Next.js-based interpreter booking system with TypeScript, featuring user authentication, booking management, admin controls, and an intelligent auto-assignment engine for interpreters.
 
 ## Root Directory Structure
 ```
@@ -19,6 +19,9 @@ Interpreter-Booking/
 ├── 📄 package.json            # Node.js Dependencies
 ├── 📄 next.config.ts          # Next.js Configuration
 ├── 📄 tsconfig.json           # TypeScript Configuration
+├── 📄 PROJECT_STRUCTURE.md    # This Documentation
+├── 📄 AUTO_ASSIGNMENT_README.md # Auto-Assignment System Documentation
+├── 📄 BOOKING_STATUS_RULE.md   # Booking Status Rules
 └── 📄 README.md               # Project Documentation
 ```
 
@@ -28,13 +31,21 @@ Interpreter-Booking/
 ```
 app/
 ├── 📁 AdminPage/              # Admin Panel Pages
+│   ├── 📁 auto-assign-config/ # Auto-Assignment Configuration
+│   │   └── 📄 page.tsx        # Assignment Policy Settings
 │   ├── 📁 booking-manage-page/
 │   │   └── 📄 page.tsx        # Booking Management Interface
 │   └── 📁 user-manage-page/
 │       └── 📄 page.tsx        # User Management Interface
 ├── 📁 api/                    # API Routes (Backend Endpoints)
 │   ├── 📁 admin/
+│   │   ├── 📁 config/
+│   │   │   └── 📁 auto-assign/ # Auto-Assignment Configuration API
+│   │   │       └── 📄 route.ts
 │   │   └── 📁 fix-booking-time/
+│   ├── 📁 assignment/         # Interpreter Assignment APIs
+│   │   └── 📁 run/
+│   │       └── 📄 route.ts    # Auto-Assignment Execution
 │   ├── 📁 booking-data/       # Booking-related API endpoints
 │   │   ├── 📁 get-booking/
 │   │   ├── 📁 get-booking-by-owner/
@@ -58,6 +69,8 @@ app/
 ```
 components/
 ├── 📁 AdminControls/          # Admin-specific Control Components
+│   ├── 📄 AutoAssignConfig.tsx # Auto-Assignment Configuration Interface
+│   ├── 📄 AssignmentCandidates.tsx # Interpreter Selection Interface
 │   ├── 📄 booking-manage.tsx  # Booking Management Controls
 │   ├── 📄 overview.tsx        # Admin Dashboard Overview
 │   └── 📄 user-manage.tsx     # User Management Controls
@@ -85,6 +98,9 @@ components/
 │   └── 📄 page.tsx            # Navigation Bar
 ├── 📁 slidebar/               # Sidebar Components
 │   └── 📄 app-sidebar.tsx     # Application Sidebar
+├── 📄 calendar-04.tsx         # Calendar Component Variant 1
+├── 📄 calendar-22.tsx         # Calendar Component Variant 2
+├── 📄 ClientShell.tsx         # Client Application Shell
 └── 📁 ui/                     # Base UI Components (shadcn/ui)
     ├── 📄 alert.tsx           # Alert Component
     ├── 📄 avatar.tsx          # Avatar Component
@@ -137,6 +153,13 @@ hooks/
 ### 📁 lib/ - Utility Libraries
 ```
 lib/
+├── 📁 assignment/             # Auto-Assignment Engine
+│   ├── 📄 fairness.ts         # Fairness Algorithms
+│   ├── 📄 lrs.ts              # Linear Ranking System
+│   ├── 📄 policy.ts           # Assignment Policies
+│   ├── 📄 run.ts              # Main Assignment Execution
+│   ├── 📄 scoring.ts          # Interpreter Scoring Logic
+│   └── 📄 urgency.ts          # Urgency Calculations
 ├── 📁 auth/
 │   └── 📄 session.ts          # Session Management
 └── 📄 utils.ts                # General Utility Functions
@@ -155,11 +178,21 @@ prisma/
 └── 📄 schema.prisma           # Database Schema Definition
 ```
 
+### 📁 scripts/ - Utility Scripts
+```
+scripts/
+├── 📄 check-config.js         # Configuration Validation Script
+├── 📄 migrate-auto-assignment.sql # Auto-Assignment Migration
+├── 📄 test-booking-status.js  # Booking Status Testing
+└── 📄 test-fixed-scoring.js   # Scoring Algorithm Testing
+```
+
 ### 📁 types/ - TypeScript Type Definitions
 ```
 types/
 ├── 📄 admin.ts                # Admin-related Types
 ├── 📄 api.ts                  # API-related Types
+├── 📄 assignment.ts           # Auto-Assignment Types
 ├── 📄 auth.ts                 # Authentication Types
 ├── 📄 booking-requests.ts     # Booking Request Types
 ├── 📄 booking.ts              # Booking-related Types
@@ -181,31 +214,51 @@ utils/
 ## Technology Stack
 
 ### Frontend
-- **Framework**: Next.js 14 (App Router)
-- **Language**: TypeScript
-- **Styling**: Tailwind CSS + shadcn/ui components
-- **State Management**: React Hooks
+- **Framework**: Next.js 15 (App Router)
+- **Language**: TypeScript 5
+- **Styling**: Tailwind CSS 4 + shadcn/ui components
+- **State Management**: React 19 Hooks
+- **UI Components**: Radix UI primitives
 
 ### Backend
-- **Runtime**: Node.js
-- **Database**: Prisma ORM
-- **Authentication**: Session-based auth
+- **Runtime**: Node.js 18+
+- **Database**: PostgreSQL with Prisma 6 ORM
+- **Authentication**: Session-based auth with 30-minute timeout
 - **API**: Next.js API Routes
 
 ### Development Tools
 - **Package Manager**: npm
-- **Linting**: ESLint
+- **Linting**: ESLint 9
 - **Type Checking**: TypeScript
 - **Database Migrations**: Prisma Migrate
+- **Build Tool**: Next.js 15
 
 ## Key Features
 
 1. **User Authentication**: Login/logout system with session management
 2. **Booking Management**: Calendar-based booking system with time slot selection
 3. **Admin Panel**: User and booking management for administrators
-4. **Responsive Design**: Mobile-friendly interface
-5. **Role-based Access**: Different permissions for users and admins
-6. **Email Integration**: Invitation system for meeting participants
+4. **Intelligent Auto-Assignment**: AI-powered interpreter matching system
+5. **Responsive Design**: Mobile-friendly interface
+6. **Role-based Access**: Different permissions for users and admins
+7. **Email Integration**: Invitation system for meeting participants
+8. **Fairness Algorithms**: Balanced interpreter assignment
+9. **Real-time Updates**: Live calendar with conflict detection
+
+## Advanced Features
+
+### 🧠 **Auto-Assignment Engine**
+- **Fairness Algorithms**: Ensures equal distribution of work
+- **Scoring System**: Multi-factor interpreter evaluation
+- **Urgency Handling**: Priority-based assignment
+- **Policy Management**: Configurable assignment rules
+- **Linear Ranking**: Systematic interpreter selection
+
+### 📊 **Admin Dashboard**
+- **Real-time Monitoring**: Live booking status updates
+- **User Management**: Role assignment and permissions
+- **Configuration Control**: System parameter management
+- **Assignment Oversight**: Manual override capabilities
 
 ## File Organization Principles
 
@@ -214,5 +267,31 @@ utils/
 - **Type Safety**: Comprehensive TypeScript types throughout the application
 - **API-First Design**: RESTful API structure with clear endpoint organization
 - **Database Abstraction**: Prisma ORM for type-safe database operations
+- **Algorithm Modularity**: Separate modules for different assignment strategies
+- **Configuration Management**: Centralized system settings
 
-This structure follows Next.js best practices and provides a scalable foundation for the interpreter booking system.
+## Project Status & Readiness
+
+### ✅ **Completed Features**
+- Core booking system with calendar interface
+- User authentication and session management
+- Admin dashboard with user management
+- Auto-assignment engine with fairness algorithms
+- Database schema with migrations
+- Professional UI component library
+- Responsive design for all devices
+
+### 🚀 **Production Ready**
+- Database migrations and schema validation
+- Error handling and validation
+- Security measures and input sanitization
+- Performance optimization
+- Comprehensive TypeScript coverage
+
+### 📈 **Scalability Features**
+- Modular architecture for easy expansion
+- Database optimization for large datasets
+- Component reusability for new features
+- API-first design for future integrations
+
+This structure follows Next.js best practices and provides a scalable foundation for the interpreter booking system, with particular emphasis on the intelligent auto-assignment capabilities that set this system apart from basic booking solutions.

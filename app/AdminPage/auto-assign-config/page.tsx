@@ -1,7 +1,6 @@
 "use client"
 
 import AutoAssignConfig from "@/components/AdminControls/AutoAssignConfig"
-import AssignmentCandidates from "@/components/AdminControls/AssignmentCandidates"
 
 export default function AutoAssignConfigPage() {
   return (
@@ -15,22 +14,12 @@ export default function AutoAssignConfigPage() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Configuration Panel */}
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <h2 className="text-xl font-semibold text-gray-800 mb-4">
-            System Configuration
-          </h2>
-          <AutoAssignConfig />
-        </div>
-
-        {/* Diagnostic Panel */}
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <h2 className="text-xl font-semibold text-gray-800 mb-4">
-            Assignment Diagnostics
-          </h2>
-          <AssignmentCandidates />
-        </div>
+      {/* Configuration Panel - Full Width */}
+      <div className="bg-white rounded-lg shadow-md p-6">
+        <h2 className="text-xl font-semibold text-gray-800 mb-4">
+          System Configuration
+        </h2>
+        <AutoAssignConfig />
       </div>
 
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
