@@ -1,6 +1,7 @@
+// "@/components/AdminDashboards/assignment-logs.tsx"
 "use client";
 
-import React, { useEffect, useState, useMemo } from "react";
+import React from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,57 +17,75 @@ import {
   ChevronRight,
   ChevronDown,
   Clock,
-  Search,
-  Filter,
 } from "lucide-react";
 
 /* ========= Types ========= */
 interface LogItem {
   id: number;
-  createdAt: string;
+  createdAt: string; // requested time
   bookingId: number;
-  interpreterEmpCode: string | null;
-  status: string;
-  reason: string | null;
-  preHoursSnapshot: unknown;
-  postHoursSnapshot: unknown;
-  scoreBreakdown: unknown;
+  interpreterEmpCode?: string | null;
+  ownerEmpCode?: string | null;
+  status: string; // "assigned" when present
+  reason?: string | null;
   bookingPlan: {
     meetingType: string;
-    ownerGroup: string;
+    drType?: string | null;
     timeStart: string;
     timeEnd: string;
-    meetingRoom: string | null;
-    drType: string | null;
-    otherType: string | null;
+    meetingRoom: string;
   };
-  interpreterEmployee: {
-    empCode: string;
-    firstNameEn: string | null;
-    lastNameEn: string | null;
-    firstNameTh: string | null;
-    lastNameTh: string | null;
-  } | null;
 }
 
-interface ApiResponse {
-  items: LogItem[];
-  total: number;
-  page: number;
-  pageSize: number;
-  totalPages: number;
-  summary: {
-    byInterpreter: Record<string, { assigned: number; approved: number; rejected: number }>;
-  };
+/* ========= Mock ========= */
+function mockLogsPreview(count = 18): LogItem[] {
+  const interpreters = ["I001", "I003"];
+  const owners = ["John Doe", "Jane Smith"];
+  const types = ["DR", "VIP", "Weekly", "General", "Augent", "Other"] as const;
+  const rooms = ["Hong Nam", "Room A"];
+  const drEnumValues = ["PR_PR", "DR_k", "DR_II", "DR_I", "Other"] as const;
+  const rows: LogItem[] = [];
+  const now = new Date();
+
+  for (let i = 0; i < count; i++) {
+    const base = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+      8,
+      0,
+      0
+    );
+    base.setMinutes(base.getMinutes() + i * 60);
+    const start = new Date(base);
+    const end = new Date(base.getTime() + 60 * 60 * 1000);
+    const mt = types[i % types.length];
+
+    rows.push({
+      id: i + 1,
+      createdAt: new Date(base.getTime() - 30 * 60 * 1000).toISOString(),
+      bookingId: 1000 + i + 1,
+      interpreterEmpCode: interpreters[i % interpreters.length],
+      ownerEmpCode: owners[i % owners.length],
+      status: "assigned",
+      reason: i % 7 === 0 ? "Auto-assigned by rule" : null,
+      bookingPlan: {
+        meetingType: mt,
+        drType: mt === "DR" ? drEnumValues[i % drEnumValues.length] : null,
+        timeStart: start.toISOString(),
+        timeEnd: end.toISOString(),
+        meetingRoom: rooms[i % rooms.length],
+      },
+    });
+  }
+  return rows;
 }
 
 /* ========= Utils ========= */
 const toLocalDate = (iso: string) =>
   new Date(iso).toLocaleDateString();
-
 const toLocalTime = (iso: string) =>
   new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-
 const toLocalDateTime = (iso: string) =>
   new Date(iso).toLocaleString();
 
@@ -88,144 +107,75 @@ const formatDR = (v?: string | null) => {
 };
 
 const MEETING_TYPES = ["all", "DR", "VIP", "Weekly", "General", "Augent", "Other"];
-const STATUS_OPTIONS = ["all", "assigned", "approved", "rejected", "pending"];
 
 /* ========= Component ========= */
 export function AssignmentLogsTab() {
-  // State
-  const [logs, setLogs] = useState<LogItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  
-  // Pagination
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
-  const [total, setTotal] = useState(0);
-  const [totalPages, setTotalPages] = useState(0);
-  
-  // Filters
-  const [selectedDate, setSelectedDate] = useState<string>(() =>
+  const [allLogs, setAllLogs] = React.useState<LogItem[]>([]);
+  const [selectedDate, setSelectedDate] = React.useState<string>(() =>
     new Date().toISOString().slice(0, 10)
   );
-  const [selectedMeetingTypes, setSelectedMeetingTypes] = useState<string[]>(["all"]);
-  const [selectedStatus, setSelectedStatus] = useState<string>("all");
-  const [interpreterFilter, setInterpreterFilter] = useState<string>("");
-  const [searchTerm, setSearchTerm] = useState<string>("");
-  
-  // Summary
-  const [summary, setSummary] = useState<Record<string, { assigned: number; approved: number; rejected: number }>>({});
+  const [selectedMeetingTypes, setSelectedMeetingTypes] = React.useState<string[]>(["all"]);
+  const [loading, setLoading] = React.useState(true);
+  const [page, setPage] = React.useState(1);
+  const [pageSize, setPageSize] = React.useState(10);
 
-  // Fetch data from API
-  const fetchLogs = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      // Build query parameters
-      const params = new URLSearchParams();
-      params.set("page", page.toString());
-      params.set("pageSize", pageSize.toString());
-      
-      // Add filters
-      if (selectedStatus !== "all") {
-        params.set("status", selectedStatus);
-      }
-      
-      if (interpreterFilter.trim()) {
-        params.set("interpreterEmpCode", interpreterFilter.trim());
-      }
-      
-      if (searchTerm.trim()) {
-        params.set("search", searchTerm.trim());
-      }
-      
-      // Add date filter
-      if (selectedDate) {
-        const date = new Date(selectedDate);
-        const nextDay = new Date(date);
-        nextDay.setDate(nextDay.getDate() + 1);
-        
-        params.set("from", date.toISOString());
-        params.set("to", nextDay.toISOString());
-      }
-      
-      // Add sorting
-      params.set("sort", "createdAt:desc");
-      
-      const response = await fetch(`/api/admin-dashboard/assignment-logs?${params.toString()}`);
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const data: ApiResponse = await response.json();
-      
-      setLogs(data.items);
-      setTotal(data.total);
-      setTotalPages(data.totalPages);
-      setSummary(data.summary.byInterpreter);
-      
-    } catch (err) {
-      console.error("Error fetching logs:", err);
-      setError(err instanceof Error ? err.message : "Failed to fetch logs");
-    } finally {
+  React.useEffect(() => {
+    setLoading(true);
+    const t = setTimeout(() => {
+      setAllLogs(mockLogsPreview(8)); // ให้เหมือนภาพตัวอย่าง 8 แถว
       setLoading(false);
-    }
-  };
+    }, 150);
+    return () => clearTimeout(t);
+  }, []);
 
-  // Fetch data when filters change
-  useEffect(() => {
-    setPage(1); // Reset to first page when filters change
-  }, [selectedDate, selectedMeetingTypes, selectedStatus, interpreterFilter, searchTerm]);
+  React.useEffect(() => setPage(1), [selectedDate, pageSize, selectedMeetingTypes]);
 
-  useEffect(() => {
-    fetchLogs();
-  }, [page, pageSize, selectedDate, selectedStatus, interpreterFilter, searchTerm]);
+  const filtered = React.useMemo(() => {
+    const dayStart = new Date(selectedDate + "T00:00:00");
+    const dayEnd = new Date(selectedDate + "T23:59:59");
+    return allLogs
+      .filter(
+        (l) =>
+          new Date(l.bookingPlan.timeStart) >= dayStart &&
+          new Date(l.bookingPlan.timeStart) <= dayEnd
+      )
+      .filter(
+        (l) =>
+          selectedMeetingTypes.includes("all") ||
+          selectedMeetingTypes.includes(l.bookingPlan.meetingType)
+      )
+      .filter((l) => l.status === "assigned")
+      .sort(
+        (a, b) =>
+          new Date(a.bookingPlan.timeStart).getTime() -
+          new Date(b.bookingPlan.timeStart).getTime()
+      );
+  }, [allLogs, selectedDate, selectedMeetingTypes]);
 
-  // Filter logs by meeting type (client-side since API doesn't support it yet)
-  const filteredLogs = useMemo(() => {
-    if (selectedMeetingTypes.includes("all")) {
-      return logs;
-    }
-    return logs.filter(log => selectedMeetingTypes.includes(log.bookingPlan.meetingType));
-  }, [logs, selectedMeetingTypes]);
+  const total = filtered.length;
+  const startIdx = (page - 1) * pageSize;
+  const endIdx = Math.min(startIdx + pageSize, total);
+  const pageItems = filtered.slice(startIdx, endIdx);
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
-  // Pagination handlers
-  const gotoPrev = () => setPage(p => Math.max(1, p - 1));
-  const gotoNext = () => setPage(p => Math.min(totalPages, p + 1));
-  const setToday = () => setSelectedDate(new Date().toISOString().slice(0, 10));
+  const gotoPrev = () => setPage((p) => Math.max(1, p - 1));
+  const gotoNext = () => setPage((p) => Math.min(totalPages, p + 1));
+  const setToday = () =>
+    setSelectedDate(new Date().toISOString().slice(0, 10));
 
-  // Filter handlers
   const toggleMeetingType = (type: string) => {
-    setSelectedMeetingTypes(prev => {
+    setSelectedMeetingTypes((prev) => {
       if (type === "all") return ["all"];
       const next = prev.includes(type)
-        ? prev.filter(t => t !== type)
-        : [...prev.filter(t => t !== "all"), type];
+        ? prev.filter((t) => t !== type)
+        : [...prev.filter((t) => t !== "all"), type];
       return next.length === 0 ? ["all"] : next;
     });
   };
 
-  const handleStatusChange = (status: string) => {
-    setSelectedStatus(status);
-  };
-
-  const handleSearch = () => {
-    fetchLogs();
-  };
-
-  const clearFilters = () => {
-    setSelectedDate(new Date().toISOString().slice(0, 10));
-    setSelectedMeetingTypes(["all"]);
-    setSelectedStatus("all");
-    setInterpreterFilter("");
-    setSearchTerm("");
-    setPage(1);
-  };
-
   return (
     <div className="space-y-4">
-      {/* Toolbar */}
+      {/* Toolbar (เหมือนภาพ: กล่องใหญ่โค้งมน) */}
       <div className="flex items-center justify-between flex-wrap gap-3 bg-white p-4 rounded-2xl border border-gray-200">
         <div className="flex items-center gap-2">
           <Calendar className="w-4 h-4 text-gray-600" />
@@ -240,111 +190,36 @@ export function AssignmentLogsTab() {
           </Button>
         </div>
 
-        <div className="flex items-center gap-2">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="flex items-center gap-2">
-                Meeting Types <ChevronDown className="w-4 h-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {MEETING_TYPES.map((mt) => (
-                <DropdownMenuCheckboxItem
-                  key={mt}
-                  checked={selectedMeetingTypes.includes(mt)}
-                  onCheckedChange={() => toggleMeetingType(mt)}
-                >
-                  {mt}
-                </DropdownMenuCheckboxItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="flex items-center gap-2">
-                Status <ChevronDown className="w-4 h-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {STATUS_OPTIONS.map((status) => (
-                <DropdownMenuCheckboxItem
-                  key={status}
-                  checked={selectedStatus === status}
-                  onCheckedChange={() => handleStatusChange(status)}
-                >
-                  {status}
-                </DropdownMenuCheckboxItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          <Button variant="outline" onClick={clearFilters}>
-            Clear Filters
-          </Button>
-        </div>
-      </div>
-
-      {/* Search and Filter Bar */}
-      <div className="flex items-center gap-3 bg-white p-4 rounded-2xl border border-gray-200">
-        <div className="flex items-center gap-2 flex-1">
-          <Search className="w-4 h-4 text-gray-600" />
-          <Input
-            placeholder="Search by reason or booking ID..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-            className="flex-1"
-          />
-        </div>
-        
-        <div className="flex items-center gap-2">
-          <Filter className="w-4 h-4 text-gray-600" />
-          <Input
-            placeholder="Interpreter EmpCode"
-            value={interpreterFilter}
-            onChange={(e) => setInterpreterFilter(e.target.value)}
-            className="w-[200px]"
-          />
-        </div>
-        
-        <Button onClick={handleSearch}>
-          Search
-        </Button>
-      </div>
-
-      {/* Summary Stats */}
-      {Object.keys(summary).length > 0 && (
-        <div className="bg-white p-4 rounded-2xl border border-gray-200">
-          <h3 className="text-sm font-medium text-gray-700 mb-2">Interpreter Summary</h3>
-          <div className="flex flex-wrap gap-4">
-            {Object.entries(summary).map(([empCode, stats]) => (
-              <div key={empCode} className="text-sm">
-                <span className="font-medium">{empCode}:</span>
-                <span className="ml-2 text-green-600">{stats.assigned} assigned</span>
-                {stats.approved > 0 && <span className="ml-2 text-blue-600">{stats.approved} approved</span>}
-                {stats.rejected > 0 && <span className="ml-2 text-red-600">{stats.rejected} rejected</span>}
-              </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" className="flex items-center gap-2">
+              Meeting Types <ChevronDown className="w-4 h-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {MEETING_TYPES.map((mt) => (
+              <DropdownMenuCheckboxItem
+                key={mt}
+                checked={selectedMeetingTypes.includes(mt)}
+                onCheckedChange={() => toggleMeetingType(mt)}
+              >
+                {mt}
+              </DropdownMenuCheckboxItem>
             ))}
-          </div>
-        </div>
-      )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
 
       {/* Table */}
       {loading ? (
         <div className="mb-6 p-4 rounded-2xl bg-gray-50 border border-gray-200 text-gray-700">
           Loading logs...
         </div>
-      ) : error ? (
-        <Alert className="rounded-2xl">
-          <AlertTitle>Error</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      ) : filteredLogs.length === 0 ? (
+      ) : total === 0 ? (
         <Alert className="rounded-2xl">
           <AlertTitle>No Logs</AlertTitle>
           <AlertDescription>
-            No logs found for the selected criteria
+            No logs found for {toLocalDate(selectedDate)}
           </AlertDescription>
         </Alert>
       ) : (
@@ -362,62 +237,45 @@ export function AssignmentLogsTab() {
               </tr>
             </thead>
             <tbody>
-              {filteredLogs.map((log) => (
-                <tr key={log.id} className="border-t hover:bg-gray-50">
+              {pageItems.map((l) => (
+                <tr key={l.id} className="border-t hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
-                    {toLocalDateTime(log.createdAt)}
+                    {toLocalDateTime(l.createdAt)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center gap-2 text-gray-800">
                       <Clock className="w-4 h-4 text-gray-500" />
                       <span className="font-mono">
-                        {toLocalTime(log.bookingPlan.timeStart)} -{" "}
-                        {toLocalTime(log.bookingPlan.timeEnd)}
+                        {toLocalTime(l.bookingPlan.timeStart)} -{" "}
+                        {toLocalTime(l.bookingPlan.timeEnd)}
                       </span>
                     </div>
                   </td>
+                  <td className="px-6 py-4">{l.interpreterEmpCode ?? "-"}</td>
                   <td className="px-6 py-4">
-                    {log.interpreterEmployee ? (
-                      <div>
-                        <div className="font-medium">{log.interpreterEmployee.empCode}</div>
-                        <div className="text-sm text-gray-500">
-                          {log.interpreterEmployee.firstNameEn || log.interpreterEmployee.firstNameTh || ""} {" "}
-                          {log.interpreterEmployee.lastNameEn || log.interpreterEmployee.lastNameTh || ""}
-                        </div>
-                      </div>
-                    ) : (
-                      log.interpreterEmpCode || "-"
-                    )}
-                  </td>
-                  <td className="px-6 py-4">
-                    {log.bookingPlan.meetingType === "DR" && log.bookingPlan.drType
-                      ? formatDR(log.bookingPlan.drType)
-                      : log.bookingPlan.meetingType}
+                    {l.bookingPlan.meetingType === "DR" && l.bookingPlan.drType
+                      ? formatDR(l.bookingPlan.drType)
+                      : l.bookingPlan.meetingType}
                   </td>
                   <td className="px-6 py-4">
                     <span className="px-3 py-1 bg-gray-100 rounded-md font-semibold">
-                      {log.bookingPlan.meetingRoom || "-"}
+                      {l.bookingPlan.meetingRoom}
                     </span>
                   </td>
                   <td className="px-6 py-4">
-                    <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full font-semibold ${
-                      log.status === "assigned" ? "text-indigo-700 bg-indigo-100" :
-                      log.status === "approved" ? "text-green-700 bg-green-100" :
-                      log.status === "rejected" ? "text-red-700 bg-red-100" :
-                      "text-gray-700 bg-gray-100"
-                    }`}>
-                      {log.status}
+                    <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full font-semibold text-indigo-700 bg-indigo-100">
+                      assigned
                     </span>
                   </td>
                   <td className="px-6 py-4 text-gray-700">
-                    {log.reason || "-"}
+                    {l.reason ?? "-"}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
 
-          {/* Footer */}
+          {/* Footer (Rows per page + range + pager ปุ่มโค้งมน) */}
           <div className="border-t bg-white p-4 flex items-center justify-between">
             <div className="flex items-center gap-2 text-sm text-gray-700">
               Rows per page:
@@ -434,7 +292,7 @@ export function AssignmentLogsTab() {
               </select>
             </div>
             <div className="text-sm text-gray-700">
-              {total === 0 ? "0-0 of 0" : `${(page - 1) * pageSize + 1}-${Math.min(page * pageSize, total)} of ${total}`}
+              {total === 0 ? "0-0 of 0" : `${startIdx + 1}-${endIdx} of ${total}`}
             </div>
             <div className="flex items-center gap-2">
               <Button
@@ -450,7 +308,7 @@ export function AssignmentLogsTab() {
                 variant="outline"
                 size="icon"
                 onClick={gotoNext}
-                disabled={page >= totalPages}
+                disabled={page === totalPages}
                 className="h-8 w-8"
               >
                 <ChevronRight className="w-4 h-4" />
