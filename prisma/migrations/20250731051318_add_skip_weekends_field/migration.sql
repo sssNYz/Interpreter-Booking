@@ -1,0 +1,2 @@
+-- Add skipWeekends field to BOOKING_PLAN table
+ALTER TABLE BOOKING_PLAN ADD COLUMN skip_weekends BOOLEAN DEFAULT FALSE;
