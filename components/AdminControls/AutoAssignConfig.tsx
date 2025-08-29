@@ -127,9 +127,18 @@ export default function AutoAssignConfig() {
     <div className="space-y-6 p-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold">Auto-Assignment Configuration</h1>
-        <Button onClick={saveConfig} disabled={saving}>
-          {saving ? "Saving..." : "Save Configuration"}
-        </Button>
+        <div className="flex items-center space-x-4">
+          <Button 
+            onClick={() => window.open('/AdminPage/mode-test', '_blank')}
+            variant="outline"
+            className="bg-blue-50 hover:bg-blue-100"
+          >
+            🧪 Test Different Modes
+          </Button>
+          <Button onClick={saveConfig} disabled={saving}>
+            {saving ? "Saving..." : "Save Configuration"}
+          </Button>
+        </div>
       </div>
 
       {/* Master Toggle */}
