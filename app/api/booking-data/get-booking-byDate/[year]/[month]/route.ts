@@ -63,7 +63,6 @@ export async function GET(
     ownerGroup: string;
     meetingRoom: string;
     meetingDetail: string | null;
-    highPriority: boolean;
     timeStart: Date;
     timeEnd: Date;
     bookingStatus: string;
@@ -81,7 +80,7 @@ export async function GET(
     ownerGroup: asOwnerGroup(b.ownerGroup),
     meetingRoom: b.meetingRoom,
     meetingDetail: b.meetingDetail ?? "",
-    highPriority: b.highPriority,
+    // highPriority removed from API response
     timeStart: formatDateTime(b.timeStart),
     timeEnd: formatDateTime(b.timeEnd),
     interpreterId: b.interpreterEmployee?.empCode ?? null,

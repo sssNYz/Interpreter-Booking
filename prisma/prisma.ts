@@ -6,9 +6,11 @@ import {
   RecurrenceType,
   EndType,
   WeekOrder,
+  DRType,  
+  OtherTypeScope,
 } from "@prisma/client";
 
-declare global {
+  declare global {
   var prisma: PrismaClient | undefined;
 }
 
@@ -17,6 +19,8 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 const prisma = globalForPrisma.prisma ?? new PrismaClient();
+
+
 
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
 
@@ -28,4 +32,6 @@ export {
   RecurrenceType,
   EndType,
   WeekOrder,
+  DRType,
+  OtherTypeScope,
 };
