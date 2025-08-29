@@ -9,11 +9,14 @@
   const extractYMD = (iso: string) => iso.split("T")[0];
   const extractHHMM = (iso: string) => iso.split("T")[1].slice(0, 5);
 
-  // 'approve'|'cancel'|'waiting' -> 'Approve'|'Cancel'|'Wait'
-  const mapStatus = (s: "approve" | "cancel" | "waiting"): "Approve" | "Cancel" | "Wait" => {
+  // 'approve'|'cancel'|'waiting'|'complet' -> 'Approve'|'Cancel'|'Wait'|'Complete'
+  const mapStatus = (
+    s: "approve" | "cancel" | "waiting" | "complet"
+  ): "Approve" | "Cancel" | "Wait" | "Complete" => {
     if (s === "approve") return "Approve";
     if (s === "cancel") return "Cancel";
-    return "Wait";
+    if (s === "waiting") return "Wait";
+    return "Complete";
   };
 
   export async function GET() {
@@ -48,7 +51,6 @@
         startTime: extractHHMM(b.timeStart.toISOString()),          // "HH:mm"
         endTime: extractHHMM(b.timeEnd.toISOString()),              // "HH:mm"
         requestedTime: `${extractYMD(b.createdAt.toISOString())} ${extractHHMM(b.createdAt.toISOString())}:00`,
-        isDR: b.highPriority,                     // boolean
       };
     });
 

@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Star, CheckCircle, XCircle, Hourglass } from "lucide-react";
+import { CheckCircle, XCircle, Hourglass } from "lucide-react";
 import type { BookingManage } from "@/types/admin";
 
  // Format date and time for display
@@ -81,12 +81,7 @@ const BookingDetailDialog: React.FC<Props> = ({
         <DialogHeader className="px-6 pt-6 pb-3">
           <DialogTitle className="flex items-center gap-3 text-lg sm:text-xl font-semibold">
             {isEditing ? "Booking Details" : "Create Booking"}
-            {booking?.isDR && (
-              <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-500 text-white rounded-full text-xs font-semibold">
-                <Star className="h-3.5 w-3.5 fill-current" />
-                DR
-              </span>
-            )}
+            {/* DR badge removed */}
           </DialogTitle>
         </DialogHeader>
 
