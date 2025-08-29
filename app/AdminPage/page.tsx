@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { Home, Inbox, Calendar, Settings, Cog, Users } from "lucide-react"
+import { Home, Inbox, Calendar, Settings, Cog, Users, TestTube } from "lucide-react"
 
 const adminMenuItems = [
   {
@@ -24,6 +24,13 @@ const adminMenuItems = [
     url: "/AdminPage/auto-assign-config",
     icon: Cog,
     color: "bg-purple-500"
+  },
+  {
+    title: "Mode Test Simulator",
+    description: "Test different assignment modes with real data",
+    url: "/AdminPage/mode-test",
+    icon: TestTube,
+    color: "bg-indigo-500"
   },
   {
     title: "Interpreters Management",
