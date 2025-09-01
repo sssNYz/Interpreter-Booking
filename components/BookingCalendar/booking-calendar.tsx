@@ -274,7 +274,8 @@ const BookingCalendar: React.FC = () => {
       <div className="border border-border rounded-3xl overflow-hidden bg-background">
         {/* KEEPING ScrollArea + virtualizer viewport TOGETHER */}
         {loading ? (
-          <div className="h-[calc(60vh-260px)] min-h-[70vh] overflow-x-auto">
+          <div className="h-[clamp(600px,calc(100dvh-300px),78vh)] overflow-x-auto overflow-y-auto">
+
             {/* Header skeleton (time labels row) */}
             <div
               className="sticky top-0 z-30 bg-secondary border-b border-border min-w-[800px]"
@@ -327,7 +328,7 @@ const BookingCalendar: React.FC = () => {
             ))}
           </div>
         ) : (
-          <ScrollArea className="h-[calc(100vh-260px)] min-h-[70vh]" viewportRef={scrollAreaViewportRef}>
+          <ScrollArea className="h-[clamp(560px,calc(100dvh-360px),720px)]" viewportRef={scrollAreaViewportRef}>
             {/* Fixed header row with time labels */}
             <div
               className="sticky top-0 z-30 bg-secondary border-b border-border min-w-[800px]"
