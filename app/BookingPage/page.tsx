@@ -52,7 +52,7 @@ function BookingPage() {
   };
 
   return (
-    <div className="container mx-auto p-6 space-y-8">
+    <div className="flex flex-col gap-6 px-2 mx-auto w-full">
       <div className="flex items-center justify-between py-2">
         <h1 className="text-2xl font-semibold">Appointments</h1>
       </div>
