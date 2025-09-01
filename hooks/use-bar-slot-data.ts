@@ -2,19 +2,15 @@ import { useMemo } from "react";
 import type { BookingData, DayInfo, BarItem } from "@/types/booking";
 import { MAX_LANES } from "@/utils/constants";
 
-function toIndices(startISO: string, endISO: string, timeSlots: string[]) {
-  // Assumes timeSlots are strings like "08:00" aligning to booking times
-  // Use UTC parsing as existing code does
-  const start = new Date(startISO);
-  const end = new Date(endISO);
-  const startStr = `${String(start.getUTCHours()).padStart(2, "0")}:${String(
-    start.getUTCMinutes()
-  ).padStart(2, "0")}`;
-  const endStr = `${String(end.getUTCHours()).padStart(2, "0")}:${String(
-    end.getUTCMinutes()
-  ).padStart(2, "0")}`;
+function toIndices(startStrIn: string, endStrIn: string, timeSlots: string[]) {
+  // Accepts either 'YYYY-MM-DD HH:mm:ss' or ISO 'YYYY-MM-DDTHH:mm:ss'
+  const s = startStrIn.includes('T') ? startStrIn.split('T')[1] : startStrIn.split(' ')[1];
+  const e = endStrIn.includes('T') ? endStrIn.split('T')[1] : endStrIn.split(' ')[1];
+  const startStr = s.slice(0, 5);
+  const endStr = e.slice(0, 5);
   const startIndex = timeSlots.indexOf(startStr);
-  const endIndex = timeSlots.indexOf(endStr);
+  // If end is 17:00, render bar to the final cell (after 16:30)
+  const endIndex = endStr === "17:00" ? timeSlots.length : timeSlots.indexOf(endStr);
   return { startIndex, endIndex };
 }
 
@@ -26,7 +22,7 @@ export function useSlotDataForBars({
   bookings: BookingData[];
   daysInMonth: DayInfo[];
   timeSlots: string[];
-}) {
+}): { barsByDay: Map<number, BarItem[]>; occupancyByDay: Map<number, number[]> } {
   return useMemo(() => {
     const barsByDay = new Map<number, BarItem[]>();
     const occupancyByDay = new Map<number, number[]>();
@@ -39,7 +35,8 @@ export function useSlotDataForBars({
       const dayLocalStr = `${year}-${month}-${date}`;
 
       const dayBookings = bookings.filter((b) => {
-        const startDateISO = b.timeStart.split("T")[0];
+        const src = b.timeStart;
+        const startDateISO = src.includes("T") ? src.split("T")[0] : src.split(" ")[0];
         return startDateISO === dayLocalStr;
       });
 
