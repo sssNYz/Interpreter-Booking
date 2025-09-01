@@ -344,7 +344,7 @@ export default function BookingManagement(): React.JSX.Element {
               {/* Start Time (แก้ตรงนี้ให้เหมือนช่องอื่นเป๊ะ) */}
               <div className="shrink-0 w-[150px] flex flex-col gap-2">
                 <Label className="text-sm font-semibold text-gray-800 leading-none">
-                  Start Time
+                  Meeting Time
                 </Label>
                 <Select value={filters.time} onValueChange={(v) => updateFilter("time", v)}>
                   <SelectTrigger className="h-10">
