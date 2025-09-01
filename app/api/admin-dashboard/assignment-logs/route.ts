@@ -1,91 +1,86 @@
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "../../../../prisma/prisma";
+import prisma from "@/prisma/prisma";
 import type { Prisma } from "@prisma/client";
 
 /**
  * Assignment Logs API
- * 
- * Key Features:
- * - Only shows assignment logs where interpreter still exists and is active
- * - Deduplicates bookings to show only the most recent assignment
- * - Filters out old interpreter assignments that are no longer valid
- * - Ensures new interpreter assignments are properly displayed
- * - Includes owner employee information for better tracking
+ *
+ * - Shows logs only when interpreter still exists & is active
+ * - Deduplicates by bookingId (keep most recent createdAt)
+ * - Optional filters: status, interpreterEmpCode, search, from/to
+ * - Supports mode=all (or no page/pageSize) => return all after dedupe
  */
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    
-    // Parse query parameters with defaults
+
+    // ===== Parse query params =====
     const page = parseInt(searchParams.get("page") || "1");
-    const pageSize = Math.min(parseInt(searchParams.get("pageSize") || "20"), 100); // Max 100 per page
+    const pageSize = Math.min(parseInt(searchParams.get("pageSize") || "20"), 100); // cap 100
     const status = searchParams.get("status");
     const interpreterEmpCode = searchParams.get("interpreterEmpCode");
     const search = searchParams.get("search");
     const from = searchParams.get("from");
     const to = searchParams.get("to");
     const sort = searchParams.get("sort") || "createdAt:desc";
-    
-    // Calculate offset for pagination
-    const offset = (page - 1) * pageSize;
-    
-    // Build where conditions for filtering - ONLY add conditions when parameters are provided
+    const mode = (searchParams.get("mode") || "").toLowerCase();
+
+    const hasExplicitPaging = searchParams.has("page") || searchParams.has("pageSize");
+
+    // ===== Build where conditions =====
     const whereConditions: Prisma.AssignmentLogWhereInput = {};
-    
-    // Only add filters when parameters are actually provided (not empty strings)
+
     if (status && status !== "all" && status.trim()) {
       whereConditions.status = status.trim();
     }
-    
+
     if (interpreterEmpCode && interpreterEmpCode.trim()) {
       whereConditions.interpreterEmpCode = interpreterEmpCode.trim();
     }
-    
-    // IMPORTANT: Only show logs where interpreter still exists and is active
+
+    // Only show logs where interpreter still exists and is active
+    // (matches previous behavior)
     whereConditions.interpreterEmployee = {
-      isActive: true
+      isActive: true,
     };
-    
-    // Date filtering - only when both dates are provided for better performance
+
+    // Date filtering — apply only when both valid
     if (from && to && from.trim() && to.trim()) {
       const fromDate = new Date(from);
       const toDate = new Date(to);
       if (!isNaN(fromDate.getTime()) && !isNaN(toDate.getTime())) {
         whereConditions.createdAt = {
           gte: fromDate,
-          lte: toDate
+          lte: toDate,
         };
       }
     }
-    
-    // Search conditions - only when search term is meaningful
+
+    // Search: bookingId (number) or reason contains (text)
     if (search && search.trim().length >= 2) {
       const searchTerm = search.trim();
-      // Check if search is a number (booking ID)
       const bookingId = parseInt(searchTerm);
       if (!isNaN(bookingId)) {
         whereConditions.bookingId = bookingId;
       } else {
-        // Text search in reason field only
         whereConditions.reason = { contains: searchTerm };
       }
     }
-    
-    // Parse sort parameter with validation
+
+    // ===== Sort parse/validation =====
     const [sortField, sortOrder] = sort.split(":");
     const orderBy: Prisma.AssignmentLogOrderByWithRelationInput = {};
-    
     if (sortField === "createdAt") {
       orderBy.createdAt = sortOrder === "asc" ? "asc" : "desc";
     } else if (sortField === "bookingId") {
       orderBy.bookingId = sortOrder === "asc" ? "asc" : "desc";
     } else {
-      orderBy.createdAt = "desc"; // Default sort
+      orderBy.createdAt = "desc";
     }
-    
-    // Execute optimized queries with database-level filtering
-    const [logs, total] = await Promise.all([
-      // Get all logs (without pagination) to allow for proper deduplication
+
+    // ===== Query DB =====
+    // Fetch full set (without pagination) -> dedupe -> (optionally) slice
+    const [logs, totalDb] = await Promise.all([
       prisma.assignmentLog.findMany({
         where: whereConditions,
         select: {
@@ -98,7 +93,6 @@ export async function GET(request: NextRequest) {
           preHoursSnapshot: true,
           postHoursSnapshot: true,
           scoreBreakdown: true,
-          // Only include booking plan fields that are actually displayed
           bookingPlan: {
             select: {
               meetingType: true,
@@ -115,58 +109,46 @@ export async function GET(request: NextRequest) {
                   firstNameEn: true,
                   lastNameEn: true,
                   firstNameTh: true,
-                  lastNameTh: true
-                }
-              }
-            }
+                  lastNameTh: true,
+                },
+              },
+            },
           },
-          // Only include interpreter fields that are actually displayed
           interpreterEmployee: {
             select: {
               empCode: true,
               firstNameEn: true,
               lastNameEn: true,
               firstNameTh: true,
-              lastNameTh: true
-            }
-          }
+              lastNameTh: true,
+            },
+          },
         },
-        orderBy: orderBy
+        orderBy,
       }),
-      
-      // Get total count for pagination - only when filters are applied
-      prisma.assignmentLog.count({
-        where: whereConditions
-      })
+
+      prisma.assignmentLog.count({ where: whereConditions }),
     ]);
-    
-    // Calculate pagination info
-    const totalPages = Math.ceil(total / pageSize);
-    
-    // Get summary statistics - only when there are active filters
-    const summaryByInterpreter: Record<string, { assigned: number; approved: number; rejected: number }> = {};
-    
-    // Get summary for all active interpreters (not just filtered ones)
+
+    // ===== Summary for all active interpreters (unchanged) =====
+    const summaryByInterpreter: Record<
+      string,
+      { assigned: number; approved: number; rejected: number }
+    > = {};
+
     const summary = await prisma.assignmentLog.groupBy({
       by: ["interpreterEmpCode", "status"],
       where: {
-        // Only include logs where interpreter still exists and is active
-        interpreterEmployee: {
-          isActive: true
-        }
+        interpreterEmployee: { isActive: true },
       },
-      _count: {
-        status: true
-      }
+      _count: { status: true },
     });
-    
-    // Process summary data
+
     summary.forEach((item: { interpreterEmpCode: string | null; status: string; _count: { status: number } }) => {
       if (item.interpreterEmpCode) {
         if (!summaryByInterpreter[item.interpreterEmpCode]) {
           summaryByInterpreter[item.interpreterEmpCode] = { assigned: 0, approved: 0, rejected: 0 };
         }
-        
         if (item.status === "assigned") {
           summaryByInterpreter[item.interpreterEmpCode].assigned = item._count.status;
         } else if (item.status === "approved") {
@@ -176,8 +158,8 @@ export async function GET(request: NextRequest) {
         }
       }
     });
-    
-    // Transform logs data efficiently
+
+    // ===== Transform to plain JSON (dates -> ISO) =====
     const transformedLogs = logs.map((log) => ({
       id: log.id,
       bookingId: log.bookingId,
@@ -197,63 +179,72 @@ export async function GET(request: NextRequest) {
         drType: log.bookingPlan.drType,
         otherType: log.bookingPlan.otherType,
         ownerEmpCode: log.bookingPlan.ownerEmpCode,
-        employee: log.bookingPlan.employee ? {
-          empCode: log.bookingPlan.employee.empCode,
-          firstNameEn: log.bookingPlan.employee.firstNameEn,
-          lastNameEn: log.bookingPlan.employee.lastNameEn,
-          firstNameTh: log.bookingPlan.employee.firstNameTh,
-          lastNameTh: log.bookingPlan.employee.lastNameTh
-        } : null
+        employee: log.bookingPlan.employee
+          ? {
+              empCode: log.bookingPlan.employee.empCode,
+              firstNameEn: log.bookingPlan.employee.firstNameEn,
+              lastNameEn: log.bookingPlan.employee.lastNameEn,
+              firstNameTh: log.bookingPlan.employee.firstNameTh,
+              lastNameTh: log.bookingPlan.employee.lastNameTh,
+            }
+          : null,
       },
-      interpreterEmployee: log.interpreterEmployee ? {
-        empCode: log.interpreterEmployee.empCode,
-        firstNameEn: log.interpreterEmployee.firstNameEn,
-        lastNameEn: log.interpreterEmployee.lastNameEn,
-        firstNameTh: log.interpreterEmployee.firstNameTh,
-        lastNameTh: log.interpreterEmployee.lastNameTh
-      } : null
+      interpreterEmployee: log.interpreterEmployee
+        ? {
+            empCode: log.interpreterEmployee.empCode,
+            firstNameEn: log.interpreterEmployee.firstNameEn,
+            lastNameEn: log.interpreterEmployee.lastNameEn,
+            firstNameTh: log.interpreterEmployee.firstNameTh,
+            lastNameTh: log.interpreterEmployee.lastNameTh,
+          }
+        : null,
     }));
 
-    // Filter out duplicate bookings - only keep the most recent assignment for each booking
-    const uniqueBookings = new Map<number, typeof transformedLogs[0]>();
-    transformedLogs.forEach(log => {
+    // ===== Dedupe by bookingId (keep most recent createdAt) =====
+    const uniqueBookings = new Map<number, (typeof transformedLogs)[number]>();
+    transformedLogs.forEach((log) => {
       const existing = uniqueBookings.get(log.bookingId);
       if (!existing || new Date(log.createdAt) > new Date(existing.createdAt)) {
         uniqueBookings.set(log.bookingId, log);
       }
     });
-
     const finalLogs = Array.from(uniqueBookings.values());
-    
-    // Apply pagination after deduplication
-    const startIndex = (page - 1) * pageSize;
-    const endIndex = startIndex + pageSize;
-    const paginatedLogs = finalLogs.slice(startIndex, endIndex);
-    
-    // Create response with performance headers
+
+    // ===== Pagination behavior =====
+    const shouldPaginate = mode !== "all" && hasExplicitPaging; // paginate only when explicitly requested & not all-mode
+
+    let items = finalLogs;
+    let pageOut = 1;
+    let pageSizeOut = finalLogs.length || 1;
+    let totalPagesOut = 1;
+
+    if (shouldPaginate) {
+      const startIndex = (page - 1) * pageSize;
+      const endIndex = startIndex + pageSize;
+      items = finalLogs.slice(startIndex, endIndex);
+      pageOut = page;
+      pageSizeOut = pageSize;
+      totalPagesOut = Math.max(1, Math.ceil(finalLogs.length / pageSize));
+    }
+
+    // ===== Response =====
     const jsonResponse = NextResponse.json({
-      items: paginatedLogs,
-      total: finalLogs.length, // Use actual deduplicated count
-      page,
-      pageSize,
-      totalPages: Math.ceil(finalLogs.length / pageSize),
-      summary: {
-        byInterpreter: summaryByInterpreter
-      }
+      items,
+      total: finalLogs.length,     // count AFTER dedupe (client expects this)
+      page: pageOut,
+      pageSize: pageSizeOut,
+      totalPages: totalPagesOut,
+      summary: { byInterpreter: summaryByInterpreter },
     });
-    
-    // Add performance headers
-    jsonResponse.headers.set('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
-    jsonResponse.headers.set('X-Total-Count', total.toString());
-    jsonResponse.headers.set('X-Page-Count', totalPages.toString());
-    
+
+    // Align headers with response (AFTER dedupe)
+    jsonResponse.headers.set("Cache-Control", "public, s-maxage=60, stale-while-revalidate=300");
+    jsonResponse.headers.set("X-Total-Count", String(finalLogs.length));
+    jsonResponse.headers.set("X-Page-Count", String(totalPagesOut));
+
     return jsonResponse;
-    
   } catch (error) {
     console.error("Error fetching assignment logs:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch assignment logs" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to fetch assignment logs" }, { status: 500 });
   }
 }

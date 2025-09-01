@@ -60,11 +60,9 @@ function diffRange(values: number[]): number {
 }
 
 function diffClass(v: number): string {
-  if (v >= 10) return "text-red-600";
-  if (v >= 5) return "text-orange-600";
-  if (v >= 2) return "text-amber-600";
-  return "text-emerald-700";
+  return v === 0 ? "text-emerald-700" : "text-red-600";
 }
+
 
 /* ---------------------- Component ---------------------- */
 
@@ -77,7 +75,7 @@ export function DeptTab({ year }: { year: number }) {
   React.useEffect(() => {
     let alive = true;
 
-    fetch(`/api/admin-dashboard/dept-total/${year}`, { 
+    fetch(`/api/admin-dashboard/dept-total/${year}`, {
       cache: "no-store"
     })
       .then(async (r) => {
@@ -104,6 +102,12 @@ export function DeptTab({ year }: { year: number }) {
   const yearData: MonthlyDataRow[] = data?.yearData ?? [];
   const deptMGIFooter: FooterByInterpreter =
     data?.deptMGIFooter ?? { perInterpreter: [], grand: 0, diff: 0 };
+
+  // 👉 เดือนปฏิทินปัจจุบัน (ไว้ไฮไลต์คอลัมน์ใน Table A)
+  const currentMonth = React.useMemo<MonthName | "">(
+    () => (months.length ? getCurrentCalendarMonth(months) : ""),
+    [months]
+  );
 
   const interpreterColors = React.useMemo<Record<InterpreterName, string>>(() => {
     const palette = [
@@ -201,7 +205,16 @@ export function DeptTab({ year }: { year: number }) {
                 <tr className="bg-yellow-100">
                   <th className="p-2 text-left">Group</th>
                   {months.map((m) => (
-                    <th key={m} className="p-2 text-right">{m}</th>
+                    <th
+                      key={m}
+                      className={[
+                        "p-2 text-right",
+                        // ✅ ไฮไลต์หัวคอลัมน์ของเดือนปัจจุบัน
+                        m === currentMonth ? "bg-blue-100 dark:bg-blue-900/40" : "",
+                      ].join(" ")}
+                    >
+                      {m}
+                    </th>
                   ))}
                   <th className="p-2 text-right">TOTAL</th>
                 </tr>
@@ -225,7 +238,16 @@ export function DeptTab({ year }: { year: number }) {
                     <tr key={dept} className="border-b odd:bg-white even:bg-muted/30 hover:bg-muted/40">
                       <td className="p-2">{row.department}</td>
                       {months.map((m) => (
-                        <td key={m} className="p-2 text-right">{row[m]}</td>
+                        <td
+                          key={m}
+                          className={[
+                            "p-2 text-right",
+                            // ✅ ไฮไลต์ทั้งคอลัมน์ใน tbody ของเดือนปัจจุบัน
+                            m === currentMonth ? "bg-blue-50 dark:bg-blue-900/20 font-semibold" : "",
+                          ].join(" ")}
+                        >
+                          {row[m]}
+                        </td>
                       ))}
                       <td className="p-2 text-right font-semibold">{row.TOTAL}</td>
                     </tr>
@@ -238,7 +260,18 @@ export function DeptTab({ year }: { year: number }) {
                       (a, dept) => a + (yearData.find((d) => d.month === m)?.deptMeetings?.[dept] || 0),
                       0
                     );
-                    return <td key={m} className="p-2 text-right">{col}</td>;
+                    return (
+                      <td
+                        key={m}
+                        className={[
+                          "p-2 text-right",
+                          // ✅ ไฮไลต์คอลัมน์รวมของเดือนปัจจุบันด้วย
+                          m === currentMonth ? "bg-blue-50 dark:bg-blue-900/20 font-semibold" : "",
+                        ].join(" ")}
+                      >
+                        {col}
+                      </td>
+                    );
                   })}
                   <td className="p-2 text-right">
                     {departments.reduce(
