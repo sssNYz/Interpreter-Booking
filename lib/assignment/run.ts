@@ -205,6 +205,7 @@ async function performAssignment(booking: {
   console.log(`📊 Urgency score for ${booking.meetingType}: ${urgencyScore.toFixed(3)}`);
 
   // Simulate assignment to each interpreter to check fairness
+  //Hard filter for fairness
   const eligibleIds: string[] = [];
   for (const interpreter of interpreters) {
     const simulatedHours = { ...preHoursSnapshot };
@@ -242,7 +243,9 @@ async function performAssignment(booking: {
     policy.maxGapHours,
     isDR,
     policy.drConsecutivePenalty,
-    policy.mode === 'CUSTOM' ? { w_fair: policy.w_fair, w_urgency: policy.w_urgency, w_lrs: policy.w_lrs } : undefined
+    policy.mode === 'CUSTOM' ? { w_fair: policy.w_fair, w_urgency: policy.w_urgency, w_lrs: policy.w_lrs } : undefined,
+    booking.timeStart,
+    undefined // drType will be extracted from booking.meetingDetail if needed
   );
 
   // Get top candidate
