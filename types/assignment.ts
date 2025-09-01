@@ -12,6 +12,14 @@ export interface AssignmentPolicy {
   drConsecutivePenalty: number; // New parameter for DR consecutive assignment penalty
 }
 
+// New DR policy configuration for consecutive-aware logic
+export interface DRPolicy {
+  scope: "GLOBAL" | "BY_TYPE";     // GLOBAL = one pool; BY_TYPE = rotate per drType
+  forbidConsecutive: boolean;      // true = hard block; false = soft penalty
+  consecutivePenalty: number;      // negative number applied to total score if not blocked
+  includePendingInGlobal: boolean; // whether pending bookings count as "last"
+}
+
 export interface MeetingTypePriority {
   id: number;
   meetingType: string;
@@ -94,4 +102,23 @@ export interface DRAssignmentHistory {
   }>;
   isBlocked: boolean;
   penaltyApplied: boolean;
+}
+
+// New interface for last global DR assignment
+export interface LastGlobalDRAssignment {
+  interpreterEmpCode: string | null;
+  bookingId?: number;
+  timeStart?: Date;
+  drType?: string;
+}
+
+// Extended DRAssignmentHistory for consecutive-aware logic
+export interface ConsecutiveDRAssignmentHistory {
+  interpreterId: string;
+  consecutiveDRCount: number;    // 1 if the last global DR is the same interpreter, else 0
+  lastDRAssignments: Array<{ bookingId: number, timeStart: Date, drType: string }>;
+  isBlocked: boolean;            // true if policy forbids consecutive; else false
+  penaltyApplied: boolean;       // true if policy penalizes "last DR person"; else false
+  isConsecutiveGlobal: boolean;  // true if this interpreter did the last global DR
+  lastGlobalDR?: LastGlobalDRAssignment; // reference to the last global DR assignment
 }

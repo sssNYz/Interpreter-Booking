@@ -2,8 +2,8 @@ import type { CandidateResult, ScoreBreakdown } from "@/types/assignment";
 import { computeFairnessScore, getMinHours } from "./fairness";
 import { computeEnhancedUrgencyScore } from "./urgency";
 import { computeLRSScore, getDaysSinceLastAssignment } from "./lrs";
-import { checkDRAssignmentHistory, isDRMeeting, applyDRPenalty } from "./dr-history";
-import { getScoringWeights } from "./policy";
+import { checkDRAssignmentHistory, isDRMeeting, applyDRPenalty, getLastGlobalDRAssignment } from "./dr-history";
+import { getScoringWeights, getDRPolicy } from "./policy";
 
 /**
  * Compute total score for a candidate using mode-specific weights
@@ -66,18 +66,40 @@ export async function rankByScore(
   maxGapHours: number,
   isDRMeeting: boolean = false,
   drConsecutivePenalty: number = 0,
-  customWeights?: { w_fair: number; w_urgency: number; w_lrs: number }
+  customWeights?: { w_fair: number; w_urgency: number; w_lrs: number },
+  bookingTimeStart?: Date,
+  drType?: string
 ): Promise<CandidateResult[]> {
   const minHours = getMinHours(hoursMap);
   const results: CandidateResult[] = [];
+
+  // Get last global DR assignment once for DR meetings
+  let lastGlobalDR = undefined;
+  let drPolicy = undefined;
+  
+  if (isDRMeeting && bookingTimeStart) {
+    drPolicy = getDRPolicy(mode);
+    lastGlobalDR = await getLastGlobalDRAssignment(bookingTimeStart, {
+      drType: drPolicy.scope === "BY_TYPE" ? drType : undefined,
+      includePending: drPolicy.includePendingInGlobal
+    });
+    
+    console.log(`🔍 DR meeting detected. Last global DR: ${lastGlobalDR?.interpreterEmpCode || 'None'}`);
+  }
 
   for (const candidate of candidates) {
     // Check DR assignment history if this is a DR meeting
     let drHistory = undefined;
     let finalTotalScore = 0;
     
-    if (isDRMeeting) {
-      drHistory = await checkDRAssignmentHistory(candidate.empCode, fairnessWindowDays);
+    if (isDRMeeting && bookingTimeStart && drPolicy) {
+      drHistory = await checkDRAssignmentHistory(candidate.empCode, fairnessWindowDays, {
+        bookingTimeStart,
+        drType: drPolicy.scope === "BY_TYPE" ? drType : undefined,
+        lastGlobalDR,
+        includePendingInGlobal: drPolicy.includePendingInGlobal,
+        drPolicy
+      });
       
       // If interpreter is blocked due to consecutive DR assignments, skip them
       if (drHistory.isBlocked) {
@@ -93,7 +115,7 @@ export async function rankByScore(
             total: 0
           },
           eligible: false,
-          reason: `ConsecutiveDRBlocked: ${drHistory.consecutiveDRCount} consecutive DR assignments`,
+          reason: `ConsecutiveDRBlocked: ${drHistory.isConsecutiveGlobal ? 'Last DR by same interpreter' : 'Policy violation'}`,
           drHistory
         });
         continue;
@@ -118,9 +140,10 @@ export async function rankByScore(
     );
 
     // Apply DR penalty if applicable
-    if (isDRMeeting && drHistory?.penaltyApplied) {
-      totalScore = applyDRPenalty(totalScore, drConsecutivePenalty, true);
-      console.log(`⚠️ DR penalty applied to ${candidate.empCode}: ${drConsecutivePenalty} (consecutive DR count: ${drHistory.consecutiveDRCount})`);
+    if (isDRMeeting && drHistory?.penaltyApplied && drPolicy) {
+      const penalty = drPolicy.consecutivePenalty;
+      totalScore = applyDRPenalty(totalScore, penalty, true);
+      console.log(`⚠️ DR penalty applied to ${candidate.empCode}: ${penalty} (consecutive DR: ${drHistory.isConsecutiveGlobal})`);
     }
 
     // Add jitter for tie-breaking
@@ -165,10 +188,26 @@ export async function createCandidateResults(
   maxGapHours: number,
   isDRMeeting: boolean = false,
   drConsecutivePenalty: number = 0,
-  customWeights?: { w_fair: number; w_urgency: number; w_lrs: number }
+  customWeights?: { w_fair: number; w_urgency: number; w_lrs: number },
+  bookingTimeStart?: Date,
+  drType?: string
 ): Promise<CandidateResult[]> {
   const minHours = getMinHours(hoursMap);
   const results: CandidateResult[] = [];
+
+  // Get last global DR assignment once for DR meetings
+  let lastGlobalDR = undefined;
+  let drPolicy = undefined;
+  
+  if (isDRMeeting && bookingTimeStart) {
+    drPolicy = getDRPolicy(mode);
+    lastGlobalDR = await getLastGlobalDRAssignment(bookingTimeStart, {
+      drType: drPolicy.scope === "BY_TYPE" ? drType : undefined,
+      includePending: drPolicy.includePendingInGlobal
+    });
+    
+    console.log(`🔍 DR meeting detected. Last global DR: ${lastGlobalDR?.interpreterEmpCode || 'None'}`);
+  }
 
   for (const interpreter of allInterpreters) {
     const isEligible = eligibleIds.includes(interpreter.empCode);
@@ -177,8 +216,14 @@ export async function createCandidateResults(
     // Check DR assignment history if this is a DR meeting
     let drHistory = undefined;
     
-    if (isDRMeeting) {
-      drHistory = await checkDRAssignmentHistory(interpreter.empCode, fairnessWindowDays);
+    if (isDRMeeting && bookingTimeStart && drPolicy) {
+      drHistory = await checkDRAssignmentHistory(interpreter.empCode, fairnessWindowDays, {
+        bookingTimeStart,
+        drType: drPolicy.scope === "BY_TYPE" ? drType : undefined,
+        lastGlobalDR,
+        includePendingInGlobal: drPolicy.includePendingInGlobal,
+        drPolicy
+      });
       
       // If interpreter is blocked due to consecutive DR assignments, mark as ineligible
       if (drHistory.isBlocked) {
@@ -194,7 +239,7 @@ export async function createCandidateResults(
             total: 0
           },
           eligible: false,
-          reason: `ConsecutiveDRBlocked: ${drHistory.consecutiveDRCount} consecutive DR assignments`,
+          reason: `ConsecutiveDRBlocked: ${drHistory.isConsecutiveGlobal ? 'Last DR by same interpreter' : 'Policy violation'}`,
           drHistory
         });
         continue;
@@ -219,9 +264,10 @@ export async function createCandidateResults(
       );
 
       // Apply DR penalty if applicable
-      if (isDRMeeting && drHistory?.penaltyApplied) {
-        totalScore = applyDRPenalty(totalScore, drConsecutivePenalty, true);
-        console.log(`⚠️ DR penalty applied to ${interpreter.empCode}: ${drConsecutivePenalty} (consecutive DR count: ${drHistory.consecutiveDRCount})`);
+      if (isDRMeeting && drHistory?.penaltyApplied && drPolicy) {
+        const penalty = drPolicy.consecutivePenalty;
+        totalScore = applyDRPenalty(totalScore, penalty, true);
+        console.log(`⚠️ DR penalty applied to ${interpreter.empCode}: ${penalty} (consecutive DR: ${drHistory.isConsecutiveGlobal})`);
       }
 
       // Debug logging
@@ -232,7 +278,7 @@ export async function createCandidateResults(
       console.log(`   LRS score: ${lrsScore.toFixed(3)}`);
       console.log(`   Total score: ${totalScore.toFixed(3)}`);
       if (isDRMeeting && drHistory) {
-        console.log(`   DR consecutive count: ${drHistory.consecutiveDRCount}`);
+        console.log(`   DR consecutive: ${drHistory.isConsecutiveGlobal}`);
         console.log(`   DR penalty applied: ${drHistory.penaltyApplied}`);
       }
       

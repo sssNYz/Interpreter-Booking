@@ -1,5 +1,5 @@
 import prisma from "@/prisma/prisma";
-import type { AssignmentPolicy, MeetingTypePriority } from "@/types/assignment";
+import type { AssignmentPolicy, MeetingTypePriority, DRPolicy } from "@/types/assignment";
 
 const DEFAULT_POLICY: AssignmentPolicy = {
   autoAssignEnabled: true,
@@ -238,5 +238,45 @@ export async function updateMeetingTypePriority(
   } catch (error) {
     console.error(`Error updating priority for meeting type ${meetingType}:`, error);
     throw new Error(`Failed to update priority for meeting type ${meetingType}`);
+  }
+}
+
+/**
+ * Get DR policy configuration based on mode
+ */
+export function getDRPolicy(mode: string): DRPolicy {
+  const upper = mode.toUpperCase();
+  
+  switch (upper) {
+    case 'BALANCE':
+      return {
+        scope: "GLOBAL",
+        forbidConsecutive: true, // Hard block for balance mode
+        consecutivePenalty: -0.8,
+        includePendingInGlobal: false
+      };
+    case 'URGENT':
+      return {
+        scope: "GLOBAL", 
+        forbidConsecutive: false, // Soft penalty for urgent mode
+        consecutivePenalty: -0.1,
+        includePendingInGlobal: true // Include pending in urgent mode
+      };
+    case 'CUSTOM':
+      // For CUSTOM mode, return configurable values
+      return {
+        scope: "GLOBAL",
+        forbidConsecutive: false,
+        consecutivePenalty: -0.7, // Default for custom
+        includePendingInGlobal: false
+      };
+    case 'NORMAL':
+    default:
+      return {
+        scope: "GLOBAL",
+        forbidConsecutive: false, // Soft penalty for normal mode
+        consecutivePenalty: -0.5,
+        includePendingInGlobal: false
+      };
   }
 }
