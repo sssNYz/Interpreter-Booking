@@ -23,6 +23,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useMemo, useState, useEffect } from "react";
+import { generateStandardTimeSlots, generateEndTimeSlots, timeToMinutes, formatYmdFromDate, buildDateTimeString, isValidStartTime, isValidTimeRange } from "@/utils/time";
 import {
   X,
   Plus,
@@ -35,36 +36,14 @@ import {
 } from "lucide-react";
 import { Switch } from "../ui/switch";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
-
-
-type BookingFormProps = {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  selectedSlot?: {
-
-    day: number;
-    slot: string;
-  };
-  daysInMonth: {
-    date: number;
-    dayName: string;
-    fullDate: Date;
-    isPast: boolean;
-  }[];
-  interpreters?: {
-    interpreterId: number;
-    interpreterName: string;
-    interpreterSurname: string;
-  }[];
-  rooms?: string[];
-};
-
-type OwnerGroup = "software" | "iot" | "hardware" | "other";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { toast } from "sonner";
+import type { OwnerGroup } from "@/types/booking";
+import type { BookingFormProps } from "@/types/props";
 export function BookingForm({
   open,
   onOpenChange,
   selectedSlot,
-
   daysInMonth,
   interpreters = [],
 }: BookingFormProps) {
@@ -123,8 +102,7 @@ export function BookingForm({
         const raw = localStorage.getItem("booking.user");
         if (!raw) return;
         const parsed = JSON.parse(raw);
-        const expired = Date.now() > (parsed.storedAt || parsed.timestamp || 0) + ((parsed.ttlDays ? parsed.ttlDays * 86400000 : parsed.ttl) || 0);
-        if (expired) return;
+        // Session is now enforced by server cookie; just read profile if present
         const full = String(parsed.name || "");
         const parts = full.trim().split(/\s+/);
         const first = parts[0] || "";
@@ -137,47 +115,18 @@ export function BookingForm({
     }
   }, [open]);
 
-  // Time slots generation
-  const slotsTime = useMemo(() => {
+  // Time slots generation (unified)
+  const slotsTime = useMemo(() => generateStandardTimeSlots(), []);
 
-    const times = [];
-    for (let hour = 8; hour < 18; hour++) {
-      if (hour === 12) {
-        times.push(`${hour}:00`, `${hour}:20`);
-        continue;
-      }
-      if (hour === 13) {
-        times.push(`${hour}:10`, `${hour}:30`);
-        continue;
-      }
-      if (hour === 17) {
-        times.push(`${hour}:00`);
-        continue;
-      }
-      times.push(`${hour.toString().padStart(2, "0")}:00`);
-      times.push(`${hour.toString().padStart(2, "0")}:30`);
-    }
-    return times;
-  }, []);
-
-  // Function to convert time string to minutes for comparison
-  const timeToMinutes = (time: string): number => {
-
-    const [hours, minutes] = time.split(":").map(Number);
-
-    return hours * 60 + minutes;
-  };
+  // timeToMinutes unified from utils/time
 
   // Get available end times based on selected start time
   const availableEndTimes = useMemo(() => {
-
-    if (!startTime) return slotsTime;
+    if (!startTime) return generateEndTimeSlots();
+    const endSlots = generateEndTimeSlots();
     const startMinutes = timeToMinutes(startTime);
-    return slotsTime.filter((time) => {
-      const endMinutes = timeToMinutes(time);
-      return endMinutes > startMinutes;
-    });
-  }, [startTime, slotsTime]);
+    return endSlots.filter((time) => timeToMinutes(time) > startMinutes);
+  }, [startTime]);
 
 
   // Reset end time if it becomes invalid
@@ -188,12 +137,7 @@ export function BookingForm({
     }
   };
 
-  const getLocalDateString = (date: Date) => {
-    const year = date.getFullYear();
-    const month = `${date.getMonth() + 1}`.padStart(2, "0");
-    const day = `${date.getDate()}`.padStart(2, "0");
-    return `${year}-${month}-${day}`;
-  };
+  const getLocalDateString = (date: Date) => formatYmdFromDate(date);
 
   // Email management functions
   const addInviteEmail = () => {
@@ -222,6 +166,8 @@ export function BookingForm({
     if (!meetingRoom.trim()) newErrors.meetingRoom = "Meeting room is required";
     if (!startTime) newErrors.startTime = "Start time is required";
     if (!endTime) newErrors.endTime = "End time is required";
+    if (startTime && !isValidStartTime(startTime)) newErrors.startTime = "Invalid start time";
+    if (startTime && endTime && !isValidTimeRange(startTime, endTime)) newErrors.endTime = "End must be after start";
 
     setErrors(newErrors);
     console.log("ERROR IS = ", newErrors);
@@ -236,11 +182,10 @@ export function BookingForm({
     setIsSubmitting(true);
 
     try {
-      // Create the datetime strings
-
+      // Create the datetime strings (plain strings YYYY-MM-DD HH:mm:ss)
       const localDate = getLocalDateString(dayObj.fullDate);
-      const startDateTime = `${localDate}T${startTime}:00.000`;
-      const endDateTime = `${localDate}T${endTime}:00.000`;
+      const startDateTime = buildDateTimeString(localDate, startTime);
+      const endDateTime = buildDateTimeString(localDate, endTime);
 
       // Get empCode from localStorage
       const raw = localStorage.getItem("booking.user");
@@ -267,28 +212,164 @@ export function BookingForm({
         inviteEmails: inviteEmails.length > 0 ? inviteEmails : undefined,
       };
 
+      const submitOnce = async (force?: boolean) => {
       const response = await fetch("/api/booking-data/post-booking-data", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(bookingData),
-      });
+          body: JSON.stringify({ ...bookingData, ...(force ? { force: true } : {}) }),
+        });
+        const result = await response.json();
+        return { response, result } as const;
+      };
 
-      const result = await response.json();
+      // First attempt without force
+      let { response, result } = await submitOnce(false);
+
+      // If overlap warning, show themed confirm toast and then force submit on OK
+      if (response.status === 409 && result?.code === "OVERLAP_WARNING") {
+        const proceed = await new Promise<boolean>((resolve) => {
+          toast.custom(
+            (t) => (
+              <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm w-[420px]">
+                <Alert className="border-none p-0">
+                  <AlertTitle className="text-gray-900">
+                    <span className="text-amber-600 font-semibold">Same room warning</span>
+                    <span className="ml-1">
+                      {result?.message || "This room already has a booking overlapping this time."}
+                    </span>
+                  </AlertTitle>
+                  <AlertDescription className="text-gray-700">
+                    Do you want to continue?
+                  </AlertDescription>
+                </Alert>
+                <div className="flex justify-end gap-2 mt-4">
+                  <button
+                    onClick={() => {
+                      toast.dismiss(t);
+                      resolve(false);
+                    }}
+                    className="bg-gray-200 text-gray-900 px-3 py-1 rounded text-xs"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => {
+                      toast.dismiss(t);
+                      resolve(true);
+                    }}
+                    className="bg-gray-900 text-white px-3 py-1 rounded text-xs"
+                  >
+                    OK
+                  </button>
+                </div>
+              </div>
+            ),
+            { duration: 10000 }
+          );
+        });
+
+        if (proceed) {
+          ({ response, result } = await submitOnce(true));
+        } else {
+          return; // user cancelled
+        }
+      }
 
       if (result.success) {
-        alert("Booking created successfully!");
+        const bookingDate = dayObj?.fullDate.toLocaleDateString("en-US", {
+          weekday: "long",
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+        });
+        const duration = `${startTime} - ${endTime}`;
+        toast.custom(
+          (t) => (
+            <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm w-[420px]">
+              <Alert className="border-none p-0">
+                <AlertTitle className="text-gray-900">
+                  <span className="text-green-600 font-semibold">Success</span>
+                  <span className="ml-1">Booking created successfully!</span>
+                </AlertTitle>
+                <AlertDescription className="text-gray-700">
+                  {bookingDate} at {duration}
+                </AlertDescription>
+              </Alert>
+              <div className="flex justify-end mt-4">
+                <button
+                  onClick={() => toast.dismiss(t)}
+                  className="bg-gray-900 text-white px-3 py-1 rounded text-xs"
+                >
+                  OK
+                </button>
+              </div>
+            </div>
+          ),
+          { duration: 5000 }
+        );
+        // Close the form
         onOpenChange(false);
+        // Notify other components that bookings have changed
+        try {
+          window.dispatchEvent(new CustomEvent("booking:updated"));
+        } catch {}
       } else {
-        alert(`Error: ${result.message || result.error}`);
+        toast.custom(
+          (t) => (
+            <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm w-[420px]">
+              <Alert className="border-none p-0">
+                <AlertTitle className="text-gray-900">
+                  <span className="text-red-600 font-semibold">Error</span>
+                  <span className="ml-1">Unable to create booking</span>
+                </AlertTitle>
+                <AlertDescription className="text-gray-700">
+                  {result.message || result.error || "Please try again"}
+                </AlertDescription>
+              </Alert>
+              <div className="flex justify-end mt-4">
+                <button
+                  onClick={() => toast.dismiss(t)}
+                  className="bg-gray-900 text-white px-3 py-1 rounded text-xs"
+                >
+                  OK
+                </button>
+              </div>
+            </div>
+          ),
+          { duration: 5000 }
+        );
         if (result.details) {
           console.error("Validation errors:", result.details);
         }
       }
     } catch (error) {
       console.error("Error creating booking:", error);
-      alert("An error occurred while creating the booking");
+      toast.custom(
+        (t) => (
+          <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm w-[420px]">
+            <Alert className="border-none p-0">
+              <AlertTitle className="text-gray-900">
+                <span className="text-red-600 font-semibold">Error</span>
+                <span className="ml-1">Unable to create booking</span>
+              </AlertTitle>
+              <AlertDescription className="text-gray-700">
+                An error occurred while creating the booking
+              </AlertDescription>
+            </Alert>
+            <div className="flex justify-end mt-4">
+              <button
+                onClick={() => toast.dismiss(t)}
+                className="bg-gray-900 text-white px-3 py-1 rounded text-xs"
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        ),
+        { duration: 5000 }
+      );
     } finally {
       setIsSubmitting(false);
     }

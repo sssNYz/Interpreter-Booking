@@ -1,4 +1,6 @@
+// NOTE: Protected by middleware via cookie session
 import prisma from '@/prisma/prisma';
+import type { BookingData, OwnerGroup as OwnerGroupUI } from '@/types/booking';
 export const dynamic = "force-dynamic";
 
 export async function GET(
@@ -44,10 +46,20 @@ export async function GET(
   } as Parameters<typeof prisma.bookingPlan.findMany>[0]);
 
   // Map to the BookingData shape expected by the frontend
-  type IncludedEmployee = { firstNameEn: string | null; lastNameEn: string | null; email: string | null; telExt: string | null } | null;
-  type IncludedInterpreter = { empCode: string | null } | null;
-  const result = (bookings as Array<{
+  const toIso = (d: Date) => d.toISOString();
+  const extractYMD = (iso: string) => iso.split("T")[0];
+  const extractHMS = (iso: string) => iso.split("T")[1].slice(0, 8);
+  const formatDateTime = (d: Date): string => `${extractYMD(toIso(d))} ${extractHMS(toIso(d))}`;
+
+  const asOwnerGroup = (v: unknown): OwnerGroupUI => {
+    const s = String(v || "").toLowerCase();
+    if (s === "software" || s === "iot" || s === "hardware" || s === "other") return s as OwnerGroupUI;
+    return "other";
+  };
+
+  const result: BookingData[] = (bookings as Array<{
     bookingId: number;
+    ownerEmpCode: string;
     ownerGroup: string;
     meetingRoom: string;
     meetingDetail: string | null;
@@ -57,24 +69,25 @@ export async function GET(
     bookingStatus: string;
     createdAt: Date;
     updatedAt: Date;
-    employee?: IncludedEmployee;
-    interpreterEmployee?: IncludedInterpreter;
+    employee?: { firstNameEn: string | null; lastNameEn: string | null; email: string | null; telExt: string | null } | null;
+    interpreterEmployee?: { empCode: string | null } | null;
   }>).map((b) => ({
     bookingId: b.bookingId,
+    ownerEmpCode: b.ownerEmpCode,
     ownerName: b.employee?.firstNameEn ?? "",
     ownerSurname: b.employee?.lastNameEn ?? "",
     ownerEmail: b.employee?.email ?? "",
     ownerTel: b.employee?.telExt ?? "",
-    ownerGroup: b.ownerGroup,
+    ownerGroup: asOwnerGroup(b.ownerGroup),
     meetingRoom: b.meetingRoom,
     meetingDetail: b.meetingDetail ?? "",
     highPriority: b.highPriority,
-    timeStart: b.timeStart,
-    timeEnd: b.timeEnd,
+    timeStart: formatDateTime(b.timeStart),
+    timeEnd: formatDateTime(b.timeEnd),
     interpreterId: b.interpreterEmployee?.empCode ?? null,
     bookingStatus: b.bookingStatus,
-    createdAt: b.createdAt,
-    updatedAt: b.updatedAt,
+    createdAt: formatDateTime(b.createdAt),
+    updatedAt: formatDateTime(b.updatedAt),
   }));
 
   return new Response(JSON.stringify(result), {

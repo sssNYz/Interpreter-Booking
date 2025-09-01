@@ -1,21 +1,27 @@
 "use client";
 
 import React from "react";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Scale } from "lucide-react";
 
 export default function BookingRules() {
   return (
-    <Sheet>
-      <SheetTrigger asChild>
-        <Button className="ml-0 bg-neutral-700 text-white rounded-t-none rounded-b-3xl hover:bg-black/90 w-32 h-10">Rules</Button>
-      </SheetTrigger>
-      <SheetContent side="right" className="w-[380px] sm:w-[480px]">
-        <SheetHeader>
-          <SheetTitle>Booking rules</SheetTitle>
-        </SheetHeader>
-        <ScrollArea className="h-[calc(100vh-9rem)] pr-2">
+    <Dialog>
+      <DialogTrigger asChild>
+
+        <Button className="ml-0 bg-neutral-700 text-white rounded-full hover:bg-black/90 w-28 h-10">
+          <Scale className="w-20 h-20" />
+          Rules
+        </Button>
+
+      </DialogTrigger>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Booking rules</DialogTitle>
+        </DialogHeader>
+        <ScrollArea className="h-[300px] pr-2">
           <ul className="space-y-3 text-sm text-muted-foreground mt-4">
             <li>- Book at least 24 hours in advance.</li>
             <li>- Max 2 active bookings per user.</li>
@@ -24,7 +30,7 @@ export default function BookingRules() {
             <li>- Past time slots are disabled.</li>
           </ul>
         </ScrollArea>
-      </SheetContent>
-    </Sheet>
+      </DialogContent>
+    </Dialog>
   );
 }
