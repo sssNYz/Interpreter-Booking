@@ -25,60 +25,46 @@ interface LogItem {
   createdAt: string; // requested time
   bookingId: number;
   interpreterEmpCode?: string | null;
-  ownerEmpCode?: string | null;
   status: string; // "assigned" when present
   reason?: string | null;
+  preHoursSnapshot: Record<string, unknown>;
+  postHoursSnapshot?: Record<string, unknown>;
+  scoreBreakdown?: Record<string, unknown>;
   bookingPlan: {
     meetingType: string;
     drType?: string | null;
     timeStart: string;
     timeEnd: string;
     meetingRoom: string;
+    ownerGroup: string;
+    otherType?: string | null;
+    ownerEmpCode: string;
+    employee?: {
+      empCode: string;
+      firstNameEn?: string | null;
+      lastNameEn?: string | null;
+      firstNameTh?: string | null;
+      lastNameTh?: string | null;
+    } | null;
   };
+  interpreterEmployee?: {
+    empCode: string;
+    firstNameEn?: string | null;
+    lastNameEn?: string | null;
+    firstNameTh?: string | null;
+    lastNameTh?: string | null;
+  } | null;
 }
 
-/* ========= Mock ========= */
-function mockLogsPreview(count = 18): LogItem[] {
-  const interpreters = ["I001", "I003"];
-  const owners = ["John Doe", "Jane Smith"];
-  const types = ["DR", "VIP", "Weekly", "General", "Augent", "Other"] as const;
-  const rooms = ["Hong Nam", "Room A"];
-  const drEnumValues = ["PR_PR", "DR_k", "DR_II", "DR_I", "Other"] as const;
-  const rows: LogItem[] = [];
-  const now = new Date();
-
-  for (let i = 0; i < count; i++) {
-    const base = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate(),
-      8,
-      0,
-      0
-    );
-    base.setMinutes(base.getMinutes() + i * 60);
-    const start = new Date(base);
-    const end = new Date(base.getTime() + 60 * 60 * 1000);
-    const mt = types[i % types.length];
-
-    rows.push({
-      id: i + 1,
-      createdAt: new Date(base.getTime() - 30 * 60 * 1000).toISOString(),
-      bookingId: 1000 + i + 1,
-      interpreterEmpCode: interpreters[i % interpreters.length],
-      ownerEmpCode: owners[i % owners.length],
-      status: "assigned",
-      reason: i % 7 === 0 ? "Auto-assigned by rule" : null,
-      bookingPlan: {
-        meetingType: mt,
-        drType: mt === "DR" ? drEnumValues[i % drEnumValues.length] : null,
-        timeStart: start.toISOString(),
-        timeEnd: end.toISOString(),
-        meetingRoom: rooms[i % rooms.length],
-      },
-    });
-  }
-  return rows;
+interface ApiResponse {
+  items: LogItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+  summary: {
+    byInterpreter: Record<string, { assigned: number; approved: number; rejected: number }>;
+  };
 }
 
 /* ========= Utils ========= */
@@ -106,6 +92,36 @@ const formatDR = (v?: string | null) => {
   }
 };
 
+const getInterpreterDisplayName = (interpreter: LogItem["interpreterEmployee"]) => {
+  if (!interpreter) return "-";
+  
+  const firstName = interpreter.firstNameEn || interpreter.firstNameTh;
+  const lastName = interpreter.lastNameEn || interpreter.lastNameTh;
+  
+  if (firstName && lastName) {
+    return `${firstName} ${lastName} (${interpreter.empCode})`;
+  } else if (firstName) {
+    return `${firstName} (${interpreter.empCode})`;
+  } else {
+    return interpreter.empCode;
+  }
+};
+
+const getOwnerDisplayName = (owner: LogItem["bookingPlan"]["employee"]) => {
+  if (!owner) return "-";
+  
+  const firstName = owner.firstNameEn || owner.firstNameTh;
+  const lastName = owner.lastNameEn || owner.lastNameTh;
+  
+  if (firstName && lastName) {
+    return `${firstName} ${lastName} (${owner.empCode})`;
+  } else if (firstName) {
+    return `${firstName} (${owner.empCode})`;
+  } else {
+    return owner.empCode;
+  }
+};
+
 const MEETING_TYPES = ["all", "DR", "VIP", "Weekly", "General", "Augent", "Other"];
 
 /* ========= Component ========= */
@@ -116,47 +132,72 @@ export function AssignmentLogsTab() {
   );
   const [selectedMeetingTypes, setSelectedMeetingTypes] = React.useState<string[]>(["all"]);
   const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
   const [page, setPage] = React.useState(1);
   const [pageSize, setPageSize] = React.useState(10);
+  const [total, setTotal] = React.useState(0);
+  const [totalPages, setTotalPages] = React.useState(1);
+
+  // Fetch assignment logs from API
+  const fetchLogs = React.useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const fromDate = new Date(selectedDate + "T00:00:00");
+      const toDate = new Date(selectedDate + "T23:59:59");
+      
+      const params = new URLSearchParams({
+        page: page.toString(),
+        pageSize: pageSize.toString(),
+        from: fromDate.toISOString(),
+        to: toDate.toISOString(),
+        sort: "createdAt:desc"
+      });
+
+      const response = await fetch(`/api/admin-dashboard/assignment-logs?${params}`);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch logs: ${response.status}`);
+      }
+
+      const data: ApiResponse = await response.json();
+      setAllLogs(data.items);
+      setTotal(data.total);
+      setTotalPages(data.totalPages);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to fetch logs");
+      setAllLogs([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedDate, page, pageSize]);
 
   React.useEffect(() => {
-    setLoading(true);
-    const t = setTimeout(() => {
-      setAllLogs(mockLogsPreview(8)); // ให้เหมือนภาพตัวอย่าง 8 แถว
-      setLoading(false);
-    }, 150);
-    return () => clearTimeout(t);
-  }, []);
+    fetchLogs();
+  }, [fetchLogs]);
 
   React.useEffect(() => setPage(1), [selectedDate, pageSize, selectedMeetingTypes]);
 
   const filtered = React.useMemo(() => {
-    const dayStart = new Date(selectedDate + "T00:00:00");
-    const dayEnd = new Date(selectedDate + "T23:59:59");
-    return allLogs
-      .filter(
-        (l) =>
-          new Date(l.bookingPlan.timeStart) >= dayStart &&
-          new Date(l.bookingPlan.timeStart) <= dayEnd
-      )
-      .filter(
-        (l) =>
-          selectedMeetingTypes.includes("all") ||
-          selectedMeetingTypes.includes(l.bookingPlan.meetingType)
-      )
-      .filter((l) => l.status === "assigned")
-      .sort(
-        (a, b) =>
-          new Date(a.bookingPlan.timeStart).getTime() -
-          new Date(b.bookingPlan.timeStart).getTime()
-      );
-  }, [allLogs, selectedDate, selectedMeetingTypes]);
+    return allLogs.filter((l) => {
+      // Filter by meeting type
+      const meetingTypeOk = selectedMeetingTypes.includes("all") || 
+                           selectedMeetingTypes.includes(l.bookingPlan.meetingType);
+      
+      // Filter by status (only show assigned)
+      const statusOk = l.status === "assigned";
+      
+      return meetingTypeOk && statusOk;
+    }).sort((a, b) => 
+      new Date(a.bookingPlan.timeStart).getTime() - 
+      new Date(b.bookingPlan.timeStart).getTime()
+    );
+  }, [allLogs, selectedMeetingTypes]);
 
-  const total = filtered.length;
   const startIdx = (page - 1) * pageSize;
   const endIdx = Math.min(startIdx + pageSize, total);
   const pageItems = filtered.slice(startIdx, endIdx);
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   const gotoPrev = () => setPage((p) => Math.max(1, p - 1));
   const gotoNext = () => setPage((p) => Math.min(totalPages, p + 1));
@@ -173,9 +214,14 @@ export function AssignmentLogsTab() {
     });
   };
 
+  const handlePageSizeChange = (newPageSize: number) => {
+    setPageSize(newPageSize);
+    setPage(1);
+  };
+
   return (
     <div className="space-y-4">
-      {/* Toolbar (เหมือนภาพ: กล่องใหญ่โค้งมน) */}
+      {/* Toolbar */}
       <div className="flex items-center justify-between flex-wrap gap-3 bg-white p-4 rounded-2xl border border-gray-200">
         <div className="flex items-center gap-2">
           <Calendar className="w-4 h-4 text-gray-600" />
@@ -210,6 +256,16 @@ export function AssignmentLogsTab() {
         </DropdownMenu>
       </div>
 
+      {/* Error Display */}
+      {error && (
+        <Alert className="rounded-2xl border-red-200 bg-red-50">
+          <AlertTitle className="text-red-800">Error</AlertTitle>
+          <AlertDescription className="text-red-700">
+            {error}
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Table */}
       {loading ? (
         <div className="mb-6 p-4 rounded-2xl bg-gray-50 border border-gray-200 text-gray-700">
@@ -229,6 +285,7 @@ export function AssignmentLogsTab() {
               <tr>
                 <th className="px-6 py-3 text-left">Requested At</th>
                 <th className="px-6 py-3 text-left">Meeting Time</th>
+                <th className="px-6 py-3 text-left">Owner</th>
                 <th className="px-6 py-3 text-left">Interpreter</th>
                 <th className="px-6 py-3 text-left">Meeting Type</th>
                 <th className="px-6 py-3 text-left">Room</th>
@@ -251,7 +308,12 @@ export function AssignmentLogsTab() {
                       </span>
                     </div>
                   </td>
-                  <td className="px-6 py-4">{l.interpreterEmpCode ?? "-"}</td>
+                  <td className="px-6 py-4">
+                    {getOwnerDisplayName(l.bookingPlan.employee)}
+                  </td>
+                  <td className="px-6 py-4">
+                    {getInterpreterDisplayName(l.interpreterEmployee)}
+                  </td>
                   <td className="px-6 py-4">
                     {l.bookingPlan.meetingType === "DR" && l.bookingPlan.drType
                       ? formatDR(l.bookingPlan.drType)
@@ -264,24 +326,26 @@ export function AssignmentLogsTab() {
                   </td>
                   <td className="px-6 py-4">
                     <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full font-semibold text-indigo-700 bg-indigo-100">
-                      assigned
+                      {l.status}
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-gray-700">
-                    {l.reason ?? "-"}
+                  <td className="px-6 py-4 text-gray-700 max-w-xs">
+                    <div className="truncate" title={l.reason || undefined}>
+                      {l.reason || "-"}
+                    </div>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
 
-          {/* Footer (Rows per page + range + pager ปุ่มโค้งมน) */}
+          {/* Footer */}
           <div className="border-t bg-white p-4 flex items-center justify-between">
             <div className="flex items-center gap-2 text-sm text-gray-700">
               Rows per page:
               <select
                 value={pageSize}
-                onChange={(e) => setPageSize(Number(e.target.value))}
+                onChange={(e) => handlePageSizeChange(Number(e.target.value))}
                 className="text-sm border rounded-md px-2 py-1 bg-white"
               >
                 {[10, 20, 50, 100].map((n) => (

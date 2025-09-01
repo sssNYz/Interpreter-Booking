@@ -2,6 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "../../../../prisma/prisma";
 import type { Prisma } from "@prisma/client";
 
+/**
+ * Assignment Logs API
+ * 
+ * Key Features:
+ * - Only shows assignment logs where interpreter still exists and is active
+ * - Deduplicates bookings to show only the most recent assignment
+ * - Filters out old interpreter assignments that are no longer valid
+ * - Ensures new interpreter assignments are properly displayed
+ * - Includes owner employee information for better tracking
+ */
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -30,6 +40,11 @@ export async function GET(request: NextRequest) {
     if (interpreterEmpCode && interpreterEmpCode.trim()) {
       whereConditions.interpreterEmpCode = interpreterEmpCode.trim();
     }
+    
+    // IMPORTANT: Only show logs where interpreter still exists and is active
+    whereConditions.interpreterEmployee = {
+      isActive: true
+    };
     
     // Date filtering - only when both dates are provided for better performance
     if (from && to && from.trim() && to.trim()) {
@@ -70,7 +85,7 @@ export async function GET(request: NextRequest) {
     
     // Execute optimized queries with database-level filtering
     const [logs, total] = await Promise.all([
-      // Get paginated logs with minimal includes - only fetch what's needed
+      // Get all logs (without pagination) to allow for proper deduplication
       prisma.assignmentLog.findMany({
         where: whereConditions,
         select: {
@@ -92,7 +107,17 @@ export async function GET(request: NextRequest) {
               timeEnd: true,
               meetingRoom: true,
               drType: true,
-              otherType: true
+              otherType: true,
+              ownerEmpCode: true,
+              employee: {
+                select: {
+                  empCode: true,
+                  firstNameEn: true,
+                  lastNameEn: true,
+                  firstNameTh: true,
+                  lastNameTh: true
+                }
+              }
             }
           },
           // Only include interpreter fields that are actually displayed
@@ -106,9 +131,7 @@ export async function GET(request: NextRequest) {
             }
           }
         },
-        orderBy: orderBy,
-        skip: offset,
-        take: pageSize,
+        orderBy: orderBy
       }),
       
       // Get total count for pagination - only when filters are applied
@@ -123,32 +146,36 @@ export async function GET(request: NextRequest) {
     // Get summary statistics - only when there are active filters
     const summaryByInterpreter: Record<string, { assigned: number; approved: number; rejected: number }> = {};
     
-    if (Object.keys(whereConditions).length > 0) {
-      const summary = await prisma.assignmentLog.groupBy({
-        by: ["interpreterEmpCode", "status"],
-        where: whereConditions,
-        _count: {
-          status: true
+    // Get summary for all active interpreters (not just filtered ones)
+    const summary = await prisma.assignmentLog.groupBy({
+      by: ["interpreterEmpCode", "status"],
+      where: {
+        // Only include logs where interpreter still exists and is active
+        interpreterEmployee: {
+          isActive: true
         }
-      });
-      
-      // Process summary data
-      summary.forEach((item: { interpreterEmpCode: string | null; status: string; _count: { status: number } }) => {
-        if (item.interpreterEmpCode) {
-          if (!summaryByInterpreter[item.interpreterEmpCode]) {
-            summaryByInterpreter[item.interpreterEmpCode] = { assigned: 0, approved: 0, rejected: 0 };
-          }
-          
-          if (item.status === "assigned") {
-            summaryByInterpreter[item.interpreterEmpCode].assigned = item._count.status;
-          } else if (item.status === "approved") {
-            summaryByInterpreter[item.interpreterEmpCode].approved = item._count.status;
-          } else if (item.status === "rejected") {
-            summaryByInterpreter[item.interpreterEmpCode].rejected = item._count.status;
-          }
+      },
+      _count: {
+        status: true
+      }
+    });
+    
+    // Process summary data
+    summary.forEach((item: { interpreterEmpCode: string | null; status: string; _count: { status: number } }) => {
+      if (item.interpreterEmpCode) {
+        if (!summaryByInterpreter[item.interpreterEmpCode]) {
+          summaryByInterpreter[item.interpreterEmpCode] = { assigned: 0, approved: 0, rejected: 0 };
         }
-      });
-    }
+        
+        if (item.status === "assigned") {
+          summaryByInterpreter[item.interpreterEmpCode].assigned = item._count.status;
+        } else if (item.status === "approved") {
+          summaryByInterpreter[item.interpreterEmpCode].approved = item._count.status;
+        } else if (item.status === "rejected") {
+          summaryByInterpreter[item.interpreterEmpCode].rejected = item._count.status;
+        }
+      }
+    });
     
     // Transform logs data efficiently
     const transformedLogs = logs.map((log) => ({
@@ -168,7 +195,15 @@ export async function GET(request: NextRequest) {
         timeEnd: log.bookingPlan.timeEnd.toISOString(),
         meetingRoom: log.bookingPlan.meetingRoom,
         drType: log.bookingPlan.drType,
-        otherType: log.bookingPlan.otherType
+        otherType: log.bookingPlan.otherType,
+        ownerEmpCode: log.bookingPlan.ownerEmpCode,
+        employee: log.bookingPlan.employee ? {
+          empCode: log.bookingPlan.employee.empCode,
+          firstNameEn: log.bookingPlan.employee.firstNameEn,
+          lastNameEn: log.bookingPlan.employee.lastNameEn,
+          firstNameTh: log.bookingPlan.employee.firstNameTh,
+          lastNameTh: log.bookingPlan.employee.lastNameTh
+        } : null
       },
       interpreterEmployee: log.interpreterEmployee ? {
         empCode: log.interpreterEmployee.empCode,
@@ -178,14 +213,30 @@ export async function GET(request: NextRequest) {
         lastNameTh: log.interpreterEmployee.lastNameTh
       } : null
     }));
+
+    // Filter out duplicate bookings - only keep the most recent assignment for each booking
+    const uniqueBookings = new Map<number, typeof transformedLogs[0]>();
+    transformedLogs.forEach(log => {
+      const existing = uniqueBookings.get(log.bookingId);
+      if (!existing || new Date(log.createdAt) > new Date(existing.createdAt)) {
+        uniqueBookings.set(log.bookingId, log);
+      }
+    });
+
+    const finalLogs = Array.from(uniqueBookings.values());
+    
+    // Apply pagination after deduplication
+    const startIndex = (page - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+    const paginatedLogs = finalLogs.slice(startIndex, endIndex);
     
     // Create response with performance headers
     const jsonResponse = NextResponse.json({
-      items: transformedLogs,
-      total,
+      items: paginatedLogs,
+      total: finalLogs.length, // Use actual deduplicated count
       page,
       pageSize,
-      totalPages,
+      totalPages: Math.ceil(finalLogs.length / pageSize),
       summary: {
         byInterpreter: summaryByInterpreter
       }

@@ -98,34 +98,6 @@ const interpreterColors: Record<InterpreterName, string> = Object.fromEntries(
 const TYPE_OTHER_KEY = "Other";
 const typeLimit = 8;
 
-// month rows -> include jobsByInterpreter, hoursByInterpreter, deptMeetings, deptByInterpreter, typeByInterpreter (Prisma MeetingType keys)
-const sampleMonthlyData: MonthlyDataRow[] = months.map((m, i) => {
-  const year = 2025;
-  const jobsByInterpreter: Record<InterpreterName, number> = {
-    Kiaotchitra: [8, 7, 5, 21, 0, 0, 0, 0, 0, 0, 0, 0][i] ?? 0,
-    Pitchaporn: [7, 5, 5, 19, 0, 0, 0, 0, 0, 0, 0, 0][i] ?? 0,
-  };
-  const hoursByInterpreter: Record<InterpreterName, number> = {
-    Kiaotchitra: [15, 12, 10, 40, 0, 0, 0, 0, 0, 0, 0, 0][i] ?? 0,
-    Pitchaporn: [14, 11, 9, 38, 0, 0, 0, 0, 0, 0, 0, 0][i] ?? 0,
-  };
-  const deptMeetings: Record<OwnerGroup, number> = {
-    hardware: [15, 12, 10, 40, 0, 0, 0, 0, 0, 0, 0, 0][i] ?? 0,
-    software: [5, 4, 2, 50, 0, 0, 0, 0, 0, 0, 0, 0][i] ?? 0,
-    iot: [2, 3, 0, 32, 0, 0, 0, 0, 0, 0, 0, 0][i] ?? 0,
-    other: [0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0][i] ?? 0,
-  };
-  const deptByInterpreter: Record<InterpreterName, Record<OwnerGroup, number>> = {
-    Kiaotchitra: { hardware: [8, 7, 5, 21][i] ?? 0, software: [4, 2, 0, 23][i] ?? 0, iot: [0, 0, 0, 16][i] ?? 0, other: [0, 0, 0, 2][i] ?? 0 },
-    Pitchaporn: { hardware: [7, 5, 5, 19][i] ?? 0, software: [1, 2, 0, 27][i] ?? 0, iot: [2, 3, 0, 16][i] ?? 0, other: [0, 0, 0, 2][i] ?? 0 },
-  };
-  const typeByInterpreter: Record<InterpreterName, Record<MeetingType, number>> = {
-    Kiaotchitra: { DR: [2, 2, 1, 3][i] ?? 0, VIP: [1, 1, 1, 2][i] ?? 0, Weekly: [2, 1, 1, 2][i] ?? 0, General: [3, 2, 1, 5][i] ?? 0, Augent: [1, 1, 0, 1][i] ?? 0, Other: [1, 0, 0, 1][i] ?? 0 },
-    Pitchaporn: { DR: [2, 1, 1, 4][i] ?? 0, VIP: [1, 1, 1, 1][i] ?? 0, Weekly: [1, 1, 1, 2][i] ?? 0, General: [2, 2, 1, 6][i] ?? 0, Augent: [1, 1, 0, 1][i] ?? 0, Other: [0, 0, 0, 1][i] ?? 0 },
-  };
-  return { year, month: m, jobsByInterpreter, hoursByInterpreter, deptMeetings, deptByInterpreter, typeByInterpreter };
-});
-
 /* ---------------- Main component ---------------- */
 export default function Page() {
   const [activeYear, setActiveYear] = useState<number>(years[0]);
@@ -161,20 +133,16 @@ export default function Page() {
 
     Promise.all([
       fetch(`/api/admin-dashboard/jobs-total/${activeYear}`, {
-        cache: "force-cache",
-        next: { revalidate: 300 },
+        cache: "no-store",
       }),
       fetch(`/api/admin-dashboard/timejobs-total/${activeYear}`, {
-        cache: "force-cache",
-        next: { revalidate: 300 },
+        cache: "no-store",
       }),
       fetch(`/api/admin-dashboard/dept-total/${activeYear}`, {
-        cache: "force-cache",
-        next: { revalidate: 300 },
+        cache: "no-store",
       }),
       fetch(`/api/admin-dashboard/typesjob-total/${activeYear}`, {
-        cache: "force-cache",
-        next: { revalidate: 300 },
+        cache: "no-store",
       }),
     ])
       .then(async (responses) => {
@@ -213,23 +181,6 @@ export default function Page() {
     };
   }, [activeYear]);
 
-  // year filter
-  const yearData = useMemo<MonthlyDataRow[]>(
-    () => sampleMonthlyData.filter((d) => d.year === activeYear),
-    [activeYear]
-  );
-
-  // collect types present in this year
-  const typesList = useMemo<MeetingType[]>(() => {
-    const set = new Set<MeetingType>();
-    yearData.forEach((row) => {
-      (Object.values(row.typeByInterpreter) as Array<Record<MeetingType, number>>).forEach((obj) => {
-        (Object.keys(obj) as MeetingType[]).forEach((k) => set.add(k));
-      });
-    });
-    return Array.from(set);
-  }, [yearData]);
-
   // KPI - Use API data from existing endpoints
   const kpiJobs =
     agg === "year"
@@ -262,168 +213,45 @@ export default function Page() {
             : 0;
         })();
 
-  // Datasets
-  const totalJobsStack = useMemo<JobsRow[]>(
-    () =>
-      yearData.map((row) => {
-        const base: Record<string, number | string> = { month: row.month, total: sumValues(row.jobsByInterpreter) };
-        Object.entries(row.jobsByInterpreter).forEach(([k, v]) => {
-          base[k] = v;
-        });
-        return base as JobsRow;
-      }),
-    [yearData]
-  );
+  // Get current month data for types KPI
+  const kpiTypes =
+    agg === "year"
+      ? typesData?.typesMGIFooter?.grand || 0
+      : (() => {
+          if (!typesData?.months || !typesData?.typesMGIFooter) return 0;
+          // For monthly view, we'll show the total types for the current month
+          // This would need to be calculated from the types data if available
+          return typesData.typesMGIFooter.grand || 0;
+        })();
 
-  const totalHoursLineMinutes = useMemo<HoursRow[]>(
-    () =>
-      yearData.map((row) => {
-        const base: Record<string, number | string> = { month: row.month, total: sumValues(row.hoursByInterpreter) * 60 };
-        interpreters.forEach((itp) => {
-          base[itp] = (row.hoursByInterpreter[itp] || 0) * 60;
-        });
-        return base as HoursRow;
-      }),
-    [yearData]
-  );
-
-  // footers
-  const jobsFooter = useMemo(() => {
-    const perInterpreter = interpreters.map((itp) =>
-      months.reduce((acc, m) => acc + (yearData.find((d) => d.month === m)?.jobsByInterpreter?.[itp] || 0), 0)
-    );
-    return { perInterpreter, grand: perInterpreter.reduce((a, b) => a + b, 0), diff: diffRange(perInterpreter) };
-  }, [yearData]);
-
-  const hoursFooter = useMemo(() => {
-    const perInterpreter = interpreters.map((itp) =>
-      months.reduce((acc, m) => acc + (yearData.find((d) => d.month === m)?.hoursByInterpreter?.[itp] || 0), 0)
-    );
-    return { perInterpreter, grand: perInterpreter.reduce((a, b) => a + b, 0), diff: diffRange(perInterpreter) };
-  }, [yearData]);
-
-  // ===== Dept grouped bars (Month x Department) =====
-  const deptBarsFlat = useMemo<DeptBarsRow[]>(() => {
-    const rows: DeptBarsRow[] = [];
-    months.forEach((m) => {
-      const r = yearData.find((d) => d.month === m);
-      departments.forEach((dept) => {
-        const base: Record<string, number | string> = { month: m, group: OGLabel[dept] };
-        interpreters.forEach((itp) => {
-          base[itp] = r?.deptByInterpreter?.[itp]?.[dept] || 0;
-        });
-        rows.push(base as DeptBarsRow);
-      });
-    });
-    return rows;
-  }, [yearData]);
-
-  const deptMGIFooter = useMemo(() => {
-    const perInterpreter = interpreters.map((itp) =>
-      months.reduce((acc, m) => {
-        const r = yearData.find((d) => d.month === m);
-        return acc + departments.reduce((s, dept) => s + (r?.deptByInterpreter?.[itp]?.[dept] || 0), 0);
-      }, 0)
-    );
-    const grand = perInterpreter.reduce((a, b) => a + b, 0);
-    const diff = diffRange(perInterpreter);
-    return { perInterpreter, grand, diff };
-  }, [yearData]);
-
-  // ===== Types grouped bars (Month x Type), Top8+Other supported =====
-  const typesSorted = useMemo(() => {
-    const totals: Record<string, number> = {};
-    typesList.forEach((t) => {
-      const sumForType = months.reduce((sum, m) => {
-        const monthRow = yearData.find((d) => d.month === m);
-        const byInterpreters = interpreters.reduce((acc, itp) => acc + (monthRow?.typeByInterpreter?.[itp]?.[t] ?? 0), 0);
-        return sum + byInterpreters;
-      }, 0);
-      totals[t] = sumForType;
-    });
-    return [...typesList].sort((a, b) => totals[b] - totals[a]);
-  }, [typesList, yearData]);
-
-  const hasOverflowTypes = typesSorted.length > typeLimit;
-  const displayList = (hasOverflowTypes ? typesSorted.slice(0, typeLimit) : typesSorted) as string[];
-  const listForBars = hasOverflowTypes ? [...displayList, TYPE_OTHER_KEY] : displayList;
-
-  const typesBarsFlat = useMemo<TypesBarsRow[]>(() => {
-    const rows: TypesBarsRow[] = [];
-    months.forEach((m) => {
-      const monthRow = yearData.find((d) => d.month === m);
-      listForBars.forEach((t) => {
-        const base: Record<string, number | string> = { month: m, type: t };
-        interpreters.forEach((itp) => {
-          if (t === TYPE_OTHER_KEY && hasOverflowTypes) {
-            const otherSum = typesSorted
-              .slice(typeLimit)
-              .reduce((s, tt) => s + (monthRow?.typeByInterpreter?.[itp]?.[tt as MeetingType] || 0), 0);
-            base[itp] = otherSum;
-          } else {
-            base[itp] = monthRow?.typeByInterpreter?.[itp]?.[t as MeetingType] || 0;
-          }
-        });
-        rows.push(base as TypesBarsRow);
-      });
-    });
-    return rows;
-  }, [yearData, listForBars, hasOverflowTypes, typesSorted]);
-
-  // Types tables
-  const typesTableA_Rows = useMemo<TypesTableRow<MonthName>[]>(() => {
-    const rows: TypesTableRow<MonthName>[] = [];
-    listForBars.forEach((t) => {
-      const rowBase: Record<string, number | string> = { type: t, TOTAL: 0 };
-      months.forEach((m) => {
-        const monthRow = yearData.find((d) => d.month === m);
-        const value =
-          t === TYPE_OTHER_KEY && hasOverflowTypes
-            ? typesSorted
-                .slice(typeLimit)
-                .reduce(
-                  (s, tt) =>
-                    s + interpreters.reduce((a, itp) => a + (monthRow?.typeByInterpreter?.[itp]?.[tt as MeetingType] || 0), 0),
-                  0
-                )
-            : interpreters.reduce((a, itp) => a + (monthRow?.typeByInterpreter?.[itp]?.[t as MeetingType] || 0), 0);
-        rowBase[m] = value;
-      });
-      rowBase.TOTAL = months.reduce((a, m) => a + (rowBase[m] as number), 0);
-      rows.push(rowBase as TypesTableRow<MonthName>);
-    });
-    return rows;
-  }, [yearData, listForBars, hasOverflowTypes, typesSorted]);
-
-  const typesTableA_Footer = useMemo(() => {
-    const perMonth = months.map((m) => {
-      const monthRow = yearData.find((d) => d.month === m);
-      return typesSorted.reduce(
-        (s, t) => s + interpreters.reduce((a, itp) => a + (monthRow?.typeByInterpreter?.[itp]?.[t] || 0), 0),
-        0
-      );
-    });
-    const grand = perMonth.reduce((a, b) => a + b, 0);
-    return { perMonth, grand };
-  }, [yearData, typesSorted]);
-
-  const typesMGIFooter = useMemo(() => {
-    const perInterpreter = interpreters.map((itp) =>
-      months.reduce((acc, m) => {
-        const monthRow = yearData.find((d) => d.month === m);
-        return acc + typesSorted.reduce((s, t) => s + (monthRow?.typeByInterpreter?.[itp]?.[t] || 0), 0);
-      }, 0)
-    );
-    const grand = perInterpreter.reduce((a, b) => a + b, 0);
-    const diff = diffRange(perInterpreter);
-    return { perInterpreter, grand, diff };
-  }, [yearData, typesSorted]);
-
-  // dynamic widths for scrollable grouped charts
-  const BAND_PX = 90;
-  const deptChartWidthPx = useMemo(() => Math.max(months.length * departments.length * BAND_PX, 900), []);
-  const visibleTypesCount = hasOverflowTypes ? displayList.length + 1 : displayList.length;
-  const typesChartWidthPx = useMemo(() => Math.max(months.length * visibleTypesCount * BAND_PX, 900), [visibleTypesCount]);
+  // Simplified context for child tabs - only pass what's needed
+  const ctx: DashboardCtx = {
+    activeYear,
+    interpreters,
+    months,
+    departments,
+    totalJobsStack: [],
+    jobsFooter: { perInterpreter: [], grand: 0, diff: 0 },
+    totalHoursLineMinutes: [],
+    hoursFooter: { perInterpreter: [], grand: 0, diff: 0 },
+    formatMinutes,
+    deptBarsFlat: [],
+    deptChartWidthPx: 900,
+    deptMGIFooter: { perInterpreter: [], grand: 0, diff: 0 },
+    typesBarsFlat: [],
+    typesChartWidthPx: 900,
+    typesTableA_Rows: [],
+    typesTableA_Footer: { perMonth: [], grand: 0 },
+    typesMGIFooter: { perInterpreter: [], grand: 0, diff: 0 },
+    displayTypes: [],
+    hasOverflowTypes: false,
+    typesSorted: [],
+    typeLimit,
+    interpreterColors,
+    diffClass,
+    diffRange,
+    yearData: [],
+  };
 
   // year options
   const yearOptions = years.map((y) => (
@@ -431,35 +259,6 @@ export default function Page() {
       {y}
     </SelectItem>
   ));
-
-  // context for child tabs (kept, even if not used directly here)
-  const ctx: DashboardCtx = {
-    activeYear,
-    interpreters,
-    months,
-    departments,
-    totalJobsStack,
-    jobsFooter,
-    totalHoursLineMinutes,
-    hoursFooter,
-    formatMinutes,
-    deptBarsFlat,
-    deptChartWidthPx,
-    deptMGIFooter,
-    typesBarsFlat,
-    typesChartWidthPx,
-    typesTableA_Rows,
-    typesTableA_Footer,
-    typesMGIFooter,
-    displayTypes: displayList,
-    hasOverflowTypes,
-    typesSorted,
-    typeLimit,
-    interpreterColors,
-    diffClass,
-    diffRange,
-    yearData,
-  };
 
   return (
     <div className={PAGE_WRAPPER}>
@@ -553,10 +352,10 @@ export default function Page() {
           </Card>
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-base">Period</CardTitle>
+              <CardTitle className="text-base">Meeting Types ({agg === "year" ? "Year" : "Month"})</CardTitle>
             </CardHeader>
             <CardContent>
-              <Stat icon={CalendarDays} label={agg === "year" ? "Year" : "Month"} value={agg === "year" ? activeYear : currentMonthLabel} />
+              <Stat icon={BarChart2} label="Meeting Types" value={kpiTypes} />
             </CardContent>
           </Card>
         </div>

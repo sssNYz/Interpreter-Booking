@@ -78,8 +78,7 @@ export function DeptTab({ year }: { year: number }) {
     let alive = true;
 
     fetch(`/api/admin-dashboard/dept-total/${year}`, { 
-      cache: "force-cache",
-      next: { revalidate: 300 }
+      cache: "no-store"
     })
       .then(async (r) => {
         if (!r.ok) throw new Error(`Failed (${r.status})`);

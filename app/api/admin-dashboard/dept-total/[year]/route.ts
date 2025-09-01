@@ -45,6 +45,10 @@ export async function GET(
       where: {
         timeStart: { gte: rangeStart, lt: rangeEnd },
         interpreterEmpCode: { not: null },
+        // IMPORTANT: Only include bookings where interpreter still exists and is active
+        interpreterEmployee: {
+          isActive: true
+        }
       },
       select: {
         timeStart: true,
@@ -56,12 +60,34 @@ export async function GET(
       },
     });
 
-    // สร้าง mapping empCode -> display name
+    // Get all active interpreters for the year (even if they have no bookings)
+    const activeInterpreters = await prisma.employee.findMany({
+      where: {
+        isActive: true,
+        // Only include interpreters who have bookings in this year
+        bookingsAsInterpreter: {
+          some: {
+            timeStart: { gte: rangeStart, lt: rangeEnd },
+            interpreterEmpCode: { not: null }
+          }
+        }
+      },
+      select: {
+        empCode: true,
+        firstNameEn: true,
+        lastNameEn: true,
+      },
+      orderBy: {
+        firstNameEn: 'asc'
+      }
+    });
+
+    // สร้าง mapping empCode -> display name จาก active interpreters
     const empCodeToName: Map<string, InterpreterName> = new Map();
-    for (const r of records) {
-      const empCode = r.interpreterEmpCode as string; // not null ตาม where
-      const first = (r.interpreterEmployee?.firstNameEn ?? "").trim();
-      const last  = (r.interpreterEmployee?.lastNameEn ?? "").trim();
+    for (const interpreter of activeInterpreters) {
+      const empCode = interpreter.empCode;
+      const first = (interpreter.firstNameEn ?? "").trim();
+      const last  = (interpreter.lastNameEn ?? "").trim();
       const name: InterpreterName = ( `${first} ${last}`.trim() || empCode ) as InterpreterName;
       empCodeToName.set(empCode, name);
     }
@@ -111,8 +137,10 @@ export async function GET(
       const dept = r.ownerGroup as OwnerGroup;
       row.deptMeetings[dept] += 1;
 
-      const itp = empCodeToName.get(r.interpreterEmpCode as string) as InterpreterName;
-      row.deptByInterpreter[itp][dept] += 1;
+      const itp = empCodeToName.get(r.interpreterEmpCode as string);
+      if (itp) { // Only process if interpreter is still active
+        row.deptByInterpreter[itp][dept] += 1;
+      }
     }
 
     // Footer รวมทั้งปีสำหรับตารางใหญ่: perInterpreter / grand / diff

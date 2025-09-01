@@ -40,8 +40,8 @@ export function HoursTab({ year }: { year: number }) {
   React.useEffect(() => {
     let alive = true;
     fetch(`/api/admin-dashboard/timejobs-total/${year}`, { 
-      cache: "force-cache",
-      next: { revalidate: 300 }
+      cache: "no-store",
+      next: { revalidate: 0 }
     })
       .then(async (r) => {
         if (!r.ok) throw new Error(`Failed (${r.status})`);
