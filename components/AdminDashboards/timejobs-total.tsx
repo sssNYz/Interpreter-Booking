@@ -52,6 +52,11 @@ function diffClass(v: number): string {
   return "text-emerald-700";
 }
 
+/** Helper: index a row by interpreter without using `any` */
+type RowIndexable = HoursRow & Partial<Record<InterpreterName, number>> & { total?: number };
+const getValue = (row: RowIndexable, person: InterpreterName): number =>
+  Number((row as Record<InterpreterName, number>)[person] ?? 0);
+
 export function HoursTab({ year }: { year: number }) {
   // Hooks (ลำดับต้องคงที่)
   const [data, setData] = React.useState<ApiResponse | null>(null);
@@ -76,8 +81,8 @@ export function HoursTab({ year }: { year: number }) {
   }, [year]);
 
   // Derivations (ใช้ค่า fallback เมื่อยังไม่มี data เพื่อไม่ให้ลำดับ hooks เปลี่ยน)
-  const interpreters: InterpreterName[] = (data?.interpreters ?? []) as InterpreterName[];
-  const rows: HoursRow[] = (data?.totalHoursLineMinutes ?? []) as HoursRow[];
+  const interpreters: InterpreterName[] = data?.interpreters ?? [];
+  const rows: HoursRow[] = data?.totalHoursLineMinutes ?? [];
   const footer: FooterByInterpreter | null = data?.hoursFooter ?? null;
   const theYear = data?.year ?? year;
 
@@ -88,26 +93,25 @@ export function HoursTab({ year }: { year: number }) {
     return data.months[idx] ?? "";
   }, [data]);
 
-  // สีของแต่ละล่าม
-  const interpreterColors = React.useMemo<Record<InterpreterName, string>>(() => {
+  // สีของแต่ละล่าม — ใช้ Map เพื่อเลี่ยง object assertions
+  const interpreterColors = React.useMemo<Map<InterpreterName, string>>(() => {
     const palette = [
       "#2563EB", "#16A34A", "#F59E0B", "#DC2626", "#7C3AED",
       "#0EA5E9", "#059669", "#CA8A04", "#EA580C", "#9333EA",
     ];
-    const map = {} as Record<InterpreterName, string>;
+    const m = new Map<InterpreterName, string>();
     for (let i = 0; i < interpreters.length; i++) {
-      const n = interpreters[i];
-      map[n] = palette[i % palette.length] ?? "#94a3b8";
+      m.set(interpreters[i], palette[i % palette.length] ?? "#94a3b8");
     }
-    return map;
+    return m;
   }, [interpreters]);
 
   // ค่าสูงสุดของนาทีในชุดข้อมูล (เพื่อสร้าง domain/ticks)
   const maxMinutes = React.useMemo(() => {
     let max = 0;
-    for (const row of rows) {
+    for (const row of rows as RowIndexable[]) {
       for (const p of interpreters) {
-        const v = Number((row as any)[p] ?? 0);
+        const v = getValue(row, p);
         if (v > max) max = v;
       }
     }
@@ -129,7 +133,7 @@ export function HoursTab({ year }: { year: number }) {
         </CardHeader>
         <CardContent className="h-[320px]">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={rows}>
+            <BarChart data={rows as RowIndexable[]}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="month" />
               {/* เริ่มที่ 0 และเพิ่มทีละ 2 ชั่วโมง; label เป็นชั่วโมงเต็ม */}
@@ -151,7 +155,7 @@ export function HoursTab({ year }: { year: number }) {
                   key={p}
                   dataKey={p}
                   name={p}
-                  fill={interpreterColors[p] ?? "#94a3b8"}
+                  fill={interpreterColors.get(p) ?? "#94a3b8"}
                 />
               ))}
             </BarChart>
@@ -183,8 +187,8 @@ export function HoursTab({ year }: { year: number }) {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((r) => {
-                  const vals = interpreters.map((p) => Number((r as any)[p] ?? 0));
+                {(rows as RowIndexable[]).map((r) => {
+                  const vals = interpreters.map((p) => getValue(r, p));
                   const maxV = vals.length ? Math.max(...vals) : 0;
                   const minV = vals.length ? Math.min(...vals) : 0;
                   const d = maxV - minV;
@@ -207,7 +211,7 @@ export function HoursTab({ year }: { year: number }) {
 
                       {interpreters.map((p) => (
                         <td key={p} className="p-2 text-right">
-                          {formatHoursDecimal(Number((r as any)[p] ?? 0))}
+                          {formatHoursDecimal(getValue(r, p))}
                         </td>
                       ))}
                       {/* Diff ก่อน Total */}
@@ -215,7 +219,7 @@ export function HoursTab({ year }: { year: number }) {
                         {formatHoursDecimal(d)}
                       </td>
                       <td className="p-2 text-right font-medium">
-                        {formatHoursDecimal((r as any).total ?? 0)}
+                        {formatHoursDecimal((r as RowIndexable).total ?? 0)}
                       </td>
                     </tr>
                   );
