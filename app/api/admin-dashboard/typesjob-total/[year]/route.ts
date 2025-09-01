@@ -80,6 +80,10 @@ export async function GET(
       where: {
         timeStart: { gte: rangeStart, lt: rangeEnd },
         interpreterEmpCode: { not: null },
+        // IMPORTANT: Only include bookings where interpreter still exists and is active
+        interpreterEmployee: {
+          isActive: true
+        }
       },
       select: {
         timeStart: true,
@@ -92,12 +96,34 @@ export async function GET(
       },
     });
 
-    // สร้าง display name ของล่ามจาก empCode
+    // Get all active interpreters for the year (even if they have no bookings)
+    const activeInterpreters = await prisma.employee.findMany({
+      where: {
+        isActive: true,
+        // Only include interpreters who have bookings in this year
+        bookingsAsInterpreter: {
+          some: {
+            timeStart: { gte: rangeStart, lt: rangeEnd },
+            interpreterEmpCode: { not: null }
+          }
+        }
+      },
+      select: {
+        empCode: true,
+        firstNameEn: true,
+        lastNameEn: true,
+      },
+      orderBy: {
+        firstNameEn: 'asc'
+      }
+    });
+
+    // สร้าง display name ของล่ามจาก active interpreters
     const empCodeToName = new Map<string, InterpreterName>();
-    for (const r of records) {
-      const empCode = r.interpreterEmpCode as string;
-      const first = (r.interpreterEmployee?.firstNameEn ?? "").trim();
-      const last  = (r.interpreterEmployee?.lastNameEn ?? "").trim();
+    for (const interpreter of activeInterpreters) {
+      const empCode = interpreter.empCode;
+      const first = (interpreter.firstNameEn ?? "").trim();
+      const last  = (interpreter.lastNameEn ?? "").trim();
       const name: InterpreterName = ( `${first} ${last}`.trim() || empCode ) as InterpreterName;
       empCodeToName.set(empCode, name);
     }
@@ -142,16 +168,18 @@ export async function GET(
     for (const r of records) {
       const monthLabel = getMonthLabel(new Date(r.timeStart));
       const row = yearData[MONTH_LABELS.indexOf(monthLabel)];
-      const itp = empCodeToName.get(r.interpreterEmpCode as string) as InterpreterName;
+      const itp = empCodeToName.get(r.interpreterEmpCode as string);
 
-      // นับ MeetingType หลักเสมอ
-      const mt = r.meetingType as MeetingType;
-      row.typeByInterpreter[itp][mt] += 1;
+      if (itp) { // Only process if interpreter is still active
+        // นับ MeetingType หลักเสมอ
+        const mt = r.meetingType as MeetingType;
+        row.typeByInterpreter[itp][mt] += 1;
 
-      // ถ้าเป็น DR และมี drType ให้ลงกลุ่มย่อยด้วย
-      if (mt === "DR" && r.drType) {
-        const dt = r.drType as DRType;
-        row.drTypeByInterpreter[itp][dt] += 1;
+        // ถ้าเป็น DR และมี drType ให้ลงกลุ่มย่อยด้วย
+        if (mt === "DR" && r.drType) {
+          const dt = r.drType as DRType;
+          row.drTypeByInterpreter[itp][dt] += 1;
+        }
       }
     }
 
