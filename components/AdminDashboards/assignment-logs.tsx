@@ -63,17 +63,18 @@ interface ApiResponse {
   pageSize: number;
   totalPages: number;
   summary: {
-    byInterpreter: Record<string, { assigned: number; approved: number; rejected: number }>;
+    byInterpreter: Record<
+      string,
+      { assigned: number; approved: number; rejected: number }
+    >;
   };
 }
 
 /* ========= Utils ========= */
-const toLocalDate = (iso: string) =>
-  new Date(iso).toLocaleDateString();
+const toLocalDate = (iso: string) => new Date(iso).toLocaleDateString();
 const toLocalTime = (iso: string) =>
   new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-const toLocalDateTime = (iso: string) =>
-  new Date(iso).toLocaleString();
+const toLocalDateTime = (iso: string) => new Date(iso).toLocaleString();
 
 const formatDR = (v?: string | null) => {
   switch (v) {
@@ -92,12 +93,14 @@ const formatDR = (v?: string | null) => {
   }
 };
 
-const getInterpreterDisplayName = (interpreter: LogItem["interpreterEmployee"]) => {
+const getInterpreterDisplayName = (
+  interpreter: LogItem["interpreterEmployee"]
+) => {
   if (!interpreter) return "-";
-  
+
   const firstName = interpreter.firstNameEn || interpreter.firstNameTh;
   const lastName = interpreter.lastNameEn || interpreter.lastNameTh;
-  
+
   if (firstName && lastName) {
     return `${firstName} ${lastName} (${interpreter.empCode})`;
   } else if (firstName) {
@@ -109,10 +112,10 @@ const getInterpreterDisplayName = (interpreter: LogItem["interpreterEmployee"]) 
 
 const getOwnerDisplayName = (owner: LogItem["bookingPlan"]["employee"]) => {
   if (!owner) return "-";
-  
+
   const firstName = owner.firstNameEn || owner.firstNameTh;
   const lastName = owner.lastNameEn || owner.lastNameTh;
-  
+
   if (firstName && lastName) {
     return `${firstName} ${lastName} (${owner.empCode})`;
   } else if (firstName) {
@@ -122,15 +125,24 @@ const getOwnerDisplayName = (owner: LogItem["bookingPlan"]["employee"]) => {
   }
 };
 
-const MEETING_TYPES = ["all", "DR", "VIP", "Weekly", "General", "Augent", "Other"];
+const MEETING_TYPES = [
+  "all",
+  "DR",
+  "VIP",
+  "Weekly",
+  "General",
+  "Augent",
+  "Other",
+];
 
 /* ========= Component ========= */
 export function AssignmentLogsTab() {
   const [allLogs, setAllLogs] = React.useState<LogItem[]>([]);
-  const [selectedDate, setSelectedDate] = React.useState<string>(() =>
-    new Date().toISOString().slice(0, 10)
-  );
-  const [selectedMeetingTypes, setSelectedMeetingTypes] = React.useState<string[]>(["all"]);
+  // 🔹 default เป็น "" (ทั้งหมด)
+  const [selectedDate, setSelectedDate] = React.useState<string>("");
+  const [selectedMeetingTypes, setSelectedMeetingTypes] = React.useState<
+    string[]
+  >(["all"]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [page, setPage] = React.useState(1);
@@ -143,64 +155,76 @@ export function AssignmentLogsTab() {
     try {
       setLoading(true);
       setError(null);
-      
-      const fromDate = new Date(selectedDate + "T00:00:00");
-      const toDate = new Date(selectedDate + "T23:59:59");
-      
+
       const params = new URLSearchParams({
-        page: page.toString(),
-        pageSize: pageSize.toString(),
-        from: fromDate.toISOString(),
-        to: toDate.toISOString(),
-        sort: "createdAt:desc"
+        sort: "createdAt:desc",
       });
 
-      const response = await fetch(`/api/admin-dashboard/assignment-logs?${params}`);
-      
+      // 🔹 ส่ง from/to เฉพาะเมื่อมีวันที่เลือก
+      if (selectedDate) {
+        const fromDate = new Date(selectedDate + "T00:00:00");
+        const toDate = new Date(selectedDate + "T23:59:59");
+        params.set("from", fromDate.toISOString());
+        params.set("to", toDate.toISOString());
+      }
+
+      const response = await fetch(
+        `/api/admin-dashboard/assignment-logs?${params}`
+      );
+
       if (!response.ok) {
         throw new Error(`Failed to fetch logs: ${response.status}`);
       }
 
       const data: ApiResponse = await response.json();
       setAllLogs(data.items);
-      setTotal(data.total);
-      setTotalPages(data.totalPages);
+
+      // 🔹 ใช้ length จริง แทนการพึ่ง total จาก server
+      setTotal(data.items.length);
+      setTotalPages(Math.max(1, Math.ceil(data.items.length / pageSize)));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to fetch logs");
       setAllLogs([]);
     } finally {
       setLoading(false);
     }
-  }, [selectedDate, page, pageSize]);
+  }, [selectedDate, pageSize]);
 
   React.useEffect(() => {
     fetchLogs();
   }, [fetchLogs]);
 
-  React.useEffect(() => setPage(1), [selectedDate, pageSize, selectedMeetingTypes]);
+  React.useEffect(() => setPage(1), [
+    selectedDate,
+    pageSize,
+    selectedMeetingTypes,
+  ]);
 
   const filtered = React.useMemo(() => {
-    return allLogs.filter((l) => {
-      // Filter by meeting type
-      const meetingTypeOk = selectedMeetingTypes.includes("all") || 
-                           selectedMeetingTypes.includes(l.bookingPlan.meetingType);
-      
-      // Filter by status (only show assigned)
-      const statusOk = l.status === "assigned";
-      
-      return meetingTypeOk && statusOk;
-    }).sort((a, b) => 
-      new Date(a.bookingPlan.timeStart).getTime() - 
-      new Date(b.bookingPlan.timeStart).getTime()
-    );
+    return allLogs
+      .filter((l) => {
+        const meetingTypeOk =
+          selectedMeetingTypes.includes("all") ||
+          selectedMeetingTypes.includes(l.bookingPlan.meetingType);
+        const statusOk = l.status === "assigned";
+        return meetingTypeOk && statusOk;
+      })
+      .sort(
+        (a, b) =>
+          new Date(a.bookingPlan.timeStart).getTime() -
+          new Date(b.bookingPlan.timeStart).getTime()
+      );
   }, [allLogs, selectedMeetingTypes]);
 
+  // 🔹 paginate ฝั่ง client
+  const filteredTotal = filtered.length;
   const startIdx = (page - 1) * pageSize;
-  const endIdx = Math.min(startIdx + pageSize, total);
+  const endIdx = Math.min(startIdx + pageSize, filteredTotal);
   const pageItems = filtered.slice(startIdx, endIdx);
 
   const gotoPrev = () => setPage((p) => Math.max(1, p - 1));
-  const gotoNext = () => setPage((p) => Math.min(totalPages, p + 1));
+  const gotoNext = () =>
+    setPage((p) => Math.min(Math.ceil(filteredTotal / pageSize), p + 1));
   const setToday = () =>
     setSelectedDate(new Date().toISOString().slice(0, 10));
 
@@ -260,9 +284,7 @@ export function AssignmentLogsTab() {
       {error && (
         <Alert className="rounded-2xl border-red-200 bg-red-50">
           <AlertTitle className="text-red-800">Error</AlertTitle>
-          <AlertDescription className="text-red-700">
-            {error}
-          </AlertDescription>
+          <AlertDescription className="text-red-700">{error}</AlertDescription>
         </Alert>
       )}
 
@@ -271,11 +293,13 @@ export function AssignmentLogsTab() {
         <div className="mb-6 p-4 rounded-2xl bg-gray-50 border border-gray-200 text-gray-700">
           Loading logs...
         </div>
-      ) : total === 0 ? (
+      ) : filteredTotal === 0 ? (
         <Alert className="rounded-2xl">
           <AlertTitle>No Logs</AlertTitle>
           <AlertDescription>
-            No logs found for {toLocalDate(selectedDate)}
+            {selectedDate
+              ? `No logs found for ${toLocalDate(selectedDate)}`
+              : "No logs found"}
           </AlertDescription>
         </Alert>
       ) : (
@@ -356,7 +380,9 @@ export function AssignmentLogsTab() {
               </select>
             </div>
             <div className="text-sm text-gray-700">
-              {total === 0 ? "0-0 of 0" : `${startIdx + 1}-${endIdx} of ${total}`}
+              {filteredTotal === 0
+                ? "0-0 of 0"
+                : `${startIdx + 1}-${endIdx} of ${filteredTotal}`}
             </div>
             <div className="flex items-center gap-2">
               <Button
@@ -372,7 +398,7 @@ export function AssignmentLogsTab() {
                 variant="outline"
                 size="icon"
                 onClick={gotoNext}
-                disabled={page === totalPages}
+                disabled={page === Math.ceil(filteredTotal / pageSize)}
                 className="h-8 w-8"
               >
                 <ChevronRight className="w-4 h-4" />

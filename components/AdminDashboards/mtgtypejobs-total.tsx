@@ -29,7 +29,6 @@ import {
 import { Button } from "@/components/ui/button";
 
 /* =================== Types from API =================== */
-// API ส่ง drTypeByInterpreter มาด้วย (ขยายจาก MonthlyDataRow ของคุณ)
 type MonthlyDataRowWithDR = MonthlyDataRow & {
   drTypeByInterpreter: Record<InterpreterName, Record<DRType, number>>;
 };
@@ -88,9 +87,8 @@ const MT_LABEL_TO_KEY: Record<
 };
 
 /* =================== Helpers =================== */
-// ใช้เดือน "ปฏิทิน" สำหรับ dropdown (ให้ตรงกับเดือนตอนนี้จริง ๆ)
 function getCurrentCalendarMonth(months: MonthName[]): MonthName {
-  const idx = new Date().getMonth(); // 0=Jan ... 7=Aug ...
+  const idx = new Date().getMonth(); // 0=Jan ...
   return months[idx] ?? months[0];
 }
 
@@ -105,11 +103,9 @@ function diffRange(values: number[]): number {
   return max - min;
 }
 
+/* 2 สี: 0 = เขียว (สมดุล), >0 = แดง (ไม่สมดุล) */
 function diffClass(v: number): string {
-  if (v >= 10) return "text-red-600";
-  if (v >= 5) return "text-orange-600";
-  if (v >= 2) return "text-amber-600";
-  return "text-emerald-700";
+  return v === 0 ? "text-emerald-700" : "text-red-600";
 }
 
 type SingleMonthBar = { type: PriorityLabel } & Record<string, number>;
@@ -135,7 +131,7 @@ function getMTValue(
 /* =================== Component =================== */
 
 export function TypesTab({ year }: { year: number }) {
-  // ---- hooks (ลำดับต้องคงที่) ----
+  // ---- hooks ----
   const [data, setData] = React.useState<TypesApiResponse | null>(null);
   const [selectedMonth, setSelectedMonth] = React.useState<MonthName | "">("");
   const [showAllMonths, setShowAllMonths] = React.useState<boolean>(false);
@@ -144,7 +140,7 @@ export function TypesTab({ year }: { year: number }) {
   React.useEffect(() => {
     let alive = true;
 
-    fetch(`/api/admin-dashboard/typesjob-total/${year}`, { 
+    fetch(`/api/admin-dashboard/typesjob-total/${year}`, {
       cache: "no-store",
       next: { revalidate: 0 }
     })
@@ -153,7 +149,6 @@ export function TypesTab({ year }: { year: number }) {
         const j = (await r.json()) as TypesApiResponse;
         if (!alive) return;
         setData(j);
-        // ตั้ง dropdown ให้เป็น "เดือนปฏิทินปัจจุบัน"
         setSelectedMonth((prev) => (prev ? prev : getCurrentCalendarMonth(j.months)));
       })
       .catch((e) => {
@@ -163,7 +158,7 @@ export function TypesTab({ year }: { year: number }) {
     return () => { alive = false; };
   }, [year]);
 
-  // safe bindings (ให้ hooks ด้านล่างทำงานได้เสมอ)
+  // safe bindings
   const activeYear = data?.year ?? year;
   const months: MonthName[] = data?.months ?? [];
   const interpreters: InterpreterName[] = data?.interpreters ?? [];
@@ -171,7 +166,13 @@ export function TypesTab({ year }: { year: number }) {
   const typesMGIFooter: FooterByInterpreter =
     data?.typesMGIFooter ?? { perInterpreter: [], grand: 0, diff: 0 };
 
-  // color palette for bars
+  // ✅ current month สำหรับไฮไลต์ "คอลัมน์" ใน Table 1
+  const currentMonth = React.useMemo<MonthName | "">(
+    () => (months.length ? getCurrentCalendarMonth(months) : ""),
+    [months]
+  );
+
+  // color palette
   const interpreterColors = React.useMemo<Record<InterpreterName, string>>(() => {
     const palette = [
       "#2563EB", "#16A34A", "#F59E0B", "#DC2626", "#7C3AED",
@@ -187,7 +188,7 @@ export function TypesTab({ year }: { year: number }) {
     if (!selectedMonth) return [];
     const mrow = yearData.find((d) => d.month === selectedMonth);
     return TYPE_PRIORITY.map((label) => {
-     const rec = { type: label } as SingleMonthBar;
+      const rec = { type: label } as SingleMonthBar;
       interpreters.forEach((itp) => {
         let v = 0;
         if (label === "DR1" || label === "DR2" || label === "DRK" || label === "PR") {
@@ -200,6 +201,24 @@ export function TypesTab({ year }: { year: number }) {
       return rec;
     });
   }, [yearData, selectedMonth, interpreters]);
+
+  const yMax = React.useMemo(() => {
+    let max = 0;
+    for (const row of monthBarData) {
+      for (const itp of interpreters) {
+        const v = Number((row as Record<string, number>)[itp] ?? 0);
+        if (v > max) max = v;
+      }
+    }
+    return max;
+  }, [monthBarData, interpreters]);
+
+  const yTicks = React.useMemo(() => {
+    const top = Math.ceil(yMax / 2) * 2;
+    const arr: number[] = [];
+    for (let v = 0; v <= top; v += 2) arr.push(v);
+    return arr.length ? arr : [0, 2];
+  }, [yMax]);
 
   // ===== Table #1: Types × Months =====
   type TypesTableRowStrict<M extends string = MonthName> = {
@@ -255,8 +274,6 @@ export function TypesTab({ year }: { year: number }) {
     return { perInterpreter, grand, diff };
   }, [showAllMonths, typesMGIFooter, yearData, selectedMonth, interpreters]);
 
-
-
   return (
     <>
       {/* ===== Chart: one month with dropdown ===== */}
@@ -289,7 +306,12 @@ export function TypesTab({ year }: { year: number }) {
               <BarChart data={monthBarData} margin={{ top: 8, right: 12, left: 8, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="type" />
-                <YAxis />
+                <YAxis
+                  allowDecimals={false}
+                  domain={[0, yTicks[yTicks.length - 1] ?? 0]}
+                  ticks={yTicks}
+                  tickFormatter={(v) => v.toString()}
+                />
                 <Tooltip />
                 <Legend />
                 {interpreters.map((p) => (
@@ -301,7 +323,7 @@ export function TypesTab({ year }: { year: number }) {
         </CardContent>
       </Card>
 
-      {/* ===== Table 1: Types × Months ===== */}
+      {/* ===== Table 1: Types × Months — ✅ เพิ่มไฮไลต์คอลัมน์เดือนปัจจุบัน ===== */}
       <Card className="mb-4">
         <CardHeader>
           <CardTitle className="text-base">Types × Months (All interpreters)</CardTitle>
@@ -313,7 +335,13 @@ export function TypesTab({ year }: { year: number }) {
                 <tr className="bg-yellow-100">
                   <th className="p-2 text-left">Type</th>
                   {months.map((m) => (
-                    <th key={m} className="p-2 text-right">
+                    <th
+                      key={m}
+                      className={[
+                        "p-2 text-right",
+                        m === currentMonth ? "bg-blue-100 dark:bg-blue-900/40" : "",
+                      ].join(" ")}
+                    >
                       {m}
                     </th>
                   ))}
@@ -325,7 +353,13 @@ export function TypesTab({ year }: { year: number }) {
                   <tr key={row.type} className="border-b odd:bg-white even:bg-muted/30 hover:bg-muted/40">
                     <td className="p-2">{row.type}</td>
                     {months.map((m) => (
-                      <td key={m} className="p-2 text-right">
+                      <td
+                        key={m}
+                        className={[
+                          "p-2 text-right",
+                          m === currentMonth ? "bg-blue-50 dark:bg-blue-900/20 font-semibold" : "",
+                        ].join(" ")}
+                      >
                         {row[m]}
                       </td>
                     ))}
@@ -335,7 +369,13 @@ export function TypesTab({ year }: { year: number }) {
                 <tr className="bg-emerald-50 font-semibold">
                   <td className="p-2">Total</td>
                   {months.map((m, idx) => (
-                    <td key={m} className="p-2 text-right">
+                    <td
+                      key={m}
+                      className={[
+                        "p-2 text-right",
+                        m === currentMonth ? "bg-blue-50 dark:bg-blue-900/20 font-semibold" : "",
+                      ].join(" ")}
+                    >
                       {tableAllMonthsFooter.perMonth[idx]}
                     </td>
                   ))}
@@ -347,7 +387,7 @@ export function TypesTab({ year }: { year: number }) {
         </CardContent>
       </Card>
 
-      {/* ===== Table 2: Month × Type × Interpreter ===== */}
+      {/* ===== Table 2: Month × Type × Interpreter (unchanged) ===== */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between gap-3">
@@ -395,9 +435,7 @@ export function TypesTab({ year }: { year: number }) {
                     return (
                       <tr
                         key={`${m}-${label}`}
-                        className={`hover:bg-muted/40 ${
-                          idx === groupSize - 1 ? "border-b-2 border-slate-200" : "border-b"
-                        }`}
+                        className={`hover:bg-muted/40 ${idx === groupSize - 1 ? "border-b-2 border-slate-200" : "border-b"}`}
                       >
                         {idx === 0 && (
                           <td

@@ -1,3 +1,4 @@
+"use client";
 import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -27,14 +28,26 @@ type ApiResponse = {
   year: number;
 };
 
+/** ใช้ “เดือนปฏิทิน” ปัจจุบัน (Jan..Dec) เพื่อไฮไลต์ในตาราง */
+function getCurrentCalendarMonth(months: MonthName[]): MonthName | "" {
+  if (!months?.length) return "";
+  const idx = new Date().getMonth(); // 0=Jan ... 11=Dec
+  return months[idx] ?? "";
+}
+
+/** ✅ สี Diff แบบ 2 ระดับ: 0 = เขียว, >0 = แดง */
+function diffClass(v: number): string {
+  return v === 0 ? "text-emerald-700" : "text-red-600";
+}
+
 export function JobsTab({ year }: { year: number }) {
   const [data, setData] = React.useState<ApiResponse | null>(null);
 
   React.useEffect(() => {
     let alive = true;
-    fetch(`/api/admin-dashboard/jobs-total/${year}`, { 
+    fetch(`/api/admin-dashboard/jobs-total/${year}`, {
       cache: "no-store",
-      next: { revalidate: 0 }
+      next: { revalidate: 0 },
     })
       .then(async (r) => {
         if (!r.ok) throw new Error(`Failed (${r.status})`);
@@ -65,12 +78,15 @@ export function JobsTab({ year }: { year: number }) {
   if (!data) return null;
 
   const { interpreters, totalJobsStack, jobsFooter } = data;
+  const currentMonth = getCurrentCalendarMonth(data.months);
 
   return (
     <>
       <Card className="h-[380px] mb-4">
         <CardHeader className="pb-0">
-          <CardTitle className="text-base">Total Jobs per Month (Year {data.year})</CardTitle>
+          <CardTitle className="text-base">
+            Total Jobs per Month (Year {data.year})
+          </CardTitle>
         </CardHeader>
         <CardContent className="h-[320px]">
           <ResponsiveContainer width="100%" height="100%">
@@ -99,12 +115,16 @@ export function JobsTab({ year }: { year: number }) {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-slate-100 dark:bg-slate-800">
-                  <th className="p-2 text-left">Month</th>
+                  {/* Month header: sticky + same bg as thead */}
+                  <th className="p-2 text-left sticky left-0 z-10 bg-slate-100 dark:bg-slate-800">
+                    Month
+                  </th>
                   {interpreters.map((p) => (
                     <th key={p} className="p-2 text-right">{p}</th>
                   ))}
-                  <th className="p-2 text-right">Total</th>
+                  {/* Diff before Total */}
                   <th className="p-2 text-right">Diff</th>
+                  <th className="p-2 text-right">Total</th>
                 </tr>
               </thead>
               <tbody>
@@ -113,26 +133,44 @@ export function JobsTab({ year }: { year: number }) {
                     (p) => Number(r[p as InterpreterName] ?? 0)
                   );
                   const d = Math.max(...vals) - Math.min(...vals);
+                  const isCurrent = r.month === currentMonth;
+
                   return (
-                    <tr key={r.month} className="border-b odd:bg-white even:bg-muted/30 hover:bg-muted/40">
-                      <td className="p-2 sticky left-0 z-10 bg-white dark:bg-slate-950">{r.month}</td>
+                    <tr
+                      key={r.month}
+                      className={[
+                        "border-b",
+                        isCurrent
+                          ? "bg-blue-100 dark:bg-blue-900/40 font-semibold hover:bg-blue-100 dark:hover:bg-blue-900/40"
+                          : "odd:bg-white even:bg-muted/30 hover:bg-muted/40",
+                      ].join(" ").trim()}
+                    >
+                      {/* sticky cell inherits row bg to keep highlight color */}
+                      <td className="p-2 sticky left-0 z-10 bg-inherit">
+                        {r.month}
+                      </td>
+
                       {interpreters.map((p) => (
                         <td key={p} className="p-2 text-right">
                           {Number(r[p as InterpreterName] ?? 0)}
                         </td>
                       ))}
+
+                      {/* ✅ ใส่สี Diff แบบ 2 สี */}
+                      <td className={`p-2 text-right font-medium ${diffClass(d)}`}>{d}</td>
                       <td className="p-2 text-right font-medium">{r.total}</td>
-                      <td className="p-2 text-right font-medium">{d}</td>
                     </tr>
                   );
                 })}
-                <tr className="bg-emerald-50 text-emerald-900 font-semibold">
+
+                {/* TOTAL row — keep green on hover + สี Diff แบบ 2 สี */}
+                <tr className="bg-emerald-50 text-emerald-900 font-semibold hover:bg-emerald-50">
                   <td className="p-2">TOTAL</td>
                   {jobsFooter.perInterpreter.map((v, idx) => (
                     <td key={idx} className="p-2 text-right">{v}</td>
                   ))}
+                  <td className={`p-2 text-right ${diffClass(jobsFooter.diff)}`}>{jobsFooter.diff}</td>
                   <td className="p-2 text-right">{jobsFooter.grand}</td>
-                  <td className="p-2 text-right">{jobsFooter.diff}</td>
                 </tr>
               </tbody>
             </table>
