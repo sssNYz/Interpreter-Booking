@@ -248,7 +248,7 @@ export default function BookingManagement(): React.JSX.Element {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className={`text-3xl font-bold text-${color}-700`}>{stats[key as keyof Stats]}</div>
+                <div className={`text-3xl font-bold ${key === 'total' ? 'text-blue-700' : `text-${color}-700`}`}>{stats[key as keyof Stats]}</div>
                 <p className={`text-sm text-${color}-600 mt-1`}>{description}</p>
               </CardContent>
             </Card>
