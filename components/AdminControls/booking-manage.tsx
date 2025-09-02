@@ -12,10 +12,15 @@ import {
   Calendar, ChevronUp, ChevronDown, SquarePen,
 } from "lucide-react";
 import { Label } from "@/components/ui/label";
-import type { BookingManage as BookingMange, Stats } from "@/types/admin";
-import type { StatusOption } from "@/types/admin";
+import type { BookingManage, Stats } from "@/types/admin";
+import type { 
+  BookingFilters, 
+  PaginationState, 
+  StatusOptionConfig, 
+  SummaryCardConfig,
+  PaginatedBookings 
+} from "@/types/booking-management";
 import { generateStandardTimeSlots } from "@/utils/time";
-
 import BookingDetailDialog from "../AdminForm/booking-form";
 
 /* ========= THEME ========= */
@@ -23,9 +28,8 @@ const PAGE_WRAPPER = "min-h-screen bg-[#f7f7f7] font-sans text-gray-900";
 
 /* ========= Constants ========= */
 const TIME_SLOTS = generateStandardTimeSlots();
- 
 
-const STATUS_OPTIONS: Array<{ value: StatusOption; label: string }> = [
+const STATUS_OPTIONS: StatusOptionConfig[] = [
   { value: "all", label: "All Status" },
   { value: "Wait", label: "Wait" },
   { value: "Approve", label: "Approve" },
@@ -56,9 +60,6 @@ const isPastMeeting = (dateStr: string, endHHmm: string, graceMin = 10) => {
 };
 
 
-
-
-
 /* ========= Utils ========= */
 const parseTime = (t: string) => {
   const [h, m] = t.split(":").map(Number);
@@ -87,14 +88,14 @@ const getFullDate = (s: string, isClient: boolean) => {
   return `${days[d.getDay()]}, ${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
 };
 
-const sortBookings = (arr: BookingMange[], asc: boolean) =>
+const sortBookings = (arr: BookingManage[], asc: boolean) =>
   [...arr].sort((a, b) => {
     const dc = asc ? a.dateTime.localeCompare(b.dateTime) : b.dateTime.localeCompare(a.dateTime);
     if (dc !== 0) return dc;
     return parseTime(a.startTime) - parseTime(b.startTime);
   });
 
-const getCurrentMonthBookings = (arr: BookingMange[]) => {
+const getCurrentMonthBookings = (arr: BookingManage[]) => {
   const now = new Date();
   const m = now.getMonth();
   const y = now.getFullYear();
@@ -122,18 +123,18 @@ const getStatusIcon = (status: string) =>
 
 /* ========= Component ========= */
 export default function BookingManagement(): React.JSX.Element {
-  const [bookings, setBookings] = useState<BookingMange[]>([]);
+  const [bookings, setBookings] = useState<BookingManage[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [filters, setFilters] = useState({
+  const [filters, setFilters] = useState<BookingFilters>({
     search: "",
     status: "all",
     date: "",
     dateRequest: "",
     time: "all",
   });
-  const [pagination, setPagination] = useState({ 
+  const [pagination, setPagination] = useState<PaginationState>({ 
     currentPage: 1, 
     rowsPerPage: 10, 
     total: 0, 
@@ -145,11 +146,10 @@ export default function BookingManagement(): React.JSX.Element {
   const [sortByDateAsc, setSortByDateAsc] = useState(true);
 
   const [showBookingDetailDialog, setShowBookingDetailDialog] = useState(false);
-  const [selectedBooking, setSelectedBooking] = useState<BookingMange | null>(null);
+  const [selectedBooking, setSelectedBooking] = useState<BookingManage | null>(null);
   const [showPast, setShowPast] = useState(false);
 
-
-  // fetch bookings from API (simplified version)
+  // fetch bookings from API
   const fetchBookings = useCallback(async () => {
     try {
       setLoading(true);
@@ -168,8 +168,6 @@ export default function BookingManagement(): React.JSX.Element {
     }
   }, []);
 
-
-
   useEffect(() => {
     setIsClient(true);
     const now = new Date();
@@ -178,7 +176,6 @@ export default function BookingManagement(): React.JSX.Element {
     setCurrentYear(now.getFullYear());
     fetchBookings();
   }, [fetchBookings]);
-
 
   const filteredBookings = useMemo(() => {
     const filtered = bookings.filter((b) => {
@@ -212,7 +209,7 @@ export default function BookingManagement(): React.JSX.Element {
     };
   }, [bookings, filteredBookings, filters]);
 
-  const paginatedBookings = useMemo(() => {
+  const paginatedBookings = useMemo((): PaginatedBookings => {
     const totalPages = Math.ceil(filteredBookings.length / pagination.rowsPerPage);
     const startIndex = (pagination.currentPage - 1) * pagination.rowsPerPage;
     return {
@@ -287,12 +284,12 @@ export default function BookingManagement(): React.JSX.Element {
 
         {/* Summary Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-6">
-          {[
+          {([
             { key: "wait", label: "Wait", color: "amber", icon: Hourglass, description: "Bookings awaiting approval" },
             { key: "approve", label: "Approve", color: "emerald", icon: CheckCircle, description: "Confirmed bookings" },
             { key: "cancel", label: "Cancel", color: "red", icon: XCircle, description: "Cancel bookings" },
             { key: "total", label: "Total", color: "blue", icon: Calendar, description: "Total bookings this month" },
-          ].map(({ key, label, color, icon: Icon, description }) => (
+          ] as SummaryCardConfig[]).map(({ key, label, color, icon: Icon, description }) => (
             <Card key={key} className="bg-white border-gray-200 hover:shadow-lg transition-shadow">
               <CardHeader className="pb-3">
                 <CardTitle className={`text-base font-semibold text-${color}-800 flex items-center gap-2`}>
@@ -360,7 +357,7 @@ export default function BookingManagement(): React.JSX.Element {
               {/* Date Requested */}
               <div className="shrink-0 w-[170px] flex flex-col gap-2">
                 <Label className="text-sm font-semibold text-gray-800 leading-tight h-5 flex items-center">
-                  Date Requested
+                  Date Request
                 </Label>
                 <Input
                   type="date"
@@ -410,8 +407,6 @@ export default function BookingManagement(): React.JSX.Element {
           </CardContent>
         </Card>
 
-
-
         {/* Loading / Error */}
         {loading && (
           <div className="mb-6 p-4 rounded-md bg-gray-50 border border-gray-200 text-gray-700">
@@ -444,12 +439,12 @@ export default function BookingManagement(): React.JSX.Element {
                           )}
                         </button>
                       </th>
-                      <th className="w-36 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Time</th>
+                      <th className="w-36 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Meeting Time</th>
                       <th className="w-32 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">User</th>
                       <th className="w-32 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Interpreter</th>
                       <th className="w-24 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Room</th>
                       <th className="w-28 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Status</th>
-                      <th className="w-48 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Request</th>
+                      <th className="w-48 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Date Request</th>
                       <th className="w-32 px-6 py-3 text-center font-semibold text-gray-900 bg-gray-50 text-sm">Action</th>
                     </tr>
                   </thead>
@@ -524,7 +519,7 @@ export default function BookingManagement(): React.JSX.Element {
                   </tbody>
                 </table>
 
-                {/* ว่างเปล่า */}
+                {/* Empty State */}
                 {!loading && !error && filteredBookings.length === 0 && (
                   <div className="p-6 text-center text-gray-500">No bookings found</div>
                 )}
