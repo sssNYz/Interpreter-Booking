@@ -24,21 +24,14 @@ interface LogItem {
   id: number;
   createdAt: string; // requested time
   bookingId: number;
-  interpreterEmpCode?: string | null;
   status: string; // "assigned" when present
   reason?: string | null;
-  preHoursSnapshot: Record<string, unknown>;
-  postHoursSnapshot?: Record<string, unknown>;
-  scoreBreakdown?: Record<string, unknown>;
   bookingPlan: {
     meetingType: string;
     drType?: string | null;
     timeStart: string;
     timeEnd: string;
     meetingRoom: string;
-    ownerGroup: string;
-    otherType?: string | null;
-    ownerEmpCode: string;
     employee?: {
       empCode: string;
       firstNameEn?: string | null;
@@ -58,16 +51,6 @@ interface LogItem {
 
 interface ApiResponse {
   items: LogItem[];
-  total: number;
-  page: number;
-  pageSize: number;
-  totalPages: number;
-  summary: {
-    byInterpreter: Record<
-      string,
-      { assigned: number; approved: number; rejected: number }
-    >;
-  };
 }
 
 /* ========= Utils ========= */
@@ -147,8 +130,6 @@ export function AssignmentLogsTab() {
   const [error, setError] = React.useState<string | null>(null);
   const [page, setPage] = React.useState(1);
   const [pageSize, setPageSize] = React.useState(10);
-  const [total, setTotal] = React.useState(0);
-  const [totalPages, setTotalPages] = React.useState(1);
 
   // Fetch assignment logs from API
   const fetchLogs = React.useCallback(async () => {
@@ -178,17 +159,13 @@ export function AssignmentLogsTab() {
 
       const data: ApiResponse = await response.json();
       setAllLogs(data.items);
-
-      // 🔹 ใช้ length จริง แทนการพึ่ง total จาก server
-      setTotal(data.items.length);
-      setTotalPages(Math.max(1, Math.ceil(data.items.length / pageSize)));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to fetch logs");
       setAllLogs([]);
     } finally {
       setLoading(false);
     }
-  }, [selectedDate, pageSize]);
+  }, [selectedDate]);
 
   React.useEffect(() => {
     fetchLogs();
@@ -312,7 +289,7 @@ export function AssignmentLogsTab() {
                 <th className="px-6 py-3 text-left">Owner</th>
                 <th className="px-6 py-3 text-left">Interpreter</th>
                 <th className="px-6 py-3 text-left">Meeting Type</th>
-                <th className="px-6 py-3 text-left">Room</th>
+                <th className="px-6 py-3 text-center">Room</th>
                 <th className="px-6 py-3 text-left">Status</th>
                 <th className="px-6 py-3 text-left">Reason</th>
               </tr>
@@ -343,10 +320,12 @@ export function AssignmentLogsTab() {
                       ? formatDR(l.bookingPlan.drType)
                       : l.bookingPlan.meetingType}
                   </td>
-                  <td className="px-6 py-4">
-                    <span className="px-3 py-1 bg-gray-100 rounded-md font-semibold">
-                      {l.bookingPlan.meetingRoom}
-                    </span>
+                  <td className="px-6 py-4 text-center">
+                    <div className="flex justify-center">
+                      <span className="px-3 py-1 bg-gray-100 rounded-md font-semibold">
+                        {l.bookingPlan.meetingRoom}
+                      </span>
+                    </div>
                   </td>
                   <td className="px-6 py-4">
                     <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full font-semibold text-indigo-700 bg-indigo-100">
