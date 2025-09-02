@@ -387,7 +387,9 @@ export default function BookingManagement(): React.JSX.Element {
                           <span className="text-gray-800 text-sm break-words">{booking.interpreter}</span>
                         </td>
                         <td className="px-4 py-4">
-                          <span className="px-2 py-1 bg-gray-100 text-gray-800 rounded-md text-sm font-semibold break-words">{booking.room}</span>
+                          <div className="flex items-center justify-center h-full">
+                            <span className="px-2 py-1 bg-gray-100 text-gray-800 rounded-md text-sm font-semibold break-words">{booking.room}</span>
+                          </div>
                         </td>
                         <td className="px-6 py-4">
                           <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-semibold ${getStatusColor(booking.status)}`}>
