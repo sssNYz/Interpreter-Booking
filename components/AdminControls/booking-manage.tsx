@@ -45,8 +45,18 @@ const isPastMeeting = (dateStr: string, endHHmm: string, graceMin = 10) => {
   const ymd = toLocalYMD(dateStr);
   const end = new Date(`${ymd}T${endHHmm}:00`);
   const endWithGrace = new Date(end.getTime() + graceMin * 60 * 1000);
-  return Date.now() > endWithGrace.getTime();
+  
+  // Get end of day (23:59:59) for the meeting date
+  const endOfDay = new Date(`${ymd}T23:59:59`);
+  
+  // A meeting is considered "past" only if:
+  // 1. The meeting has ended (with grace period), AND
+  // 2. We're past the end of the day
+  return Date.now() > endWithGrace.getTime() && Date.now() > endOfDay.getTime();
 };
+
+
+
 
 
 /* ========= Utils ========= */
@@ -66,7 +76,7 @@ const formatRequestedTime = (s: string) => {
   const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   const hh = `${d.getHours()}`.padStart(2, "0");
   const mm = `${d.getMinutes()}`.padStart(2, "0");
-  return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()} ${hh}:${mm}`;
+  return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()} · ${hh}:${mm}`;
 };
 
 const getFullDate = (s: string, isClient: boolean) => {
@@ -93,6 +103,8 @@ const getCurrentMonthBookings = (arr: BookingMange[]) => {
     return d.getMonth() === m && d.getFullYear() === y;
   });
 };
+
+
 
 const getStatusColor = (status: string) =>
   ({
@@ -121,7 +133,12 @@ export default function BookingManagement(): React.JSX.Element {
     dateRequest: "",
     time: "all",
   });
-  const [pagination, setPagination] = useState({ currentPage: 1, rowsPerPage: 10 });
+  const [pagination, setPagination] = useState({ 
+    currentPage: 1, 
+    rowsPerPage: 10, 
+    total: 0, 
+    totalPages: 0 
+  });
   const [isClient, setIsClient] = useState(false);
   const [currentMonth, setCurrentMonth] = useState("");
   const [currentYear, setCurrentYear] = useState<number | null>(null);
@@ -131,14 +148,17 @@ export default function BookingManagement(): React.JSX.Element {
   const [selectedBooking, setSelectedBooking] = useState<BookingMange | null>(null);
   const [showPast, setShowPast] = useState(false);
 
-  // fetch bookings from API
+
+  // fetch bookings from API (simplified version)
   const fetchBookings = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
+      
       const res = await fetch("/api/booking-data/get-booking", { cache: "no-store" });
       if (!res.ok) throw new Error(`Failed to load bookings (${res.status})`);
-      const data = (await res.json()) as BookingMange[];
+      
+      const data = await res.json();
       setBookings(data);
     } catch (e) {
       setError((e as Error).message);
@@ -147,6 +167,8 @@ export default function BookingManagement(): React.JSX.Element {
       setLoading(false);
     }
   }, []);
+
+
 
   useEffect(() => {
     setIsClient(true);
@@ -169,7 +191,7 @@ export default function BookingManagement(): React.JSX.Element {
       const reqOk = !filters.dateRequest || b.requestedTime.startsWith(filters.dateRequest);
       const timeOk = filters.time === "all" || b.startTime === filters.time;
 
-      // ✅ ใหม่: ถ้าไม่กดปุ่ม Show Past จะซ่อนประชุมที่จบไปแล้ว
+      // Past meeting filter - show bookings until end of day
       const pastOk = showPast ? true : !isPastMeeting(b.dateTime, b.endTime, 10);
 
       return searchOk && statusOk && dateOk && reqOk && timeOk && pastOk;
@@ -204,13 +226,22 @@ export default function BookingManagement(): React.JSX.Element {
     setFilters((p) => ({ ...p, [key]: value }));
     setPagination((p) => ({ ...p, currentPage: 1 }));
   };
-  const handlePageChange = (n: number) =>
+  
+  const handlePageChange = (n: number) => {
     setPagination((p) => ({
       ...p,
       currentPage: Math.max(1, Math.min(n, paginatedBookings.totalPages)),
     }));
-  const handleRowsPerPageChange = (v: string) =>
-    setPagination({ currentPage: 1, rowsPerPage: parseInt(v) });
+  };
+  
+  const handleRowsPerPageChange = (v: string) => {
+    setPagination({ 
+      currentPage: 1, 
+      rowsPerPage: parseInt(v),
+      total: 0,
+      totalPages: 0
+    });
+  };
   const handleDateSortToggle = () => {
     setSortByDateAsc((p) => !p);
     setPagination((p) => ({ ...p, currentPage: 1 }));
@@ -283,7 +314,7 @@ export default function BookingManagement(): React.JSX.Element {
             <div className="flex flex-nowrap items-end gap-4 overflow-x-auto pb-2">
               {/* Search */}
               <div className="shrink-0 w-[260px] flex flex-col gap-2">
-                <Label className="text-sm font-semibold text-gray-800 leading-none">
+                <Label className="text-sm font-semibold text-gray-800 leading-tight h-5 flex items-center">
                   Search User / Interpreter
                 </Label>
                 <Input
@@ -296,14 +327,14 @@ export default function BookingManagement(): React.JSX.Element {
 
               {/* Status */}
               <div className="shrink-0 w-[160px] flex flex-col gap-2">
-                <Label className="text-sm font-semibold text-gray-800 leading-none">
+                <Label className="text-sm font-semibold text-gray-800 leading-tight h-5 flex items-center">
                   Status
                 </Label>
                 <Select value={filters.status} onValueChange={(v) => updateFilter("status", v)}>
-                  <SelectTrigger className="h-10">
+                  <SelectTrigger className="h-10 min-h-[40px]">
                     <SelectValue placeholder="All Status" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="max-h-60 overflow-y-auto">
                     {STATUS_OPTIONS.map((o) => (
                       <SelectItem key={o.value} value={o.value}>
                         {o.label}
@@ -315,7 +346,7 @@ export default function BookingManagement(): React.JSX.Element {
 
               {/* Date Meeting */}
               <div className="shrink-0 w-[170px] flex flex-col gap-2">
-                <Label className="text-sm font-semibold text-gray-800 leading-none">
+                <Label className="text-sm font-semibold text-gray-800 leading-tight h-5 flex items-center">
                   Date Meeting
                 </Label>
                 <Input
@@ -328,7 +359,7 @@ export default function BookingManagement(): React.JSX.Element {
 
               {/* Date Requested */}
               <div className="shrink-0 w-[170px] flex flex-col gap-2">
-                <Label className="text-sm font-semibold text-gray-800 leading-none">
+                <Label className="text-sm font-semibold text-gray-800 leading-tight h-5 flex items-center">
                   Date Requested
                 </Label>
                 <Input
@@ -339,13 +370,13 @@ export default function BookingManagement(): React.JSX.Element {
                 />
               </div>
 
-              {/* Start Time (แก้ตรงนี้ให้เหมือนช่องอื่นเป๊ะ) */}
+              {/* Meeting Time */}
               <div className="shrink-0 w-[150px] flex flex-col gap-2">
-                <Label className="text-sm font-semibold text-gray-800 leading-none">
+                <Label className="text-sm font-semibold text-gray-800 leading-tight h-5 flex items-center">
                   Meeting Time
                 </Label>
                 <Select value={filters.time} onValueChange={(v) => updateFilter("time", v)}>
-                  <SelectTrigger className="h-10">
+                  <SelectTrigger className="h-10 min-h-[40px]">
                     <SelectValue placeholder="All Times" />
                   </SelectTrigger>
                   <SelectContent className="max-h-60 overflow-y-auto">
@@ -361,12 +392,11 @@ export default function BookingManagement(): React.JSX.Element {
 
               {/* Past toggle button */}
               <div className="shrink-0 w-[100px] flex flex-col gap-2">
-                <Label className="text-sm font-semibold text-gray-800 leading-none">
+                <Label className="text-sm font-semibold text-gray-800 leading-tight h-5 flex items-center">
                   Past Records
                 </Label>
                 <Button
                   variant={showPast ? "default" : "outline"}
-                  size="sm"
                   className="h-10 w-full"
                   onClick={() => {
                     setShowPast((v) => !v);
@@ -397,15 +427,13 @@ export default function BookingManagement(): React.JSX.Element {
         {/* Table */}
         <Card className="mb-6 bg-white">
           <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <div className="max-h-96 overflow-y-auto">
-                <table className="w-full text-sm">
-                  <thead className="sticky top-0 bg-white z-10">
+            <table className="w-full text-sm table-fixed">
+                  <thead className="bg-white">
                     <tr className="border-b border-gray-200">
-                      <th className="px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">
+                      <th className="w-32 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">
                         <button
                           onClick={handleDateSortToggle}
-                          className="flex items-center gap-2 hover:bg-gray-100 px-2 py-1 rounded transition-colors"
+                          className="flex items-center gap-2 hover:bg-gray-100 px-2 py-1 rounded transition-colors w-full justify-start"
                           title={`Sort by ${sortByDateAsc ? "newest" : "oldest"} first`}
                         >
                           <span>Date Meeting</span>
@@ -416,14 +444,13 @@ export default function BookingManagement(): React.JSX.Element {
                           )}
                         </button>
                       </th>
-                      {["Time", "User", "Interpreter", "Room", "Status", "Request", "Action"].map((h) => (
-                        <th
-                          key={h}
-                          className={`px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm ${h === "Action" ? "text-center" : ""}`}
-                        >
-                          {h}
-                        </th>
-                      ))}
+                      <th className="w-36 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Time</th>
+                      <th className="w-32 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">User</th>
+                      <th className="w-32 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Interpreter</th>
+                      <th className="w-24 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Room</th>
+                      <th className="w-28 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Status</th>
+                      <th className="w-48 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Request</th>
+                      <th className="w-32 px-6 py-3 text-center font-semibold text-gray-900 bg-gray-50 text-sm">Action</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -433,9 +460,9 @@ export default function BookingManagement(): React.JSX.Element {
                         className={`border-b border-gray-100 hover:bg-blue-50 transition-colors ${index % 2 === 0 ? "bg-white" : "bg-gray-50/30"}`}
                       >
                         <td className="px-4 py-4">
-                          <div className="flex items-center gap-2">
-                            <div className="group relative">
-                              <span className="font-semibold text-gray-900 text-sm cursor-help">
+                          <div className="flex items-start gap-2">
+                            <div className="group relative flex-1">
+                              <span className="font-semibold text-gray-900 text-sm cursor-help break-words">
                                 {formatDate(booking.dateTime)}
                               </span>
                               {isClient && (
@@ -446,7 +473,7 @@ export default function BookingManagement(): React.JSX.Element {
                             </div>
                             {booking.isDR && (
                               <div className="group relative">
-                                <Star className="h-4 w-4 text-amber-500 fill-amber-500 cursor-help" />
+                                <Star className="h-4 w-4 text-amber-500 fill-amber-500 cursor-help flex-shrink-0" />
                                 <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50">
                                   High Priority Meeting (DR)
                                 </div>
@@ -456,29 +483,29 @@ export default function BookingManagement(): React.JSX.Element {
                         </td>
                         <td className="px-4 py-4">
                           <div className="flex items-center gap-1 text-gray-800 font-mono text-sm">
-                            <Clock className="h-4 w-4 text-gray-500" />
-                            {booking.startTime} - {booking.endTime}
+                            <Clock className="h-4 w-4 text-gray-500 flex-shrink-0" />
+                            <span className="whitespace-nowrap">{booking.startTime} - {booking.endTime}</span>
                           </div>
                         </td>
                         <td className="px-4 py-4">
-                          <span className="font-semibold text-gray-900 text-sm">{booking.bookedBy}</span>
+                          <span className="font-semibold text-gray-900 text-sm break-words">{booking.bookedBy}</span>
                         </td>
                         <td className="px-4 py-4">
-                          <span className="text-gray-800 text-sm">{booking.interpreter}</span>
+                          <span className="text-gray-800 text-sm break-words">{booking.interpreter}</span>
                         </td>
                         <td className="px-4 py-4">
-                          <span className="px-2 py-1 bg-gray-100 text-gray-800 rounded-md text-sm font-semibold">{booking.room}</span>
+                          <span className="px-2 py-1 bg-gray-100 text-gray-800 rounded-md text-sm font-semibold break-words">{booking.room}</span>
                         </td>
-                        <td className="px-4 py-4">
+                        <td className="px-6 py-4">
                           <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-semibold ${getStatusColor(booking.status)}`}>
                             {getStatusIcon(booking.status)}
-                            {booking.status}
+                            <span className="truncate">{booking.status}</span>
                           </span>
                         </td>
-                        <td className="px-4 py-4">
-                          <span className="text-sm text-gray-600 font-mono">{formatRequestedTime(booking.requestedTime)}</span>
+                        <td className="px-6 py-4">
+                          <span className="text-sm text-gray-600 whitespace-nowrap">{formatRequestedTime(booking.requestedTime)}</span>
                         </td>
-                        <td className="px-2 py-4 text-center">
+                        <td className="px-6 py-4 text-center">
                           <Button
                             variant="outline"
                             size="sm"
@@ -501,8 +528,6 @@ export default function BookingManagement(): React.JSX.Element {
                 {!loading && !error && filteredBookings.length === 0 && (
                   <div className="p-6 text-center text-gray-500">No bookings found</div>
                 )}
-              </div>
-            </div>
           </CardContent>
         </Card>
         {/* Booking Detail Dialog */}
