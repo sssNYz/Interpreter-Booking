@@ -36,7 +36,7 @@ import {
   getMeetingTypeBadge,
   sortByPriority 
 } from "@/utils/priority";
-import BookingDetailDialog from "../AdminForm/booking-form";
+import BookingDetailDialog from "@/components/AdminForm/booking-form";
 
 const PAGE_WRAPPER = "min-h-screen bg-[#f7f7f7] font-sans text-gray-900";
 const TIME_SLOTS = generateStandardTimeSlots();
