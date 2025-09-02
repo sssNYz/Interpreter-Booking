@@ -21,12 +21,19 @@ import type {
   PaginatedBookings 
 } from "@/types/booking-management";
 import { generateStandardTimeSlots } from "@/utils/time";
+import { 
+  isPastMeeting, 
+  formatDate, 
+  formatRequestedTime, 
+  getFullDate, 
+  sortBookings, 
+  getCurrentMonthBookings, 
+  getStatusColor, 
+  getStatusIcon 
+} from "@/utils/booking";
 import BookingDetailDialog from "../AdminForm/booking-form";
 
-/* ========= THEME ========= */
 const PAGE_WRAPPER = "min-h-screen bg-[#f7f7f7] font-sans text-gray-900";
-
-/* ========= Constants ========= */
 const TIME_SLOTS = generateStandardTimeSlots();
 
 const STATUS_OPTIONS: StatusOptionConfig[] = [
@@ -35,96 +42,8 @@ const STATUS_OPTIONS: StatusOptionConfig[] = [
   { value: "Approve", label: "Approve" },
   { value: "Cancel", label: "Cancel" },
 ];
-
-// === Past/Ended helpers ===
-const toLocalYMD = (s: string) => {
-  const d = new Date(s);
-  const yyyy = d.getFullYear();
-  const mm = `${d.getMonth() + 1}`.padStart(2, "0");
-  const dd = `${d.getDate()}`.padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}`;
-};
-
-const isPastMeeting = (dateStr: string, endHHmm: string, graceMin = 10) => {
-  const ymd = toLocalYMD(dateStr);
-  const end = new Date(`${ymd}T${endHHmm}:00`);
-  const endWithGrace = new Date(end.getTime() + graceMin * 60 * 1000);
-  
-  // Get end of day (23:59:59) for the meeting date
-  const endOfDay = new Date(`${ymd}T23:59:59`);
-  
-  // A meeting is considered "past" only if:
-  // 1. The meeting has ended (with grace period), AND
-  // 2. We're past the end of the day
-  return Date.now() > endWithGrace.getTime() && Date.now() > endOfDay.getTime();
-};
-
-
-/* ========= Utils ========= */
-const parseTime = (t: string) => {
-  const [h, m] = t.split(":").map(Number);
-  return h * 60 + m;
-};
-
-const formatDate = (s: string) => {
-  const d = new Date(s);
-  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
-};
-
-const formatRequestedTime = (s: string) => {
-  const d = new Date(s);
-  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  const hh = `${d.getHours()}`.padStart(2, "0");
-  const mm = `${d.getMinutes()}`.padStart(2, "0");
-  return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()} · ${hh}:${mm}`;
-};
-
-const getFullDate = (s: string, isClient: boolean) => {
-  if (!isClient) return s;
-  const d = new Date(s);
-  const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-  const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-  return `${days[d.getDay()]}, ${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
-};
-
-const sortBookings = (arr: BookingManage[], asc: boolean) =>
-  [...arr].sort((a, b) => {
-    const dc = asc ? a.dateTime.localeCompare(b.dateTime) : b.dateTime.localeCompare(a.dateTime);
-    if (dc !== 0) return dc;
-    return parseTime(a.startTime) - parseTime(b.startTime);
-  });
-
-const getCurrentMonthBookings = (arr: BookingManage[]) => {
-  const now = new Date();
-  const m = now.getMonth();
-  const y = now.getFullYear();
-  return arr.filter((b) => {
-    const d = new Date(b.dateTime);
-    return d.getMonth() === m && d.getFullYear() === y;
-  });
-};
-
-
-
-const getStatusColor = (status: string) =>
-  ({
-    Approve: "text-emerald-700 bg-emerald-100",
-    Wait: "text-amber-700 bg-amber-100",
-    Cancel: "text-red-700 bg-red-100",
-  } as const)[status as "Approve" | "Wait" | "Cancel"] || "text-gray-700 bg-gray-100";
-
-const getStatusIcon = (status: string) =>
-  ({
-    Approve: <CheckCircle className="h-4 w-4" />,
-    Wait: <Hourglass className="h-4 w-4" />,
-    Cancel: <XCircle className="h-4 w-4" />,
-  } as const)[status as "Approve" | "Wait" | "Cancel"] || null;
-
-/* ========= Component ========= */
 export default function BookingManagement(): React.JSX.Element {
   const [bookings, setBookings] = useState<BookingManage[]>([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const [filters, setFilters] = useState<BookingFilters>({
@@ -149,10 +68,9 @@ export default function BookingManagement(): React.JSX.Element {
   const [selectedBooking, setSelectedBooking] = useState<BookingManage | null>(null);
   const [showPast, setShowPast] = useState(false);
 
-  // fetch bookings from API
+  // Data fetching
   const fetchBookings = useCallback(async () => {
     try {
-      setLoading(true);
       setError(null);
       
       const res = await fetch("/api/booking-data/get-booking", { cache: "no-store" });
@@ -163,8 +81,6 @@ export default function BookingManagement(): React.JSX.Element {
     } catch (e) {
       setError((e as Error).message);
       setBookings([]);
-    } finally {
-      setLoading(false);
     }
   }, []);
 
@@ -177,6 +93,7 @@ export default function BookingManagement(): React.JSX.Element {
     fetchBookings();
   }, [fetchBookings]);
 
+  // Filter and sort bookings
   const filteredBookings = useMemo(() => {
     const filtered = bookings.filter((b) => {
       const searchOk =
@@ -188,7 +105,6 @@ export default function BookingManagement(): React.JSX.Element {
       const reqOk = !filters.dateRequest || b.requestedTime.startsWith(filters.dateRequest);
       const timeOk = filters.time === "all" || b.startTime === filters.time;
 
-      // Past meeting filter - show bookings until end of day
       const pastOk = showPast ? true : !isPastMeeting(b.dateTime, b.endTime, 10);
 
       return searchOk && statusOk && dateOk && reqOk && timeOk && pastOk;
@@ -197,7 +113,7 @@ export default function BookingManagement(): React.JSX.Element {
     return sortBookings(filtered, sortByDateAsc);
   }, [bookings, filters, sortByDateAsc, showPast]);
 
-
+  // Calculate statistics
   const stats = useMemo<Stats>(() => {
     const hasActive = Object.values(filters).some((v) => v !== "" && v !== "all");
     const base = hasActive ? filteredBookings : getCurrentMonthBookings(bookings);
@@ -209,6 +125,7 @@ export default function BookingManagement(): React.JSX.Element {
     };
   }, [bookings, filteredBookings, filters]);
 
+  // Pagination logic
   const paginatedBookings = useMemo((): PaginatedBookings => {
     const totalPages = Math.ceil(filteredBookings.length / pagination.rowsPerPage);
     const startIndex = (pagination.currentPage - 1) * pagination.rowsPerPage;
@@ -219,6 +136,7 @@ export default function BookingManagement(): React.JSX.Element {
     };
   }, [filteredBookings, pagination]);
 
+  // Event handlers
   const updateFilter = (key: keyof typeof filters, value: string) => {
     setFilters((p) => ({ ...p, [key]: value }));
     setPagination((p) => ({ ...p, currentPage: 1 }));
@@ -244,11 +162,9 @@ export default function BookingManagement(): React.JSX.Element {
     setPagination((p) => ({ ...p, currentPage: 1 }));
   };
 
-
-
   return (
     <div className={PAGE_WRAPPER}>
-      {/* Header */}
+
       <div className="border-b bg-white border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
@@ -262,15 +178,12 @@ export default function BookingManagement(): React.JSX.Element {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              {/* reserved for future */}
             </div>
           </div>
         </div>
       </div>
 
-      {/* Body */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {/* Legend */}
         <div className="mb-6 flex items-center gap-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
           <div className="flex items-center gap-2">
             <Info className="h-5 w-5 text-blue-600" />
@@ -282,7 +195,6 @@ export default function BookingManagement(): React.JSX.Element {
           </div>
         </div>
 
-        {/* Summary Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-6">
           {([
             { key: "wait", label: "Wait", color: "amber", icon: Hourglass, description: "Bookings awaiting approval" },
@@ -305,11 +217,9 @@ export default function BookingManagement(): React.JSX.Element {
           ))}
         </div>
 
-        {/* Filters */}
         <Card className="mb-6 bg-white">
           <CardContent className="pt-6">
             <div className="flex flex-nowrap items-end gap-4 overflow-x-auto pb-2">
-              {/* Search */}
               <div className="shrink-0 w-[260px] flex flex-col gap-2">
                 <Label className="text-sm font-semibold text-gray-800 leading-tight h-5 flex items-center">
                   Search User / Interpreter
@@ -322,7 +232,6 @@ export default function BookingManagement(): React.JSX.Element {
                 />
               </div>
 
-              {/* Status */}
               <div className="shrink-0 w-[160px] flex flex-col gap-2">
                 <Label className="text-sm font-semibold text-gray-800 leading-tight h-5 flex items-center">
                   Status
@@ -341,7 +250,6 @@ export default function BookingManagement(): React.JSX.Element {
                 </Select>
               </div>
 
-              {/* Date Meeting */}
               <div className="shrink-0 w-[170px] flex flex-col gap-2">
                 <Label className="text-sm font-semibold text-gray-800 leading-tight h-5 flex items-center">
                   Date Meeting
@@ -354,7 +262,6 @@ export default function BookingManagement(): React.JSX.Element {
                 />
               </div>
 
-              {/* Date Requested */}
               <div className="shrink-0 w-[170px] flex flex-col gap-2">
                 <Label className="text-sm font-semibold text-gray-800 leading-tight h-5 flex items-center">
                   Date Request
@@ -367,7 +274,6 @@ export default function BookingManagement(): React.JSX.Element {
                 />
               </div>
 
-              {/* Meeting Time */}
               <div className="shrink-0 w-[150px] flex flex-col gap-2">
                 <Label className="text-sm font-semibold text-gray-800 leading-tight h-5 flex items-center">
                   Meeting Time
@@ -387,7 +293,6 @@ export default function BookingManagement(): React.JSX.Element {
                 </Select>
               </div>
 
-              {/* Past toggle button */}
               <div className="shrink-0 w-[100px] flex flex-col gap-2">
                 <Label className="text-sm font-semibold text-gray-800 leading-tight h-5 flex items-center">
                   Past Records
@@ -407,19 +312,12 @@ export default function BookingManagement(): React.JSX.Element {
           </CardContent>
         </Card>
 
-        {/* Loading / Error */}
-        {loading && (
-          <div className="mb-6 p-4 rounded-md bg-gray-50 border border-gray-200 text-gray-700">
-            กำลังโหลดข้อมูล...
-          </div>
-        )}
         {error && (
           <div className="mb-6 p-4 rounded-md bg-red-50 border border-red-200 text-red-700">
-            โหลดข้อมูลล้มเหลว: {error}
+            Failed to load data: {error}
           </div>
         )}
 
-        {/* Table */}
         <Card className="mb-6 bg-white">
           <CardContent className="p-0">
             <table className="w-full text-sm table-fixed">
@@ -519,13 +417,12 @@ export default function BookingManagement(): React.JSX.Element {
                   </tbody>
                 </table>
 
-                {/* Empty State */}
-                {!loading && !error && filteredBookings.length === 0 && (
+                {!error && filteredBookings.length === 0 && (
                   <div className="p-6 text-center text-gray-500">No bookings found</div>
                 )}
           </CardContent>
         </Card>
-        {/* Booking Detail Dialog */}
+
         <BookingDetailDialog
           open={showBookingDetailDialog}
           onOpenChange={(open: boolean) => {
@@ -537,7 +434,6 @@ export default function BookingManagement(): React.JSX.Element {
           onActionComplete={fetchBookings}
         />
 
-        {/* Pagination */}
         <Card className="bg-white">
           <CardContent className="flex items-center justify-between pt-6">
             <div className="flex items-center space-x-2">
