@@ -7,21 +7,31 @@ import type { DRAssignmentHistory, ConsecutiveDRAssignmentHistory, LastGlobalDRA
  */
 export async function getLastGlobalDRAssignment(
   before: Date,
-  opts?: { 
-    drType?: string; 
-    includePending?: boolean 
+  opts?: {
+    drType?: string;
+    includePending?: boolean;
+    fairnessWindowDays?: number;
   }
 ): Promise<LastGlobalDRAssignment> {
   try {
+    // Calculate fairness window start if provided
+    let timeConstraint: { lt: Date; gte?: Date } = { lt: before };
+    if (opts?.fairnessWindowDays) {
+      const windowStart = new Date(before);
+      windowStart.setDate(windowStart.getDate() - opts.fairnessWindowDays);
+      timeConstraint = {
+        lt: before,
+        gte: windowStart
+      };
+    }
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const whereClause: any = {
       meetingType: "DR",
-      timeStart: {
-        lt: before
-      },
+      timeStart: timeConstraint,
       ...(opts?.drType && { drType: opts.drType }),
-      ...(opts?.includePending 
-        ? { bookingStatus: { in: ["approve", "pending"] } }
+      ...(opts?.includePending
+        ? { bookingStatus: { in: ["approve", "waiting"] } }
         : { bookingStatus: "approve" }
       )
     };
@@ -82,7 +92,8 @@ export async function checkDRAssignmentHistory(
         drType: params.drType,
         lastGlobalDR: params.lastGlobalDR,
         includePendingInGlobal: params.includePendingInGlobal,
-        drPolicy: params.drPolicy
+        drPolicy: params.drPolicy,
+        fairnessWindowDays
       });
     }
 
@@ -113,23 +124,25 @@ async function checkConsecutiveDRAssignmentHistory(
     lastGlobalDR?: LastGlobalDRAssignment;
     includePendingInGlobal?: boolean;
     drPolicy: DRPolicy;
+    fairnessWindowDays: number;
   }
 ): Promise<ConsecutiveDRAssignmentHistory> {
-  const { bookingTimeStart, drType, lastGlobalDR, drPolicy } = params;
+  const { bookingTimeStart, drType, lastGlobalDR, drPolicy, fairnessWindowDays } = params;
 
   // Determine if this interpreter is consecutive to the last global DR
   const isConsecutiveGlobal = lastGlobalDR?.interpreterEmpCode === interpreterId;
 
-  // Get recent DR assignments for this interpreter (for analytics/logging)
-  const cutoffDate = new Date();
-  cutoffDate.setDate(cutoffDate.getDate() - 30); // Use 30 days for analytics
+  // Get recent DR assignments for this interpreter within the fairness window
+  const cutoffDate = new Date(bookingTimeStart);
+  cutoffDate.setDate(cutoffDate.getDate() - fairnessWindowDays);
 
   const drAssignments = await prisma.bookingPlan.findMany({
     where: {
       interpreterEmpCode: interpreterId,
       meetingType: "DR",
       timeStart: {
-        gte: cutoffDate
+        gte: cutoffDate,
+        lt: bookingTimeStart // Only look at assignments before this booking
       },
       bookingStatus: "approve"
     },
@@ -141,20 +154,20 @@ async function checkConsecutiveDRAssignmentHistory(
     orderBy: {
       timeStart: 'desc'
     },
-    take: 5 // Get more for analytics
+    take: 10 // Get enough for analysis within the window
   });
 
-  // Determine if blocked or penalized based on policy
-  let isBlocked = false;
-  let penaltyApplied = false;
+  // Apply DR policy rules to determine blocking and penalties
+  const { applyDRPolicyRules, canOverrideDRPolicy } = await import('./policy');
+  const policyResult = applyDRPolicyRules(isConsecutiveGlobal, drPolicy, {
+    isCriticalCoverage: false, // Will be set by calling function if needed
+    noAlternativesAvailable: false, // Will be set by calling function if needed
+    systemLoad: 'MEDIUM' // Default system load
+  });
+  const overrideCheck = canOverrideDRPolicy(drPolicy);
 
-  if (isConsecutiveGlobal) {
-    if (drPolicy.forbidConsecutive) {
-      isBlocked = true;
-    } else {
-      penaltyApplied = true;
-    }
-  }
+  const isBlocked = policyResult.isBlocked;
+  const penaltyApplied = policyResult.penaltyApplied;
 
   return {
     interpreterId,
@@ -167,7 +180,16 @@ async function checkConsecutiveDRAssignmentHistory(
     isBlocked,
     penaltyApplied,
     isConsecutiveGlobal,
-    lastGlobalDR
+    lastGlobalDR,
+    policyResult: {
+      isBlocked: policyResult.isBlocked,
+      penaltyApplied: policyResult.penaltyApplied,
+      penaltyAmount: policyResult.penaltyAmount,
+      overrideApplied: policyResult.overrideApplied,
+      reason: policyResult.reason,
+      policyDescription: (drPolicy as any).description || "Standard DR policy",
+      canOverride: overrideCheck.canOverride
+    }
   };
 }
 
@@ -232,15 +254,206 @@ export function isDRMeeting(meetingType: string): boolean {
  * Apply DR consecutive assignment penalty to a score
  */
 export function applyDRPenalty(
-  baseScore: number, 
-  penalty: number, 
+  baseScore: number,
+  penalty: number,
   penaltyApplied: boolean
 ): number {
   if (!penaltyApplied) {
     return baseScore;
   }
-  
+
   return Math.max(0, baseScore + penalty); // Ensure score doesn't go below 0
+}
+
+/**
+ * Adjust fairness calculations for dynamic interpreter pools
+ * Handles new interpreters and removed interpreters to maintain fair assignment distribution
+ */
+export async function adjustForDynamicPool(
+  interpreterPool: string[],
+  fairnessWindowDays: number,
+  referenceDate: Date = new Date()
+): Promise<{
+  newInterpreters: string[];
+  adjustmentFactor: number;
+  poolChangeDetected: boolean;
+}> {
+  try {
+    // Calculate the start of the fairness window
+    const windowStart = new Date(referenceDate);
+    windowStart.setDate(windowStart.getDate() - fairnessWindowDays);
+
+    // Find interpreters who have had assignments within the fairness window
+    const interpretersWithHistory = await prisma.bookingPlan.findMany({
+      where: {
+        interpreterEmpCode: { in: interpreterPool },
+        timeStart: {
+          gte: windowStart,
+          lt: referenceDate
+        },
+        bookingStatus: "approve"
+      },
+      select: {
+        interpreterEmpCode: true
+      },
+      distinct: ['interpreterEmpCode']
+    });
+
+    const interpretersWithHistorySet = new Set(
+      interpretersWithHistory.map(b => b.interpreterEmpCode).filter(Boolean)
+    );
+
+    // Identify new interpreters (in current pool but no history in window)
+    const newInterpreters = interpreterPool.filter(
+      interpreterId => !interpretersWithHistorySet.has(interpreterId)
+    );
+
+    // Calculate adjustment factor based on pool composition
+    const totalInterpreters = interpreterPool.length;
+    const newInterpreterCount = newInterpreters.length;
+    const poolChangeDetected = newInterpreterCount > 0;
+
+    // Adjustment factor: reduces bias against new interpreters
+    // Higher factor when more new interpreters are present
+    const adjustmentFactor = poolChangeDetected
+      ? Math.min(1.5, 1 + (newInterpreterCount / totalInterpreters) * 0.5)
+      : 1.0;
+
+    console.log(`🔄 Dynamic pool analysis: ${newInterpreterCount} new interpreters out of ${totalInterpreters} total (adjustment factor: ${adjustmentFactor.toFixed(2)})`);
+
+    return {
+      newInterpreters,
+      adjustmentFactor,
+      poolChangeDetected
+    };
+
+  } catch (error) {
+    console.error("Error adjusting for dynamic pool:", error);
+    return {
+      newInterpreters: [],
+      adjustmentFactor: 1.0,
+      poolChangeDetected: false
+    };
+  }
+}
+
+/**
+ * Get fairness-adjusted DR history that accounts for dynamic interpreter pools
+ */
+export async function getFairnessAdjustedDRHistory(
+  interpreterId: string,
+  fairnessWindowDays: number,
+  interpreterPool: string[],
+  referenceDate: Date = new Date()
+): Promise<{
+  drHistory: ConsecutiveDRAssignmentHistory;
+  isNewInterpreter: boolean;
+  adjustmentApplied: boolean;
+}> {
+  try {
+    // Get dynamic pool adjustment information
+    const poolAdjustment = await adjustForDynamicPool(
+      interpreterPool,
+      fairnessWindowDays,
+      referenceDate
+    );
+
+    const isNewInterpreter = poolAdjustment.newInterpreters.includes(interpreterId);
+
+    // Get standard DR history
+    const drHistory = await checkLegacyDRAssignmentHistory(interpreterId, fairnessWindowDays);
+
+    // Apply adjustment for new interpreters
+    let adjustmentApplied = false;
+    if (isNewInterpreter && poolAdjustment.poolChangeDetected) {
+      // Reduce penalties for new interpreters to prevent bias
+      drHistory.penaltyApplied = false;
+      drHistory.isBlocked = false;
+      adjustmentApplied = true;
+
+      console.log(`🆕 Applied new interpreter adjustment for ${interpreterId}`);
+    }
+
+    return {
+      drHistory,
+      isNewInterpreter,
+      adjustmentApplied
+    };
+
+  } catch (error) {
+    console.error(`Error getting fairness-adjusted DR history for ${interpreterId}:`, error);
+
+    // Return safe defaults
+    const defaultHistory: ConsecutiveDRAssignmentHistory = {
+      interpreterId,
+      consecutiveDRCount: 0,
+      lastDRAssignments: [],
+      isBlocked: false,
+      penaltyApplied: false,
+      isConsecutiveGlobal: false
+    };
+
+    return {
+      drHistory: defaultHistory,
+      isNewInterpreter: false,
+      adjustmentApplied: false
+    };
+  }
+}
+
+/**
+ * Check DR assignment with override options for critical coverage
+ */
+export async function checkDRAssignmentWithOverride(
+  interpreterId: string,
+  fairnessWindowDays: number,
+  params: {
+    bookingTimeStart: Date;
+    drType?: string;
+    lastGlobalDR?: LastGlobalDRAssignment;
+    includePendingInGlobal?: boolean;
+    drPolicy: DRPolicy;
+    isCriticalCoverage?: boolean;
+    noAlternativesAvailable?: boolean;
+  }
+): Promise<ConsecutiveDRAssignmentHistory> {
+  const baseResult = await checkConsecutiveDRAssignmentHistory(interpreterId, {
+    ...params,
+    fairnessWindowDays
+  });
+
+  // If not blocked, return as-is
+  if (!baseResult.isBlocked) {
+    return baseResult;
+  }
+
+  // Check if override should be applied with enhanced policy logic
+  const { applyDRPolicyRules } = await import('./policy');
+  const overrideResult = applyDRPolicyRules(
+    baseResult.isConsecutiveGlobal,
+    params.drPolicy,
+    {
+      isCriticalCoverage: params.isCriticalCoverage,
+      noAlternativesAvailable: params.noAlternativesAvailable,
+      systemLoad: 'MEDIUM', // Could be passed as parameter in future
+      interpreterPoolSize: 0 // Could be calculated from available interpreters
+    }
+  );
+
+  // Update result with override information
+  return {
+    ...baseResult,
+    isBlocked: overrideResult.isBlocked,
+    penaltyApplied: overrideResult.penaltyApplied,
+    policyResult: {
+      ...baseResult.policyResult!,
+      isBlocked: overrideResult.isBlocked,
+      penaltyApplied: overrideResult.penaltyApplied,
+      penaltyAmount: overrideResult.penaltyAmount,
+      overrideApplied: overrideResult.overrideApplied,
+      reason: overrideResult.reason
+    }
+  };
 }
 
 /**
