@@ -328,7 +328,7 @@ const BookingCalendar: React.FC = () => {
             ))}
           </div>
         ) : (
-          <ScrollArea className="h-[clamp(560px,calc(100dvh-360px),720px)]" viewportRef={scrollAreaViewportRef}>
+          <ScrollArea className="h-[clamp(500px,calc(100dvh-360px),550px)]" viewportRef={scrollAreaViewportRef}>
             {/* Fixed header row with time labels */}
             <div
               className="sticky top-0 z-30 bg-secondary border-b border-border min-w-[800px]"
