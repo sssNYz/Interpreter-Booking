@@ -25,8 +25,8 @@ import {
 // Submenu for Admin
 const adminItems = [
   { title: "Overview", url: "/AdminPage", icon: Home },
-  { title: "Bookings management", url: "/AdminPage/booking-manage-page", icon: Inbox },
-  { title: "Interpreters management", url: "#", icon: Calendar },
+  { title: "Bookings management", url: "/AdminPage/booking-manage-page", icon: Calendar },
+  { title: "Interpreters management", url: "#", icon: Inbox },
   { title: "User management", url: "/AdminPage/user-manage-page", icon: Settings },
 ]
 
@@ -59,7 +59,7 @@ export function AppSidebar() {
               <SidebarMenuItem>
                 <SidebarMenuButton asChild>
                   <a href="/BookingPage">
-                    <Inbox className="h-4 w-4" />
+                    <Calendar className="h-4 w-4" />
                     <span>Booking</span>
                   </a>
                 </SidebarMenuButton>
