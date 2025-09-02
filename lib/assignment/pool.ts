@@ -43,6 +43,7 @@ export interface DatabasePoolManager {
   getPoolStats(): Promise<PoolStats>;
   getFailedEntries(): Promise<EnhancedPoolEntry[]>;
   retryFailedEntries(): Promise<void>;
+  resetProcessingStatus(bookingId: number): Promise<void>;
 }
 
 export interface PoolStats {
@@ -415,6 +416,26 @@ class DatabaseBookingPool implements DatabasePoolManager {
       console.log(`🔄 Reset ${result.count} failed entries for retry`);
     } catch (error) {
       console.error('❌ Failed to retry failed entries:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Reset processing status for a stuck entry
+   */
+  async resetProcessingStatus(bookingId: number): Promise<void> {
+    try {
+      await prisma.bookingPlan.update({
+        where: { bookingId },
+        data: {
+          poolStatus: PoolStatus.waiting,
+          poolProcessingAttempts: 0
+        }
+      });
+
+      console.log(`✅ Reset processing status for booking ${bookingId}`);
+    } catch (error) {
+      console.error(`❌ Error resetting processing status for booking ${bookingId}:`, error);
       throw error;
     }
   }

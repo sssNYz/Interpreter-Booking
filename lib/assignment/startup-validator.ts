@@ -1,241 +1,614 @@
-import { SchemaValidator } from "./schema-validator";
-import { ResilientLogger } from "./resilient-logger";
-import { getAssignmentLogger } from "./logging";
+import { SchemaValidator, type ValidationResult, type DatabaseHealthCheck } from "./schema-validator";
+import { getDatabaseConnectionManager } from "./database-connection-manager";
+import { getComprehensiveErrorLogger, logErrorWithContext } from "./comprehensive-error-logger";
+import { getResilientLogger } from "./resilient-logger";
+import prisma from "@/prisma/prisma";
 
 /**
- * Startup validation and initialization for assignment system
+ * Comprehensive startup validation with repair recommendations
  */
 export interface StartupValidationResult {
-    success: boolean;
-    schemaValid: boolean;
-    loggingInitialized: boolean;
-    errors: string[];
-    warnings: string[];
-    recommendations: string[];
+  success: boolean;
+  databaseHealth: DatabaseHealthCheck;
+  schemaValidation: ValidationResult;
+  systemChecks: SystemCheckResult[];
+  repairRecommendations: RepairRecommendation[];
+  warnings: string[];
+  criticalIssues: string[];
+  startupTime: number;
+}
+
+export interface SystemCheckResult {
+  name: string;
+  success: boolean;
+  message: string;
+  details?: Record<string, unknown>;
+  severity: 'INFO' | 'WARNING' | 'ERROR' | 'CRITICAL';
+}
+
+export interface RepairRecommendation {
+  issue: string;
+  severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  category: 'DATABASE' | 'SCHEMA' | 'CONFIGURATION' | 'SYSTEM' | 'PERMISSIONS';
+  description: string;
+  automaticRepair: boolean;
+  repairSteps: string[];
+  estimatedTime: string;
+  riskLevel: 'LOW' | 'MEDIUM' | 'HIGH';
 }
 
 /**
- * Comprehensive startup validation
+ * Startup validator with comprehensive system checks and repair recommendations
+ */
+export class StartupValidator {
+  private connectionManager = getDatabaseConnectionManager();
+  private errorLogger = getComprehensiveErrorLogger();
+  private resilientLogger = getResilientLogger();
+
+  /**
+   * Perform comprehensive startup validation
+   */
+  async performStartupValidation(): Promise<StartupValidationResult> {
+    const startTime = Date.now();
+    const correlationId = `startup_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    console.log(`🚀 Starting comprehensive system validation (${correlationId})...`);
+
+    const result: StartupValidationResult = {
+      success: true,
+      databaseHealth: { isHealthy: false, connectionTime: 0 },
+      schemaValidation: { isValid: false, missingTables: [], structureIssues: [], recommendations: [] },
+      systemChecks: [],
+      repairRecommendations: [],
+      warnings: [],
+      criticalIssues: [],
+      startupTime: 0
+    };
+
+    try {
+      // 1. Database Health Check
+      console.log("🔍 Checking database health...");
+      result.databaseHealth = await this.checkDatabaseHealth(correlationId);
+      
+      if (!result.databaseHealth.isHealthy) {
+        result.success = false;
+        result.criticalIssues.push(`Database health check failed: ${result.databaseHealth.error}`);
+        
+        result.repairRecommendations.push({
+          issue: 'Database Connection Failed',
+          severity: 'CRITICAL',
+          category: 'DATABASE',
+          description: 'Cannot establish connection to database',
+          automaticRepair: false,
+          repairSteps: [
+            'Check database server status',
+            'Verify connection string in environment variables',
+            'Check network connectivity',
+            'Verify database credentials',
+            'Check firewall settings'
+          ],
+          estimatedTime: '5-30 minutes',
+          riskLevel: 'LOW'
+        });
+      }
+
+      // 2. Schema Validation
+      if (result.databaseHealth.isHealthy) {
+        console.log("🔍 Validating database schema...");
+        result.schemaValidation = await this.validateSchema(correlationId);
+        
+        if (!result.schemaValidation.isValid) {
+          result.success = false;
+          result.criticalIssues.push('Database schema validation failed');
+          
+          // Generate repair recommendations for schema issues
+          result.repairRecommendations.push(...this.generateSchemaRepairRecommendations(result.schemaValidation));
+        }
+      }
+
+      // 3. System Checks
+      console.log("🔍 Performing system checks...");
+      result.systemChecks = await this.performSystemChecks(correlationId);
+      
+      // Check for critical system issues
+      const criticalSystemIssues = result.systemChecks.filter(check => 
+        !check.success && check.severity === 'CRITICAL'
+      );
+      
+      if (criticalSystemIssues.length > 0) {
+        result.success = false;
+        result.criticalIssues.push(...criticalSystemIssues.map(issue => issue.message));
+      }
+
+      // Collect warnings
+      const warnings = result.systemChecks.filter(check => 
+        check.severity === 'WARNING'
+      );
+      result.warnings.push(...warnings.map(warning => warning.message));
+
+      // 4. Generate additional repair recommendations
+      result.repairRecommendations.push(...this.generateSystemRepairRecommendations(result.systemChecks));
+
+      // 5. Final validation
+      result.startupTime = Date.now() - startTime;
+      
+      if (result.success) {
+        console.log(`✅ Startup validation completed successfully in ${result.startupTime}ms`);
+      } else {
+        console.error(`❌ Startup validation failed with ${result.criticalIssues.length} critical issues`);
+        console.error('Critical Issues:', result.criticalIssues);
+        console.error('Repair Recommendations:', result.repairRecommendations.length);
+      }
+
+      return result;
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown startup validation error';
+      
+      await logErrorWithContext(
+        error instanceof Error ? error : new Error(errorMessage),
+        'startup_validation',
+        {
+          correlationId,
+          severity: 'CRITICAL',
+          category: 'SYSTEM'
+        }
+      );
+
+      result.success = false;
+      result.criticalIssues.push(`Startup validation error: ${errorMessage}`);
+      result.startupTime = Date.now() - startTime;
+      
+      return result;
+    }
+  }
+
+  /**
+   * Check database health with detailed diagnostics
+   */
+  private async checkDatabaseHealth(correlationId: string): Promise<DatabaseHealthCheck> {
+    try {
+      const startTime = Date.now();
+      
+      // Basic connection test
+      await prisma.$queryRaw`SELECT 1 as health_check`;
+      
+      const connectionTime = Date.now() - startTime;
+      
+      // Additional health checks
+      const details = await this.performDetailedDatabaseChecks();
+      
+      return {
+        isHealthy: true,
+        connectionTime,
+        details
+      };
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Database health check failed';
+      
+      await logErrorWithContext(
+        error instanceof Error ? error : new Error(errorMessage),
+        'database_health_check',
+        {
+          correlationId,
+          severity: 'CRITICAL',
+          category: 'DATABASE'
+        }
+      );
+
+      return {
+        isHealthy: false,
+        connectionTime: 0,
+        error: errorMessage
+      };
+    }
+  }
+
+  /**
+   * Perform detailed database checks
+   */
+  private async performDetailedDatabaseChecks(): Promise<DatabaseHealthCheck['details']> {
+    const details: DatabaseHealthCheck['details'] = {
+      canConnect: true,
+      canRead: false,
+      canWrite: false,
+      tablesAccessible: [],
+      tablesInaccessible: []
+    };
+
+    const testTables = ['BookingPlan', 'Employee', 'AssignmentLog'];
+
+    // Test read access
+    try {
+      await prisma.bookingPlan.findFirst({ take: 1 });
+      details.canRead = true;
+    } catch (error) {
+      console.warn('⚠️ Database read test failed:', error);
+    }
+
+    // Test write access (with rollback)
+    try {
+      await prisma.$transaction(async (tx) => {
+        await tx.systemErrorLog.create({
+          data: {
+            operation: 'startup_write_test',
+            errorName: 'TEST',
+            errorMessage: 'Startup write test - will be rolled back',
+            systemState: { test: true },
+            additionalData: { test: true }
+          }
+        });
+        
+        // Rollback by throwing error
+        throw new Error('Intentional rollback for write test');
+      });
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('Intentional rollback')) {
+        details.canWrite = true;
+      } else {
+        console.warn('⚠️ Database write test failed:', error);
+      }
+    }
+
+    // Test table accessibility
+    for (const tableName of testTables) {
+      try {
+        switch (tableName) {
+          case 'BookingPlan':
+            await prisma.bookingPlan.findFirst({ take: 1 });
+            break;
+          case 'Employee':
+            await prisma.employee.findFirst({ take: 1 });
+            break;
+          case 'AssignmentLog':
+            await prisma.assignmentLog.findFirst({ take: 1 });
+            break;
+        }
+        details.tablesAccessible.push(tableName);
+      } catch (error) {
+        details.tablesInaccessible.push(tableName);
+        console.warn(`⚠️ Table ${tableName} not accessible:`, error);
+      }
+    }
+
+    return details;
+  }
+
+  /**
+   * Validate database schema
+   */
+  private async validateSchema(correlationId: string): Promise<ValidationResult> {
+    try {
+      return await SchemaValidator.validateRequiredTables();
+    } catch (error) {
+      await logErrorWithContext(
+        error instanceof Error ? error : new Error('Schema validation failed'),
+        'schema_validation',
+        {
+          correlationId,
+          severity: 'HIGH',
+          category: 'DATABASE'
+        }
+      );
+
+      return {
+        isValid: false,
+        missingTables: [],
+        structureIssues: [{
+          table: 'UNKNOWN',
+          issue: error instanceof Error ? error.message : 'Schema validation error',
+          severity: 'error'
+        }],
+        recommendations: ['Check database schema and run migrations']
+      };
+    }
+  }
+
+  /**
+   * Perform comprehensive system checks
+   */
+  private async performSystemChecks(correlationId: string): Promise<SystemCheckResult[]> {
+    const checks: SystemCheckResult[] = [];
+
+    // Memory check
+    const memoryUsage = process.memoryUsage();
+    const memoryUsageMB = memoryUsage.heapUsed / 1024 / 1024;
+    
+    checks.push({
+      name: 'Memory Usage',
+      success: memoryUsageMB < 512, // Warning if over 512MB
+      message: `Heap memory usage: ${memoryUsageMB.toFixed(2)}MB`,
+      details: memoryUsage,
+      severity: memoryUsageMB > 1024 ? 'ERROR' : memoryUsageMB > 512 ? 'WARNING' : 'INFO'
+    });
+
+    // Node.js version check
+    const nodeVersion = process.version;
+    const majorVersion = parseInt(nodeVersion.slice(1).split('.')[0]);
+    
+    checks.push({
+      name: 'Node.js Version',
+      success: majorVersion >= 18,
+      message: `Node.js version: ${nodeVersion}`,
+      details: { version: nodeVersion, majorVersion },
+      severity: majorVersion < 16 ? 'CRITICAL' : majorVersion < 18 ? 'WARNING' : 'INFO'
+    });
+
+    // Environment variables check
+    const requiredEnvVars = ['DATABASE_URL'];
+    const missingEnvVars = requiredEnvVars.filter(envVar => !process.env[envVar]);
+    
+    checks.push({
+      name: 'Environment Variables',
+      success: missingEnvVars.length === 0,
+      message: missingEnvVars.length === 0 
+        ? 'All required environment variables are set'
+        : `Missing environment variables: ${missingEnvVars.join(', ')}`,
+      details: { required: requiredEnvVars, missing: missingEnvVars },
+      severity: missingEnvVars.length > 0 ? 'CRITICAL' : 'INFO'
+    });
+
+    // Disk space check (if available)
+    try {
+      const fs = require('fs');
+      const stats = fs.statSync('.');
+      
+      checks.push({
+        name: 'File System Access',
+        success: true,
+        message: 'File system is accessible',
+        details: { accessible: true },
+        severity: 'INFO'
+      });
+    } catch (error) {
+      checks.push({
+        name: 'File System Access',
+        success: false,
+        message: 'File system access failed',
+        details: { error: error instanceof Error ? error.message : 'Unknown error' },
+        severity: 'ERROR'
+      });
+    }
+
+    // Logging system check
+    try {
+      const loggerHealth = this.resilientLogger.getHealthStatus();
+      
+      checks.push({
+        name: 'Logging System',
+        success: loggerHealth.isHealthy,
+        message: loggerHealth.isHealthy 
+          ? 'Logging system is healthy'
+          : 'Logging system is unhealthy',
+        details: loggerHealth,
+        severity: loggerHealth.isHealthy ? 'INFO' : 'WARNING'
+      });
+    } catch (error) {
+      checks.push({
+        name: 'Logging System',
+        success: false,
+        message: 'Logging system check failed',
+        details: { error: error instanceof Error ? error.message : 'Unknown error' },
+        severity: 'ERROR'
+      });
+    }
+
+    // Connection manager check
+    try {
+      const connectionHealth = this.connectionManager.getConnectionHealth();
+      
+      checks.push({
+        name: 'Connection Manager',
+        success: connectionHealth.isConnected,
+        message: connectionHealth.isConnected 
+          ? `Connection manager healthy (${connectionHealth.connectionTime}ms)`
+          : `Connection manager unhealthy: ${connectionHealth.error}`,
+        details: connectionHealth,
+        severity: connectionHealth.isConnected ? 'INFO' : 'ERROR'
+      });
+    } catch (error) {
+      checks.push({
+        name: 'Connection Manager',
+        success: false,
+        message: 'Connection manager check failed',
+        details: { error: error instanceof Error ? error.message : 'Unknown error' },
+        severity: 'ERROR'
+      });
+    }
+
+    return checks;
+  }
+
+  /**
+   * Generate schema repair recommendations
+   */
+  private generateSchemaRepairRecommendations(schemaValidation: ValidationResult): RepairRecommendation[] {
+    const recommendations: RepairRecommendation[] = [];
+
+    // Missing tables
+    if (schemaValidation.missingTables.length > 0) {
+      recommendations.push({
+        issue: `Missing Database Tables: ${schemaValidation.missingTables.join(', ')}`,
+        severity: 'CRITICAL',
+        category: 'SCHEMA',
+        description: 'Required database tables are missing and need to be created',
+        automaticRepair: false,
+        repairSteps: [
+          'Run database migrations: npx prisma migrate deploy',
+          'If migrations fail, check migration files in prisma/migrations/',
+          'Consider running: npx prisma db push (for development only)',
+          'Verify database user has CREATE TABLE permissions'
+        ],
+        estimatedTime: '2-10 minutes',
+        riskLevel: 'LOW'
+      });
+    }
+
+    // Structure issues
+    const criticalStructureIssues = schemaValidation.structureIssues.filter(issue => issue.severity === 'error');
+    if (criticalStructureIssues.length > 0) {
+      recommendations.push({
+        issue: `Database Structure Issues: ${criticalStructureIssues.length} critical issues found`,
+        severity: 'HIGH',
+        category: 'SCHEMA',
+        description: 'Database table structures do not match expected schema',
+        automaticRepair: false,
+        repairSteps: [
+          'Review database schema differences',
+          'Run: npx prisma db pull to sync schema with database',
+          'Run: npx prisma generate to update Prisma client',
+          'Consider creating a new migration if schema changes are needed'
+        ],
+        estimatedTime: '10-30 minutes',
+        riskLevel: 'MEDIUM'
+      });
+    }
+
+    return recommendations;
+  }
+
+  /**
+   * Generate system repair recommendations
+   */
+  private generateSystemRepairRecommendations(systemChecks: SystemCheckResult[]): RepairRecommendation[] {
+    const recommendations: RepairRecommendation[] = [];
+
+    // Memory issues
+    const memoryCheck = systemChecks.find(check => check.name === 'Memory Usage');
+    if (memoryCheck && !memoryCheck.success) {
+      recommendations.push({
+        issue: 'High Memory Usage',
+        severity: memoryCheck.severity === 'ERROR' ? 'HIGH' : 'MEDIUM',
+        category: 'SYSTEM',
+        description: 'Application is using excessive memory',
+        automaticRepair: false,
+        repairSteps: [
+          'Monitor memory usage over time',
+          'Check for memory leaks in application code',
+          'Consider increasing server memory allocation',
+          'Review and optimize database queries',
+          'Implement memory usage monitoring'
+        ],
+        estimatedTime: '30-120 minutes',
+        riskLevel: 'LOW'
+      });
+    }
+
+    // Node.js version issues
+    const nodeCheck = systemChecks.find(check => check.name === 'Node.js Version');
+    if (nodeCheck && !nodeCheck.success) {
+      recommendations.push({
+        issue: 'Outdated Node.js Version',
+        severity: nodeCheck.severity === 'CRITICAL' ? 'CRITICAL' : 'MEDIUM',
+        category: 'SYSTEM',
+        description: 'Node.js version is outdated and may have security or compatibility issues',
+        automaticRepair: false,
+        repairSteps: [
+          'Update Node.js to version 18 or higher',
+          'Use Node Version Manager (nvm) for easy version management',
+          'Test application thoroughly after Node.js upgrade',
+          'Update package.json engines field to specify minimum Node.js version'
+        ],
+        estimatedTime: '15-60 minutes',
+        riskLevel: 'MEDIUM'
+      });
+    }
+
+    // Environment variable issues
+    const envCheck = systemChecks.find(check => check.name === 'Environment Variables');
+    if (envCheck && !envCheck.success) {
+      recommendations.push({
+        issue: 'Missing Environment Variables',
+        severity: 'CRITICAL',
+        category: 'CONFIGURATION',
+        description: 'Required environment variables are not set',
+        automaticRepair: false,
+        repairSteps: [
+          'Create or update .env file with required variables',
+          'Check .env.example for reference',
+          'Verify environment variables in production deployment',
+          'Ensure sensitive variables are properly secured'
+        ],
+        estimatedTime: '5-15 minutes',
+        riskLevel: 'LOW'
+      });
+    }
+
+    return recommendations;
+  }
+
+  /**
+   * Attempt automatic repairs where possible
+   */
+  async attemptAutomaticRepairs(recommendations: RepairRecommendation[]): Promise<RepairAttemptResult[]> {
+    const results: RepairAttemptResult[] = [];
+
+    for (const recommendation of recommendations) {
+      if (!recommendation.automaticRepair) {
+        results.push({
+          recommendation: recommendation.issue,
+          attempted: false,
+          success: false,
+          message: 'Automatic repair not available for this issue'
+        });
+        continue;
+      }
+
+      try {
+        console.log(`🔧 Attempting automatic repair: ${recommendation.issue}`);
+        
+        // Implement specific repair logic here
+        // For now, we'll just mark as attempted but not successful
+        
+        results.push({
+          recommendation: recommendation.issue,
+          attempted: true,
+          success: false,
+          message: 'Automatic repair logic not yet implemented'
+        });
+
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown repair error';
+        
+        results.push({
+          recommendation: recommendation.issue,
+          attempted: true,
+          success: false,
+          message: `Repair failed: ${errorMessage}`
+        });
+      }
+    }
+
+    return results;
+  }
+}
+
+// Type definitions
+export interface RepairAttemptResult {
+  recommendation: string;
+  attempted: boolean;
+  success: boolean;
+  message: string;
+}
+
+/**
+ * Convenience function to perform startup validation
  */
 export async function performStartupValidation(): Promise<StartupValidationResult> {
-    const result: StartupValidationResult = {
-        success: false,
-        schemaValid: false,
-        loggingInitialized: false,
-        errors: [],
-        warnings: [],
-        recommendations: []
-    };
-
-    console.log("🚀 Starting assignment system validation...");
-
-    try {
-        // 1. Validate database schema
-        console.log("📋 Step 1: Database schema validation");
-        const schemaValidation = await SchemaValidator.validateRequiredTables();
-        result.schemaValid = schemaValidation.isValid;
-
-        if (!schemaValidation.isValid) {
-            result.errors.push("Database schema validation failed");
-            result.errors.push(...schemaValidation.structureIssues.map(issue =>
-                `${issue.table}: ${issue.issue}`
-            ));
-            result.recommendations.push(...schemaValidation.recommendations);
-        } else {
-            console.log("✅ Database schema validation passed");
-        }
-
-        // 2. Initialize resilient logging system
-        console.log("📝 Step 2: Logging system initialization");
-        try {
-            const resilientLogger = ResilientLogger.getInstance();
-            const healthStatus = resilientLogger.getHealthStatus();
-
-            if (healthStatus.isHealthy) {
-                result.loggingInitialized = true;
-                console.log("✅ Resilient logging system initialized");
-            } else {
-                result.warnings.push("Logging system initialized but marked as unhealthy");
-                result.loggingInitialized = true; // Still functional, just degraded
-            }
-        } catch (error) {
-            result.errors.push(`Logging system initialization failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-            result.recommendations.push("Check database connectivity and permissions");
-        }
-
-        // 3. Initialize assignment logger
-        console.log("📊 Step 3: Assignment logger initialization");
-        try {
-            getAssignmentLogger();
-            console.log("✅ Assignment logger initialized");
-        } catch (error) {
-            result.warnings.push(`Assignment logger initialization warning: ${error instanceof Error ? error.message : 'Unknown error'}`);
-        }
-
-        // 4. Test database connectivity
-        console.log("🔗 Step 4: Database connectivity test");
-        const healthCheck = await SchemaValidator.checkDatabaseHealth();
-        if (!healthCheck.isHealthy) {
-            result.errors.push(`Database connectivity failed: ${healthCheck.error}`);
-            result.recommendations.push("Verify database connection string and server availability");
-        } else {
-            console.log(`✅ Database connectivity test passed (${healthCheck.connectionTime}ms)`);
-        }
-
-        // 5. Overall success determination
-        result.success = result.schemaValid && result.loggingInitialized && healthCheck.isHealthy;
-
-        // 6. Generate final recommendations
-        if (!result.success) {
-            if (!result.schemaValid) {
-                result.recommendations.push("Run database migrations to create or update required tables");
-            }
-            if (!result.loggingInitialized) {
-                result.recommendations.push("Check logging system configuration and database permissions");
-            }
-            if (!healthCheck.isHealthy) {
-                result.recommendations.push("Verify database server is running and accessible");
-            }
-        }
-
-        // Log final status
-        if (result.success) {
-            console.log("🎉 Assignment system startup validation completed successfully");
-        } else {
-            console.log("❌ Assignment system startup validation failed");
-            console.log("Errors:", result.errors);
-            console.log("Recommendations:", result.recommendations);
-        }
-
-        return result;
-
-    } catch (error) {
-        console.error("❌ Critical error during startup validation:", error);
-        result.errors.push(`Critical startup error: ${error instanceof Error ? error.message : 'Unknown error'}`);
-        result.recommendations.push("Check system configuration and database connectivity");
-        return result;
-    }
+  const validator = new StartupValidator();
+  return await validator.performStartupValidation();
 }
 
 /**
- * Graceful degradation setup for when validation fails
+ * Convenience function to validate system health
  */
-export async function setupGracefulDegradation(validationResult: StartupValidationResult): Promise<void> {
-    console.log("⚠️ Setting up graceful degradation mode...");
-
-    if (!validationResult.schemaValid) {
-        console.log("📝 Schema validation failed - logging will use console fallback");
-        // The resilient logger will automatically handle this
-    }
-
-    if (!validationResult.loggingInitialized) {
-        console.log("📊 Logging system failed - using minimal console logging");
-        // Assignment operations will continue but with reduced logging
-    }
-
-    console.log("✅ Graceful degradation setup complete");
-    console.log("⚠️ System will continue operating with reduced functionality");
-}
-
-/**
- * Validate specific database operations that are critical for assignment
- */
-export async function validateCriticalOperations(): Promise<{
-    canReadBookings: boolean;
-    canReadEmployees: boolean;
-    canWriteAssignments: boolean;
-    canWriteLogs: boolean;
-    errors: string[];
-}> {
-    const result = {
-        canReadBookings: false,
-        canReadEmployees: false,
-        canWriteAssignments: false,
-        canWriteLogs: false,
-        errors: [] as string[]
-    };
-
-    try {
-        // Test reading bookings
-        const prisma = (await import("@/prisma/prisma")).default;
-
-        try {
-            await prisma.bookingPlan.findFirst({ take: 1 });
-            result.canReadBookings = true;
-        } catch (error) {
-            result.errors.push(`Cannot read bookings: ${error instanceof Error ? error.message : 'Unknown error'}`);
-        }
-
-        // Test reading employees
-        try {
-            await prisma.employee.findFirst({ take: 1 });
-            result.canReadEmployees = true;
-        } catch (error) {
-            result.errors.push(`Cannot read employees: ${error instanceof Error ? error.message : 'Unknown error'}`);
-        }
-
-        // Test writing assignments (simulate)
-        try {
-            // Just test the table exists, don't actually write
-            await prisma.assignmentLog.findFirst({ take: 1 });
-            result.canWriteAssignments = true;
-        } catch (error) {
-            result.errors.push(`Cannot access assignment logs: ${error instanceof Error ? error.message : 'Unknown error'}`);
-        }
-
-        // Test writing logs
-        try {
-            await prisma.systemErrorLog.findFirst({ take: 1 });
-            result.canWriteLogs = true;
-        } catch (error) {
-            result.errors.push(`Cannot access system error logs: ${error instanceof Error ? error.message : 'Unknown error'}`);
-        }
-
-    } catch (error) {
-        result.errors.push(`Critical database error: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-
-    return result;
-}
-
-/**
- * Quick health check for monitoring
- */
-export async function quickHealthCheck(): Promise<{
-    healthy: boolean;
-    responseTime: number;
-    issues: string[];
-}> {
-    const startTime = Date.now();
-    const result = {
-        healthy: true,
-        responseTime: 0,
-        issues: [] as string[]
-    };
-
-    try {
-        const healthCheck = await SchemaValidator.checkDatabaseHealth();
-        result.responseTime = Date.now() - startTime;
-
-        if (!healthCheck.isHealthy) {
-            result.healthy = false;
-            result.issues.push(healthCheck.error || 'Database unhealthy');
-        }
-
-        // Check resilient logger health
-        const resilientLogger = ResilientLogger.getInstance();
-        const loggerHealth = resilientLogger.getHealthStatus();
-
-        if (!loggerHealth.isHealthy) {
-            result.issues.push('Logging system unhealthy');
-            // Don't mark overall system as unhealthy for logging issues
-        }
-
-    } catch (error) {
-        result.healthy = false;
-        result.responseTime = Date.now() - startTime;
-        result.issues.push(error instanceof Error ? error.message : 'Unknown health check error');
-    }
-
-    return result;
+export async function validateSystemHealth(): Promise<boolean> {
+  try {
+    const result = await performStartupValidation();
+    return result.success;
+  } catch (error) {
+    console.error('❌ System health validation failed:', error);
+    return false;
+  }
 }

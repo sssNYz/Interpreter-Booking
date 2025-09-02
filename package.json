@@ -10,6 +10,11 @@
     "postinstall": "prisma generate --schema=./prisma/schema.prisma",
     "seed:priorities": "node scripts/seed-meeting-type-priorities.js",
     "test:enhanced": "node scripts/test-enhanced-assignment-system.js",
+    "test:pool-integration": "node scripts/run-pool-integration-tests.js",
+    "test:pool-integration-core": "node scripts/test-pool-processing-integration.js",
+    "test:pool-performance": "node scripts/test-pool-processing-performance.js",
+    "test:pool-reliability": "node scripts/test-pool-processing-reliability.js",
+    "test:pool-validate": "node scripts/validate-integration-tests.js",
     "gen:normal": "node scripts/generate-bookings-normal.mjs",
     "gen:urgent": "node scripts/generate-bookings-urgent.mjs",
     "gen:balance": "node scripts/generate-bookings-balance.mjs"
