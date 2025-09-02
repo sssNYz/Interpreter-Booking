@@ -60,7 +60,13 @@ export class ServerStartupService {
       await initializeDailyPoolProcessor();
       console.log("✅ Daily pool processor initialized");
 
-      // Step 4: Perform health check
+      // Step 4: Initialize auto-approval engine
+      console.log("🤖 Step 4: Initializing auto-approval engine...");
+      const { initializeAutoApprovalOnStartup } = await import("./auto-approval-init");
+      await initializeAutoApprovalOnStartup();
+      console.log("✅ Auto-approval engine initialized");
+
+      // Step 5: Perform health check
       console.log("🔍 Step 4: Performing system health check...");
       const healthStatus = await this.performHealthCheck();
       
@@ -148,6 +154,21 @@ export class ServerStartupService {
       // Check logging system
       components.logging = 'healthy'; // Assume healthy unless we detect issues
 
+      // Check auto-approval system
+      try {
+        const { getAutoApprovalEngine } = await import("./auto-approval");
+        const autoApprovalEngine = getAutoApprovalEngine();
+        const autoApprovalStatus = await autoApprovalEngine.getAutoApprovalStatus();
+        
+        // Auto-approval health is informational only, doesn't affect overall health
+        console.log(`ℹ️ Auto-approval status: ${autoApprovalStatus.enabled ? 'Enabled' : 'Disabled'}`);
+        if (autoApprovalStatus.manualOverride.active) {
+          console.log(`ℹ️ Manual override active: ${autoApprovalStatus.manualOverride.reason}`);
+        }
+      } catch (error) {
+        console.warn("⚠️ Could not check auto-approval status:", error instanceof Error ? error.message : 'Unknown error');
+      }
+
       // Determine overall health
       let overall: 'healthy' | 'degraded' | 'unhealthy';
       
@@ -198,6 +219,11 @@ export class ServerStartupService {
       const { stopDailyPoolProcessor } = await import("./daily-pool-processor");
       stopDailyPoolProcessor();
       console.log("✅ Daily pool processor stopped");
+
+      // Shutdown auto-approval engine
+      const { shutdownAutoApproval } = await import("./auto-approval-init");
+      await shutdownAutoApproval();
+      console.log("✅ Auto-approval engine stopped");
 
       // Shutdown core assignment system
       const { shutdownAssignmentSystem } = await import("./startup");

@@ -107,6 +107,18 @@ export interface PoolProcessingLogData {
     dbOperationTimeMs: number;
     totalTimeMs: number;
   };
+  errorRecoveryData?: {
+    corruptedEntries: number;
+    fallbackAttempts: number;
+    retrySuccesses: number;
+    healthCheckResult: {
+      isHealthy: boolean;
+      issues: string[];
+      warnings: string[];
+      checkTime: number;
+      timestamp: Date;
+    };
+  };
 }
 
 /**
@@ -131,6 +143,78 @@ export interface ConflictDetectionLogData {
   processingTimeMs: number;
   resolutionStrategy: 'FILTER_CONFLICTS' | 'RETRY_NEXT_CANDIDATE' | 'ESCALATE';
   outcome: 'SUCCESS' | 'PARTIAL_SUCCESS' | 'FAILURE';
+}
+
+/**
+ * Mode transition log entry
+ */
+export interface ModeTransitionLogData {
+  timestamp: Date;
+  oldMode: string;
+  newMode: string;
+  success: boolean;
+  pooledBookingsAffected: number;
+  immediateAssignments: number;
+  poolTransition: {
+    processedEntries: number;
+    immediateAssignments: number;
+    remainingInPool: number;
+    escalatedEntries: number;
+    deadlineUpdates: number;
+    statusChanges: number;
+  };
+  errors: Array<{
+    bookingId?: number;
+    error: string;
+    timestamp: Date;
+    recoverable: boolean;
+  }>;
+  userFeedback: {
+    summary: string;
+    impactedBookings: Array<{
+      bookingId: number;
+      meetingType: string;
+      startTime: Date;
+      impact: string;
+      action: string;
+    }>;
+    recommendations: string[];
+    warnings: string[];
+  };
+}
+
+/**
+ * Auto-approval event log entry
+ */
+export interface AutoApprovalLogData {
+  timestamp: Date;
+  eventType: 'AUTO_SWITCH_SUCCESS' | 'AUTO_SWITCH_FAILED' | 'MANUAL_OVERRIDE_ENABLED' | 'MANUAL_OVERRIDE_DISABLED' | 'EVALUATION_ERROR';
+  reason: string;
+  oldMode?: string;
+  newMode?: string;
+  currentMode: string;
+  loadAssessment?: {
+    poolSize: number;
+    averageProcessingTime: number;
+    conflictRate: number;
+    escalationRate: number;
+    loadLevel: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+    confidence: number;
+  };
+  confidence?: number;
+  overrideApplied?: boolean;
+  expiresAt?: Date;
+  modeTransition?: {
+    success: boolean;
+    pooledBookingsAffected: number;
+    immediateAssignments: number;
+    errors: Array<{
+      bookingId?: number;
+      error: string;
+      timestamp: Date;
+      recoverable: boolean;
+    }>;
+  };
 }
 
 /**
@@ -175,6 +259,8 @@ export class AssignmentLogger {
   private conflictLogBuffer: ConflictDetectionLogData[] = [];
   private drPolicyLogBuffer: DRPolicyLogData[] = [];
   private poolLogBuffer: PoolProcessingLogData[] = [];
+  private modeTransitionLogBuffer: ModeTransitionLogData[] = [];
+  private autoApprovalLogBuffer: AutoApprovalLogData[] = [];
   private resilientLogger: ResilientLogger;
   private isInitialized: boolean = false;
   
@@ -348,7 +434,92 @@ export class AssignmentLogger {
       );
     }
   }
+
+  /**
+   * Log mode transition details
+   */
+  async logModeTransition(logData: ModeTransitionLogData): Promise<void> {
+    const context: LoggingContext = {
+      operation: 'logModeTransition',
+      correlationId: `mode_transition_${Date.now()}_${logData.oldMode}_${logData.newMode}`
+    };
+
+    try {
+      // Add to buffer for batch processing
+      this.modeTransitionLogBuffer.push(logData);
+      
+      console.log(`📝 Mode transition logged: ${logData.oldMode} → ${logData.newMode}`);
+      console.log(`   Success: ${logData.success}`);
+      console.log(`   Affected bookings: ${logData.pooledBookingsAffected}`);
+      console.log(`   Immediate assignments: ${logData.immediateAssignments}`);
+      if (logData.errors.length > 0) {
+        console.log(`   Errors: ${logData.errors.length} errors occurred`);
+      }
+      
+    } catch (error) {
+      await this.resilientLogger.handleLoggingError(
+        error instanceof Error ? error : new Error('Unknown mode transition logging error'),
+        context
+      );
+    }
+  }
   
+  /**
+   * Log auto-approval events
+   */
+  async logAutoApprovalEvent(logData: AutoApprovalLogData): Promise<void> {
+    const context: LoggingContext = {
+      operation: 'logAutoApprovalEvent',
+      correlationId: `auto_approval_${Date.now()}_${logData.eventType}`
+    };
+
+    try {
+      // Log to database immediately for auto-approval events
+      await this.resilientLogger.logWithFallback(
+        async () => {
+          await prisma.autoApprovalLog.create({
+            data: {
+              timestamp: logData.timestamp,
+              eventType: logData.eventType,
+              reason: logData.reason,
+              oldMode: logData.oldMode,
+              newMode: logData.newMode,
+              currentMode: logData.currentMode,
+              loadAssessment: logData.loadAssessment ? JSON.stringify(logData.loadAssessment) : null,
+              confidence: logData.confidence,
+              overrideApplied: logData.overrideApplied || false,
+              expiresAt: logData.expiresAt,
+              modeTransition: logData.modeTransition ? JSON.stringify(logData.modeTransition) : null
+            }
+          });
+        },
+        async (error: Error) => {
+          console.error(`❌ Failed to log auto-approval event to database: ${error.message}`);
+          console.log(`📝 Auto-approval event (fallback): ${logData.eventType} - ${logData.reason}`);
+        }
+      );
+      
+      // Console logging
+      console.log(`🤖 Auto-Approval Event: ${logData.eventType}`);
+      console.log(`   Reason: ${logData.reason}`);
+      if (logData.oldMode && logData.newMode) {
+        console.log(`   Mode Change: ${logData.oldMode} → ${logData.newMode}`);
+      }
+      if (logData.loadAssessment) {
+        console.log(`   Load Level: ${logData.loadAssessment.loadLevel} (confidence: ${(logData.loadAssessment.confidence * 100).toFixed(1)}%)`);
+      }
+      if (logData.overrideApplied) {
+        console.log(`   Manual Override: Active`);
+      }
+      
+    } catch (error) {
+      await this.resilientLogger.handleLoggingError(
+        error instanceof Error ? error : new Error('Unknown auto-approval logging error'),
+        context
+      );
+    }
+  }
+
   /**
    * Flush all log buffers to database with resilient error handling
    */
@@ -368,7 +539,8 @@ export class AssignmentLogger {
         this.flushAssignmentLogs(),
         this.flushConflictLogs(),
         this.flushDRPolicyLogs(),
-        this.flushPoolLogs()
+        this.flushPoolLogs(),
+        this.flushModeTransitionLogs()
       ]);
 
       // Check for any failures
@@ -668,6 +840,89 @@ export class AssignmentLogger {
       console.log(`✅ Flushed ${successCount} pool logs successfully`);
     }
   }
+
+  /**
+   * Flush mode transition logs to database with resilient error handling
+   */
+  private async flushModeTransitionLogs(): Promise<void> {
+    if (this.modeTransitionLogBuffer.length === 0) return;
+    
+    const logsToFlush = [...this.modeTransitionLogBuffer];
+    this.modeTransitionLogBuffer = [];
+    
+    let successCount = 0;
+    const failedLogs: ModeTransitionLogData[] = [];
+
+    for (const logData of logsToFlush) {
+      const context: LoggingContext = {
+        operation: 'flushModeTransitionLog',
+        correlationId: `mode_transition_${logData.timestamp.getTime()}_${logData.oldMode}_${logData.newMode}`
+      };
+
+      const writeOperation = async () => {
+        // For now, we'll log to console since there's no specific table for mode transitions
+        // In a production system, you might want to create a MODE_TRANSITION_LOG table
+        console.log(`📝 Mode Transition Log: ${logData.oldMode} → ${logData.newMode}`, {
+          timestamp: logData.timestamp,
+          success: logData.success,
+          pooledBookingsAffected: logData.pooledBookingsAffected,
+          immediateAssignments: logData.immediateAssignments,
+          poolTransition: logData.poolTransition,
+          errors: logData.errors,
+          userFeedback: logData.userFeedback
+        });
+        
+        // You could also log to the assignment log table with a special status
+        return await prisma.assignmentLog.create({
+          data: {
+            bookingId: 0, // Special booking ID for mode transitions
+            interpreterEmpCode: null,
+            status: `MODE_TRANSITION_${logData.success ? 'SUCCESS' : 'FAILED'}`,
+            reason: `Mode transition: ${logData.oldMode} → ${logData.newMode}. ${logData.userFeedback.summary}`,
+            preHoursSnapshot: JSON.parse(JSON.stringify({})) as Prisma.InputJsonValue,
+            postHoursSnapshot: JSON.parse(JSON.stringify({})) as Prisma.InputJsonValue,
+            scoreBreakdown: JSON.parse(JSON.stringify({
+              modeTransition: {
+                oldMode: logData.oldMode,
+                newMode: logData.newMode,
+                pooledBookingsAffected: logData.pooledBookingsAffected,
+                immediateAssignments: logData.immediateAssignments,
+                errors: logData.errors.length
+              }
+            })) as Prisma.InputJsonValue,
+            maxGapHours: 0,
+            fairnessWindowDays: 0
+          }
+        });
+      };
+
+      const fallbackLog = async (error: Error) => {
+        console.error(`❌ Mode transition log fallback for ${logData.oldMode} → ${logData.newMode}:`, {
+          timestamp: logData.timestamp,
+          success: logData.success,
+          pooledBookingsAffected: logData.pooledBookingsAffected,
+          error: error.message
+        });
+      };
+
+      const result = await this.resilientLogger.logWithFallback(writeOperation, fallbackLog, context);
+      if (result) {
+        successCount++;
+      } else {
+        failedLogs.push(logData);
+      }
+    }
+
+    // Re-add failed logs to buffer for retry
+    if (failedLogs.length > 0 && this.modeTransitionLogBuffer.length < 100) {
+      this.modeTransitionLogBuffer.unshift(...failedLogs);
+      console.warn(`⚠️ ${failedLogs.length} mode transition logs failed to flush, re-queued for retry`);
+    }
+
+    if (successCount > 0) {
+      console.log(`✅ Flushed ${successCount} mode transition logs successfully`);
+    }
+  }
   
   /**
    * Enhanced console logging with structured output
@@ -714,6 +969,82 @@ export class AssignmentLogger {
     if (logData.systemState) {
       const sys = logData.systemState;
       console.log(`   🖥️  System: ${sys.activeInterpreters} interpreters, pool:${sys.poolSize}, load:${sys.systemLoad}`);
+    }
+  }
+  /**
+   * Log configuration change
+   */
+  async logConfigurationChange(data: {
+    timestamp: Date;
+    changeType: 'MODE_CHANGE' | 'POLICY_UPDATE' | 'THRESHOLD_CHANGE' | 'VALIDATION_UPDATE';
+    userId?: string;
+    reason?: string;
+    oldConfig: any;
+    newConfig: any;
+    validationResult: any;
+    impactAssessment: any;
+  }): Promise<void> {
+    try {
+      await this.resilientLogger.logWithFallback(
+        async () => {
+          await prisma.assignmentLog.create({
+            data: {
+              bookingId: 0, // System event
+              interpreterEmpCode: null,
+              status: 'escalated', // Using escalated for system events
+              reason: `Configuration change (${data.changeType}): ${data.reason || 'No reason provided'}`,
+              preHoursSnapshot: {},
+              postHoursSnapshot: {},
+              maxGapHours: 0,
+              fairnessWindowDays: 0,
+              timestamp: data.timestamp,
+              systemState: {
+                changeType: data.changeType,
+                userId: data.userId,
+                oldConfig: data.oldConfig,
+                newConfig: data.newConfig,
+                validationResult: {
+                  isValid: data.validationResult.isValid,
+                  errorCount: data.validationResult.errors?.length || 0,
+                  warningCount: data.validationResult.warnings?.length || 0,
+                  recommendationCount: data.validationResult.recommendations?.length || 0
+                },
+                impactAssessment: {
+                  existingPooledBookings: data.impactAssessment.existingPooledBookings,
+                  affectedBookings: data.impactAssessment.affectedBookings,
+                  modeChangeImpact: data.impactAssessment.modeChangeImpact ? {
+                    fromMode: data.impactAssessment.modeChangeImpact.fromMode,
+                    toMode: data.impactAssessment.modeChangeImpact.toMode,
+                    poolEntriesAffected: data.impactAssessment.modeChangeImpact.poolEntriesAffected,
+                    immediateProcessingRequired: data.impactAssessment.modeChangeImpact.immediateProcessingRequired
+                  } : null,
+                  fairnessImpact: data.impactAssessment.fairnessImpact ? {
+                    currentGap: data.impactAssessment.fairnessImpact.currentGap,
+                    projectedGap: data.impactAssessment.fairnessImpact.projectedGap,
+                    gapChange: data.impactAssessment.fairnessImpact.gapChange,
+                    fairnessImprovement: data.impactAssessment.fairnessImpact.fairnessImprovement
+                  } : null
+                }
+              },
+              metadata: {
+                configurationChange: true,
+                changeType: data.changeType,
+                userId: data.userId,
+                validationPassed: data.validationResult.isValid,
+                impactLevel: data.impactAssessment.affectedBookings === 0 ? 'NONE' :
+                           data.impactAssessment.affectedBookings < 5 ? 'LOW' :
+                           data.impactAssessment.affectedBookings < 15 ? 'MEDIUM' : 'HIGH'
+              }
+            }
+          });
+        },
+        async (error) => {
+          console.error("❌ Failed to log configuration change to database:", error);
+          console.log(`📝 Configuration change: ${data.changeType} - ${data.reason || 'No reason'}`);
+        }
+      );
+    } catch (error) {
+      console.error("❌ Error in configuration change logging:", error);
     }
   }
 }

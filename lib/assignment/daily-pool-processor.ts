@@ -3,6 +3,7 @@ import { bookingPool, getPoolStatus, type EnhancedPoolEntry } from "./pool";
 import { getAssignmentLogger, type PoolProcessingLogData } from "./logging";
 import { loadPolicy } from "./policy";
 import { getPoolProcessingEngine, type ProcessingResult } from "./pool-engine";
+import { getPoolErrorRecoveryManager } from "./pool-error-recovery";
 
 /**
  * Daily pool processing service that runs on server startup
@@ -97,19 +98,26 @@ export class DailyPoolProcessor {
         return this.createEmptyResult(batchId, startTime);
       }
 
-      // Process different types of entries with priority
+      // Process different types of entries with priority and error recovery
       const engine = getPoolProcessingEngine();
+      const errorRecoveryManager = getPoolErrorRecoveryManager();
+      
+      // Perform health check before processing
+      const healthCheck = await errorRecoveryManager.performHealthCheck();
+      if (!healthCheck.isHealthy) {
+        console.warn(`⚠️ Health check issues detected: ${healthCheck.issues.join(', ')}`);
+      }
       
       // 1. First process deadline entries (critical)
-      console.log("🚨 Processing deadline entries...");
+      console.log("🚨 Processing deadline entries with error recovery...");
       const deadlineResults = await engine.processDeadlineEntries();
       
       // 2. Then process ready entries (threshold reached)
-      console.log("⏰ Processing threshold entries...");
+      console.log("⏰ Processing threshold entries with error recovery...");
       const readyResults = await engine.processReadyEntries();
       
-      // 3. Retry failed entries
-      console.log("🔄 Retrying failed entries...");
+      // 3. Retry failed entries with error recovery
+      console.log("🔄 Retrying failed entries with error recovery...");
       await bookingPool.retryFailedEntries();
       const retryResults = await engine.processReadyEntries(); // Process newly retried entries
       

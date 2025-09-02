@@ -157,7 +157,7 @@ export async function runAssignment(bookingId: number): Promise<RunResult> {
     if (!isUrgent) {
       console.log(`📥 Booking ${bookingId} is not urgent, adding to pool (mode: ${policy.mode})`);
 
-      const poolEntry = await bookingPool.addToPool(
+      const poolEntry = await bookingPool.addToPoolEnhanced(
         booking.bookingId,
         booking.meetingType,
         booking.timeStart,

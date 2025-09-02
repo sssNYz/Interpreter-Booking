@@ -397,12 +397,11 @@ export class SchemaValidator {
           id: true,
           operation: true,
           bookingId: true,
-          interpreterId: true,
           errorName: true,
           errorMessage: true,
           errorStack: true,
           systemState: true,
-          additionalData: true,
+          context: true,
           createdAt: true
         },
         take: 1
