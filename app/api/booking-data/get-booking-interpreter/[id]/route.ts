@@ -7,7 +7,7 @@ import { RoleCode } from "@prisma/client"
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
 
-type Lang = "auto" | "th" | "en"
+
 type NameParts = {
   firstNameTh: string | null
   lastNameTh: string | null
@@ -15,12 +15,19 @@ type NameParts = {
   lastNameEn: string | null
 }
 
-function buildName(p: NameParts, lang: Lang): string {
+function buildName(p: NameParts): string {
   const th = `${p.firstNameTh ?? ""} ${p.lastNameTh ?? ""}`.trim()
   const en = `${p.firstNameEn ?? ""} ${p.lastNameEn ?? ""}`.trim()
-  if (lang === "th") return th || en
-  if (lang === "en") return en || th
-  return th || en
+  
+  // If English name is too short (likely abbreviated), use Thai name if available
+  if (en && en.length > 3) {
+    return en
+  } else if (th && th.length > 3) {
+    return th
+  } else {
+    // Fallback to whatever is available
+    return en || th
+  }
 }
 
 // exclusive overlap: A.start < B.end && A.end > B.start
@@ -44,13 +51,19 @@ export async function GET(
     const excludeCurrent = url.searchParams.get("excludeCurrent") === "true"
     const limitRaw = Number(url.searchParams.get("limit") ?? "20")
     const limit = Math.min(Math.max(1, Number.isFinite(limitRaw) ? Math.trunc(limitRaw) : 20), 100)
-    const lang = (url.searchParams.get("lang") as Lang) || "auto"
 
     const bk = await prisma.bookingPlan.findUnique({
       where: { bookingId },
       select: { bookingId: true, timeStart: true, timeEnd: true, updatedAt: true, interpreterEmpCode: true, bookingStatus: true },
     })
-    if (!bk) return NextResponse.json({ error: "NOT_FOUND", message: "Booking not found" }, { status: 404 })
+    if (!bk) {
+      console.error(`Booking not found: ${bookingId}`);
+      return NextResponse.json({ 
+        error: "NOT_FOUND", 
+        message: `Booking with ID ${bookingId} not found`,
+        bookingId 
+      }, { status: 404 })
+    }
 
     // --- เช็กคนเดียว (ต้องมีบทบาทล่ามด้วย) ---
     if (empCode) {
@@ -118,7 +131,11 @@ export async function GET(
       take: limit,
     })
 
-    const interpreters = rows.map(r => ({ empCode: r.empCode, name: buildName(r, lang) }))
+    const interpreters = rows.map(r => {
+      const name = buildName(r)
+      console.log(`Interpreter ${r.empCode}: EN="${r.firstNameEn} ${r.lastNameEn}", TH="${r.firstNameTh} ${r.lastNameTh}", Final="${name}"`)
+      return { empCode: r.empCode, name }
+    })
 
     return NextResponse.json({
       bookingId: bk.bookingId,
