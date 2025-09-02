@@ -12,13 +12,13 @@ import DayRow from "./day-row";
 import { generateTimeSlots, getDaysInMonth } from "@/utils/calendar";
 import { useBookings } from "@/hooks/use-booking";
 import { useSlotDataForBars } from "@/hooks/use-bar-slot-data";
-import { ROW_HEIGHT, DAY_LABEL_WIDTH, CELL_WIDTH } from "@/utils/constants";
+import { ROW_HEIGHT, BAR_HEIGHT, LANE_TOP_OFFSET, BAR_STACK_GAP } from "@/utils/constants";
 import { getStatusStyle } from "@/utils/status";
 import type { DayInfo } from "@/types/booking";
 import { Button } from "@/components/ui/button";
 import BookingRules from "@/components/BookingRules/booking-rules";
 import { Skeleton } from "@/components/ui/skeleton";
-
+import { useMobile } from "@/hooks/use-mobile";
 
 const BookingCalendar: React.FC = () => {
   // State for current month/year being displayed
@@ -36,6 +36,9 @@ const BookingCalendar: React.FC = () => {
     { day: number; slot: string } | undefined
   >(undefined);
 
+  // Get responsive sizes
+  const { getResponsiveSizes } = useMobile();
+  const { cellWidth, dayLabelWidth } = getResponsiveSizes();
 
   // IMPORTANT: keep ScrollArea viewport ref together with virtualizer
   // This ref is used by the virtualizer to know the scrollable container
@@ -232,23 +235,17 @@ const BookingCalendar: React.FC = () => {
   }, [refetch]);
 
   return (
-    <div className="max-w-[1500px]">
+    <div className="w-full">
       {/* Header section with title and month navigation */}
-      <div
-        className="flex items-center justify-between py-3"
-        style={{ maxWidth: "1500px" }}
-      >
+      <div className="flex flex-col sm:flex-row items-center justify-between py-3 gap-4">
         {/* Left side: Title with calendar icon */}
-
-        <div className="flex items-center gap-2 justify-center min-w-[370px] rounded-t-4xl bg-neutral-700 px-4 py-2">
-
-          <Calendar className="w-8 h-8 text-primary-foreground" />
-          <h1 className="text-[20px] font-medium text-primary-foreground">Book Appointment</h1>
+        <div className="flex items-center gap-2 justify-center min-w-[280px] sm:min-w-[370px] rounded-t-4xl bg-neutral-700 px-4 py-2">
+          <Calendar className="w-6 h-6 sm:w-8 sm:h-8 text-primary-foreground" />
+          <h1 className="text-[16px] sm:text-[20px] font-medium text-primary-foreground">Book Appointment</h1>
         </div>
         
-
         {/* Right side: Month navigation buttons */}
-        <div className="mt-auto mr-3.5 flex items-center justify-center ml-auto max-w-[280px]">
+        <div className="flex items-center justify-center max-w-[280px]">
           <div className="flex items-center gap-2">
             <button
               onClick={() => shiftMonth(-1)}
@@ -256,7 +253,7 @@ const BookingCalendar: React.FC = () => {
             >
               <ChevronLeft className="text-foreground" />
             </button>
-            <span className="min-w-[150px] text-center font-medium text-foreground">
+            <span className="min-w-[120px] sm:min-w-[150px] text-center font-medium text-foreground text-sm sm:text-base">
               {currentDate.toLocaleDateString("en-US", {
                 month: "long",
                 year: "numeric",
@@ -277,13 +274,14 @@ const BookingCalendar: React.FC = () => {
       <div className="border border-border rounded-3xl overflow-hidden bg-background">
         {/* KEEPING ScrollArea + virtualizer viewport TOGETHER */}
         {loading ? (
-          <div className="h-[500px]">
+          <div className="h-[clamp(600px,calc(100dvh-300px),78vh)] overflow-x-auto overflow-y-auto">
+
             {/* Header skeleton (time labels row) */}
             <div
-              className="sticky top-0 z-30 bg-secondary border-b border-border"
+              className="sticky top-0 z-30 bg-secondary border-b border-border min-w-[800px]"
               style={{
                 display: "grid",
-                gridTemplateColumns: `${DAY_LABEL_WIDTH}px repeat(${timeSlots.length}, ${CELL_WIDTH}px)`,
+                gridTemplateColumns: `${dayLabelWidth}px repeat(${timeSlots.length}, ${cellWidth}px)`,
                 height: `${ROW_HEIGHT}px`,
               }}
             >
@@ -306,10 +304,10 @@ const BookingCalendar: React.FC = () => {
             {Array.from({ length: 8 }).map((_, rowIdx) => (
               <div
                 key={`skr-${rowIdx}`}
-                className="border-b border-border"
+                className="border-b border-border min-w-[800px]"
                 style={{
                   display: "grid",
-                  gridTemplateColumns: `${DAY_LABEL_WIDTH}px repeat(${timeSlots.length}, ${CELL_WIDTH}px)`,
+                  gridTemplateColumns: `${dayLabelWidth}px repeat(${timeSlots.length}, ${cellWidth}px)`,
                   height: `${ROW_HEIGHT}px`,
                 }}
               >
@@ -330,13 +328,13 @@ const BookingCalendar: React.FC = () => {
             ))}
           </div>
         ) : (
-          <ScrollArea className="h-[500px]" viewportRef={scrollAreaViewportRef}>
+          <ScrollArea className="h-[clamp(500px,calc(100dvh-360px),550px)]" viewportRef={scrollAreaViewportRef}>
             {/* Fixed header row with time labels */}
             <div
-              className="sticky top-0 z-30 bg-secondary border-b border-border"
+              className="sticky top-0 z-30 bg-secondary border-b border-border min-w-[800px]"
               style={{
                 display: "grid",
-                gridTemplateColumns: `${DAY_LABEL_WIDTH}px repeat(${timeSlots.length}, ${CELL_WIDTH}px)`,
+                gridTemplateColumns: `${dayLabelWidth}px repeat(${timeSlots.length}, ${cellWidth}px)`,
                 height: `${ROW_HEIGHT}px`,
               }}
             >
@@ -375,6 +373,8 @@ const BookingCalendar: React.FC = () => {
                   occupancy={occupancyByDay.get(vr.index) ?? Array(timeSlots.length).fill(0)}
                   isTimeSlotPast={isTimeSlotPast}
                   onSlotClick={handleSlotClick}
+                  cellWidth={cellWidth}
+                  dayLabelWidth={dayLabelWidth}
                   style={{
                     position: "absolute",
                     top: `${vr.start}px`,
@@ -394,43 +394,41 @@ const BookingCalendar: React.FC = () => {
 
 
       {/* Bottom controls and legend */}
-      <div className="flex items-center justify-between mt-3 gap-3">
+      <div className="flex flex-col sm:flex-row items-center justify-between mt-3 gap-3">
         {/* Left: controls */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <Button
             onClick={goToToday}
-            className="bg-neutral-700 text-white rounded-full hover:bg-black/90 w-28 h-10"
+            className="bg-neutral-700 text-white rounded-full hover:bg-black/90 w-24 sm:w-28 h-10 text-sm sm:text-base"
           >
-            <Disc className="w-10 h-10 " />
+            <Disc className="w-8 h-8 sm:w-10 sm:h-10" />
             Today
           </Button>
           <Button
             onClick={() => refetch()}
-            className="bg-neutral-700 text-white rounded-full hover:bg-black/90 h-10 w-28"
+            className="bg-neutral-700 text-white rounded-full hover:bg-black/90 h-10 w-24 sm:w-28 text-sm sm:text-base"
             disabled={loading}
           >
-            <RefreshCw className={`w-10 h-10  ${loading ? "animate-spin" : ""}`} />
+            <RefreshCw className={`w-8 h-8 sm:w-10 sm:h-10 ${loading ? "animate-spin" : ""}`} />
             {loading ? "Refreshing..." : "Refresh"}
           </Button>
           <BookingRules />
         </div>
 
-
         {/* Right: legend */}
-        <div className="bg-neutral-700 flex items-center justify-center gap-6 ml-auto text-sm max-w-[320px] min-h-[40px] rounded-br-4xl rounded-bl-4xl px-4 py-2">
-          <div className="flex items-center gap-2">
+        <div className="bg-neutral-700 flex items-center justify-center gap-3 sm:gap-6 text-sm max-w-[280px] sm:max-w-[320px] min-h-[40px] rounded-br-4xl rounded-bl-4xl px-3 sm:px-4 py-2">
+          <div className="flex items-center gap-1 sm:gap-2">
             <span className={`inline-block h-2.5 w-2.5 rounded-full border border-primary-foreground ${getStatusStyle("approve").bg}`} />
-            <span className="text-primary-foreground">Approved</span>
+            <span className="text-primary-foreground text-xs sm:text-sm">Approved</span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2">
             <span className={`inline-block h-2.5 w-2.5 rounded-full border border-primary-foreground ${getStatusStyle("waiting").bg}`} />
-            <span className="text-primary-foreground">Waiting</span>
+            <span className="text-primary-foreground text-xs sm:text-sm">Waiting</span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2">
             <span className={`inline-block h-2.5 w-2.5 rounded-full border border-primary-foreground ${getStatusStyle("cancel").bg}`} />
-            <span className="text-primary-foreground">Cancelled</span>
+            <span className="text-primary-foreground text-xs sm:text-sm">Cancelled</span>
           </div>
-
         </div>
       </div>
 

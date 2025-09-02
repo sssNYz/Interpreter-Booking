@@ -2,6 +2,9 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import ClientShell from "@/components/ClientShell";
 
+// Initialize assignment system on server startup
+import "@/lib/assignment/init";
+
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],

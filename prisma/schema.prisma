@@ -19,6 +19,10 @@ model BookingPlan {
   timeEnd                  DateTime          @map("TIME_END") @db.DateTime(0)
   interpreterEmpCode       String?           @map("INTERPRETER_EMP_CODE") @db.VarChar(64)
   bookingStatus            BookingStatus     @default(waiting) @map("BOOKING_STATUS")
+  poolStatus               PoolStatus?       @map("POOL_STATUS")
+  poolEntryTime            DateTime?         @map("POOL_ENTRY_TIME") @db.DateTime(0)
+  poolDeadlineTime         DateTime?         @map("POOL_DEADLINE_TIME") @db.DateTime(0)
+  poolProcessingAttempts   Int               @default(0) @map("POOL_PROCESSING_ATTEMPTS")
   createdAt                DateTime          @default(now()) @map("created_at") @db.Timestamp(0)
   updatedAt                DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamp(0)
   drType                   DRType?           @map("DR_TYPE")
@@ -97,30 +101,29 @@ model UserRole {
 }
 
 model AutoAssignmentConfig {
-  id                 Int      @id @default(autoincrement()) @map("ID")
-  autoAssignEnabled  Boolean  @default(true) @map("AUTO_ASSIGN_ENABLED")
-  mode               String   @default("NORMAL") @map("MODE")
-  fairnessWindowDays Int      @default(30) @map("FAIRNESS_WINDOW_DAYS")
-  maxGapHours        Int      @default(10) @map("MAX_GAP_HOURS")
-  minAdvanceDays     Int      @default(2) @map("MIN_ADVANCE_DAYS")
-  w_fair             Float    @default(1.2) @map("W_FAIR")
-  w_urgency          Float    @default(0.5) @map("W_URGENCY")
-  w_lrs              Float    @default(0.3) @map("W_LRS")
-  drConsecutivePenalty Float  @default(-0.7) @map("DR_CONSECUTIVE_PENALTY")
-  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamp(0)
-  updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamp(0)
+  id                   Int      @id @default(autoincrement()) @map("ID")
+  autoAssignEnabled    Boolean  @default(true) @map("AUTO_ASSIGN_ENABLED")
+  mode                 String   @default("NORMAL") @map("MODE")
+  fairnessWindowDays   Int      @default(30) @map("FAIRNESS_WINDOW_DAYS")
+  maxGapHours          Int      @default(10) @map("MAX_GAP_HOURS")
+  w_fair               Float    @default(1.2) @map("W_FAIR")
+  w_urgency            Float    @default(0.5) @map("W_URGENCY")
+  w_lrs                Float    @default(0.3) @map("W_LRS")
+  drConsecutivePenalty Float    @default(-0.7) @map("DR_CONSECUTIVE_PENALTY")
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt            DateTime @updatedAt @map("updated_at") @db.Timestamp(0)
 
   @@map("AUTO_ASSIGNMENT_CONFIG")
 }
 
 model MeetingTypePriority {
-  id                  Int         @id @default(autoincrement()) @map("ID")
-  meetingType         MeetingType @unique @map("MEETING_TYPE")
-  priorityValue       Int         @map("PRIORITY_VALUE")
-  urgentThresholdDays Int         @map("URGENT_THRESHOLD_DAYS")
-  generalThresholdDays Int        @map("GENERAL_THRESHOLD_DAYS")
-  createdAt           DateTime    @default(now()) @map("created_at") @db.Timestamp(0)
-  updatedAt           DateTime    @updatedAt @map("updated_at") @db.Timestamp(0)
+  id                   Int         @id @default(autoincrement()) @map("ID")
+  meetingType          MeetingType @unique @map("MEETING_TYPE")
+  priorityValue        Int         @map("PRIORITY_VALUE")
+  urgentThresholdDays  Int         @map("URGENT_THRESHOLD_DAYS")
+  generalThresholdDays Int         @map("GENERAL_THRESHOLD_DAYS")
+  createdAt            DateTime    @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt            DateTime    @updatedAt @map("updated_at") @db.Timestamp(0)
 
   @@map("MEETING_TYPE_PRIORITY")
 }
@@ -137,6 +140,11 @@ model AssignmentLog {
   maxGapHours         Int         @map("MAX_GAP_HOURS")
   fairnessWindowDays  Int         @map("FAIRNESS_WINDOW_DAYS")
   createdAt           DateTime    @default(now()) @map("created_at") @db.Timestamp(0)
+  conflictDetection   Json?       @map("CONFLICT_DETECTION")
+  drPolicyDecision    Json?       @map("DR_POLICY_DECISION")
+  performance         Json?       @map("PERFORMANCE")
+  poolProcessing      Json?       @map("POOL_PROCESSING")
+  systemState         Json?       @map("SYSTEM_STATE")
   bookingPlan         BookingPlan @relation(fields: [bookingId], references: [bookingId], onDelete: Cascade)
   interpreterEmployee Employee?   @relation("AssignmentLogInterpreter", fields: [interpreterEmpCode], references: [empCode])
 
@@ -144,6 +152,92 @@ model AssignmentLog {
   @@index([interpreterEmpCode])
   @@index([status])
   @@map("ASSIGNMENT_LOG")
+}
+
+model ConflictDetectionLog {
+  id                       Int      @id @default(autoincrement()) @map("ID")
+  bookingId                Int      @map("BOOKING_ID")
+  timestamp                DateTime @map("TIMESTAMP") @db.Timestamp(0)
+  requestedTimeStart       DateTime @map("REQUESTED_TIME_START") @db.DateTime(0)
+  requestedTimeEnd         DateTime @map("REQUESTED_TIME_END") @db.DateTime(0)
+  totalInterpretersChecked Int      @map("TOTAL_INTERPRETERS_CHECKED")
+  availableInterpreters    Int      @map("AVAILABLE_INTERPRETERS")
+  conflictedInterpreters   Int      @map("CONFLICTED_INTERPRETERS")
+  conflicts                Json     @map("CONFLICTS")
+  processingTimeMs         Int      @map("PROCESSING_TIME_MS")
+  resolutionStrategy       String   @map("RESOLUTION_STRATEGY") @db.VarChar(64)
+  outcome                  String   @map("OUTCOME") @db.VarChar(32)
+  createdAt                DateTime @default(now()) @map("created_at") @db.Timestamp(0)
+
+  @@index([bookingId])
+  @@index([timestamp])
+  @@index([outcome])
+  @@map("CONFLICT_DETECTION_LOG")
+}
+
+model DRPolicyLog {
+  id                      Int      @id @default(autoincrement()) @map("ID")
+  bookingId               Int      @map("BOOKING_ID")
+  interpreterId           String   @map("INTERPRETER_ID") @db.VarChar(64)
+  timestamp               DateTime @map("TIMESTAMP") @db.Timestamp(0)
+  isDRMeeting             Boolean  @map("IS_DR_MEETING")
+  drType                  String?  @map("DR_TYPE") @db.VarChar(32)
+  mode                    String   @map("MODE") @db.VarChar(32)
+  policyApplied           Json     @map("POLICY_APPLIED")
+  lastGlobalDR            Json?    @map("LAST_GLOBAL_DR")
+  drHistory               Json     @map("DR_HISTORY")
+  alternativeInterpreters Int      @map("ALTERNATIVE_INTERPRETERS")
+  finalDecision           String   @map("FINAL_DECISION") @db.VarChar(32)
+  decisionRationale       String   @map("DECISION_RATIONALE") @db.Text
+  createdAt               DateTime @default(now()) @map("created_at") @db.Timestamp(0)
+
+  @@index([bookingId])
+  @@index([interpreterId])
+  @@index([timestamp])
+  @@index([finalDecision])
+  @@map("DR_POLICY_LOG")
+}
+
+model PoolProcessingLog {
+  id                      Int      @id @default(autoincrement()) @map("ID")
+  batchId                 String   @map("BATCH_ID") @db.VarChar(64)
+  mode                    String   @map("MODE") @db.VarChar(32)
+  processingStartTime     DateTime @map("PROCESSING_START_TIME") @db.DateTime(0)
+  processingEndTime       DateTime @map("PROCESSING_END_TIME") @db.DateTime(0)
+  totalEntries            Int      @map("TOTAL_ENTRIES")
+  processedEntries        Int      @map("PROCESSED_ENTRIES")
+  assignedEntries         Int      @map("ASSIGNED_ENTRIES")
+  escalatedEntries        Int      @map("ESCALATED_ENTRIES")
+  failedEntries           Int      @map("FAILED_ENTRIES")
+  fairnessImprovement     Float?   @map("FAIRNESS_IMPROVEMENT")
+  averageProcessingTimeMs Int      @map("AVERAGE_PROCESSING_TIME_MS")
+  systemLoad              String   @map("SYSTEM_LOAD") @db.VarChar(16)
+  errors                  Json     @map("ERRORS")
+  performance             Json     @map("PERFORMANCE")
+  createdAt               DateTime @default(now()) @map("created_at") @db.Timestamp(0)
+
+  @@index([batchId])
+  @@index([mode])
+  @@index([processingStartTime])
+  @@map("POOL_PROCESSING_LOG")
+}
+
+model SystemErrorLog {
+  id             Int      @id @default(autoincrement()) @map("ID")
+  operation      String   @map("OPERATION") @db.VarChar(128)
+  bookingId      Int?     @map("BOOKING_ID")
+  interpreterId  String?  @map("INTERPRETER_ID") @db.VarChar(64)
+  errorName      String   @map("ERROR_NAME") @db.VarChar(128)
+  errorMessage   String   @map("ERROR_MESSAGE") @db.Text
+  errorStack     String?  @map("ERROR_STACK") @db.Text
+  systemState    Json     @map("SYSTEM_STATE")
+  additionalData Json?    @map("ADDITIONAL_DATA")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamp(0)
+
+  @@index([operation])
+  @@index([bookingId])
+  @@index([createdAt])
+  @@map("SYSTEM_ERROR_LOG")
 }
 
 enum DRType {
@@ -215,4 +309,13 @@ enum WeekOrder {
 enum RoleCode {
   ADMIN
   INTERPRETER
+}
+
+enum PoolStatus {
+  waiting
+  ready
+  processing
+  failed
+
+  @@map("pool_status")
 }

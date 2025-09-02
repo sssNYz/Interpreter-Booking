@@ -6,22 +6,22 @@ import { getMeetingTypePriority } from "./policy";
  */
 export async function computeEnhancedUrgencyScore(
   startTime: Date,
-  meetingType: string,
-  minAdvanceDays: number
+  meetingType: string
 ): Promise<number> {
   const daysUntil = getDaysUntil(startTime);
   const priority = await getMeetingTypePriority(meetingType);
   const priorityValue = priority?.priorityValue || 1;
+  const urgentThreshold = priority?.urgentThresholdDays || 1;
   
   // If already past start time, maximum urgency
   if (daysUntil < 0) {
     return 1.0;
   }
   
-  // If within minimum advance days, calculate urgency with diminishing returns
-  if (daysUntil <= minAdvanceDays) {
+  // If within urgent threshold days, calculate urgency with diminishing returns
+  if (daysUntil <= urgentThreshold) {
     // Exponential decay: closer = exponentially higher score
-    const timeScore = Math.pow(2, (minAdvanceDays - daysUntil) / 2);
+    const timeScore = Math.pow(2, (urgentThreshold - daysUntil) / 2);
     const cappedTimeScore = Math.min(timeScore, 100); // Cap at 100x
     
     // Combine priority and time using multiplication
@@ -40,22 +40,22 @@ export async function computeEnhancedUrgencyScore(
  * Higher score = more urgent (closer to start time)
  * @deprecated Use computeEnhancedUrgencyScore instead
  */
-export function computeUrgencyScore(
+export async function computeUrgencyScore(
   startTime: Date,
-  minAdvanceDays: number
-): number {
-  const now = new Date();
-  const timeDiff = startTime.getTime() - now.getTime();
-  const daysUntil = Math.floor(timeDiff / (1000 * 60 * 60 * 24));
+  meetingType: string
+): Promise<number> {
+  const daysUntil = getDaysUntil(startTime);
+  const priority = await getMeetingTypePriority(meetingType);
+  const urgentThreshold = priority?.urgentThresholdDays || 1;
   
   // If already past start time, maximum urgency
   if (daysUntil < 0) {
     return 1.0;
   }
   
-  // If within minimum advance days, calculate urgency
-  if (daysUntil <= minAdvanceDays) {
-    const urgency = (minAdvanceDays - daysUntil) / minAdvanceDays;
+  // If within urgent threshold days, calculate urgency
+  if (daysUntil <= urgentThreshold) {
+    const urgency = (urgentThreshold - daysUntil) / urgentThreshold;
     return Math.max(0, Math.min(1, urgency)); // clamp to 0..1
   }
   
@@ -73,10 +73,12 @@ export function getDaysUntil(startTime: Date): number {
 }
 
 /**
- * Check if booking is urgent (within minimum advance days)
+ * Check if booking is urgent (within urgent threshold days)
  */
-export function isUrgent(startTime: Date, minAdvanceDays: number): boolean {
-  return getDaysUntil(startTime) <= minAdvanceDays;
+export async function isUrgent(startTime: Date, meetingType: string): Promise<boolean> {
+  const priority = await getMeetingTypePriority(meetingType);
+  const urgentThreshold = priority?.urgentThresholdDays || 1;
+  return getDaysUntil(startTime) <= urgentThreshold;
 }
 
 /**
