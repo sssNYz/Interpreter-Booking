@@ -4,8 +4,6 @@ import type { DayInfo, BarItem } from "@/types/booking";
 import {
   MAX_LANES,
   ROW_HEIGHT,
-  CELL_WIDTH,
-  DAY_LABEL_WIDTH,
   BAR_HEIGHT,
   LANE_TOP_OFFSET,
   BAR_STACK_GAP,
@@ -22,6 +20,8 @@ type Props = {
   isTimeSlotPast: (day: number, slot: string) => boolean;
   onSlotClick: (day: number, slot: string) => void;
   style: React.CSSProperties;
+  cellWidth?: number;
+  dayLabelWidth?: number;
 };
 
 const DayRow: React.FC<Props> = ({
@@ -33,6 +33,8 @@ const DayRow: React.FC<Props> = ({
   isTimeSlotPast,
   onSlotClick,
   style,
+  cellWidth = 120,
+  dayLabelWidth = 120,
 }) => {
   const isWeekendDay = ["Sat", "Sun"].includes(day.dayName);
   const isPastDay = day.isPast;
@@ -57,7 +59,7 @@ const DayRow: React.FC<Props> = ({
       style={{
         ...style,
         display: "grid",
-        gridTemplateColumns: `${DAY_LABEL_WIDTH}px repeat(${timeSlots.length}, ${CELL_WIDTH}px)`,
+        gridTemplateColumns: `${dayLabelWidth}px repeat(${timeSlots.length}, ${cellWidth}px)`,
         height: `${ROW_HEIGHT}px`,
       }}
     >
@@ -120,12 +122,12 @@ const DayRow: React.FC<Props> = ({
       {/* บาร์ overlay */}
       <div className="pointer-events-none absolute z-10" style={{
         top: 0, bottom: 0, left:
-          DAY_LABEL_WIDTH, right: 0
+          dayLabelWidth, right: 0
       }}>
         {bars.map((bar) => {
-          const left = bar.startIndex * CELL_WIDTH; // overlay already offset by day label
+          const left = bar.startIndex * cellWidth; // overlay already offset by day label
           const statusStyle = getStatusStyle(bar.status);
-          const width = (bar.endIndex - bar.startIndex) * CELL_WIDTH;
+          const width = (bar.endIndex - bar.startIndex) * cellWidth;
           const top = LANE_TOP_OFFSET + bar.lane * BAR_STACK_GAP;
           return (
             <HoverCard

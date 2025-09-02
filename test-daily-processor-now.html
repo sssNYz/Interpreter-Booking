@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Daily Pool Processor Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .button { padding: 10px 15px; margin: 5px; background: #007bff; color: white; border: none; border-radius: 3px; cursor: pointer; }
+        .button:hover { background: #0056b3; }
+        .result { margin: 10px 0; padding: 10px; background: #f8f9fa; border-radius: 3px; white-space: pre-wrap; font-family: monospace; }
+        .success { background: #d4edda; border-left: 4px solid #28a745; }
+        .error { background: #f8d7da; border-left: 4px solid #dc3545; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Daily Pool Processor Test</h1>
+        <p>Test the daily pool processor API endpoints. Make sure your server is running on <code>http://localhost:3000</code></p>
+
+        <div class="test-section">
+            <h3>📊 Get Processor Status</h3>
+            <button class="button" onclick="getStatus()">Get Status</button>
+            <div id="status-result" class="result"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>🚀 Initialize Processor</h3>
+            <button class="button" onclick="initializeProcessor()">Initialize</button>
+            <div id="init-result" class="result"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>▶️ Start Processor</h3>
+            <button class="button" onclick="startProcessor()">Start</button>
+            <div id="start-result" class="result"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>⚡ Process Pool Now</h3>
+            <button class="button" onclick="processNow()">Process Now</button>
+            <div id="process-result" class="result"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>🛑 Stop Processor</h3>
+            <button class="button" onclick="stopProcessor()">Stop</button>
+            <div id="stop-result" class="result"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>🔧 Update Interval</h3>
+            <input type="number" id="interval-hours" placeholder="Hours (e.g., 12)" value="12">
+            <button class="button" onclick="updateInterval()">Update Interval</button>
+            <div id="update-result" class="result"></div>
+        </div>
+    </div>
+
+    <script>
+        const baseUrl = 'http://localhost:3000';
+
+        async function makeRequest(url, options = {}) {
+            try {
+                const response = await fetch(url, options);
+                const data = await response.json();
+                return { success: true, data, status: response.status };
+            } catch (error) {
+                return { success: false, error: error.message };
+            }
+        }
+
+        function displayResult(elementId, result) {
+            const element = document.getElementById(elementId);
+            if (result.success) {
+                element.className = 'result success';
+                element.textContent = JSON.stringify(result.data, null, 2);
+            } else {
+                element.className = 'result error';
+                element.textContent = `Error: ${result.error}`;
+            }
+        }
+
+        async function getStatus() {
+            const result = await makeRequest(`${baseUrl}/api/admin/pool/daily-processor`);
+            displayResult('status-result', result);
+        }
+
+        async function initializeProcessor() {
+            const result = await makeRequest(`${baseUrl}/api/admin/pool/daily-processor`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'initialize' })
+            });
+            displayResult('init-result', result);
+        }
+
+        async function startProcessor() {
+            const result = await makeRequest(`${baseUrl}/api/admin/pool/daily-processor`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'start' })
+            });
+            displayResult('start-result', result);
+        }
+
+        async function processNow() {
+            const result = await makeRequest(`${baseUrl}/api/admin/pool/daily-processor`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'process_now' })
+            });
+            displayResult('process-result', result);
+        }
+
+        async function stopProcessor() {
+            const result = await makeRequest(`${baseUrl}/api/admin/pool/daily-processor`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'stop' })
+            });
+            displayResult('stop-result', result);
+        }
+
+        async function updateInterval() {
+            const hours = document.getElementById('interval-hours').value;
+            const result = await makeRequest(`${baseUrl}/api/admin/pool/daily-processor`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ processingIntervalHours: parseInt(hours) })
+            });
+            displayResult('update-result', result);
+        }
+
+        // Auto-load status on page load
+        window.onload = () => {
+            getStatus();
+        };
+    </script>
+</body>
+</html>

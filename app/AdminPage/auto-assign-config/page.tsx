@@ -22,17 +22,6 @@ export default function AutoAssignConfigPage() {
         <AutoAssignConfig />
       </div>
 
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <h3 className="text-lg font-medium text-blue-800 mb-2">
-          How Auto-Assignment Works
-        </h3>
-        <ul className="text-blue-700 space-y-1 text-sm">
-          <li>• <strong>Fairness Score:</strong> Favors interpreters with fewer assigned hours</li>
-          <li>• <strong>Urgency Score:</strong> Favors bookings closer to start time</li>
-          <li>• <strong>LRS Score:</strong> Favors interpreters who haven&apos;t been assigned recently</li>
-          <li>• <strong>Hard Guardrail:</strong> Prevents excessive hour gaps between interpreters</li>
-        </ul>
-      </div>
     </div>
   )
 }
