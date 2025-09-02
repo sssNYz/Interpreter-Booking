@@ -1,11 +1,11 @@
 "use client";
 
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { CalendarDays, Users, Clock, BarChart2 } from "lucide-react";
+import { Users, Clock, BarChart2 } from "lucide-react";
 
 import { JobsTab } from "@/components/AdminDashboards/jobs-total";
 import { HoursTab } from "@/components/AdminDashboards/timejobs-total";
@@ -14,39 +14,13 @@ import { TypesTab } from "@/components/AdminDashboards/mtgtypejobs-total";
 import { AssignmentLogsTab } from "@/components/AdminDashboards/assignment-logs";
 
 import type {
-  DashboardCtx,
-  OwnerGroup,
-  MeetingType,
-  InterpreterName,
   MonthName,
-  MonthlyDataRow,
-  JobsRow,
-  HoursRow,
-  DeptBarsRow,
-  TypesBarsRow,
-  TypesTableRow,
 } from "@/types/overview";
-import { OwnerGroupLabel as OGLabel } from "@/types/overview";
 
 /* ---------------- Theme wrapper (match Booking page) ---------------- */
 const PAGE_WRAPPER = "min-h-screen bg-[#f7f7f7] font-sans text-gray-900";
 
 /* ---------------- Utilities & mini UI ---------------- */
-function sumValues(obj: Record<string, number>) {
-  return Object.values(obj).reduce((a: number, b: number) => a + (b || 0), 0);
-}
-const diffClass = (v: number) => (v < 0 ? "text-red-600" : v > 0 ? "text-emerald-600" : "text-muted-foreground");
-const diffRange = (values: number[]) => {
-  if (!values.length) return 0;
-  let mn = Number.POSITIVE_INFINITY,
-    mx = Number.NEGATIVE_INFINITY;
-  for (const v of values) {
-    const n = Number(v) || 0;
-    mn = Math.min(mn, n);
-    mx = Math.max(mx, n);
-  }
-  return mx - mn;
-};
 
 const Stat = ({
   icon: Icon,
@@ -84,19 +58,8 @@ const getCurrentFiscalMonthLabel = (now = new Date()): MonthName => {
   return mths[map[now.getMonth()]];
 };
 
-/* ---------------- Mock data (aligned with Prisma enums) ---------------- */
+/* ---------------- Constants ---------------- */
 const years: number[] = [2025];
-const months: MonthName[] = ["Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", "Jan", "Feb", "Mar"];
-const interpreters: InterpreterName[] = ["Kiaotchitra", "Pitchaporn"];
-const departments: OwnerGroup[] = ["hardware", "software", "iot", "other"];
-
-const palette = ["#2563eb", "#16a34a", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4", "#f97316", "#10b981", "#dc2626"];
-const interpreterColors: Record<InterpreterName, string> = Object.fromEntries(
-  interpreters.map((n, i) => [n, palette[i % palette.length]])
-) as Record<InterpreterName, string>;
-
-const TYPE_OTHER_KEY = "Other";
-const typeLimit = 8;
 
 /* ---------------- Main component ---------------- */
 export default function Page() {
@@ -224,34 +187,7 @@ export default function Page() {
           return typesData.typesMGIFooter.grand || 0;
         })();
 
-  // Simplified context for child tabs - only pass what's needed
-  const ctx: DashboardCtx = {
-    activeYear,
-    interpreters,
-    months,
-    departments,
-    totalJobsStack: [],
-    jobsFooter: { perInterpreter: [], grand: 0, diff: 0 },
-    totalHoursLineMinutes: [],
-    hoursFooter: { perInterpreter: [], grand: 0, diff: 0 },
-    formatMinutes,
-    deptBarsFlat: [],
-    deptChartWidthPx: 900,
-    deptMGIFooter: { perInterpreter: [], grand: 0, diff: 0 },
-    typesBarsFlat: [],
-    typesChartWidthPx: 900,
-    typesTableA_Rows: [],
-    typesTableA_Footer: { perMonth: [], grand: 0 },
-    typesMGIFooter: { perInterpreter: [], grand: 0, diff: 0 },
-    displayTypes: [],
-    hasOverflowTypes: false,
-    typesSorted: [],
-    typeLimit,
-    interpreterColors,
-    diffClass,
-    diffRange,
-    yearData: [],
-  };
+
 
   // year options
   const yearOptions = years.map((y) => (

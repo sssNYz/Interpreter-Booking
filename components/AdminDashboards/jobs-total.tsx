@@ -44,7 +44,6 @@ export function JobsTab({ year }: { year: number }) {
   const [data, setData] = React.useState<ApiResponse | null>(null);
 
   React.useEffect(() => {
-    let alive = true;
     fetch(`/api/admin-dashboard/jobs-total/${year}`, {
       cache: "no-store",
       next: { revalidate: 0 },
@@ -52,14 +51,12 @@ export function JobsTab({ year }: { year: number }) {
       .then(async (r) => {
         if (!r.ok) throw new Error(`Failed (${r.status})`);
         const j = (await r.json()) as ApiResponse;
-        if (alive) setData(j);
+        setData(j);
       })
       .catch((e) => {
-        if (alive) console.error("Error fetching jobs data:", e);
+        console.error("Error fetching jobs data:", e);
+        setData(null);
       });
-    return () => {
-      alive = false;
-    };
   }, [year]);
 
   const interpreterColors = React.useMemo<Record<InterpreterName, string>>(() => {
@@ -105,14 +102,7 @@ export function JobsTab({ year }: { year: number }) {
                 ))}
               </BarChart>
             </ResponsiveContainer>
-          ) : (
-            <div className="flex items-center justify-center h-full text-gray-500">
-              <div className="text-center">
-                <p className="text-lg font-medium">No Data Available</p>
-                <p className="text-sm">Total Jobs: 0</p>
-              </div>
-            </div>
-          )}
+          ) : null}
         </CardContent>
       </Card>
 
@@ -188,12 +178,7 @@ export function JobsTab({ year }: { year: number }) {
                 </tbody>
               </table>
             </div>
-          ) : (
-            <div className="text-center py-8 text-gray-500">
-              <p className="text-lg font-medium">No Data Available</p>
-              <p className="text-sm">All values show as 0</p>
-            </div>
-          )}
+          ) : null}
         </CardContent>
       </Card>
     </>
