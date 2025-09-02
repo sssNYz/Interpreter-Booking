@@ -8,8 +8,9 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
-  ChevronLeft, ChevronRight, Star, Clock, Info, CheckCircle, XCircle, Hourglass,
-  Calendar, ChevronUp, ChevronDown, SquarePen,
+  ChevronLeft, ChevronRight, Star, HelpCircle, Info, CheckCircle, XCircle, Hourglass,
+  Calendar, ChevronUp, ChevronDown, SquarePen, Users, Circle, AlertTriangle, Clock,
+  RotateCcw,
 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import type { BookingManage, Stats } from "@/types/admin";
@@ -31,6 +32,10 @@ import {
   getStatusColor, 
   getStatusIcon 
 } from "@/utils/booking";
+import { 
+  getMeetingTypeBadge,
+  sortByPriority 
+} from "@/utils/priority";
 import BookingDetailDialog from "../AdminForm/booking-form";
 
 const PAGE_WRAPPER = "min-h-screen bg-[#f7f7f7] font-sans text-gray-900";
@@ -110,7 +115,9 @@ export default function BookingManagement(): React.JSX.Element {
       return searchOk && statusOk && dateOk && reqOk && timeOk && pastOk;
     });
 
-    return sortBookings(filtered, sortByDateAsc);
+    // First sort by priority, then by date
+    const prioritySorted = sortByPriority(filtered);
+    return sortBookings(prioritySorted, sortByDateAsc);
   }, [bookings, filters, sortByDateAsc, showPast]);
 
   // Calculate statistics
@@ -140,6 +147,15 @@ export default function BookingManagement(): React.JSX.Element {
   const updateFilter = (key: keyof typeof filters, value: string) => {
     setFilters((p) => ({ ...p, [key]: value }));
     setPagination((p) => ({ ...p, currentPage: 1 }));
+  };
+
+  const refreshData = async () => {
+    try {
+      setError(null);
+      await fetchBookings();
+    } catch (e) {
+      setError((e as Error).message);
+    }
   };
   
   const handlePageChange = (n: number) => {
@@ -189,10 +205,32 @@ export default function BookingManagement(): React.JSX.Element {
             <Info className="h-5 w-5 text-blue-600" />
             <span className="font-semibold text-blue-800">Legend:</span>
           </div>
+                  <div className="flex items-center gap-4 flex-wrap">
           <div className="flex items-center gap-2">
-            <Star className="h-5 w-5 text-amber-500 fill-amber-500" />
-            <span className="text-blue-700">= DR (High Priority Meeting)</span>
+            <Star className="h-4 w-4 text-red-600" />
+            <span className="text-sm text-gray-700">DR (hover for type)</span>
           </div>
+          <div className="flex items-center gap-2">
+            <Users className="h-4 w-4 text-purple-600" />
+            <span className="text-sm text-gray-700">VIP</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Calendar className="h-4 w-4 text-green-600" />
+            <span className="text-sm text-gray-700">Weekly</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Circle className="h-4 w-4 text-gray-500" />
+            <span className="text-sm text-gray-700">General</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 text-orange-600" />
+            <span className="text-sm text-gray-700">Urgent</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <HelpCircle className="h-4 w-4 text-slate-600" />
+            <span className="text-sm text-gray-700">Other</span>
+          </div>
+        </div>
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-6">
@@ -323,6 +361,7 @@ export default function BookingManagement(): React.JSX.Element {
             <table className="w-full text-sm table-fixed">
                   <thead className="bg-white">
                     <tr className="border-b border-gray-200">
+                      <th className="w-20 px-4 py-3 text-center font-semibold text-gray-900 bg-gray-50 text-sm">Meeting Type</th>
                       <th className="w-32 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">
                         <button
                           onClick={handleDateSortToggle}
@@ -352,6 +391,9 @@ export default function BookingManagement(): React.JSX.Element {
                         key={booking.id}
                         className={`border-b border-gray-100 hover:bg-blue-50 transition-colors ${index % 2 === 0 ? "bg-white" : "bg-gray-50/30"}`}
                       >
+                        <td className="px-4 py-4 text-center">
+                          {getMeetingTypeBadge(booking.meetingType, booking.drType, booking.otherType)}
+                        </td>
                         <td className="px-4 py-4">
                           <div className="flex items-start gap-2">
                             <div className="group relative flex-1">
@@ -364,14 +406,6 @@ export default function BookingManagement(): React.JSX.Element {
                                 </div>
                               )}
                             </div>
-                            {booking.isDR && (
-                              <div className="group relative">
-                                <Star className="h-4 w-4 text-amber-500 fill-amber-500 cursor-help flex-shrink-0" />
-                                <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50">
-                                  High Priority Meeting (DR)
-                                </div>
-                              </div>
-                            )}
                           </div>
                         </td>
                         <td className="px-4 py-4">
@@ -422,6 +456,19 @@ export default function BookingManagement(): React.JSX.Element {
                 {!error && filteredBookings.length === 0 && (
                   <div className="p-6 text-center text-gray-500">No bookings found</div>
                 )}
+
+                <div className="p-4 border-t border-gray-200">
+                  <div className="flex justify-end">
+                    <Button
+                      variant="outline"
+                      onClick={refreshData}
+                      className="flex items-center gap-2"
+                    >
+                      <RotateCcw className="h-4 w-4" />
+                      Refresh Data
+                    </Button>
+                  </div>
+                </div>
           </CardContent>
         </Card>
 
