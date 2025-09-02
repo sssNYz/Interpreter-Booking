@@ -1,0 +1,10 @@
+-- Safe schema update script
+-- This will rename the tables to preserve data instead of dropping them
+
+-- Rename tables to backup versions to preserve data
+RENAME TABLE ENHANCED_ASSIGNMENT_CONFIG TO ENHANCED_ASSIGNMENT_CONFIG_BACKUP;
+RENAME TABLE ASSIGNMENT_POOL TO ASSIGNMENT_POOL_BACKUP;  
+RENAME TABLE CONFIGURATION_CHANGE TO CONFIGURATION_CHANGE_BACKUP;
+RENAME TABLE ENHANCED_ASSIGNMENT_LOG TO ENHANCED_ASSIGNMENT_LOG_BACKUP;
+
+-- Show what was backed up
