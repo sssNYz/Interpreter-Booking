@@ -1,14 +1,20 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Slider } from "@/components/ui/slider";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+
 import { toast } from "sonner";
+import { SaveIcon, TestTubeIcon, AlertTriangleIcon, CheckCircleIcon } from "lucide-react";
+import ModeSelector from "./ModeSelector";
+import ParameterInput from "./ParameterInput";
+
 import type { AssignmentPolicy, MeetingTypePriority } from "@/types/assignment";
 
 interface ConfigData {
@@ -20,7 +26,14 @@ export default function AutoAssignConfig() {
   const [config, setConfig] = useState<ConfigData | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [validating, setValidating] = useState(false);
   const [localConfig, setLocalConfig] = useState<ConfigData | null>(null);
+  const [validationResults, setValidationResults] = useState<any>(null);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  
+  // Use ref to track validation state without causing re-renders
+  const isValidatingRef = useRef(false);
+  const validationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Apply mode defaults to UI when switching away from CUSTOM so users see locked values reflected
   const applyModeDefaultsUI = (mode: 'BALANCE' | 'URGENT' | 'NORMAL' | 'CUSTOM') => {
@@ -35,21 +48,94 @@ export default function AutoAssignConfig() {
       updates = { fairnessWindowDays: 30, maxGapHours: 5, w_fair: 1.2, w_urgency: 0.8, w_lrs: 0.3, drConsecutivePenalty: -0.5 };
     }
     setLocalConfig({ ...localConfig, policy: { ...localConfig.policy, ...updates, mode } });
+    setHasUnsavedChanges(true);
   };
 
   useEffect(() => {
     loadConfig();
   }, []);
 
+  useEffect(() => {
+    // Check for unsaved changes
+    if (config && localConfig) {
+      const hasChanges = JSON.stringify(config) !== JSON.stringify(localConfig);
+      setHasUnsavedChanges(hasChanges);
+    }
+  }, [config, localConfig]);
+
+  // Separate validation function that doesn't depend on anything
+  const runValidation = async (configToValidate: ConfigData) => {
+    // Skip validation if already validating
+    if (isValidatingRef.current) {
+      console.log("⚠️ Validation already in progress, skipping");
+      return;
+    }
+
+    try {
+      isValidatingRef.current = true;
+      setValidating(true);
+      console.log("🔍 Running validation...");
+      
+      const response = await fetch("/api/admin/config/auto-assign/validate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(configToValidate)
+      });
+
+      const result = await response.json();
+      setValidationResults(result);
+      console.log("✅ Validation complete:", result.validation?.overallValid ? 'VALID' : 'INVALID');
+    } catch (error) {
+      console.error("❌ Validation error:", error);
+    } finally {
+      isValidatingRef.current = false;
+      setValidating(false);
+    }
+  };
+
+  // Manual validation function for immediate validation (e.g., before save)
+  const validateNow = () => {
+    if (localConfig) {
+      // Clear any pending validation
+      if (validationTimeoutRef.current) {
+        clearTimeout(validationTimeoutRef.current);
+      }
+      runValidation(localConfig);
+    }
+  };
+
+  useEffect(() => {
+    // Clear any existing timeout
+    if (validationTimeoutRef.current) {
+      clearTimeout(validationTimeoutRef.current);
+    }
+
+    // Debounced validation - only validate after user stops typing for 1000ms
+    if (localConfig) {
+      console.log("⏱️ Scheduling validation in 1000ms...");
+      validationTimeoutRef.current = setTimeout(() => {
+        runValidation(localConfig);
+      }, 1000); // Increased to 1 second for better debouncing
+    }
+
+    // Cleanup function
+    return () => {
+      if (validationTimeoutRef.current) {
+        clearTimeout(validationTimeoutRef.current);
+      }
+    };
+  }, [localConfig]); // Only depend on localConfig, not the validation function
+
   const loadConfig = async () => {
     try {
       setLoading(true);
       const response = await fetch("/api/admin/config/auto-assign");
       const result = await response.json();
-      
+
       if (result.success) {
         setConfig(result.data);
         setLocalConfig(result.data);
+        setHasUnsavedChanges(false);
       } else {
         toast.error("Failed to load configuration");
       }
@@ -62,30 +148,103 @@ export default function AutoAssignConfig() {
   };
 
   const saveConfig = async () => {
-    if (!localConfig) return;
+    if (!localConfig || !config) {
+      toast.error("No configuration to save");
+      return;
+    }
+
+    if (saving) {
+      console.log("⚠️ Save already in progress, ignoring duplicate call");
+      return;
+    }
+
+    // Detect what has actually changed
+    const policyChanged = JSON.stringify(config.policy) !== JSON.stringify(localConfig.policy);
+    const prioritiesChanged = JSON.stringify(config.priorities) !== JSON.stringify(localConfig.priorities);
     
+    if (!policyChanged && !prioritiesChanged) {
+      console.log("ℹ️ No changes detected, skipping save");
+      toast.info("No changes to save");
+      return;
+    }
+
+    console.log("🚀 Attempting to save config changes:");
+    console.log(`   📋 Policy changed: ${policyChanged}`);
+    console.log(`   🎯 Priorities changed: ${prioritiesChanged}`);
+    
+    // Only send changed data
+    const payload: any = {};
+    if (policyChanged) {
+      payload.policy = localConfig.policy;
+      console.log("   📋 Including policy changes");
+    }
+    if (prioritiesChanged) {
+      payload.priorities = localConfig.priorities;
+      console.log("   🎯 Including priority changes");
+    }
+
     try {
       setSaving(true);
+
+      // Log the request payload
+      console.log("📤 Sending request to /api/admin/config/auto-assign");
+      console.log("📦 Optimized payload:", JSON.stringify(payload, null, 2));
+
       const response = await fetch("/api/admin/config/auto-assign", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(localConfig)
+        body: JSON.stringify(payload)
       });
-      
+
+      console.log("📥 Response status:", response.status);
       const result = await response.json();
-      
+      console.log("📥 Response data:", result);
+
       if (result.success) {
         setConfig(result.data);
         setLocalConfig(result.data);
-        toast.success("Configuration saved successfully");
+        setHasUnsavedChanges(false);
+        
+        // Show what was saved
+        const changesSummary = result.changesSummary;
+        let successMessage = "Configuration saved successfully";
+        if (changesSummary) {
+          const changes = [];
+          if (changesSummary.policyUpdated) changes.push("policy");
+          if (changesSummary.prioritiesUpdated) changes.push("priorities");
+          if (changes.length > 0) {
+            successMessage += ` (${changes.join(', ')})`;
+          }
+        }
+        
+        toast.success(successMessage);
+        console.log("✅ Configuration saved successfully");
+        
+        if (result.changesSummary) {
+          console.log("📊 Changes summary:", result.changesSummary);
+        }
       } else {
-        toast.error("Failed to save configuration");
+        console.error("❌ Save failed:", result);
+        toast.error(result.error || "Failed to save configuration");
+
+        // Show detailed error information
+        if (result.validation) {
+          console.log("🔍 Validation details:", result.validation);
+        }
       }
     } catch (error) {
-      console.error("Error saving config:", error);
-      toast.error("Failed to save configuration");
+      console.error("❌ Error saving config:", error);
+      toast.error(`Failed to save configuration: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const resetConfig = () => {
+    if (config) {
+      setLocalConfig(config);
+      setHasUnsavedChanges(false);
+      toast.success("Configuration reset to last saved state");
     }
   };
 
@@ -95,16 +254,26 @@ export default function AutoAssignConfig() {
       ...localConfig,
       policy: { ...localConfig.policy, ...updates }
     });
+    setHasUnsavedChanges(true);
+  };
+
+  const handleModeChange = (mode: AssignmentPolicy['mode']) => {
+    if (mode === 'CUSTOM') {
+      updatePolicy({ mode });
+    } else {
+      applyModeDefaultsUI(mode);
+    }
   };
 
   const updatePriority = (meetingType: string, updates: Partial<MeetingTypePriority>) => {
     if (!localConfig) return;
     setLocalConfig({
       ...localConfig,
-      priorities: localConfig.priorities.map(p => 
+      priorities: localConfig.priorities.map(p =>
         p.meetingType === meetingType ? { ...p, ...updates } : p
       )
     });
+    setHasUnsavedChanges(true);
   };
 
   if (loading) {
@@ -124,22 +293,114 @@ export default function AutoAssignConfig() {
   }
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6">
+      {/* Header with Actions */}
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Auto-Assignment Configuration</h1>
-        <div className="flex items-center space-x-4">
-          <Button 
+        <div>
+          <h1 className="text-3xl font-bold">Auto-Assignment Configuration</h1>
+          <p className="text-muted-foreground mt-1">
+            Configure interpreter assignment behavior and policies
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          {hasUnsavedChanges && (
+            <Badge variant="outline" className="text-orange-600 border-orange-200">
+              Unsaved Changes
+            </Badge>
+          )}
+          <Button
             onClick={() => window.open('/AdminPage/mode-test', '_blank')}
             variant="outline"
-            className="bg-blue-50 hover:bg-blue-100"
+            className="flex items-center gap-2"
           >
-            🧪 Test Different Modes
+            <TestTubeIcon className="h-4 w-4" />
+            Test Modes
           </Button>
-          <Button onClick={saveConfig} disabled={saving}>
+          <Button
+            onClick={async () => {
+              try {
+                const response = await fetch("/api/admin/config/debug");
+                const result = await response.json();
+                console.log("🔍 Debug info:", result);
+                toast.success("Debug info logged to console");
+              } catch (error) {
+                console.error("Debug error:", error);
+                toast.error("Debug failed");
+              }
+            }}
+            variant="outline"
+            className="flex items-center gap-2"
+          >
+            🔍 Debug
+          </Button>
+          <Button
+            onClick={validateNow}
+            variant="outline"
+            className="flex items-center gap-2"
+          >
+            ✅ Validate Now
+          </Button>
+          {hasUnsavedChanges && (
+            <Button onClick={resetConfig} variant="outline">
+              Reset
+            </Button>
+          )}
+          <Button
+            onClick={saveConfig}
+            disabled={saving}
+            className="flex items-center gap-2"
+          >
+            <SaveIcon className="h-4 w-4" />
             {saving ? "Saving..." : "Save Configuration"}
           </Button>
         </div>
       </div>
+
+      {/* Real-time Validation Status */}
+      {validationResults && (
+        <div className="space-y-2">
+          {validationResults.errors?.length > 0 && (
+            <Alert variant="destructive">
+              <AlertTriangleIcon className="h-4 w-4" />
+              <AlertDescription>
+                <div className="space-y-1">
+                  <p className="font-medium">Configuration Errors:</p>
+                  <ul className="text-sm space-y-1">
+                    {validationResults.errors.map((error: string, index: number) => (
+                      <li key={index}>• {error}</li>
+                    ))}
+                  </ul>
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {validationResults.warnings?.length > 0 && (
+            <Alert variant="default">
+              <AlertTriangleIcon className="h-4 w-4" />
+              <AlertDescription>
+                <div className="space-y-1">
+                  <p className="font-medium">Configuration Warnings:</p>
+                  <ul className="text-sm space-y-1">
+                    {validationResults.warnings.map((warning: string, index: number) => (
+                      <li key={index}>• {warning}</li>
+                    ))}
+                  </ul>
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {validationResults.isValid && validationResults.warnings?.length === 0 && (
+            <Alert variant="default" className="border-green-200 bg-green-50">
+              <CheckCircleIcon className="h-4 w-4 text-green-600" />
+              <AlertDescription className="text-green-800">
+                Configuration is valid and ready to save
+              </AlertDescription>
+            </Alert>
+          )}
+        </div>
+      )}
 
       {/* Master Toggle */}
       <Card>
@@ -148,60 +409,45 @@ export default function AutoAssignConfig() {
           <CardDescription>Master switch to enable/disable auto-assignment</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center space-x-2">
-            <Switch
-              id="autoAssignEnabled"
-              checked={localConfig.policy.autoAssignEnabled}
-              onCheckedChange={(checked) => updatePolicy({ autoAssignEnabled: checked })}
-            />
-            <Label htmlFor="autoAssignEnabled">
-              {localConfig.policy.autoAssignEnabled ? "Enabled" : "Disabled"}
-            </Label>
+          <div className="flex items-center justify-between">
+            <div>
+              <Label htmlFor="autoAssignEnabled" className="text-base font-medium">
+                Auto-Assignment System
+              </Label>
+              <p className="text-sm text-muted-foreground">
+                Enable or disable automatic interpreter assignment
+              </p>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="autoAssignEnabled"
+                checked={localConfig.policy.autoAssignEnabled}
+                onCheckedChange={(checked) => updatePolicy({ autoAssignEnabled: checked })}
+              />
+              <Badge variant={localConfig.policy.autoAssignEnabled ? "default" : "secondary"}>
+                {localConfig.policy.autoAssignEnabled ? "Enabled" : "Disabled"}
+              </Badge>
+            </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Assignment Mode */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Assignment Mode</CardTitle>
-          <CardDescription>Choose the assignment strategy for interpreters</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="mode">Assignment Mode</Label>
-              <Select
-                value={localConfig.policy.mode}
-                onValueChange={(value) => {
-                  const m = value as 'BALANCE' | 'URGENT' | 'NORMAL' | 'CUSTOM';
-                  if (m !== 'CUSTOM') {
-                    applyModeDefaultsUI(m);
-                  } else {
-                    updatePolicy({ mode: m });
-                  }
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select mode" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="BALANCE">Balance Mode - Prioritize workload fairness</SelectItem>
-                  <SelectItem value="URGENT">Urgent Mode - Prioritize time-critical assignments</SelectItem>
-                  <SelectItem value="NORMAL">Normal Mode - Balanced approach</SelectItem>
-                  <SelectItem value="CUSTOM">Custom Mode - Manually configure all settings</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="text-sm text-muted-foreground">
-              <strong>Balance Mode:</strong> Fairness (2.0x), Urgency (0.6x), LRS (0.6x)<br/>
-              <strong>Urgent Mode:</strong> Fairness (0.5x), Urgency (2.5x), LRS (0.2x)<br/>
-              <strong>Normal Mode:</strong> Fairness (1.2x), Urgency (0.8x), LRS (0.3x)
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Mode Selection */}
+      <ModeSelector
+        policy={localConfig.policy}
+        onModeChange={handleModeChange}
+        onPolicyUpdate={updatePolicy}
+      />
+
+      <Separator />
+
+      {/* Parameter Configuration */}
+      <ParameterInput
+        policy={localConfig.policy}
+        onPolicyUpdate={updatePolicy}
+      />
+
+      <Separator />
 
       {/* Meeting Type Priorities */}
       <Card>
@@ -214,47 +460,50 @@ export default function AutoAssignConfig() {
             {/* Debug info */}
             {localConfig.priorities.length === 0 && (
               <div className="text-center p-4 border-2 border-dashed border-gray-300 rounded-lg">
-                <p className="text-gray-500 mb-2">No meeting type priorities found</p>
-                <Button
-                  variant="outline"
-                  onClick={async () => {
-                    try {
-                      // Create default priorities
-                      const defaultPriorities = [
-                        { meetingType: 'DR', priorityValue: 5, urgentThresholdDays: 1, generalThresholdDays: 7 },
-                        { meetingType: 'VIP', priorityValue: 4, urgentThresholdDays: 2, generalThresholdDays: 14 },
-                        { meetingType: 'Weekly', priorityValue: 3, urgentThresholdDays: 3, generalThresholdDays: 30 },
-                        { meetingType: 'General', priorityValue: 2, urgentThresholdDays: 3, generalThresholdDays: 30 },
-                        { meetingType: 'Augent', priorityValue: 2, urgentThresholdDays: 3, generalThresholdDays: 30 },
-                        { meetingType: 'Other', priorityValue: 1, urgentThresholdDays: 5, generalThresholdDays: 45 }
-                      ];
-                      
-                      setLocalConfig({
-                        ...localConfig,
-                        priorities: defaultPriorities.map((p, index) => ({
-                          ...p,
-                          id: index + 1,
-                          createdAt: new Date(),
-                          updatedAt: new Date()
-                        }))
-                      });
-                      
-                      toast.success("Default priorities created");
-                    } catch (error) {
-                      toast.error("Failed to create default priorities");
-                    }
-                  }}
-                >
-                  Create Default Priorities
-                </Button>
+                <p className="text-gray-500 mb-2">No meeting type priorities found in database</p>
+                <p className="text-sm text-gray-400 mb-4">
+                  Meeting type priorities are required for the auto-assignment system to work properly.
+                </p>
+                <div className="space-y-2">
+                  <Button
+                    variant="outline"
+                    onClick={async () => {
+                      try {
+                        // Call API to initialize priorities in database
+                        const response = await fetch("/api/admin/config/auto-assign/init-priorities", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" }
+                        });
+
+                        const result = await response.json();
+
+                        if (result.success) {
+                          // Reload configuration to get the new priorities
+                          await loadConfig();
+                          toast.success("Default priorities created in database");
+                        } else {
+                          throw new Error(result.error || "Failed to create priorities");
+                        }
+                      } catch (error) {
+                        console.error("Error creating priorities:", error);
+                        toast.error("Failed to create default priorities");
+                      }
+                    }}
+                  >
+                    Initialize Default Priorities
+                  </Button>
+                  <p className="text-xs text-gray-400">
+                    This will create default priorities in the database for DR, VIP, Weekly, General, Augent, and Other meeting types.
+                  </p>
+                </div>
               </div>
             )}
-            
+
             {/* Show priorities count for debugging */}
             <div className="text-sm text-gray-500">
               Found {localConfig.priorities.length} meeting type priorities
             </div>
-            
+
             {/* Debug: Show raw priorities data */}
             <details className="text-xs text-gray-400">
               <summary>Debug: Raw priorities data</summary>
@@ -262,7 +511,25 @@ export default function AutoAssignConfig() {
                 {JSON.stringify(localConfig.priorities, null, 2)}
               </pre>
             </details>
-            
+
+            {/* Debug: Show validation results */}
+            <details className="text-xs text-gray-400">
+              <summary>Debug: Validation results</summary>
+              <pre className="mt-2 p-2 bg-gray-100 rounded overflow-auto">
+                {JSON.stringify(validationResults, null, 2)}
+              </pre>
+            </details>
+
+            {/* Debug: Show save button state */}
+            <div className="text-xs text-gray-400 p-2 bg-gray-50 rounded">
+              <p><strong>Save Button Debug:</strong></p>
+              <p>• Saving: {saving ? 'true' : 'false'}</p>
+              <p>• Has validation results: {validationResults ? 'true' : 'false'}</p>
+              <p>• Validation is valid: {validationResults?.isValid ? 'true' : 'false'}</p>
+              <p>• Button disabled: {(saving || (validationResults && !validationResults.isValid)) ? 'true' : 'false'}</p>
+              <p>• Has unsaved changes: {hasUnsavedChanges ? 'true' : 'false'}</p>
+            </div>
+
             {localConfig.priorities.map((priority) => (
               <div key={priority.meetingType} className="grid grid-cols-4 gap-4 p-4 border rounded-lg">
                 <div>
@@ -283,8 +550,8 @@ export default function AutoAssignConfig() {
                     type="number"
                     min="1"
                     max="10"
-                    value={priority.priorityValue}
-                    onChange={(e) => updatePriority(priority.meetingType, { priorityValue: parseInt(e.target.value) })}
+                    value={priority.priorityValue || 1}
+                    onChange={(e) => updatePriority(priority.meetingType, { priorityValue: parseInt(e.target.value) || 1 })}
                     disabled={false}
                     className={''}
                   />
@@ -296,8 +563,8 @@ export default function AutoAssignConfig() {
                     type="number"
                     min="0"
                     max="30"
-                    value={priority.urgentThresholdDays}
-                    onChange={(e) => updatePriority(priority.meetingType, { urgentThresholdDays: parseInt(e.target.value) })}
+                    value={priority.urgentThresholdDays || 0}
+                    onChange={(e) => updatePriority(priority.meetingType, { urgentThresholdDays: parseInt(e.target.value) || 0 })}
                     disabled={localConfig.policy.mode !== 'CUSTOM'}
                     className={localConfig.policy.mode !== 'CUSTOM' ? 'opacity-50' : ''}
                   />
@@ -309,8 +576,8 @@ export default function AutoAssignConfig() {
                     type="number"
                     min="1"
                     max="90"
-                    value={priority.generalThresholdDays}
-                    onChange={(e) => updatePriority(priority.meetingType, { generalThresholdDays: parseInt(e.target.value) })}
+                    value={priority.generalThresholdDays || 1}
+                    onChange={(e) => updatePriority(priority.meetingType, { generalThresholdDays: parseInt(e.target.value) || 1 })}
                     disabled={localConfig.policy.mode !== 'CUSTOM'}
                     className={localConfig.policy.mode !== 'CUSTOM' ? 'opacity-50' : ''}
                   />
@@ -321,156 +588,7 @@ export default function AutoAssignConfig() {
         </CardContent>
       </Card>
 
-      {/* Fairness Settings */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Fairness Settings</CardTitle>
-          <CardDescription>Configure workload balance and fairness parameters</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div>
-            <h4 className="font-medium">Hour Balance Tolerance</h4>
-            <p className="text-sm text-muted-foreground mb-2">
-              Maximum allowed difference in hours between interpreters
-            </p>
-            <div className="flex items-center space-x-4">
-              <Slider
-                value={[localConfig.policy.maxGapHours]}
-                onValueChange={([value]) => updatePolicy({ maxGapHours: value })}
-                max={100}
-                min={1}
-                step={1}
-                className="flex-1"
-                disabled={localConfig.policy.mode !== 'CUSTOM'}
-              />
-              <span className={`min-w-[3rem] text-center ${localConfig.policy.mode !== 'CUSTOM' ? 'opacity-50' : ''}`}>{localConfig.policy.maxGapHours}h</span>
-            </div>
-          </div>
 
-          <div>
-            <h4 className="font-medium">Fairness Window</h4>
-            <p className="text-sm text-muted-foreground mb-2">
-              Number of days to look back when calculating workload balance
-            </p>
-            <div className="flex items-center space-x-4">
-              <Slider
-                value={[localConfig.policy.fairnessWindowDays]}
-                onValueChange={([value]) => updatePolicy({ fairnessWindowDays: value })}
-                max={90}
-                min={7}
-                step={1}
-                className="flex-1"
-                disabled={localConfig.policy.mode !== 'CUSTOM'}
-              />
-              <span className={`min-w-[3rem] text-center ${localConfig.policy.mode !== 'CUSTOM' ? 'opacity-50' : ''}`}>{localConfig.policy.fairnessWindowDays} days</span>
-            </div>
-          </div>
-
-          <div>
-            <h4 className="font-medium">Minimum Advance Days</h4>
-            <p className="text-sm text-muted-foreground mb-2">
-              Days before a booking starts when urgency scoring begins
-            </p>
-            <div className="flex items-center space-x-4">
-              <Slider
-                value={[localConfig.policy.minAdvanceDays]}
-                onValueChange={([value]) => updatePolicy({ minAdvanceDays: value })}
-                max={30}
-                min={0}
-                step={1}
-                className="flex-1"
-                disabled={localConfig.policy.mode !== 'CUSTOM'}
-              />
-              <span className={`min-w-[3rem] text-center ${localConfig.policy.mode !== 'CUSTOM' ? 'opacity-50' : ''}`}>{localConfig.policy.minAdvanceDays} days</span>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Scoring Weights */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Scoring Weights</CardTitle>
-          <CardDescription>Configure the importance of different factors in interpreter selection</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div>
-            <h4 className="font-medium">Hour Balance Importance</h4>
-            <p className="text-sm text-muted-foreground mb-2">
-              Higher values ensure more balanced workloads, while lower values allow other factors to dominate.
-            </p>
-            <div className="flex items-center space-x-4">
-              <Slider
-                value={[localConfig.policy.w_fair]}
-                onValueChange={([value]) => updatePolicy({ w_fair: value })}
-                max={5}
-                min={0}
-                step={0.1}
-                className="flex-1"
-                disabled={localConfig.policy.mode !== 'CUSTOM'}
-              />
-              <span className={`min-w-[3rem] text-center ${localConfig.policy.mode !== 'CUSTOM' ? 'opacity-50' : ''}`}>{localConfig.policy.w_fair.toFixed(1)}</span>
-            </div>
-          </div>
-
-          <div>
-            <h4 className="font-medium">Urgency Importance</h4>
-            <p className="text-sm text-muted-foreground mb-2">
-              Higher values ensure urgent bookings get assigned quickly, even if it means less balanced hours.
-            </p>
-            <div className="flex items-center space-x-4">
-              <Slider
-                value={[localConfig.policy.w_urgency]}
-                onValueChange={([value]) => updatePolicy({ w_urgency: value })}
-                max={5}
-                min={0}
-                step={0.1}
-                className="flex-1"
-                disabled={localConfig.policy.mode !== 'CUSTOM'}
-              />
-              <span className={`min-w-[3rem] text-center ${localConfig.policy.mode !== 'CUSTOM' ? 'opacity-50' : ''}`}>{localConfig.policy.w_urgency.toFixed(1)}</span>
-            </div>
-          </div>
-
-          <div>
-            <h4 className="font-medium">Rotation Importance (LRS)</h4>
-            <p className="text-sm text-muted-foreground mb-2">
-              Higher values ensure interpreters who haven&apos;t been assigned recently get priority.
-            </p>
-            <div className="flex items-center space-x-4">
-              <Slider
-                value={[localConfig.policy.w_lrs]}
-                onValueChange={([value]) => updatePolicy({ w_lrs: value })}
-                max={5}
-                min={0}
-                step={0.1}
-                className="flex-1"
-                disabled={localConfig.policy.mode !== 'CUSTOM'}
-              />
-              <span className={`min-w-[3rem] text-center ${localConfig.policy.mode !== 'CUSTOM' ? 'opacity-50' : ''}`}>{localConfig.policy.w_lrs.toFixed(1)}</span>
-            </div>
-          </div>
-
-          <div>
-            <h4 className="font-medium">DR Consecutive Penalty</h4>
-            <p className="text-sm text-muted-foreground mb-2">
-              Penalty applied to interpreters with recent DR assignments to prevent burnout.
-            </p>
-            <div className="flex items-center space-x-4">
-              <Slider
-                value={[localConfig.policy.drConsecutivePenalty]}
-                onValueChange={([value]) => updatePolicy({ drConsecutivePenalty: value })}
-                max={0}
-                min={-2}
-                step={0.1}
-                className="flex-1"
-                disabled={localConfig.policy.mode !== 'CUSTOM'}
-              />
-              <span className={`min-w-[3rem] text-center ${localConfig.policy.mode !== 'CUSTOM' ? 'opacity-50' : ''}`}>{localConfig.policy.drConsecutivePenalty.toFixed(1)}</span>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }
