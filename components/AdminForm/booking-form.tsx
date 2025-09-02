@@ -88,7 +88,7 @@ function getBookingId(b?: BookingForDialog | null): number | undefined {
 /* ================= API ================= */
 async function fetchAvailability(bookingId: number): Promise<AvailabilityListResponse> {
   const res = await fetch(
-    `/api/booking-data/get-booking-interpreter/${bookingId}?excludeCurrent=true&limit=50&lang=th`,
+    `/api/booking-data/get-booking-interpreter/${bookingId}?excludeCurrent=true&limit=50&lang=en`,
     { cache: "no-store" }
   );
   if (!res.ok) throw new Error(`Availability failed (${res.status})`);
@@ -154,7 +154,12 @@ const InterpreterSelector: React.FC<{
       setServerUpdatedAt(data.updatedAt);
       onServerVersion?.(data.updatedAt);
     } catch (e) {
-      setErr((e as Error).message);
+      const error = e as Error;
+      if (error.message.includes("404") || error.message.includes("NOT_FOUND")) {
+        setErr(`Booking ${bookingId} not found. It may have been deleted.`);
+      } else {
+        setErr(error.message);
+      }
     } finally {
       setLoading(false);
     }
@@ -195,27 +200,35 @@ const InterpreterSelector: React.FC<{
             aria-label="Select interpreter"
           >
             <SelectTrigger
-              className="w-full h-11 text-base overflow-hidden pr-10"
+              className="w-full h-auto min-h-[2.75rem] text-base pr-10"
               title={selectedDisplayName || undefined}
               aria-label="Interpreter selector trigger"
             >
               <SelectValue
                 placeholder={loading ? "Loading..." : options.length ? "Select interpreter" : "No available interpreters"}
-              />
+              >
+                {selectedDisplayName && (
+                  <div className="break-words text-sm leading-relaxed whitespace-normal w-full">
+                    {selectedDisplayName}
+                  </div>
+                )}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent
               className="
                 w-[var(--radix-select-trigger-width)]
-                max-w-[min(56rem,calc(100vw-2rem))]
-                max-h-[60vh] overflow-auto
+                max-w-[min(80rem,calc(100vw-2rem))]
+                max-h-[60vh] overflow-y-auto overflow-x-hidden
                 z-50
               "
             >
               {options.map((o) => (
-                <SelectItem key={o.empCode} value={o.empCode} className="max-w-full">
-                  <span className="block truncate max-w-[52rem]" title={`${o.name} (${o.empCode})`}>
-                    {o.name} ({o.empCode})
-                  </span>
+                <SelectItem key={o.empCode} value={o.empCode} className="w-full">
+                  <div className="w-full px-2 py-1">
+                    <div className="break-words text-sm leading-relaxed whitespace-normal" title={`${o.name} (${o.empCode})`}>
+                      {o.name} ({o.empCode})
+                    </div>
+                  </div>
                 </SelectItem>
               ))}
             </SelectContent>
@@ -226,7 +239,6 @@ const InterpreterSelector: React.FC<{
         {!err && options.length === 0 && !loading && (
           <p className="text-xs text-gray-500">No available interpreters in this time window.</p>
         )}
-        {serverUpdatedAt && <p className="text-[11px] text-gray-400">version: {serverUpdatedAt}</p>}
       </div>
     </div>
   );
@@ -373,14 +385,18 @@ const BookingDetailDialog: React.FC<Props> = ({ open, onOpenChange, editData, is
                   <h3 className="text-xs font-semibold text-gray-900 mb-3">People & Status</h3>
                   <dl className="space-y-3">
                     <Row label="Booked By">
-                      <span className="truncate max-w-full inline-block" title={booking.bookedBy}>
-                        {booking.bookedBy}
-                      </span>
+                      <div className="max-w-full">
+                        <div className="break-words text-sm leading-tight" title={booking.bookedBy}>
+                          {booking.bookedBy}
+                        </div>
+                      </div>
                     </Row>
                     <Row label="Interpreter">
-                      <span className="truncate max-w-full inline-block" title={booking.interpreter || undefined}>
-                        {booking.interpreter || "-"}
-                      </span>
+                      <div className="max-w-full">
+                        <div className="break-words text-sm leading-tight" title={booking.interpreter || undefined}>
+                          {booking.interpreter || "-"}
+                        </div>
+                      </div>
                     </Row>
                     {booking?.group && <Row label="Group">{booking.group.toUpperCase()}</Row>}
                     <Row label="Status">
