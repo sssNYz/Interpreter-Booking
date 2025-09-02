@@ -80,7 +80,7 @@ export async function GET(request: NextRequest) {
 
     // ===== Query DB =====
     // Fetch full set (without pagination) -> dedupe -> (optionally) slice
-    const [logs, totalDb] = await Promise.all([
+    const [logs] = await Promise.all([
       prisma.assignmentLog.findMany({
         where: whereConditions,
         select: {
