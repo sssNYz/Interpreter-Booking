@@ -48,7 +48,10 @@
         startTime: extractHHMM(b.timeStart.toISOString()),          // "HH:mm"
         endTime: extractHHMM(b.timeEnd.toISOString()),              // "HH:mm"
         requestedTime: `${extractYMD(b.createdAt.toISOString())} ${extractHHMM(b.createdAt.toISOString())}:00`,
-        isDR: (b as unknown as { highPriority: boolean }).highPriority,                     // boolean
+        isDR: b.meetingType === "DR",                              // boolean - based on meetingType
+        drType: b.drType,                                          // DR type from schema
+        meetingType: b.meetingType,                                // Meeting type from schema
+        otherType: b.otherType,                                    // Other type from schema
       };
     });
 

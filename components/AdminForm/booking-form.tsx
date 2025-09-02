@@ -4,8 +4,9 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { RefreshCw, Star, CheckCircle, XCircle, Hourglass } from "lucide-react";
+import { RefreshCw, CheckCircle, XCircle, Hourglass } from "lucide-react";
 import type { BookingManage } from "@/types/admin";
+import { getMeetingTypeBadge } from "@/utils/priority";
 
 /* ================= helpers: format ================= */
 const fmtDate = (ymd: string) => {
@@ -137,7 +138,7 @@ const InterpreterSelector: React.FC<{
   const [loading, setLoading] = useState<boolean>(false);
   const [options, setOptions] = useState<{ empCode: string; name: string }[]>([]);
   const [selected, setSelected] = useState<string>("");
-  const [serverUpdatedAt, setServerUpdatedAt] = useState<string>("");
+
   const [err, setErr] = useState<string>("");
 
   const selectedDisplayName = useMemo(() => {
@@ -151,7 +152,7 @@ const InterpreterSelector: React.FC<{
     try {
       const data = await fetchAvailability(bookingId);
       setOptions(data.interpreters);
-      setServerUpdatedAt(data.updatedAt);
+
       onServerVersion?.(data.updatedAt);
     } catch (e) {
       const error = e as Error;
@@ -338,25 +339,22 @@ const BookingDetailDialog: React.FC<Props> = ({ open, onOpenChange, editData, is
         className="
           grid grid-rows-[auto,1fr,auto]
           w-[min(96vw,56rem)] max-w-4xl
-          max-h-[calc(100dvh-6rem)]
-          overflow-hidden p-0
+          max-h-[calc(100dvh-2rem)]
+          overflow-visible p-0
+          border-t border-r border-b border-l border-gray-200
+          shadow-none rounded-lg
         "
       >
         {/* Header */}
         <DialogHeader className="px-6 pt-6 pb-3">
           <DialogTitle className="flex items-center gap-3 text-lg sm:text-xl font-semibold">
             {isEditing ? "Booking Details" : "Create Booking"}
-            {booking?.isDR && (
-              <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-500 text-white rounded-full text-xs font-semibold">
-                <Star className="h-3.5 w-3.5 fill-current" />
-                DR
-              </span>
-            )}
+            {booking && getMeetingTypeBadge(booking.meetingType, booking.drType, booking.otherType)}
           </DialogTitle>
         </DialogHeader>
 
-        {/* Scrollable Body */}
-        <div className="px-6 pb-4 overflow-y-auto min-w-0">
+        {/* Content Body */}
+        <div className="px-6 pb-4 min-w-0">
           {!booking ? (
             <div className="pb-6 text-sm text-gray-600">No booking selected.</div>
           ) : (
@@ -399,6 +397,9 @@ const BookingDetailDialog: React.FC<Props> = ({ open, onOpenChange, editData, is
                       </div>
                     </Row>
                     {booking?.group && <Row label="Group">{booking.group.toUpperCase()}</Row>}
+                    <Row label="Meeting Type">
+                      {getMeetingTypeBadge(booking.meetingType, booking.drType, booking.otherType)}
+                    </Row>
                     <Row label="Status">
                       <Status value={booking.status} />
                     </Row>
@@ -436,27 +437,29 @@ const BookingDetailDialog: React.FC<Props> = ({ open, onOpenChange, editData, is
         </div>
 
         {/* Footer */}
-        <div className="bg-white border-t border-gray-200 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] flex flex-col sm:flex-row gap-3">
-          <Button
-            className="flex-1 h-11 text-base bg-emerald-600 hover:bg-emerald-700"
-            disabled={!canApprove || submitting === "cancel"}
-            aria-busy={submitting === "approve" || submitting === "apply"}
-            onClick={handleApproveOrApply}
-            title={booking?.status === "Wait" ? "Approve booking with selected interpreter" : "Apply interpreter change"}
-          >
-            {booking?.status === "Wait"
-              ? submitting === "approve" ? "Approving..." : "Approve"
-              : submitting === "apply" ? "Applying..." : "Apply"}
-          </Button>
-          <Button
-            variant="destructive"
-            className="flex-1 h-11 text-base"
-            disabled={!bookingIdForApi || submitting !== null}
-            aria-busy={submitting === "cancel"}
-            onClick={handleCancel}
-          >
-            {submitting === "cancel" ? "Cancelling..." : "Cancel Booking"}
-          </Button>
+        <div className=" border-t border-gray-200 px-6 pt-6 pb-12">
+          <div className="flex flex-col sm:flex-row gap-3 justify-center items-center">
+            <Button
+              className="w-full sm:w-auto sm:min-w-[140px] h-11 text-base bg-emerald-600 hover:bg-emerald-700"
+              disabled={!canApprove || submitting === "cancel"}
+              aria-busy={submitting === "approve" || submitting === "apply"}
+              onClick={handleApproveOrApply}
+              title={booking?.status === "Wait" ? "Approve booking with selected interpreter" : "Apply interpreter change"}
+            >
+              {booking?.status === "Wait"
+                ? submitting === "approve" ? "Approving..." : "Approve"
+                : submitting === "apply" ? "Applying..." : "Apply"}
+            </Button>
+            <Button
+              variant="destructive"
+              className="w-full sm:w-auto sm:min-w-[140px] h-11 text-base"
+              disabled={!bookingIdForApi || submitting !== null}
+              aria-busy={submitting === "cancel"}
+              onClick={handleCancel}
+            >
+              {submitting === "cancel" ? "Cancelling..." : "Cancel Booking"}
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>
