@@ -21,37 +21,14 @@ import {
 } from "lucide-react";
 
 /* ========= Types ========= */
-interface LogItem {
-  id: number;
-  createdAt: string; // requested time
-  bookingId: number;
-  status: string; // "assigned" when present
-  bookingPlan: {
-    meetingType: string;
-    drType?: string | null;
-    timeStart: string;
-    timeEnd: string;
-    meetingRoom: string;
-    employee?: {
-      empCode: string;
-      firstNameEn?: string | null;
-      lastNameEn?: string | null;
-      firstNameTh?: string | null;
-      lastNameTh?: string | null;
-    } | null;
-  };
-  interpreterEmployee?: {
-    empCode: string;
-    firstNameEn?: string | null;
-    lastNameEn?: string | null;
-    firstNameTh?: string | null;
-    lastNameTh?: string | null;
-  } | null;
-}
+import type {
+  AssignmentLogItem,
+  AssignmentLogsApiResponse,
+} from "@/types/admin-dashboard";
 
-interface ApiResponse {
-  items: LogItem[];
-}
+// Use centralized types
+type LogItem = AssignmentLogItem;
+type ApiResponse = AssignmentLogsApiResponse;
 
 /* ========= Utils ========= */
 const toLocalDate = (iso: string) => new Date(iso).toLocaleDateString();
@@ -236,26 +213,28 @@ export function AssignmentLogsTab() {
     <div className="space-y-4">
       {/* Toolbar */}
       <div className="bg-white p-4 rounded-2xl border border-gray-200">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full sm:w-auto">
-            <div className="flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-gray-600" />
-              <Input
-                className="w-[200px]"
-                type="date"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-              />
-              <Button variant="outline" onClick={setToday}>
+        <div className="flex flex-col xl:flex-row items-start xl:items-center justify-between gap-4">
+          <div className="flex flex-col xl:flex-row items-start xl:items-center gap-3 w-full xl:w-auto">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 w-full">
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <Calendar className="w-4 h-4 text-gray-600" />
+                <Input
+                  className="w-full sm:w-[200px]"
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                />
+              </div>
+              <Button variant="outline" onClick={setToday} className="w-full sm:w-auto">
                 Today
               </Button>
             </div>
           </div>
 
-          <div className="w-full sm:w-auto">
+          <div className="w-full xl:w-auto">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="flex items-center gap-2 w-full sm:w-auto">
+                <Button variant="outline" className="flex items-center gap-2 w-full xl:w-auto">
                   Meeting Types <ChevronDown className="w-4 h-4" />
                 </Button>
               </DropdownMenuTrigger>
@@ -300,11 +279,11 @@ export function AssignmentLogsTab() {
       ) : (
         <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
           {/* Desktop Table View */}
-          <div className="hidden lg:block">
+          <div className="hidden xl:block">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 sticky top-0 z-10">
                 <tr>
-                  <th className="px-6 py-3 text-left">
+                  <th className="px-4 py-3 text-left">
                     <button
                       onClick={handleDateSortToggle}
                       className="flex items-center gap-2 hover:bg-gray-100 px-2 py-1 rounded transition-colors"
@@ -318,22 +297,22 @@ export function AssignmentLogsTab() {
                       )}
                     </button>
                   </th>
-                  <th className="px-6 py-3 text-left">Meeting Time</th>
-                  <th className="px-6 py-3 text-left">Owner</th>
-                  <th className="px-6 py-3 text-left">Interpreter</th>
-                  <th className="px-6 py-3 text-left">Meeting Type</th>
-                  <th className="px-6 py-3 text-center">Room</th>
-                  <th className="px-6 py-3 text-left">Status</th>
-                  <th className="px-6 py-3 text-left">Reason</th>
+                  <th className="px-4 py-3 text-left">Meeting Time</th>
+                  <th className="px-4 py-3 text-left">Owner</th>
+                  <th className="px-4 py-3 text-left">Interpreter</th>
+                  <th className="px-4 py-3 text-left">Meeting Type</th>
+                  <th className="px-4 py-3 text-center">Room</th>
+                  <th className="px-4 py-3 text-left">Status</th>
+                  <th className="px-4 py-3 text-left">Reason</th>
                 </tr>
               </thead>
               <tbody>
                 {pageItems.map((l) => (
                   <tr key={l.id} className="border-t hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-4 py-4 whitespace-nowrap">
                       {toLocalDateTime(l.createdAt)}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-4 py-4 whitespace-nowrap">
                       <div className="flex items-center gap-2 text-gray-800">
                         <Clock className="w-4 h-4 text-gray-500" />
                         <span className="font-mono">
@@ -342,30 +321,30 @@ export function AssignmentLogsTab() {
                         </span>
                       </div>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-4 py-4">
                       {getOwnerDisplayName(l.bookingPlan.employee)}
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-4 py-4">
                       {getInterpreterDisplayName(l.interpreterEmployee)}
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-4 py-4">
                       {l.bookingPlan.meetingType === "DR" && l.bookingPlan.drType
                         ? formatDR(l.bookingPlan.drType)
                         : l.bookingPlan.meetingType}
                     </td>
-                    <td className="px-6 py-4 text-center">
+                    <td className="px-4 py-4 text-center">
                       <div className="flex justify-center">
                         <span className="px-3 py-1 bg-gray-100 rounded-md font-semibold">
                           {l.bookingPlan.meetingRoom}
                         </span>
                       </div>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-4 py-4">
                       <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full font-semibold text-indigo-700 bg-indigo-100">
                         {l.status}
                       </span>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-4 py-4">
                       <Button
                         variant="outline"
                         size="sm"
@@ -386,33 +365,20 @@ export function AssignmentLogsTab() {
           </div>
 
           {/* Mobile/Tablet Card View */}
-          <div className="lg:hidden">
-            <div className="p-4 border-b bg-gray-50">
-              <button
-                onClick={handleDateSortToggle}
-                className="flex items-center gap-2 hover:bg-gray-100 px-2 py-1 rounded transition-colors"
-                title={`Sort by ${sortByDateAsc ? "oldest" : "newest"} first`}
-              >
-                <span className="font-semibold">Requested At</span>
-                {sortByDateAsc ? (
-                  <ChevronUp className="h-4 w-4 text-gray-600" />
-                ) : (
-                  <ChevronDown className="h-4 w-4 text-gray-600" />
-                )}
-              </button>
-            </div>
+          <div className="xl:hidden">
+
             <div className="divide-y border-t">
               {pageItems.map((l) => (
                 <div key={l.id} className="p-4 hover:bg-gray-50 border-b border-gray-200 last:border-b-0">
-                  <div className="space-y-3">
+                  <div className="space-y-2">
                     {/* Requested At */}
-                    <div className="flex items-center justify-between pb-2 border-b border-gray-100">
+                    <div className="flex items-center justify-between">
                       <span className="text-sm font-medium text-gray-500">Requested At</span>
                       <span className="text-sm text-gray-900">{toLocalDateTime(l.createdAt)}</span>
                     </div>
 
                     {/* Meeting Time */}
-                    <div className="flex items-center justify-between pb-2 border-b border-gray-100">
+                    <div className="flex items-center justify-between">
                       <span className="text-sm font-medium text-gray-500">Meeting Time</span>
                       <div className="flex items-center gap-2 text-gray-800">
                         <Clock className="w-4 h-4 text-gray-500" />
@@ -423,19 +389,19 @@ export function AssignmentLogsTab() {
                     </div>
 
                     {/* Owner */}
-                    <div className="flex items-center justify-between pb-2 border-b border-gray-100">
+                    <div className="flex items-center justify-between">
                       <span className="text-sm font-medium text-gray-500">Owner</span>
                       <span className="text-sm text-gray-900">{getOwnerDisplayName(l.bookingPlan.employee)}</span>
                     </div>
 
                     {/* Interpreter */}
-                    <div className="flex items-center justify-between pb-2 border-b border-gray-100">
+                    <div className="flex items-center justify-between">
                       <span className="text-sm font-medium text-gray-500">Interpreter</span>
                       <span className="text-sm text-gray-900">{getInterpreterDisplayName(l.interpreterEmployee)}</span>
                     </div>
 
                     {/* Meeting Type */}
-                    <div className="flex items-center justify-between pb-2 border-b border-gray-100">
+                    <div className="flex items-center justify-between">
                       <span className="text-sm font-medium text-gray-500">Meeting Type</span>
                       <span className="text-sm text-gray-900">
                         {l.bookingPlan.meetingType === "DR" && l.bookingPlan.drType
@@ -445,7 +411,7 @@ export function AssignmentLogsTab() {
                     </div>
 
                     {/* Room */}
-                    <div className="flex items-center justify-between pb-2 border-b border-gray-100">
+                    <div className="flex items-center justify-between">
                       <span className="text-sm font-medium text-gray-500">Room</span>
                       <span className="px-3 py-1 bg-gray-100 rounded-md font-semibold text-sm">
                         {l.bookingPlan.meetingRoom}
@@ -453,7 +419,7 @@ export function AssignmentLogsTab() {
                     </div>
 
                     {/* Status */}
-                    <div className="flex items-center justify-between pb-2 border-b border-gray-100">
+                    <div className="flex items-center justify-between">
                       <span className="text-sm font-medium text-gray-500">Status</span>
                       <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full font-semibold text-indigo-700 bg-indigo-100 text-sm">
                         {l.status}
@@ -491,7 +457,7 @@ export function AssignmentLogsTab() {
                 <select
                   value={pageSize}
                   onChange={(e) => handlePageSizeChange(Number(e.target.value))}
-                  className="text-sm border rounded-md px-2 py-1 bg-white"
+                  className="text-sm border rounded-md px-2 py-1 bg-white min-w-[60px]"
                 >
                   {[10, 20, 50, 100].map((n) => (
                     <option key={n} value={n}>
@@ -500,7 +466,7 @@ export function AssignmentLogsTab() {
                   ))}
                 </select>
               </div>
-              <div className="text-sm text-gray-700">
+              <div className="text-sm text-gray-700 text-center">
                 {filteredTotal === 0
                   ? "0-0 of 0"
                   : `${startIdx + 1}-${endIdx} of ${filteredTotal}`}
@@ -511,7 +477,7 @@ export function AssignmentLogsTab() {
                   size="icon"
                   onClick={gotoPrev}
                   disabled={page === 1}
-                  className="h-8 w-8"
+                  className="h-8 w-8 sm:h-8 sm:w-8"
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </Button>
@@ -520,7 +486,7 @@ export function AssignmentLogsTab() {
                   size="icon"
                   onClick={gotoNext}
                   disabled={page === Math.ceil(filteredTotal / pageSize)}
-                  className="h-8 w-8"
+                  className="h-8 w-8 sm:h-8 sm:w-8"
                 >
                   <ChevronRight className="w-4 h-4" />
                 </Button>
