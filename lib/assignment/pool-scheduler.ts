@@ -141,6 +141,7 @@ export class PoolProcessingScheduler {
         const logger = getAssignmentLogger();
         await logger.logPoolProcessing({
           batchId: `failed_${Date.now()}`,
+          processingType: 'SCHEDULER_FAILURE',
           mode: 'SCHEDULER_FAILURE',
           processingStartTime: new Date(),
           processingEndTime: new Date(),
