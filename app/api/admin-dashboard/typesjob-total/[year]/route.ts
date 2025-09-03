@@ -21,8 +21,8 @@ const NON_DR_TYPES: ReadonlyArray<MeetingType> = [
   "VIP", "Weekly", "General", "Augent", "Other",
 ];
 
-// DR ย่อยที่ต้องการนับ (สอดคล้องกับ UI)
-const DR_SUBTYPES: ReadonlyArray<DRType> = ["DR_I", "DR_II", "DR_k", "PR_PR"];
+// DR ย่อยที่ต้องการนับ (สอดคล้องกับ UI) - รวม Other
+const DR_SUBTYPES: ReadonlyArray<DRType> = ["DR_I", "DR_II", "DR_k", "PR_PR", "Other"];
 
 // ===== Helpers =====
 type Params = { year?: string };
@@ -47,7 +47,7 @@ function zeroMeetingTypes(): Record<MeetingType, number> {
   };
 }
 
-// สร้าง object 0 สำหรับ DRType ทั้งหมด (รวม Other เผื่อในอนาคต/ข้อมูล)
+// สร้าง object 0 สำหรับ DRType ทั้งหมด (รวม Other)
 function zeroDRTypes(): Record<DRType, number> {
   return {
     PR_PR: 0,
