@@ -177,9 +177,7 @@ export async function getMeetingTypePriority(meetingType: string): Promise<Meeti
   }
 }
 
-/**
- * Load active auto-assignment policy with safe defaults
- */
+//load policy that use for ..
 export async function loadPolicy(): Promise<AssignmentPolicy> {
   try {
     const config = await prisma.autoAssignmentConfig.findFirst({

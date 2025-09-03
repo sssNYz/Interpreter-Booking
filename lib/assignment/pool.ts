@@ -668,14 +668,15 @@ class DatabaseBookingPool implements DatabasePoolManager {
 // Export singleton instance
 export const bookingPool = new DatabaseBookingPool();
 
-/**
- * Check if a booking should be assigned immediately or sent to pool based on mode
- */
+
+//Check if a booking should be assigned immediately or sent to pool based on mode
 export async function shouldAssignImmediately(
   startTime: Date,
   meetingType: string,
   mode?: 'BALANCE' | 'URGENT' | 'NORMAL' | 'CUSTOM'
 ): Promise<boolean> {
+
+  //load policy again for make sure its up to date
   const policy = await loadPolicy();
   const assignmentMode = mode || policy.mode;
   
