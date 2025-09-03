@@ -3,27 +3,19 @@ import prisma from "@/prisma/prisma";
 
 // ===== ใช้ centralized admin dashboard types =====
 import type {
-  MonthName,
   MonthlyDataRow,
   FooterByInterpreter,
   InterpreterName,
   MeetingType,
   DRType,
-  TypesApiResponse,
   MonthlyDataRowWithDR,
 } from "@/types/admin-dashboard";
 import {
   MONTH_LABELS,
-  MEETING_TYPES,
-  DR_TYPES,
 } from "@/types/admin-dashboard";
 import {
-  getUtcMonthIndex,
   getMonthLabel,
-  calculateFooterStats,
   parseYearParam,
-  createApiResponse,
-  createErrorResponse,
   createZeroMeetingTypes,
   createZeroDRTypes,
   NON_DR_TYPES,
@@ -110,32 +102,22 @@ export async function GET(
 
     // เตรียม yearData 12 เดือน (type-safe) ใส่ทั้ง typeByInterpreter และ drTypeByInterpreter
     const yearData: MonthlyDataRowWithDR[] = MONTH_LABELS.map((m): MonthlyDataRowWithDR => {
-      const jobsByInterpreter: Record<InterpreterName, number> = {};
-      const hoursByInterpreter: Record<InterpreterName, number> = {};
       const typeByInterpreter: Record<InterpreterName, Record<MeetingType, number>> = {};
       const drTypeByInterpreter: Record<InterpreterName, Record<DRType, number>> = {};
 
-      // คีย์อื่น ๆ ของ MonthlyDataRow ที่ไม่ใช้ในแท็บนี้ ให้ init เป็น 0/ว่างไว้
-      const deptMeetings = { iot: 0, hardware: 0, software: 0, other: 0 };
-      const deptByInterpreter = {} as MonthlyDataRow["deptByInterpreter"];
-
       for (const itp of interpreters) {
-        jobsByInterpreter[itp] = 0;
-        hoursByInterpreter[itp] = 0;
         typeByInterpreter[itp] = createZeroMeetingTypes();
         drTypeByInterpreter[itp] = createZeroDRTypes();
-        // ให้ตรง type MonthlyDataRow
-        deptByInterpreter[itp] = { iot: 0, hardware: 0, software: 0, other: 0 };
       }
 
       return {
         year: yearNum,
         month: m,
-        jobsByInterpreter,
-        hoursByInterpreter,
-        // ไม่ได้ใช้ฝั่ง Dept ในแท็บนี้ แต่คงโครงสร้างตาม type ของคุณ
-        deptMeetings,
-        deptByInterpreter,
+        // Initialize unused fields to satisfy MonthlyDataRow interface
+        jobsByInterpreter: {},
+        hoursByInterpreter: {},
+        deptMeetings: { iot: 0, hardware: 0, software: 0, other: 0 },
+        deptByInterpreter: {} as MonthlyDataRow["deptByInterpreter"],
         typeByInterpreter,
         drTypeByInterpreter, // <- เพิ่มฟิลด์นี้ให้ฝั่ง UI ใช้อ่านค่า DR1/DR2/DRK/PR
       };
