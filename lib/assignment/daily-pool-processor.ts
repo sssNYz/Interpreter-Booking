@@ -233,6 +233,7 @@ export class DailyPoolProcessor {
   ): Promise<void> {
     const logData: PoolProcessingLogData = {
       batchId: result.batchId,
+      processingType: 'DAILY_PROCESSING',
       mode: 'DAILY_PROCESSING',
       processingStartTime: new Date(Date.now() - result.processingTime),
       processingEndTime: new Date(),

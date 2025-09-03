@@ -1,578 +1,504 @@
-# Koro GuideBook: Auto-Approve / Auto-Assignment System
+# Koro GuideBook - Auto Approve
 
-## 0. Overview
+## Cover & Summary
 
-The auto-assignment system automatically assigns interpreters to bookings. It uses smart scoring to balance fairness, urgency, and workload. The system can assign immediately or put bookings in a pool to wait.
+The auto-approve system automatically sets `bookingStatus = 'approve'` when an interpreter is assigned to a booking. This system works with the auto-assignment engine to ensure bookings are properly approved when interpreters are selected.
 
-### What the System Does
+**Key Ideas:**
+- Auto-approve happens when `interpreterEmpCode` is assigned
+- Business rule: interpreter assignment = automatic approval
+- Works with assignment modes (URGENT, BALANCE, NORMAL, CUSTOM)
+- Uses utility functions to ensure consistency
+- Integrates with pool processing and scheduling
+- Logs all approval events for tracking
+- Handles both immediate and pooled assignments
+- Supports manual and automatic assignment flows
 
-- **Auto-Approve**: When an interpreter is assigned, booking status changes to "approve"
-- **Auto-Assignment**: Picks the best interpreter using scores
-- **Pool System**: Stores non-urgent bookings until their decision window
+## Table of Contents
 
-### Key Policies
+1. [System Map (High Level)](#system-map-high-level)
+2. [Entry Points (Start Here)](#entry-points-start-here)
+3. [Step-by-Step Flow (0 → 100)](#step-by-step-flow-0--100)
+4. [Schedulers & Triggers](#schedulers--triggers)
+5. [Config & Environment](#config--environment)
+6. [Data Model](#data-model)
+7. [APIs & Endpoints](#apis--endpoints)
+8. [Logging & Metrics](#logging--metrics)
+9. [Scoring & Rules](#scoring--rules)
+10. [Gotchas (Important!)](#gotchas-important)
+11. [Debug Cookbook](#debug-cookbook)
+12. [Change Guide](#change-guide)
+13. [Tests & Examples](#tests--examples)
+14. [Glossary](#glossary)
+15. [FAQ](#faq)
 
-- **Mode**: BALANCE (fair), URGENT (fast), NORMAL (balanced), CUSTOM (configurable)
-- **Fairness**: Max gap between interpreter hours (default: 5 hours)
-- **LRS**: Least Recently Served - gives priority to interpreters who haven't worked recently
-- **DR Rule**: Special rules for disaster/emergency meetings to prevent burnout
+## System Map (High Level)
 
-### High-Level Flow
+The auto-approve system has these main parts:
 
+**Core Files:**
 ```
-[Booking Created]
-     ↓
-loadPolicy() → fetchBooking() → shouldAssignImmediately()?
-     ↓                                    ↓
-     ↓                               NO → addToPool() → [sleep] → processPool()
-     ↓                                                              ↓
-     ↓ ←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←
-     ↓
-    YES → prepareCandidates() → eligibility(fairness)
-     ↓                              ↓
-     ↓                         computeScores(fair/urgency/LRS)
-     ↓                              ↓
-     ↓                         getLastGlobalDR(≤ booking time)
-     ↓                              ↓
-     ↓                         apply DR policy(block/penalty)
-     ↓                              ↓
-     ↓                         total + jitter → rank → assign → log
-     ↓                              ↓
-     ↓ ←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←
-     ↓
-[Assignment Complete]
-```
-
-## 1. Entry → Decision
-
-### 1.1 Entry Point
-
-**Purpose**: Start assignment for a booking
-**Trigger**: API call to `/api/assignment/run` with bookingId
-**Where in code**: `lib/assignment/run.ts:runAssignment()`
-
-**Inputs prepared**:
-- bookingId (number)
-
-**Decision rules**:
-- Load policy first
-- Check if auto-assignment is enabled
-- Get booking details
-
-**Side effects**:
-- Console log: "🚀 Starting assignment for booking X"
-
-### 1.2 Load Policy
-
-**Purpose**: Get current assignment rules and weights
-**Trigger**: Called at start of assignment
-**Where in code**: `lib/assignment/policy.ts:loadPolicy()`
-
-**Inputs prepared**:
-- Database config from `autoAssignmentConfig` table
-
-**Decision rules**:
-- Use database config if exists
-- Create default config if none exists
-- Clamp values to safe ranges
-- Apply mode-specific defaults for non-CUSTOM modes
-
-**Side effects**:
-- Creates default config in database if missing
-
-### 1.3 Fetch Booking
-
-**Purpose**: Get booking details and check if already assigned
-**Trigger**: After policy is loaded
-**Where in code**: `lib/assignment/run.ts:runAssignment()`
-
-**Inputs prepared**:
-- bookingId, timeStart, timeEnd, meetingType, interpreterEmpCode
-
-**Decision rules**:
-- Return "already assigned" if interpreterEmpCode exists
-- Return "booking not found" if booking doesn't exist
-
-**Side effects**:
-- Console log if already assigned or not found
-
-### 1.4 Urgency Gate
-
-**Purpose**: Decide immediate assignment vs pool
-**Trigger**: After booking is fetched
-**Where in code**: `lib/assignment/pool.ts:shouldAssignImmediately()`
-
-**Inputs prepared**:
-- startTime, meetingType
-- Meeting type priority from database
-
-**Decision rules**:
-- Get meeting type priority configuration
-- Calculate days until booking starts
-- Compare with urgentThresholdDays
-- If daysUntil ≤ urgentThresholdDays → immediate
-- Else → pool
-
-**Side effects**:
-- Console log: "📥 Booking X is not urgent, adding to pool" OR "⚡ Booking X is urgent"
-
-## 2. Scoring & Selection (Immediate Path)
-
-### 2.1 Get Eligible Candidates
-
-**Purpose**: Find interpreters who won't break fairness rules
-**Trigger**: When immediate assignment is needed
-**Where in code**: `lib/assignment/fairness.ts:getActiveInterpreters()`
-
-**Inputs prepared**:
-- Active interpreters with INTERPRETER role
-- Current hours for each interpreter
-
-**Decision rules**:
-- Get all active interpreters
-- Simulate +1 hour assignment to each
-- Calculate max gap - min gap
-- Keep only candidates where gap ≤ maxGapHours
-
-**Side effects**:
-- Return "no active interpreters found" if none available
-- Return "no eligible under maxGapHours" if all exceed gap
-
-### 2.2 Prepare Features
-
-**Purpose**: Calculate current state for scoring
-**Where in code**: `lib/assignment/fairness.ts:getInterpreterHours()`
-
-**Variables prepared**:
-
-| Name | Source | Type | Example |
-|------|--------|------|---------|
-| currentHours | Database bookings in window | number | 15.5 |
-| minHours | Min from all interpreters | number | 10.0 |
-| daysSinceLastAssignment | Assignment logs | number | 5.2 |
-| urgencyScore | Time + meeting type | number | 0.75 |
-
-### 2.3 Fairness Score
-
-**Purpose**: Reward interpreters with fewer hours
-**Where in code**: `lib/assignment/fairness.ts:computeFairnessScore()`
-
-**Formula**:
-```
-gap_i = interpreterHours - minHours
-FairnessScore = max(0, 1 - gap_i / maxGapHours)
+lib/
+├── utils.ts                    # Business rule utility
+├── assignment/
+│   ├── run.ts                 # Main assignment engine
+│   ├── pool.ts                # Pool management
+│   ├── policy.ts              # Assignment policies
+│   └── logging.ts             # Event logging
+app/api/booking-data/post-booking-data/route.ts  # Booking creation
 ```
 
-**Why**: Higher score = fewer hours = more fair
-
-### 2.4 Urgency Score
-
-**Purpose**: Prioritize bookings close to start time
-**Where in code**: `lib/assignment/urgency.ts:computeEnhancedUrgencyScore()`
-
-**Formula**:
-```
-daysUntil = floor((startTime - now) / 1 day)
-if daysUntil ≤ minAdvanceDays:
-  timeScore = pow(2, (minAdvanceDays - daysUntil) / 2)
-  urgencyScore = min(1.0, priorityValue * timeScore / 100)
-else:
-  urgencyScore = 0.0
-```
-
-**Why**: Same for all candidates in one booking, but varies by meeting type priority
-
-### 2.5 LRS Score (Least Recently Served)
-
-**Purpose**: Rotate assignments fairly
-**Where in code**: `lib/assignment/lrs.ts:computeLRSScore()`
-
-**Formula**:
-```
-daysSinceLast = (now - lastAssignmentTime) / 1 day
-LRSScore = min(1.0, daysSinceLast / fairnessWindowDays)
+**Flow Diagram:**
+```mermaid
+flowchart TD
+    A[New Booking] --> B{Has Interpreter?}
+    B -->|Yes| C[Auto-Approve]
+    B -->|No| D[Assignment Engine]
+    D --> E{Urgent?}
+    E -->|Yes| F[Immediate Assignment]
+    E -->|No| G[Add to Pool]
+    F --> H[Select Interpreter]
+    G --> I[Pool Processor]
+    I --> H
+    H --> J[Update Database]
+    J --> C
+    C --> K[Status = approve]
 ```
 
-**Why**: Higher score = longer since last assignment = should get priority
+## Entry Points (Start Here)
 
-### 2.6 DR Consecutive Logic (Critical)
+### 1. Booking Creation Entry Point
+**File:** `app/api/booking-data/post-booking-data/route.ts`
+**Function:** `POST` handler
+**Job:** Creates new bookings and triggers auto-assignment
+**Lines:** 894+ (main function at end)
 
-**Purpose**: Prevent interpreter burnout from consecutive DR assignments
-**Where in code**: `lib/assignment/dr-history.ts:checkDRAssignmentHistory()`
+### 2. Assignment Engine Entry Point  
+**File:** `lib/assignment/run.ts`
+**Function:** `runAssignment(bookingId: number)`
+**Job:** Main assignment logic that triggers auto-approve
+**Lines:** 95-180
 
-**Process**:
-1. **Fetch lastGlobalDR once per booking** (timeStart ≤ booking start)
-2. **Check if consecutive**: `lastGlobalDR.interpreterEmpCode === candidateId`
-3. **Apply policy**:
-   - If `forbidConsecutive = true` → block candidate (reason: ConsecutiveDRBlocked)
-   - If `forbidConsecutive = false` → apply penalty to score
+### 3. Pool Processing Entry Point
+**File:** `lib/assignment/run.ts` 
+**Function:** `processPool()`
+**Job:** Processes pooled bookings for assignment
+**Lines:** 182-320
 
-**DR Policy by Mode**:
-- **BALANCE**: Hard block (`forbidConsecutive: true`)
-- **URGENT**: Soft penalty (`consecutivePenalty: -0.1`)
-- **NORMAL**: Soft penalty (`consecutivePenalty: -0.5`)
-- **CUSTOM**: Configurable
+### 4. Business Rule Utility
+**File:** `lib/utils.ts`
+**Function:** `ensureBookingStatusOnAssignment(data)`
+**Job:** Ensures auto-approve rule is followed
+**Lines:** 13-25
 
-**WATCH OUT**: Only the interpreter who did the LAST DR is blocked/penalized, not based on counts in a window.
+## Step-by-Step Flow (0 → 100)
 
-### 2.7 Total Score Calculation
+### Happy Path (Success)
 
-**Purpose**: Combine all scores with mode-specific weights
-**Where in code**: `lib/assignment/scoring.ts:computeTotalScore()`
+**Step 1: Booking Creation**
+- **Where:** `app/api/booking-data/post-booking-data/route.ts` line 894+
+- **What:** New booking created via API
+- **Next:** Calls auto-assignment if no interpreter specified
 
-**Formula**:
-```
-Total = w_fair × FairnessScore + w_urgency × UrgencyScore + w_lrs × LRSScore
+**Step 2: Assignment Check**
+- **Where:** `lib/assignment/run.ts` line 95 (`runAssignment`)
+- **What:** Checks if booking needs assignment
+- **Next:** Determines if urgent or should go to pool
 
-If DR penalty applies:
-  FinalScore = max(0, Total + drConsecutivePenalty)
-```
+**Step 3: Urgency Decision**
+- **Where:** `lib/assignment/pool.ts` line 1200+ (`shouldAssignImmediately`)
+- **What:** Decides immediate assignment vs pool
+- **Next:** Either immediate assignment or pool entry
 
-**Mode Weights**:
-- **BALANCE**: w_fair=2.0, w_urgency=0.6, w_lrs=0.6
-- **URGENT**: w_fair=0.5, w_urgency=2.5, w_lrs=0.2  
-- **NORMAL**: w_fair=1.2, w_urgency=0.8, w_lrs=0.3
-- **CUSTOM**: User-defined
+**Step 4: Interpreter Selection**
+- **Where:** `lib/assignment/run.ts` line 400+ (`performAssignment`)
+- **What:** Finds best interpreter using scoring
+- **Next:** Database update with interpreter
 
-### 2.8 Tie-Breaking
-
-**Purpose**: Ensure deterministic selection when scores are equal
-**Where in code**: `lib/assignment/scoring.ts:addJitter()`
-
-**Process**:
-1. Add small seeded jitter based on interpreter ID (-0.001 to +0.001)
-2. Sort by total score (highest first)
-3. If still tied, use LRS score as secondary sort
-
-**Why**: Prevents random selection, ensures consistent results
-
-### 2.9 Winner Assignment
-
-**Purpose**: Update database and log decision
-**Where in code**: `lib/assignment/run.ts:performAssignment()`
-
-**DB Updates**:
-```sql
-UPDATE bookingPlan SET 
-  interpreterEmpCode = winner.empCode,
-  bookingStatus = 'approve'  -- Business rule: auto-approve when assigned
-WHERE bookingId = X
+**Step 5: Auto-Approve Trigger**
+- **Where:** `lib/assignment/run.ts` line 987-990
+- **What:** Updates database with interpreter AND approve status
+- **Code:**
+```typescript
+data: {
+  interpreterEmpCode: candidate.empCode,
+  bookingStatus: 'approve'
+}
 ```
 
-**Logging**: Creates record in `assignmentLog` with scores, snapshots, and reasons
+**Step 6: Logging**
+- **Where:** `lib/assignment/logging.ts` (various functions)
+- **What:** Records assignment and approval events
+- **Next:** Process complete
 
-**Side effects**:
-- Console log: "✅ Successfully assigned booking X to Y"
-- Score breakdown logged
+### Error Path (Failures)
 
-## 3. Pool Lifecycle (Deferred Assignment)
+**Step 1: Assignment Failure**
+- **Where:** `lib/assignment/run.ts` line 600+ (error handling)
+- **What:** No suitable interpreter found
+- **Result:** Status remains 'waiting', escalated for manual review
 
-### 3.1 When to Pool
+**Step 2: Pool Timeout**
+- **Where:** `lib/assignment/pool.ts` deadline processing
+- **What:** Booking deadline passed without assignment
+- **Result:** Emergency processing or escalation
 
-**Purpose**: Store non-urgent bookings for later processing
-**Trigger**: When `shouldAssignImmediately()` returns false
-**Where in code**: `lib/assignment/pool.ts:addToPool()`
+**Sequence Diagram:**
+```mermaid
+sequenceDiagram
+    participant API as Booking API
+    participant Engine as Assignment Engine
+    participant Pool as Pool Manager
+    participant DB as Database
+    participant Log as Logger
 
-**Conditions**:
-- daysUntil > urgentThresholdDays
-- Before decision window
-
-**What we store**:
-- bookingId, meetingType, startTime, endTime
-- priorityValue, urgentThresholdDays, generalThresholdDays
-- poolEntryTime, decisionWindowTime
-
-**Decision window calculation**:
+    API->>Engine: runAssignment(bookingId)
+    Engine->>Pool: shouldAssignImmediately()
+    Pool-->>Engine: urgent=true/false
+    
+    alt Urgent Assignment
+        Engine->>Engine: performAssignment()
+        Engine->>DB: UPDATE bookingStatus='approve'
+        Engine->>Log: logAssignment()
+    else Pool Assignment
+        Engine->>Pool: addToPool()
+        Pool->>DB: UPDATE poolStatus='waiting'
+        Note over Pool: Later...
+        Pool->>Engine: processPool()
+        Engine->>DB: UPDATE bookingStatus='approve'
+    end
 ```
-decisionWindowTime = now + generalThresholdDays * 24 hours
+
+## Schedulers & Triggers
+
+### 1. Pool Processor Schedule
+**File:** `lib/assignment/pool.ts`
+**Function:** `processPool()`
+**Trigger:** Called by cron job or manual trigger
+**Frequency:** Every 5-15 minutes (configurable)
+
+### 2. Assignment Triggers
+**Immediate Triggers:**
+- New booking creation (if urgent)
+- Manual assignment request
+- Pool deadline reached
+
+**Scheduled Triggers:**
+- Pool processing batches
+- Deadline emergency processing
+- System load evaluation
+
+### 3. Auto-Approval Triggers
+**File:** `lib/assignment/run.ts` line 987
+**When:** Every time `interpreterEmpCode` is set
+**Rule:** Always sets `bookingStatus = 'approve'`
+
+## Config & Environment
+
+### 1. Assignment Policy Config
+**File:** `lib/assignment/policy.ts`
+**Table:** `AUTO_ASSIGNMENT_CONFIG`
+**Key Settings:**
+- `autoAssignEnabled`: Enable/disable system
+- `mode`: URGENT, BALANCE, NORMAL, CUSTOM
+- `fairnessWindowDays`: Fairness calculation period
+- `maxGapHours`: Maximum hour gap between interpreters
+
+### 2. Meeting Type Priorities
+**File:** `lib/assignment/policy.ts`
+**Table:** `MEETING_TYPE_PRIORITY`
+**Settings:**
+- `urgentThresholdDays`: Days before urgent assignment
+- `generalThresholdDays`: Days before pool deadline
+- `priorityValue`: Meeting importance score
+
+### 3. Environment Variables
+**Read in:** Various assignment files
+**Key Variables:**
+- Database connection settings
+- Logging levels
+- Pool processing intervals
+
+## Data Model
+
+### 1. BookingPlan Table
+**Key Fields for Auto-Approve:**
+- `interpreterEmpCode`: Assigned interpreter (NULL = unassigned)
+- `bookingStatus`: approve/waiting/cancel/complet
+- `poolStatus`: waiting/processing/ready/failed
+- `poolDeadlineTime`: When assignment must complete
+
+### 2. Assignment Log Table
+**File:** `lib/assignment/logging.ts`
+**Purpose:** Track all assignment and approval events
+**Key Fields:**
+- `bookingId`: Which booking
+- `interpreterEmpCode`: Who was assigned
+- `status`: assigned/escalated/pooled
+- `reason`: Why this happened
+
+### 3. Auto Assignment Config Table
+**Purpose:** Store assignment policies and modes
+**Key Fields:**
+- `mode`: Current assignment mode
+- `autoAssignEnabled`: System on/off switch
+- Scoring weights and thresholds
+
+## APIs & Endpoints
+
+### 1. Create Booking
+**Route:** `POST /api/booking-data/post-booking-data`
+**Purpose:** Create new booking, trigger auto-assignment
+**Handler:** `app/api/booking-data/post-booking-data/route.ts`
+**Auto-Approve:** Happens after assignment completes
+
+### 2. Assignment Status
+**Purpose:** Check assignment and approval status
+**Response includes:** Current booking status, interpreter assigned
+
+### 3. Pool Management
+**Purpose:** Monitor and control pool processing
+**Triggers:** Pool processing that leads to auto-approve
+
+## Logging & Metrics
+
+### 1. Assignment Logs
+**File:** `lib/assignment/logging.ts`
+**Function:** `logAssignment()`
+**What:** Records when auto-approve happens
+**Lines:** Various logging functions
+
+### 2. Log Messages for Auto-Approve
+```
+✅ Booking {bookingId} assigned to {interpreterEmpCode} with auto-approve
+📊 Assignment completed: status=assigned, approved=true
+🎯 Auto-approve triggered by interpreter assignment
 ```
 
-### 3.2 Wake-up Cycle
+### 3. Tracing a Request
+**Step 1:** Find booking ID in logs
+**Step 2:** Search for assignment events
+**Step 3:** Look for auto-approve confirmation
+**Step 4:** Check final status update
 
-**Purpose**: Process pool entries that are ready for assignment
-**Trigger**: Periodic calls to `processPool()` or manual trigger
-**Where in code**: `lib/assignment/run.ts:processPool()`
+## Scoring & Rules
 
-**Selection logic**:
+### 1. Core Business Rule
+**File:** `lib/utils.ts` lines 13-25
+**Rule:** When `interpreterEmpCode` is assigned, `bookingStatus` MUST be 'approve'
+**Formula:**
+```typescript
+if (interpreterEmpCode !== null) {
+  bookingStatus = "approve"
+}
 ```
-readyEntries = entries where decisionWindowTime ≤ now
-```
 
-**Ordering**: Sort by priority (highest first), then by decision window time
+### 2. Assignment Scoring
+**File:** `lib/assignment/run.ts`
+**Purpose:** Select best interpreter
+**Result:** Triggers auto-approve when interpreter chosen
 
-### 3.3 Pool Re-evaluation
+### 3. Mode-Specific Rules
+**URGENT Mode:** Immediate assignment and approval
+**BALANCE Mode:** Batch processing, then approval
+**NORMAL Mode:** Standard assignment flow
+**CUSTOM Mode:** User-defined parameters
 
-**Purpose**: Apply same assignment logic to pooled bookings
-**Process**:
-1. Get current booking details
-2. Check if already assigned (remove from pool if yes)
-3. Re-run `performAssignment()` with current policy
-4. Remove from pool if assignment successful
+## Gotchas (Important!)
 
-**Concurrency notes**:
-- Use ≤ for last DR comparison to handle same-timestamp bookings
-- Process entries in stable order (sorted by time)
+### 1. Manual Assignment Bypass
+**Problem:** Manual assignment might skip auto-approve
+**Solution:** Always use `ensureBookingStatusOnAssignment()` utility
+**File:** `lib/utils.ts` lines 13-25
 
-## 4. Policies & Variables
+### 2. Pool Processing Delays
+**Problem:** Pooled bookings not approved until processed
+**Symptom:** Booking has interpreter but status still 'waiting'
+**Fix:** Check pool processing schedule and deadlines
 
-### 4.1 Policy Knobs
+### 3. Transaction Rollbacks
+**Problem:** Assignment succeeds but approval fails
+**Symptom:** Interpreter assigned but status not updated
+**Fix:** Use database transactions for atomic updates
 
-**Where loaded**: `lib/assignment/policy.ts:loadPolicy()`
+### 4. Concurrent Assignment
+**Problem:** Multiple assignments for same booking
+**Symptom:** Duplicate approvals or conflicts
+**Fix:** Use database locks during assignment
 
-| Parameter | Default | Range | Description |
-|-----------|---------|-------|-------------|
-| `autoAssignEnabled` | `true` | boolean | Master kill switch |
-| `mode` | `'NORMAL'` | BALANCE/URGENT/NORMAL/CUSTOM | Assignment strategy |
-| `fairnessWindowDays` | `30` | 7-90 | Rolling window for hour calculations |
-| `maxGapHours` | `5` | 1-100 | Maximum allowed hour difference |
-| `minAdvanceDays` | `2` | 0-30 | Days before urgency scoring starts |
-| `w_fair` | `1.2` | 0-5 | Fairness score weight |
-| `w_urgency` | `0.8` | 0-5 | Urgency score weight |
-| `w_lrs` | `0.3` | 0-5 | LRS score weight |
-| `drConsecutivePenalty` | `-0.5` | -2.0 to 0 | Penalty for consecutive DR |
+## Debug Cookbook
 
-### 4.2 DR Policy Fields
+### If Auto-Approve Not Working
 
-**Where configured**: `lib/assignment/policy.ts:getDRPolicy()`
-
-| Field | Description | BALANCE | URGENT | NORMAL |
-|-------|-------------|---------|--------|--------|
-| `scope` | GLOBAL or BY_TYPE | GLOBAL | GLOBAL | GLOBAL |
-| `forbidConsecutive` | Hard block vs soft penalty | true | false | false |
-| `consecutivePenalty` | Penalty value | -0.8 | -0.1 | -0.5 |
-| `includePendingInGlobal` | Count pending bookings | false | true | false |
-
-### 4.3 Mode Defaults
-
-**CUSTOM mode**: Uses configured values from database
-**Other modes**: Override config with mode-specific defaults
-
-**Safe clamps**: All values are clamped to safe ranges to prevent system errors
-
-## 5. Data & Effects
-
-### 5.1 Tables/Collections Touched
-
-**Read operations**:
-- `autoAssignmentConfig`: Policy settings
-- `meetingTypePriority`: Meeting type configurations  
-- `bookingPlan`: Booking details, assignment history
-- `employee`: Active interpreters with INTERPRETER role
-- `assignmentLog`: Assignment history for LRS calculation
-
-**Write operations**:
-- `bookingPlan`: Update interpreterEmpCode and bookingStatus
-- `assignmentLog`: Log every assignment decision
-
-### 5.2 What We Log
-
-**Assignment logs include**:
-- Pre/post hour snapshots
-- Score breakdowns (fairness, urgency, LRS, total)
-- Assignment status and reasons
-- Configuration used (maxGapHours, fairnessWindowDays, mode)
-- DR assignment history (when applicable)
-
-**Console logs**:
-- Assignment start/completion
-- Pool operations
-- DR penalty applications
-- Score breakdowns for debugging
-
-### 5.3 Error Handling
-
-**Graceful fallbacks**:
-- Return "escalated" status instead of crashing
-- Use safe defaults if config missing
-- Continue with available data if some queries fail
-
-**What user/admin sees**:
-- Clear error messages in API responses
-- Assignment logs show escalation reasons
-- Console logs for debugging
-
-## 6. Edge Cases & Guarantees
-
-### 6.1 Already Assigned Booking
-- **Check**: `booking.interpreterEmpCode !== null`
-- **Action**: Return "already assigned" status
-- **Guarantee**: No double assignment
-
-### 6.2 No Active Interpreters
-- **Check**: `interpreters.length === 0`
-- **Action**: Return "no active interpreters found"
-- **Guarantee**: Graceful escalation
-
-### 6.3 Everyone Fails Fairness Filter
-- **Check**: `eligibleIds.length === 0`
-- **Action**: Return "no eligible under maxGapHours"
-- **Guarantee**: Fairness rules enforced
-
-### 6.4 Multiple DR Bookings Same Time
-- **Solution**: Use `≤` for last DR comparison, not `<`
-- **Guarantee**: Stable ordering, consistent results
-
-### 6.5 Batch Assignment Virtual Last DR
-- **Process**: Within batch, update "virtual last DR" after each assignment
-- **Guarantee**: Consecutive logic works within batch
-
-### 6.6 Missing drType
-- **Fallback**: Use global scope instead of BY_TYPE
-- **Guarantee**: System continues to work
-
-### 6.7 Policy Mode Mismatches
-- **Solution**: Validate mode, default to NORMAL if invalid
-- **Guarantee**: System uses valid configuration
-
-### 6.8 Time-zone and Clock Skew
-- **Mitigation**: Use consistent Date objects, server timezone
-- **Guarantee**: Consistent time calculations
-
-## 7. Quality Checklist
-
-### 7.1 Determinism Maintained
-- [ ] Seeded jitter uses interpreter ID for consistency
-- [ ] Stable sorts with secondary criteria (LRS)
-- [ ] Same inputs always produce same outputs
-
-### 7.2 Database Efficiency
-- [ ] O(1) DB queries per booking for last DR (not per candidate)
-- [ ] Reuse lastGlobalDR result for all candidates
-- [ ] Proper indexes on frequently queried fields
-
-### 7.3 Logging Quality
-- [ ] Logs explain why candidate was blocked/penalized
-- [ ] Score breakdowns show all components
-- [ ] Clear escalation reasons
-
-### 7.4 Pool Management
-- [ ] Pool recheck frequency is appropriate
-- [ ] Ordering is deterministic (priority, then time)
-- [ ] Cleanup of completed/assigned bookings
-
-### 7.5 DR Logic Tests
-- [ ] Block vs penalty modes work correctly
-- [ ] Global vs by-type scope respected
-- [ ] Batch same-time handling works
-- [ ] ≤ comparison handles edge cases
-
-### 7.6 Configuration Safety
-- [ ] Value clamps prevent unsafe configurations
-- [ ] Mode defaults override user settings appropriately
-- [ ] Graceful handling of missing config
-
-## 8. Mini Playbook (Debug & Improve)
-
-### 8.1 Trace Single Booking
-
-**Steps**:
-1. Check console logs for booking ID
-2. Look for assignment log entry in database
-3. Review score breakdown and eligibility reasons
-4. Check DR history if DR meeting
-
-**Key logs to read**:
-- "🚀 Starting assignment for booking X"
-- "📊 Urgency score for Y: Z"
-- "🔍 Scoring for X (Mode: Y)"
-- "✅ Successfully assigned booking X to Y"
-
-### 8.2 Verify DR No-Consecutive Behavior
-
-**Quick test**:
-1. Create two DR bookings with same start time
-2. Assign first booking to interpreter A
-3. Check that second booking doesn't assign to A
-4. Verify logs show "ConsecutiveDRBlocked" or penalty applied
-
-### 8.3 Tune Mode Weights
-
-**Process**:
-1. Switch to CUSTOM mode
-2. Adjust w_fair, w_urgency, w_lrs values
-3. Test with sample bookings
-4. Review score breakdowns in logs
-5. Monitor fairness gap over time
-
-### 8.4 Simulate Pool Wake-ups
-
-**Manual trigger**:
+**Check 1: Business Rule Applied**
 ```bash
-curl -X POST /api/assignment/process-pool
+rg -n "ensureBookingStatusOnAssignment" lib/
 ```
 
-**Check**:
-- Pool status before/after
-- Which entries were processed
-- Assignment results
-
-## 9. Appendix
-
-### 9.1 Glossary
-
-- **Booking**: A meeting that needs an interpreter
-- **Pool**: Storage for non-urgent bookings waiting for assignment
-- **Policy**: Configuration rules for assignment behavior
-- **Fairness**: Ensuring equal workload distribution among interpreters
-- **LRS**: Least Recently Served - rotation to give everyone turns
-- **DR**: Disaster/Emergency meetings requiring special handling
-- **Urgent window**: Time threshold for immediate assignment
-- **General window**: Time threshold for pool processing
-
-### 9.2 Pseudo-Sequence for Immediate Assign
-
-```
-1. loadPolicy()
-2. fetchBooking(bookingId)
-3. if booking.interpreterEmpCode → return "already assigned"
-4. if shouldAssignImmediately(startTime, meetingType) → continue
-5. getActiveInterpreters()
-6. getInterpreterHours(interpreters, fairnessWindowDays)
-7. computeEnhancedUrgencyScore(startTime, meetingType, minAdvanceDays)
-8. for each interpreter:
-   a. simulate assignment → check maxGapHours
-   b. if eligible → add to candidates
-9. if no candidates → return "escalated"
-10. if isDRMeeting → getLastGlobalDRAssignment(startTime)
-11. for each candidate:
-    a. computeFairnessScore()
-    b. computeLRSScore()
-    c. if DR → checkDRAssignmentHistory()
-    d. computeTotalScore() + applyDRPenalty()
-    e. addJitter()
-12. sort by total score, tie-break with LRS
-13. updateBooking(winner.empCode, status="approve")
-14. logAssignment()
+**Check 2: Assignment Completion**
+```bash
+rg -n "interpreterEmpCode.*bookingStatus.*approve" lib/
 ```
 
-### 9.3 Pseudo-Sequence for Pool
-
-```
-1. addToPool(bookingId, meetingType, startTime, endTime)
-2. calculateDecisionWindow(generalThresholdDays)
-3. store in pool with metadata
-4. [later] processPool():
-   a. getReadyForAssignment() → filter by decisionWindowTime ≤ now
-   b. sort by priority, then by time
-   c. for each ready entry → run immediate assignment logic
-   d. if assigned → removeFromPool()
+**Check 3: Database Updates**
+```sql
+SELECT bookingId, interpreterEmpCode, bookingStatus, updated_at 
+FROM BOOKING_PLAN 
+WHERE bookingId = [YOUR_BOOKING_ID]
+ORDER BY updated_at DESC;
 ```
 
-### 9.4 Suggested Unit Tests
+### Search Commands
 
-1. **Basic Assignment**: Normal booking, multiple candidates, verify highest score wins
-2. **Fairness Filter**: Candidates that would exceed maxGapHours are excluded
-3. **DR Consecutive Block**: Last DR interpreter is blocked in BALANCE mode
-4. **DR Consecutive Penalty**: Last DR interpreter gets penalty in NORMAL mode
-5. **Pool Lifecycle**: Non-urgent booking goes to pool, processes at decision window
-6. **Mode Weights**: Different modes produce different score rankings
-7. **Tie Breaking**: Equal scores use LRS, then jitter for deterministic results
-8. **Edge Cases**: No candidates, already assigned, missing config
+**Find Auto-Approve Code:**
+```bash
+rg -n "bookingStatus.*approve" lib/
+rg -n "auto.*approve|approve.*auto" .
+```
 
-**TIP**: Test with fixed timestamps and seeded data for reproducible results.
+**Find Assignment Logic:**
+```bash
+rg -n "runAssignment|performAssignment" lib/
+rg -n "interpreterEmpCode" lib/assignment/
+```
 
-**WATCH OUT**: DR consecutive logic only blocks/penalizes the interpreter who did the LAST DR, not based on counts in a time window.
+**Find Pool Processing:**
+```bash
+rg -n "processPool|poolStatus" lib/
+rg -n "deadline|urgent" lib/assignment/
+```
 
----
+### Debugging Steps
 
-*This guidebook covers the complete auto-approve/auto-assignment system flow. For questions or improvements, check the assignment logs and console output for detailed debugging inf
+**Step 1:** Check if booking exists and needs assignment
+**Step 2:** Verify assignment engine is enabled
+**Step 3:** Check pool status and deadlines
+**Step 4:** Look for assignment completion logs
+**Step 5:** Verify database transaction completed
+
+## Change Guide
+
+### How to Change Auto-Approve Rule
+
+**Current Rule:** Assignment = Approval
+**To Change:**
+1. Edit `lib/utils.ts` lines 13-25
+2. Update business logic in `ensureBookingStatusOnAssignment()`
+3. Test with existing assignment flows
+4. Update documentation
+
+### How to Add New Approval Conditions
+
+**Step 1:** Identify trigger points in assignment flow
+**Step 2:** Add condition checks before approval
+**Step 3:** Update utility function logic
+**Step 4:** Test all assignment modes
+
+### What to Test After Changes
+
+- [ ] Manual assignment still triggers approval
+- [ ] Pool processing approves correctly  
+- [ ] All assignment modes work
+- [ ] Error cases don't break approval
+- [ ] Logging captures new behavior
+
+## Tests & Examples
+
+### Unit Test Example
+**File:** `scripts/test-booking-status.js`
+**Purpose:** Verify auto-approve business rule
+**Test Steps:**
+1. Create booking with status 'waiting'
+2. Trigger assignment
+3. Verify status changed to 'approve'
+4. Clean up test data
+
+### Integration Test
+**Purpose:** Test full assignment to approval flow
+**Steps:**
+1. Create booking via API
+2. Wait for assignment processing
+3. Check final status is 'approve'
+4. Verify interpreter assigned
+
+### Sample Input/Output
+
+**Input:** New booking without interpreter
+```json
+{
+  "meetingType": "DR",
+  "timeStart": "2025-09-04 10:00:00",
+  "timeEnd": "2025-09-04 11:00:00",
+  "interpreterEmpCode": null
+}
+```
+
+**Output:** Assigned and approved booking
+```json
+{
+  "bookingId": 123,
+  "interpreterEmpCode": "EMP001", 
+  "bookingStatus": "approve",
+  "assignedAt": "2025-09-03T14:30:00Z"
+}
+```
+
+## Glossary
+
+**Auto-Approve:** Automatic setting of booking status to 'approve' when interpreter assigned
+
+**Assignment Engine:** System that selects interpreters for bookings
+
+**Booking Status:** Current state of booking (waiting/approve/cancel/complet)
+
+**Pool:** Storage for non-urgent bookings waiting for assignment
+
+**Business Rule:** When interpreter assigned, status must be 'approve'
+
+**Interpreter EmpCode:** Employee code of assigned interpreter
+
+**Urgency Score:** Number showing how urgent a booking assignment is
+
+**Mode:** Assignment strategy (URGENT/BALANCE/NORMAL/CUSTOM)
+
+**Fairness:** Equal distribution of work among interpreters
+
+**Threshold Days:** Days before meeting when assignment becomes urgent
+
+## FAQ
+
+**Q: When does auto-approve happen?**
+A: Every time an interpreter is assigned to a booking.
+
+**Q: Can I assign interpreter without approval?**
+A: No. The business rule always sets status to 'approve' when interpreter assigned.
+
+**Q: What if assignment fails?**
+A: Booking stays in 'waiting' status until manual review or retry.
+
+**Q: How do I check if auto-approve worked?**
+A: Look for `bookingStatus = 'approve'` and `interpreterEmpCode` not null.
+
+**Q: Can I change the auto-approve rule?**
+A: Yes, edit the `ensureBookingStatusOnAssignment()` function in `lib/utils.ts`.
+
+**Q: What happens with pooled bookings?**
+A: They get approved when pool processor assigns an interpreter.
+
+**Q: How do I debug approval problems?**
+A: Check assignment logs, database status, and pool processing.
+
+**Q: Does mode affect auto-approve?**
+A: No. All modes trigger auto-approve when interpreter assigned.
+
+**Q: What about manual assignments?**
+A: Use the utility function to ensure auto-approve happens.
+
+**Q: Can approval happen without assignment?**
+A: No. The system only approves when interpreter is assigned.
+
+**Q: How do I test auto-approve?**
+A: Run `scripts/test-booking-status.js` or create test booking via API.
+
+**Q: What if database update fails?**
+A: Assignment and approval happen in same transaction, so both fail together.

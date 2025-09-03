@@ -85,6 +85,7 @@ export interface EnhancedAssignmentLogData extends AssignmentLogData {
  */
 export interface PoolProcessingLogData {
   batchId: string;
+  processingType?: string;
   mode: string;
   processingStartTime: Date;
   processingEndTime: Date;
@@ -795,6 +796,7 @@ export class AssignmentLogger {
         return await prisma.poolProcessingLog.create({
           data: {
             batchId: logData.batchId,
+            processingType: logData.processingType || 'POOL_PROCESSING',
             mode: logData.mode,
             processingStartTime: logData.processingStartTime,
             processingEndTime: logData.processingEndTime,

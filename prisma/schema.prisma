@@ -134,6 +134,19 @@ model MeetingTypePriority {
   @@map("MEETING_TYPE_PRIORITY")
 }
 
+model MeetingTypeModeThreshold {
+  id                   Int         @id @default(autoincrement()) @map("ID")
+  meetingType          MeetingType @map("MEETING_TYPE")
+  assignmentMode       String      @map("ASSIGNMENT_MODE") @db.VarChar(20)
+  urgentThresholdDays  Int         @map("URGENT_THRESHOLD_DAYS")
+  generalThresholdDays Int         @map("GENERAL_THRESHOLD_DAYS")
+  createdAt            DateTime    @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt            DateTime    @updatedAt @map("updated_at") @db.Timestamp(0)
+
+  @@unique([meetingType, assignmentMode])
+  @@map("MEETING_TYPE_MODE_THRESHOLD")
+}
+
 model AssignmentLog {
   id                  Int         @id @default(autoincrement()) @map("ID")
   bookingId           Int         @map("BOOKING_ID")

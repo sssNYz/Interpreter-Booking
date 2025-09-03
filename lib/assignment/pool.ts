@@ -1,6 +1,7 @@
 import prisma from "@/prisma/prisma";
 import type { BookingPoolEntry, AssignmentPolicy } from "@/types/assignment";
 import { getMeetingTypePriority, loadPolicy } from "./policy";
+import { getModeSpecificThreshold } from "./mode-thresholds";
 import { PoolStatus } from "@prisma/client";
 
 // Enhanced pool entry with mode-specific information
@@ -100,10 +101,13 @@ class DatabaseBookingPool implements DatabasePoolManager {
     const policy = await loadPolicy();
     const assignmentMode = mode || policy.mode;
     
-    // Calculate mode-specific thresholds and deadlines
+    // Get mode-specific thresholds
+    const modeThresholds = await getModeSpecificThreshold(meetingType, assignmentMode);
+    
+    // Calculate mode-specific thresholds and deadlines using the mode-specific values
     const { thresholdDays, deadlineTime, processingPriority } = this.calculateModeSpecificTiming(
       startTime,
-      priority,
+      modeThresholds,
       assignmentMode
     );
 
@@ -113,10 +117,10 @@ class DatabaseBookingPool implements DatabasePoolManager {
       startTime,
       endTime,
       priorityValue: priority.priorityValue,
-      urgentThresholdDays: priority.urgentThresholdDays,
-      generalThresholdDays: priority.generalThresholdDays,
+      urgentThresholdDays: modeThresholds.urgentThresholdDays,
+      generalThresholdDays: modeThresholds.generalThresholdDays,
       poolEntryTime: new Date(),
-      decisionWindowTime: new Date(Date.now() + priority.generalThresholdDays * 24 * 60 * 60 * 1000),
+      decisionWindowTime: new Date(Date.now() + modeThresholds.generalThresholdDays * 24 * 60 * 60 * 1000),
       mode: assignmentMode,
       thresholdDays,
       deadlineTime,
@@ -451,7 +455,14 @@ class DatabaseBookingPool implements DatabasePoolManager {
   /**
    * Convert database BookingPlan records to EnhancedPoolEntry objects
    */
-  private async convertToEnhancedEntries(bookings: any[]): Promise<EnhancedPoolEntry[]> {
+  private async convertToEnhancedEntries(bookings: Array<{
+    bookingId: number;
+    meetingType: string;
+    timeStart: Date;
+    timeEnd: Date;
+    poolEntryTime?: Date | null;
+    poolDeadlineTime?: Date | null;
+  }>): Promise<EnhancedPoolEntry[]> {
     const entries: EnhancedPoolEntry[] = [];
     
     for (const booking of bookings) {
@@ -464,10 +475,15 @@ class DatabaseBookingPool implements DatabasePoolManager {
           continue;
         }
 
+        const assignmentMode = policy.mode as 'BALANCE' | 'URGENT' | 'NORMAL' | 'CUSTOM';
+        
+        // Get mode-specific thresholds
+        const modeThresholds = await getModeSpecificThreshold(booking.meetingType, assignmentMode);
+
         const { thresholdDays, processingPriority } = this.calculateModeSpecificTiming(
           booking.timeStart,
-          priority,
-          policy.mode as 'BALANCE' | 'URGENT' | 'NORMAL' | 'CUSTOM'
+          modeThresholds,
+          assignmentMode
         );
 
         const entry: EnhancedPoolEntry = {
@@ -476,11 +492,11 @@ class DatabaseBookingPool implements DatabasePoolManager {
           startTime: booking.timeStart,
           endTime: booking.timeEnd,
           priorityValue: priority.priorityValue,
-          urgentThresholdDays: priority.urgentThresholdDays,
-          generalThresholdDays: priority.generalThresholdDays,
+          urgentThresholdDays: modeThresholds.urgentThresholdDays,
+          generalThresholdDays: modeThresholds.generalThresholdDays,
           poolEntryTime: booking.poolEntryTime || new Date(),
           decisionWindowTime: booking.poolDeadlineTime || new Date(),
-          mode: policy.mode as 'BALANCE' | 'URGENT' | 'NORMAL' | 'CUSTOM',
+          mode: assignmentMode,
           thresholdDays,
           deadlineTime: booking.poolDeadlineTime || new Date(),
           processingPriority
@@ -660,31 +676,31 @@ export async function shouldAssignImmediately(
   meetingType: string,
   mode?: 'BALANCE' | 'URGENT' | 'NORMAL' | 'CUSTOM'
 ): Promise<boolean> {
-  const priority = await getMeetingTypePriority(meetingType);
-  if (!priority) return false;
-  
   const policy = await loadPolicy();
   const assignmentMode = mode || policy.mode;
+  
+  // Get mode-specific thresholds
+  const modeThresholds = await getModeSpecificThreshold(meetingType, assignmentMode);
   
   const daysUntil = Math.floor((startTime.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
   
   switch (assignmentMode) {
     case 'URGENT':
       // Urgent mode: Assign immediately if within urgent threshold or very close
-      return daysUntil <= Math.max(priority.urgentThresholdDays, 1);
+      return daysUntil <= Math.max(modeThresholds.urgentThresholdDays, 1);
       
     case 'BALANCE':
       // Balance mode: Only assign immediately if at deadline
-      return daysUntil <= priority.urgentThresholdDays;
+      return daysUntil <= modeThresholds.urgentThresholdDays;
       
     case 'NORMAL':
     case 'CUSTOM':
       // Normal/Custom mode: Standard urgent threshold
-      return daysUntil <= priority.urgentThresholdDays;
+      return daysUntil <= modeThresholds.urgentThresholdDays;
       
     default:
       // Fallback to standard logic
-      return daysUntil <= priority.urgentThresholdDays;
+      return daysUntil <= modeThresholds.urgentThresholdDays;
   }
 }
 
@@ -846,28 +862,26 @@ export async function calculateThresholdDays(
   meetingType: string,
   mode?: 'BALANCE' | 'URGENT' | 'NORMAL' | 'CUSTOM'
 ): Promise<{ thresholdDays: number; deadlineTime: Date; shouldProcessImmediately: boolean }> {
-  const priority = await getMeetingTypePriority(meetingType);
-  if (!priority) {
-    throw new Error(`No priority configuration found for meeting type: ${meetingType}`);
-  }
-
   const policy = await loadPolicy();
   const assignmentMode = mode || policy.mode;
+  
+  // Get mode-specific thresholds
+  const modeThresholds = await getModeSpecificThreshold(meetingType, assignmentMode);
   
   const daysUntilMeeting = Math.floor((startTime.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
   
   switch (assignmentMode) {
     case 'BALANCE':
-      const balanceThreshold = Math.max(priority.generalThresholdDays, 3);
-      const balanceDeadline = new Date(startTime.getTime() - (priority.urgentThresholdDays + 1) * 24 * 60 * 60 * 1000);
+      const balanceThreshold = Math.max(modeThresholds.generalThresholdDays, 3);
+      const balanceDeadline = new Date(startTime.getTime() - (modeThresholds.urgentThresholdDays + 1) * 24 * 60 * 60 * 1000);
       return {
         thresholdDays: balanceThreshold,
         deadlineTime: balanceDeadline,
-        shouldProcessImmediately: daysUntilMeeting <= priority.urgentThresholdDays
+        shouldProcessImmediately: daysUntilMeeting <= modeThresholds.urgentThresholdDays
       };
       
     case 'URGENT':
-      const urgentDeadline = new Date(startTime.getTime() - priority.urgentThresholdDays * 24 * 60 * 60 * 1000);
+      const urgentDeadline = new Date(startTime.getTime() - modeThresholds.urgentThresholdDays * 24 * 60 * 60 * 1000);
       return {
         thresholdDays: 0, // Process immediately
         deadlineTime: urgentDeadline,
@@ -876,19 +890,19 @@ export async function calculateThresholdDays(
       
     case 'NORMAL':
     case 'CUSTOM':
-      const normalDeadline = new Date(startTime.getTime() - priority.urgentThresholdDays * 24 * 60 * 60 * 1000);
+      const normalDeadline = new Date(startTime.getTime() - modeThresholds.urgentThresholdDays * 24 * 60 * 60 * 1000);
       return {
-        thresholdDays: priority.generalThresholdDays,
+        thresholdDays: modeThresholds.generalThresholdDays,
         deadlineTime: normalDeadline,
-        shouldProcessImmediately: daysUntilMeeting <= priority.urgentThresholdDays
+        shouldProcessImmediately: daysUntilMeeting <= modeThresholds.urgentThresholdDays
       };
       
     default:
-      const defaultDeadline = new Date(startTime.getTime() - priority.urgentThresholdDays * 24 * 60 * 60 * 1000);
+      const defaultDeadline = new Date(startTime.getTime() - modeThresholds.urgentThresholdDays * 24 * 60 * 60 * 1000);
       return {
-        thresholdDays: priority.generalThresholdDays,
+        thresholdDays: modeThresholds.generalThresholdDays,
         deadlineTime: defaultDeadline,
-        shouldProcessImmediately: daysUntilMeeting <= priority.urgentThresholdDays
+        shouldProcessImmediately: daysUntilMeeting <= modeThresholds.urgentThresholdDays
       };
   }
 }

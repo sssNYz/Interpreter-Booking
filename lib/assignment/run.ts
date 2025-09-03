@@ -353,6 +353,7 @@ export async function processPool(): Promise<RunResult[]> {
   // Log pool processing batch results
   const poolLogData: PoolProcessingLogData = {
     batchId,
+    processingType: 'POOL_PROCESSING',
     mode: policy.mode,
     processingStartTime,
     processingEndTime,
