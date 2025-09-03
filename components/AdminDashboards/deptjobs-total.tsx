@@ -95,13 +95,15 @@ export function DeptTab({ year }: { year: number }) {
   }, [year]);
 
   // safe defaults ให้ hooks ด้านล่างรันทุกครั้ง
-  const activeYear = data?.year ?? year;
-  const months: MonthName[] = data?.months ?? [];
-  const interpreters: InterpreterName[] = data?.interpreters ?? [];
-  const departments: OwnerGroup[] = data?.departments ?? [];
-  const yearData: MonthlyDataRow[] = data?.yearData ?? [];
-  const deptMGIFooter: FooterByInterpreter =
-    data?.deptMGIFooter ?? { perInterpreter: [], grand: 0, diff: 0 };
+  const activeYear = React.useMemo(() => data?.year ?? year, [data?.year, year]);
+  const months: MonthName[] = React.useMemo(() => data?.months ?? [], [data?.months]);
+  const interpreters: InterpreterName[] = React.useMemo(() => data?.interpreters ?? [], [data?.interpreters]);
+  const departments: OwnerGroup[] = React.useMemo(() => data?.departments ?? [], [data?.departments]);
+  const yearData: MonthlyDataRow[] = React.useMemo(() => data?.yearData ?? [], [data?.yearData]);
+  const deptMGIFooter: FooterByInterpreter = React.useMemo(
+    () => data?.deptMGIFooter ?? { perInterpreter: [], grand: 0, diff: 0 },
+    [data?.deptMGIFooter]
+  );
 
   // 👉 เดือนปฏิทินปัจจุบัน (ไว้ไฮไลต์คอลัมน์ใน Table A)
   const currentMonth = React.useMemo<MonthName | "">(
@@ -131,8 +133,10 @@ export function DeptTab({ year }: { year: number }) {
     });
   }, [yearData, selectedMonth, departments, interpreters]);
 
-  const monthsToRender: MonthName[] =
-    showAllMonths ? months : (selectedMonth ? [selectedMonth] : []);
+  const monthsToRender: MonthName[] = React.useMemo(
+    () => showAllMonths ? months : (selectedMonth ? [selectedMonth] : []),
+    [showAllMonths, months, selectedMonth]
+  );
 
   const dynamicFooter = React.useMemo<FooterByInterpreter>(() => {
     if (showAllMonths) return deptMGIFooter;
