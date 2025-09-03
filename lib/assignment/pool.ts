@@ -93,6 +93,7 @@ class DatabaseBookingPool implements DatabasePoolManager {
     endTime: Date,
     mode?: 'BALANCE' | 'URGENT' | 'NORMAL' | 'CUSTOM'
   ): Promise<EnhancedPoolEntry> {
+    
     const priority = await getMeetingTypePriority(meetingType);
     if (!priority) {
       throw new Error(`No priority configuration found for meeting type: ${meetingType}`);
@@ -138,7 +139,7 @@ class DatabaseBookingPool implements DatabasePoolManager {
           poolProcessingAttempts: 0
         }
       });
-      
+
       console.log(`📥 Added booking ${bookingId} to database pool (${meetingType}, mode: ${assignmentMode}, threshold: ${thresholdDays} days, deadline: ${deadlineTime.toISOString()})`);
     } catch (error) {
       console.error(`❌ Failed to add booking ${bookingId} to database pool:`, error);
@@ -147,6 +148,7 @@ class DatabaseBookingPool implements DatabasePoolManager {
     
     return poolEntry;
   }
+
 
   /**
    * Calculate mode-specific timing and priority for pool entries
@@ -682,9 +684,10 @@ export async function shouldAssignImmediately(
   
   // Get mode-specific thresholds
   const modeThresholds = await getModeSpecificThreshold(meetingType, assignmentMode);
-  
+  // Find difference between start time and now 
   const daysUntil = Math.floor((startTime.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
   
+  // Switch on assignment mode for find is it urgent or not
   switch (assignmentMode) {
     case 'URGENT':
       // Urgent mode: Assign immediately if within urgent threshold or very close

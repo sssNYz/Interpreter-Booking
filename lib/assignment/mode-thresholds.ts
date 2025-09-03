@@ -1,17 +1,20 @@
 /**
  * Mode-Specific Threshold Management
- * 
+ *
  * Handles retrieval and caching of mode-specific threshold configurations
  * for different assignment modes and meeting types.
  */
 
-import { PrismaClient } from '@prisma/client';
-import { MeetingTypeModeThreshold, MeetingTypePriority } from '../../types/assignment';
+import { MeetingType, PrismaClient } from "@prisma/client";
+import {
+  MeetingTypeModeThreshold,
+  MeetingTypePriority,
+} from "../../types/assignment";
 
 const prisma = new PrismaClient();
 
 // Cache for mode-specific thresholds to avoid repeated database queries
-let thresholdCache: Map<string, MeetingTypeModeThreshold> = new Map();
+const thresholdCache: Map<string, MeetingTypeModeThreshold> = new Map();
 let cacheExpiry: number = 0;
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
@@ -20,33 +23,32 @@ const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
  */
 export async function getModeSpecificThreshold(
   meetingType: string,
-  assignmentMode: 'BALANCE' | 'URGENT' | 'NORMAL' | 'CUSTOM'
+  assignmentMode: "BALANCE" | "URGENT" | "NORMAL" | "CUSTOM"
 ): Promise<{ urgentThresholdDays: number; generalThresholdDays: number }> {
-  
   // Check cache first
   const cacheKey = `${meetingType}-${assignmentMode}`;
   const now = Date.now();
-  
+
   if (now < cacheExpiry && thresholdCache.has(cacheKey)) {
     const cached = thresholdCache.get(cacheKey)!;
     console.log(`🔍use threshold from cache`);
     return {
       urgentThresholdDays: cached.urgentThresholdDays,
-      generalThresholdDays: cached.generalThresholdDays
+      generalThresholdDays: cached.generalThresholdDays,
     };
   }
-  
+  //meetingTypeModeThreshold
   try {
     // Try to get mode-specific threshold first
     const modeThreshold = await prisma.meetingTypeModeThreshold.findUnique({
       where: {
         meetingType_assignmentMode: {
-          meetingType: meetingType as any,
-          assignmentMode
-        }
-      }
+          meetingType: meetingType as MeetingType,
+          assignmentMode,
+        },
+      },
     });
-    
+
     if (modeThreshold) {
       // Cache the result
       const cacheEntry: MeetingTypeModeThreshold = {
@@ -56,38 +58,42 @@ export async function getModeSpecificThreshold(
         urgentThresholdDays: modeThreshold.urgentThresholdDays,
         generalThresholdDays: modeThreshold.generalThresholdDays,
         createdAt: modeThreshold.createdAt,
-        updatedAt: modeThreshold.updatedAt
+        updatedAt: modeThreshold.updatedAt,
       };
       thresholdCache.set(cacheKey, cacheEntry);
       if (now >= cacheExpiry) {
         cacheExpiry = now + CACHE_DURATION;
       }
-      
+
       return {
         urgentThresholdDays: modeThreshold.urgentThresholdDays,
-        generalThresholdDays: modeThreshold.generalThresholdDays
+        generalThresholdDays: modeThreshold.generalThresholdDays,
       };
     }
-    
+
     // Fallback to default meeting type priority if mode-specific not found
     const defaultPriority = await prisma.meetingTypePriority.findUnique({
-      where: { meetingType: meetingType as any }
+      where: { meetingType: meetingType as MeetingType },
     });
-    
+
     if (defaultPriority) {
       return {
         urgentThresholdDays: defaultPriority.urgentThresholdDays,
-        generalThresholdDays: defaultPriority.generalThresholdDays
+        generalThresholdDays: defaultPriority.generalThresholdDays,
       };
     }
-    
+
     // Final fallback - default values
-    console.warn(`No threshold configuration found for ${meetingType} in ${assignmentMode} mode, using defaults`);
-    return getDefaultThresholds(meetingType, assignmentMode);
-    
+    console.warn(
+      `No threshold configuration found for ${meetingType} in ${assignmentMode} mode, using defaults`
+    );
+    return getDefaultThresholds(meetingType as MeetingType, assignmentMode);
   } catch (error) {
-    console.error(`Error getting mode-specific threshold for ${meetingType} in ${assignmentMode} mode:`, error);
-    return getDefaultThresholds(meetingType, assignmentMode);
+    console.error(
+      `Error getting mode-specific threshold for ${meetingType} in ${assignmentMode} mode:`,
+      error
+    );
+    return getDefaultThresholds(meetingType as MeetingType, assignmentMode);
   }
 }
 
@@ -95,25 +101,28 @@ export async function getModeSpecificThreshold(
  * Get all mode-specific thresholds for a given assignment mode
  */
 export async function getAllModeThresholds(
-  assignmentMode: 'BALANCE' | 'URGENT' | 'NORMAL' | 'CUSTOM'
+  assignmentMode: "BALANCE" | "URGENT" | "NORMAL" | "CUSTOM"
 ): Promise<MeetingTypeModeThreshold[]> {
   try {
     const results = await prisma.meetingTypeModeThreshold.findMany({
       where: { assignmentMode },
-      orderBy: { meetingType: 'asc' }
+      orderBy: { meetingType: "asc" },
     });
-    
-    return results.map(result => ({
+
+    return results.map((result) => ({
       id: result.id,
       meetingType: result.meetingType,
       assignmentMode: assignmentMode,
       urgentThresholdDays: result.urgentThresholdDays,
       generalThresholdDays: result.generalThresholdDays,
       createdAt: result.createdAt,
-      updatedAt: result.updatedAt
+      updatedAt: result.updatedAt,
     }));
   } catch (error) {
-    console.error(`Error getting all thresholds for ${assignmentMode} mode:`, error);
+    console.error(
+      `Error getting all thresholds for ${assignmentMode} mode:`,
+      error
+    );
     return [];
   }
 }
@@ -123,7 +132,7 @@ export async function getAllModeThresholds(
  */
 export async function updateModeThreshold(
   meetingType: string,
-  assignmentMode: 'BALANCE' | 'URGENT' | 'NORMAL' | 'CUSTOM',
+  assignmentMode: "BALANCE" | "URGENT" | "NORMAL" | "CUSTOM",
   urgentThresholdDays: number,
   generalThresholdDays: number
 ): Promise<MeetingTypeModeThreshold> {
@@ -131,25 +140,22 @@ export async function updateModeThreshold(
     const updated = await prisma.meetingTypeModeThreshold.upsert({
       where: {
         meetingType_assignmentMode: {
-          meetingType: meetingType as any,
-          assignmentMode
-        }
+          meetingType: meetingType as MeetingType,
+          assignmentMode,
+        },
       },
-      update: {
-        urgentThresholdDays,
-        generalThresholdDays
-      },
+      update: { urgentThresholdDays, generalThresholdDays },
       create: {
-        meetingType: meetingType as any,
+        meetingType: meetingType as MeetingType,
         assignmentMode,
         urgentThresholdDays,
-        generalThresholdDays
-      }
+        generalThresholdDays,
+      },
     });
-    
+
     // Clear cache to force refresh
     clearThresholdCache();
-    
+
     return {
       id: updated.id,
       meetingType: updated.meetingType,
@@ -157,10 +163,13 @@ export async function updateModeThreshold(
       urgentThresholdDays: updated.urgentThresholdDays,
       generalThresholdDays: updated.generalThresholdDays,
       createdAt: updated.createdAt,
-      updatedAt: updated.updatedAt
+      updatedAt: updated.updatedAt,
     };
   } catch (error) {
-    console.error(`Error updating mode threshold for ${meetingType} in ${assignmentMode} mode:`, error);
+    console.error(
+      `Error updating mode threshold for ${meetingType} in ${assignmentMode} mode:`,
+      error
+    );
     throw error;
   }
 }
@@ -177,10 +186,9 @@ export function clearThresholdCache(): void {
  * Get default threshold values based on meeting type and mode
  */
 function getDefaultThresholds(
-  meetingType: string,
-  assignmentMode: 'BALANCE' | 'URGENT' | 'NORMAL' | 'CUSTOM'
+  meetingType: MeetingType,
+  assignmentMode: "BALANCE" | "URGENT" | "NORMAL" | "CUSTOM"
 ): { urgentThresholdDays: number; generalThresholdDays: number } {
-  
   // Default fallback values based on your specifications
   const defaults = {
     BALANCE: {
@@ -189,7 +197,7 @@ function getDefaultThresholds(
       Augent: { urgentThresholdDays: 7, generalThresholdDays: 15 },
       Weekly: { urgentThresholdDays: 3, generalThresholdDays: 15 },
       General: { urgentThresholdDays: 7, generalThresholdDays: 15 },
-      Other: { urgentThresholdDays: 3, generalThresholdDays: 7 }
+      Other: { urgentThresholdDays: 3, generalThresholdDays: 7 },
     },
     NORMAL: {
       DR: { urgentThresholdDays: 10, generalThresholdDays: 30 },
@@ -197,7 +205,7 @@ function getDefaultThresholds(
       Augent: { urgentThresholdDays: 10, generalThresholdDays: 15 },
       Weekly: { urgentThresholdDays: 7, generalThresholdDays: 15 },
       General: { urgentThresholdDays: 10, generalThresholdDays: 15 },
-      Other: { urgentThresholdDays: 7, generalThresholdDays: 10 }
+      Other: { urgentThresholdDays: 7, generalThresholdDays: 10 },
     },
     URGENT: {
       DR: { urgentThresholdDays: 14, generalThresholdDays: 45 },
@@ -205,7 +213,7 @@ function getDefaultThresholds(
       Augent: { urgentThresholdDays: 14, generalThresholdDays: 30 },
       Weekly: { urgentThresholdDays: 14, generalThresholdDays: 30 },
       General: { urgentThresholdDays: 14, generalThresholdDays: 30 },
-      Other: { urgentThresholdDays: 7, generalThresholdDays: 15 }
+      Other: { urgentThresholdDays: 7, generalThresholdDays: 15 },
     },
     CUSTOM: {
       // CUSTOM mode falls back to original values
@@ -214,10 +222,10 @@ function getDefaultThresholds(
       Augent: { urgentThresholdDays: 3, generalThresholdDays: 30 },
       Weekly: { urgentThresholdDays: 3, generalThresholdDays: 30 },
       General: { urgentThresholdDays: 3, generalThresholdDays: 30 },
-      Other: { urgentThresholdDays: 5, generalThresholdDays: 45 }
-    }
+      Other: { urgentThresholdDays: 5, generalThresholdDays: 45 },
+    },
   };
-  
-  const modeDefaults = defaults[assignmentMode] || defaults.NORMAL;
-  return (modeDefaults as any)[meetingType] || (modeDefaults as any).Other;
+
+  const modeDefaults = defaults[assignmentMode];
+  return modeDefaults[meetingType] ?? modeDefaults.Other;
 }

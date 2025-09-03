@@ -153,7 +153,7 @@ export async function runAssignment(bookingId: number): Promise<RunResult> {
     const isUrgent = await shouldAssignImmediately(booking.timeStart, booking.meetingType, policy.mode);
 
     if (!isUrgent) {
-      console.log(`📥 Booking ${bookingId} is not urgent, adding to pool (mode: ${policy.mode})`);
+      console.log(`📥 Booking ${bookingId} is not urgent, adding to pool !!! (mode: ${policy.mode})`);
 
       const poolEntry = await bookingPool.addToPoolEnhanced(
         booking.bookingId,
@@ -171,7 +171,7 @@ export async function runAssignment(bookingId: number): Promise<RunResult> {
     }
 
     // Proceed with immediate assignment
-    console.log(`⚡ Booking ${bookingId} is urgent, proceeding with immediate assignment`);
+    console.log(`⚡ Booking ${bookingId} is urgent !!!, proceeding with immediate assignment`);
 
     // Check for dynamic pool changes before assignment
     const poolManagement = await checkAndAdjustDynamicPool(policy);
