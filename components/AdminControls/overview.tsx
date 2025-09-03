@@ -1,11 +1,11 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { Users, Clock, BarChart2 } from "lucide-react";
+import { Users, Clock, BarChart2, RefreshCw } from "lucide-react";
 
 import { JobsTab } from "@/components/AdminDashboards/jobs-total";
 import { HoursTab } from "@/components/AdminDashboards/timejobs-total";
@@ -87,62 +87,74 @@ export default function Page() {
     typesMGIFooter?: { grand: number };
     months?: string[];
   } | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const currentMonthLabel = getCurrentFiscalMonthLabel();
+
+  // Fetch data function that can be called manually or on mount
+  const fetchDashboardData = useCallback(async (showLoading = false) => {
+    if (showLoading) {
+      setIsRefreshing(true);
+    }
+
+    try {
+      const responses = await Promise.all([
+        fetch(`/api/admin-dashboard/jobs-total/${activeYear}`, {
+          cache: "no-store",
+        }),
+        fetch(`/api/admin-dashboard/timejobs-total/${activeYear}`, {
+          cache: "no-store",
+        }),
+        fetch(`/api/admin-dashboard/dept-total/${activeYear}`, {
+          cache: "no-store",
+        }),
+        fetch(`/api/admin-dashboard/typesjob-total/${activeYear}`, {
+          cache: "no-store",
+        }),
+      ]);
+
+      const [jobsRes, hoursRes, deptRes, typesRes] = responses;
+
+      if (jobsRes.ok) {
+        const jobsData = await jobsRes.json();
+        setJobsData(jobsData);
+      }
+
+      if (hoursRes.ok) {
+        const hoursData = await hoursRes.json();
+        setHoursData(hoursData);
+      }
+
+      if (deptRes.ok) {
+        const deptData = await deptRes.json();
+        setDeptData(deptData);
+      }
+
+      if (typesRes.ok) {
+        const typesData = await typesRes.json();
+        setTypesData(typesData);
+      }
+    } catch (e) {
+      console.error("Error fetching dashboard data:", e);
+    } finally {
+      if (showLoading) {
+        setIsRefreshing(false);
+      }
+    }
+  }, [activeYear]);
 
   // Fetch data from existing admin-dashboard APIs with optimized caching
   useEffect(() => {
     let alive = true;
 
-    Promise.all([
-      fetch(`/api/admin-dashboard/jobs-total/${activeYear}`, {
-        cache: "no-store",
-      }),
-      fetch(`/api/admin-dashboard/timejobs-total/${activeYear}`, {
-        cache: "no-store",
-      }),
-      fetch(`/api/admin-dashboard/dept-total/${activeYear}`, {
-        cache: "no-store",
-      }),
-      fetch(`/api/admin-dashboard/typesjob-total/${activeYear}`, {
-        cache: "no-store",
-      }),
-    ])
-      .then(async (responses) => {
-        if (!alive) return;
-
-        const [jobsRes, hoursRes, deptRes, typesRes] = responses;
-
-        if (jobsRes.ok) {
-          const jobsData = await jobsRes.json();
-          setJobsData(jobsData);
-        }
-
-        if (hoursRes.ok) {
-          const hoursData = await hoursRes.json();
-          setHoursData(hoursData);
-        }
-
-        if (deptRes.ok) {
-          const deptData = await deptRes.json();
-          setDeptData(deptData);
-        }
-
-        if (typesRes.ok) {
-          const typesData = await typesRes.json();
-          setTypesData(typesData);
-        }
-      })
-      .catch((e) => {
-        if (alive) {
-          console.error("Error fetching dashboard data:", e);
-        }
-      });
+    fetchDashboardData(false).then(() => {
+      if (!alive) return;
+    });
 
     return () => {
       alive = false;
     };
-  }, [activeYear]);
+  }, [activeYear, fetchDashboardData]);
 
   // KPI - Use API data from existing endpoints
   const kpiJobs =
@@ -296,15 +308,30 @@ export default function Page() {
           </Card>
         </div>
 
+
+
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           {/* Removed 'Logs' trigger — use only the head button */}
-          <TabsList className="grid grid-cols-2 lg:grid-cols-4 mb-4">
-            <TabsTrigger value="jobs">Total Jobs</TabsTrigger>
-            <TabsTrigger value="hours">Total Hours</TabsTrigger>
-            <TabsTrigger value="dept">Dept Meetings</TabsTrigger>
-            <TabsTrigger value="types">Meeting Types</TabsTrigger>
-          </TabsList>
+          <div className="flex items-center justify-between mb-4">
+            <TabsList className="grid grid-cols-2 lg:grid-cols-4">
+              <TabsTrigger value="jobs">Total Jobs</TabsTrigger>
+              <TabsTrigger value="hours">Total Hours</TabsTrigger>
+              <TabsTrigger value="dept">Dept Meetings</TabsTrigger>
+              <TabsTrigger value="types">Meeting Types</TabsTrigger>
+            </TabsList>
+            {/* Refresh Data Button - positioned near tabs */}
+            <Button 
+              onClick={() => fetchDashboardData(true)} 
+              disabled={isRefreshing}
+              variant="outline"
+              size="sm"
+              className="flex items-center gap-2"
+            >
+              <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+              {isRefreshing ? 'Refreshing...' : 'Refresh Data'}
+            </Button>
+          </div>
 
           <TabsContent value="jobs">
             <JobsTab year={activeYear} />
