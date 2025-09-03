@@ -29,6 +29,7 @@ export async function getModeSpecificThreshold(
   
   if (now < cacheExpiry && thresholdCache.has(cacheKey)) {
     const cached = thresholdCache.get(cacheKey)!;
+    console.log(`🔍use threshold from cache`);
     return {
       urgentThresholdDays: cached.urgentThresholdDays,
       generalThresholdDays: cached.generalThresholdDays
