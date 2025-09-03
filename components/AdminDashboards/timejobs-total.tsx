@@ -12,21 +12,14 @@ import {
   Tooltip,
 } from "recharts";
 
-// ⬇️ Use your central types
+// ⬇️ Use centralized admin dashboard types
 import {
   MonthName,
   HoursRow,
   FooterByInterpreter,
   InterpreterName,
-} from "@/types/overview";
-
-type ApiResponse = {
-  months: MonthName[];
-  interpreters: InterpreterName[];
-  totalHoursLineMinutes: HoursRow[]; // minutes per month + per interpreter
-  hoursFooter: FooterByInterpreter;
-  year: number;
-};
+  HoursApiResponse,
+} from "@/types/admin-dashboard";
 
 /** เดิม: แสดงเป็น h.mm h (คงรูปแบบเดิมของคุณไว้) */
 function formatHoursDecimal(mins: number): string {
@@ -59,7 +52,7 @@ const getValue = (row: RowIndexable, person: InterpreterName): number =>
 
 export function HoursTab({ year }: { year: number }) {
   // Hooks (ลำดับต้องคงที่)
-  const [data, setData] = React.useState<ApiResponse | null>(null);
+  const [data, setData] = React.useState<HoursApiResponse | null>(null);
 
   React.useEffect(() => {
     let alive = true;
@@ -69,7 +62,7 @@ export function HoursTab({ year }: { year: number }) {
     })
       .then(async (r) => {
         if (!r.ok) throw new Error(`Failed (${r.status})`);
-        const j = (await r.json()) as ApiResponse;
+        const j = (await r.json()) as HoursApiResponse;
         if (alive) setData(j);
       })
       .catch((e) => {

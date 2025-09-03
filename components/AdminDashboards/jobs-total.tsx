@@ -12,21 +12,14 @@ import {
   Tooltip,
 } from "recharts";
 
-// ⬇️ Use your existing types
+// ⬇️ Use centralized admin dashboard types
 import {
   MonthName,
   JobsRow,
   FooterByInterpreter,
   InterpreterName,
-} from "@/types/overview";
-
-type ApiResponse = {
-  months: MonthName[];
-  interpreters: InterpreterName[];
-  totalJobsStack: JobsRow[];
-  jobsFooter: FooterByInterpreter;
-  year: number;
-};
+  JobsApiResponse,
+} from "@/types/admin-dashboard";
 
 /** ใช้ “เดือนปฏิทิน” ปัจจุบัน (Jan..Dec) เพื่อไฮไลต์ในตาราง */
 function getCurrentCalendarMonth(months: MonthName[]): MonthName | "" {
@@ -41,7 +34,7 @@ function diffClass(v: number): string {
 }
 
 export function JobsTab({ year }: { year: number }) {
-  const [data, setData] = React.useState<ApiResponse | null>(null);
+  const [data, setData] = React.useState<JobsApiResponse | null>(null);
 
   React.useEffect(() => {
     fetch(`/api/admin-dashboard/jobs-total/${year}`, {
@@ -50,7 +43,7 @@ export function JobsTab({ year }: { year: number }) {
     })
       .then(async (r) => {
         if (!r.ok) throw new Error(`Failed (${r.status})`);
-        const j = (await r.json()) as ApiResponse;
+        const j = (await r.json()) as JobsApiResponse;
         setData(j);
       })
       .catch((e) => {
@@ -169,7 +162,7 @@ export function JobsTab({ year }: { year: number }) {
                   {/* TOTAL row — keep green on hover + สี Diff แบบ 2 สี */}
                   <tr className="bg-emerald-50 text-emerald-900 font-semibold hover:bg-emerald-50">
                     <td className="p-2">TOTAL</td>
-                    {jobsFooter.perInterpreter.map((v, idx) => (
+                    {jobsFooter.perInterpreter.map((v: number, idx: number) => (
                       <td key={idx} className="p-2 text-right">{v}</td>
                     ))}
                     <td className={`p-2 text-right ${diffClass(jobsFooter.diff)}`}>{jobsFooter.diff}</td>

@@ -1,6 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/prisma/prisma";
 import type { Prisma } from "@prisma/client";
+import {
+  buildDateRangeFilter,
+  buildSearchFilter,
+  calculatePagination,
+  transformBookingPlanData,
+  transformEmployeeData,
+  createApiResponse,
+  createErrorResponse,
+  DEFAULT_PAGE_SIZE,
+  MAX_PAGE_SIZE,
+} from "@/utils/admin-dashboard";
 
 /**
  * Assignment Logs API
@@ -16,7 +27,7 @@ export async function GET(request: NextRequest) {
 
     // ===== Parse query params =====
     const page = parseInt(searchParams.get("page") || "1");
-    const pageSize = Math.min(parseInt(searchParams.get("pageSize") || "20"), 100); // cap 100
+    const pageSize = Math.min(parseInt(searchParams.get("pageSize") || DEFAULT_PAGE_SIZE.toString()), MAX_PAGE_SIZE);
     const status = searchParams.get("status");
     const interpreterEmpCode = searchParams.get("interpreterEmpCode");
     const search = searchParams.get("search");
@@ -44,28 +55,15 @@ export async function GET(request: NextRequest) {
       isActive: true,
     };
 
-    // Date filtering — apply only when both valid
-    if (from && to && from.trim() && to.trim()) {
-      const fromDate = new Date(from);
-      const toDate = new Date(to);
-      if (!isNaN(fromDate.getTime()) && !isNaN(toDate.getTime())) {
-        whereConditions.createdAt = {
-          gte: fromDate,
-          lte: toDate,
-        };
-      }
+    // Date filtering using centralized utility
+    const dateFilter = buildDateRangeFilter(from, to);
+    if (Object.keys(dateFilter).length > 0) {
+      whereConditions.createdAt = dateFilter;
     }
 
-    // Search: bookingId (number) or reason contains (text)
-    if (search && search.trim().length >= 2) {
-      const searchTerm = search.trim();
-      const bookingId = parseInt(searchTerm);
-      if (!isNaN(bookingId)) {
-        whereConditions.bookingId = bookingId;
-      } else {
-        whereConditions.reason = { contains: searchTerm };
-      }
-    }
+    // Search using centralized utility
+    const searchFilter = buildSearchFilter(search);
+    Object.assign(whereConditions, searchFilter);
 
     // ===== Sort parse/validation =====
     const [sortField, sortOrder] = sort.split(":");

@@ -7,14 +7,17 @@ import {
   HoursRow,
   FooterByInterpreter,
   InterpreterName,
-} from "@/types/overview";
-
-const MONTH_LABELS: MonthName[] = [
-  "Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec",
-];
-
-function getUtcMonthIndex(date: Date): number { return date.getUTCMonth(); }
-function getMonthLabel(date: Date): MonthName { return MONTH_LABELS[getUtcMonthIndex(date)]; }
+  HoursApiResponse,
+  MONTH_LABELS,
+} from "@/types/admin-dashboard";
+import {
+  getUtcMonthIndex,
+  getMonthLabel,
+  calculateFooterStats,
+  parseYearParam,
+  createApiResponse,
+  createErrorResponse,
+} from "@/utils/admin-dashboard";
 
 type Params = { year?: string };
 
@@ -29,8 +32,8 @@ export async function GET(
     const { year: paramYear } = await ctx.params;
     const queryYear = url.searchParams.get("year") ?? undefined;
 
-    let yearNum = Number(paramYear ?? queryYear ?? new Date().getUTCFullYear());
-    if (!Number.isFinite(yearNum) || yearNum < 1970 || yearNum > 3000) {
+    let yearNum = parseYearParam(paramYear ?? queryYear ?? new Date().getUTCFullYear().toString());
+    if (!yearNum) {
       yearNum = new Date().getUTCFullYear();
     }
 

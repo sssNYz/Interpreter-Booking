@@ -1,0 +1,139 @@
+// Centralized types for Admin Dashboard components and API routes
+// This file consolidates all repeated and inconsistent type definitions
+
+// ===== Re-export from existing overview types =====
+export type {
+  MonthName,
+  InterpreterName,
+  OwnerGroup,
+  MeetingType,
+  DRType,
+  MonthlyDataRow,
+  JobsRow,
+  HoursRow,
+  FooterByInterpreter,
+} from "@/types/overview";
+
+export { OwnerGroupLabel } from "@/types/overview";
+
+// ===== Import for internal use =====
+import type {
+  MonthName,
+  InterpreterName,
+  OwnerGroup,
+  MeetingType,
+  DRType,
+  MonthlyDataRow,
+  JobsRow,
+  HoursRow,
+  FooterByInterpreter,
+} from "@/types/overview";
+
+// ===== Employee Information Types =====
+export interface EmployeeInfo {
+  empCode: string;
+  firstNameEn?: string | null;
+  lastNameEn?: string | null;
+  firstNameTh?: string | null;
+  lastNameTh?: string | null;
+}
+
+// ===== Booking Plan Information Types =====
+export interface BookingPlanInfo {
+  meetingType: string;
+  drType?: string | null;
+  otherType?: string | null;
+  ownerGroup?: string | null;
+  timeStart: string;
+  timeEnd: string;
+  meetingRoom: string;
+  ownerEmpCode?: string | null;
+  employee?: EmployeeInfo | null;
+}
+
+// ===== Assignment Logs Types =====
+export interface AssignmentLogItem {
+  id: number;
+  bookingId: number;
+  interpreterEmpCode?: string | null;
+  status: string;
+  reason?: string | null;
+  createdAt: string;
+  preHoursSnapshot?: unknown;
+  postHoursSnapshot?: unknown;
+  scoreBreakdown?: unknown;
+  bookingPlan: BookingPlanInfo;
+  interpreterEmployee?: EmployeeInfo | null;
+}
+
+export interface AssignmentLogsApiResponse {
+  items: AssignmentLogItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+  summary: {
+    byInterpreter: Record<string, {
+      assigned: number;
+      approved: number;
+      rejected: number;
+    }>;
+  };
+}
+
+// ===== Jobs Total API Response =====
+export interface JobsApiResponse {
+  months: MonthName[];
+  interpreters: InterpreterName[];
+  totalJobsStack: JobsRow[];
+  jobsFooter: FooterByInterpreter;
+  year: number;
+}
+
+// ===== Hours/Time Jobs Total API Response =====
+export interface HoursApiResponse {
+  months: MonthName[];
+  interpreters: InterpreterName[];
+  totalHoursLineMinutes: HoursRow[];
+  hoursFooter: FooterByInterpreter;
+  year: number;
+}
+
+// ===== Department Jobs Total API Response =====
+export interface DepartmentsApiResponse {
+  months: MonthName[];
+  interpreters: InterpreterName[];
+  departments: OwnerGroup[];
+  year: number;
+  yearData: MonthlyDataRow[];
+  deptMGIFooter: FooterByInterpreter;
+}
+
+// ===== Meeting Types Jobs Total API Response =====
+export interface MonthlyDataRowWithDR extends MonthlyDataRow {
+  drTypeByInterpreter: Record<InterpreterName, Record<DRType, number>>;
+}
+
+export interface TypesApiResponse {
+  months: MonthName[];
+  interpreters: InterpreterName[];
+  year: number;
+  yearData: MonthlyDataRowWithDR[];
+  typesMGIFooter: FooterByInterpreter;
+}
+
+// ===== Constants =====
+export const MONTH_LABELS: MonthName[] = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+];
+
+export const MEETING_TYPES: MeetingType[] = ["DR", "VIP", "Weekly", "General", "Augent", "Other"];
+
+export const DR_TYPES: DRType[] = ["PR_PR", "DR_k", "DR_II", "DR_I", "Other"];
+
+export const OWNER_GROUPS: OwnerGroup[] = ["iot", "hardware", "software", "other"];
+
+// ===== Legacy Type Aliases (for backward compatibility) =====
+export type ApiResponse = JobsApiResponse; // Default to JobsApiResponse for backward compatibility
+export type DeptApiResponse = DepartmentsApiResponse;
