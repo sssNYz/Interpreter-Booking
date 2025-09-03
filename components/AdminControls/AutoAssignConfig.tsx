@@ -404,10 +404,6 @@ export default function AutoAssignConfig() {
 
       {/* Master Toggle */}
       <Card>
-        <CardHeader>
-          <CardTitle>System Control</CardTitle>
-          <CardDescription>Master switch to enable/disable auto-assignment</CardDescription>
-        </CardHeader>
         <CardContent>
           <div className="flex items-center justify-between">
             <div>
