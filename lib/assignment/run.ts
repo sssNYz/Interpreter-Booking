@@ -102,9 +102,7 @@ async function checkAndAdjustDynamicPool(policy: AssignmentPolicy): Promise<{
   }
 }
 
-/**
- * Main assignment function for a single booking
- */
+// Main assignment function for a single booking -->> its start here
 export async function runAssignment(bookingId: number): Promise<RunResult> {
   console.log(`🚀 Starting assignment for booking ${bookingId}`);
 
@@ -353,6 +351,7 @@ export async function processPool(): Promise<RunResult[]> {
   // Log pool processing batch results
   const poolLogData: PoolProcessingLogData = {
     batchId,
+    processingType: 'POOL_PROCESSING',
     mode: policy.mode,
     processingStartTime,
     processingEndTime,

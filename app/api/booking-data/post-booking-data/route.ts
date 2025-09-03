@@ -766,8 +766,63 @@ import type { RunResult } from "@/types/assignment";
         try {
           console.log(`🚀 Starting auto-assignment for booking ${result.body.data.bookingId} (after transaction)`);
           const { run } = await import("@/lib/assignment/run");
-          autoAssignmentResult = await run(result.body.data.bookingId);
-          console.log(`📊 Auto-assignment result:`, autoAssignmentResult);
+          
+          // If this is a recurring booking, assign parent and all children individually
+          if (body.isRecurring) {
+            console.log(`🔄 Processing recurring booking with ${result.body.data.recurringChildrenInserted} children`);
+            
+            // 1. Run auto-assignment for parent booking
+            autoAssignmentResult = await run(result.body.data.bookingId);
+            console.log(`📊 Parent auto-assignment result:`, autoAssignmentResult);
+            
+            // 2. Get all child bookings for this parent
+            const childBookings = await prisma.bookingPlan.findMany({
+              where: { parentBookingId: result.body.data.bookingId },
+              select: { bookingId: true, timeStart: true, timeEnd: true }
+            });
+            console.log(`📋 Found ${childBookings.length} child bookings to assign individually`);
+            
+            // 3. Run auto-assignment for each child booking
+            let successfulChildAssignments = 0;
+            const childResults = [];
+            
+            for (const childBooking of childBookings) {
+              try {
+                console.log(`🔄 Running auto-assignment for child booking ${childBooking.bookingId}`);
+                const childResult = await run(childBooking.bookingId);
+                childResults.push({
+                  bookingId: childBooking.bookingId,
+                  result: childResult
+                });
+                
+                if (childResult.status === "assigned") {
+                  successfulChildAssignments++;
+                  console.log(`✅ Child booking ${childBooking.bookingId} assigned to ${childResult.interpreterId}`);
+                } else {
+                  console.log(`⚠️ Child booking ${childBooking.bookingId} assignment result: ${childResult.status} - ${childResult.reason}`);
+                }
+              } catch (error) {
+                console.error(`❌ Failed to assign child booking ${childBooking.bookingId}:`, error);
+                childResults.push({
+                  bookingId: childBooking.bookingId,
+                  result: { status: "escalated", reason: "assignment error" }
+                });
+              }
+            }
+            
+            // 4. Update the result to show all assignments
+            autoAssignmentResult = {
+              ...autoAssignmentResult,
+              childAssignments: successfulChildAssignments,
+              totalChildren: childBookings.length,
+              childResults: childResults,
+              message: `Parent: ${autoAssignmentResult.status}, Children: ${successfulChildAssignments}/${childBookings.length} assigned`
+            };
+          } else {
+            // Non-recurring booking - normal flow
+            autoAssignmentResult = await run(result.body.data.bookingId);
+            console.log(`📊 Auto-assignment result:`, autoAssignmentResult);
+          }
           
           // Update the response with auto-assignment result
           result.body.data.autoAssignment = autoAssignmentResult;

@@ -29,6 +29,16 @@ export interface MeetingTypePriority {
   updatedAt: Date;
 }
 
+export interface MeetingTypeModeThreshold {
+  id: number;
+  meetingType: string;
+  assignmentMode: 'BALANCE' | 'URGENT' | 'NORMAL' | 'CUSTOM';
+  urgentThresholdDays: number;
+  generalThresholdDays: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface BookingPoolEntry {
   bookingId: number;
   meetingType: string;
@@ -46,6 +56,7 @@ export interface ScoreBreakdown {
   urgency: number;
   lrs: number;
   total: number;
+  drPenalty?: number;
 }
 
 export interface CandidateResult {
@@ -66,6 +77,14 @@ export interface RunResult {
   breakdown?: CandidateResult[];
   note?: string;
   poolEntry?: BookingPoolEntry;
+  // Enhanced fields for recurring booking auto-assignment
+  childAssignments?: number;
+  totalChildren?: number;
+  childResults?: Array<{
+    bookingId: number;
+    result: RunResult;
+  }>;
+  message?: string;
 }
 
 export interface HoursSnapshot {
