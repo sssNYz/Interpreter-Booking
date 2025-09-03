@@ -675,6 +675,7 @@ export class PoolErrorRecoveryManager {
 
     const logData: PoolProcessingLogData = {
       batchId,
+      processingType: 'ERROR_RECOVERY',
       mode: 'ERROR_RECOVERY',
       processingStartTime: startTime,
       processingEndTime: endTime,

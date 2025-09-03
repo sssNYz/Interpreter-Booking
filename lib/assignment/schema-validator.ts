@@ -401,7 +401,6 @@ export class SchemaValidator {
           errorMessage: true,
           errorStack: true,
           systemState: true,
-          context: true,
           createdAt: true
         },
         take: 1
