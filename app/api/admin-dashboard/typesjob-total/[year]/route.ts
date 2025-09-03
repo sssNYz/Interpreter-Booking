@@ -1,62 +1,39 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/prisma/prisma";
 
-// ===== ใช้ type กลางของคุณ =====
+// ===== ใช้ centralized admin dashboard types =====
 import type {
   MonthName,
   MonthlyDataRow,
   FooterByInterpreter,
   InterpreterName,
   MeetingType,
-} from "@/types/overview";
-import type { DRType } from "@/types/overview";
-
-// ===== ค่าคงที่ =====
-const MONTH_LABELS: MonthName[] = [
-  "Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec",
-];
-
-// หมวด MeetingType ที่ไม่ใช่ DR (ใช้ในผลรวม/ตาราง)
-const NON_DR_TYPES: ReadonlyArray<MeetingType> = [
-  "VIP", "Weekly", "General", "Augent", "Other",
-];
-
-// DR ย่อยที่ต้องการนับ (สอดคล้องกับ UI) - รวม Other
-const DR_SUBTYPES: ReadonlyArray<DRType> = ["DR_I", "DR_II", "DR_k", "PR_PR", "Other"];
+  DRType,
+  TypesApiResponse,
+  MonthlyDataRowWithDR,
+} from "@/types/admin-dashboard";
+import {
+  MONTH_LABELS,
+  MEETING_TYPES,
+  DR_TYPES,
+} from "@/types/admin-dashboard";
+import {
+  getUtcMonthIndex,
+  getMonthLabel,
+  calculateFooterStats,
+  parseYearParam,
+  createApiResponse,
+  createErrorResponse,
+  createZeroMeetingTypes,
+  createZeroDRTypes,
+  NON_DR_TYPES,
+  DR_SUBTYPES,
+} from "@/utils/admin-dashboard";
 
 // ===== Helpers =====
 type Params = { year?: string };
 
-const getUtcMonthIndex = (d: Date) => d.getUTCMonth();
-const getMonthLabel = (d: Date): MonthName => MONTH_LABELS[getUtcMonthIndex(d)];
-
-// เพิ่มฟิลด์ drTypeByInterpreter ให้กับ MonthlyDataRow เดิมของคุณ (แบบ type-safe)
-type MonthlyDataRowWithDR = MonthlyDataRow & {
-  drTypeByInterpreter: Record<InterpreterName, Record<DRType, number>>;
-};
-
-// สร้าง object 0 สำหรับ MeetingType ทั้งหมด
-function zeroMeetingTypes(): Record<MeetingType, number> {
-  return {
-    DR: 0,
-    VIP: 0,
-    Weekly: 0,
-    General: 0,
-    Augent: 0,
-    Other: 0,
-  };
-}
-
-// สร้าง object 0 สำหรับ DRType ทั้งหมด (รวม Other)
-function zeroDRTypes(): Record<DRType, number> {
-  return {
-    PR_PR: 0,
-    DR_k: 0,
-    DR_II: 0,
-    DR_I: 0,
-    Other: 0,
-  };
-}
+// Using centralized utility functions from @/utils/admin-dashboard
 
 // ===== Handler =====
 export async function GET(
@@ -67,8 +44,8 @@ export async function GET(
     const { year: paramYear } = await ctx.params;
     const queryYear = req.nextUrl.searchParams.get("year") ?? undefined;
 
-    let yearNum = Number(paramYear ?? queryYear ?? new Date().getUTCFullYear());
-    if (!Number.isFinite(yearNum) || yearNum < 1970 || yearNum > 3000) {
+    let yearNum = parseYearParam(paramYear ?? queryYear ?? new Date().getUTCFullYear().toString());
+    if (!yearNum) {
       yearNum = new Date().getUTCFullYear();
     }
 
@@ -145,8 +122,8 @@ export async function GET(
       for (const itp of interpreters) {
         jobsByInterpreter[itp] = 0;
         hoursByInterpreter[itp] = 0;
-        typeByInterpreter[itp] = zeroMeetingTypes();
-        drTypeByInterpreter[itp] = zeroDRTypes();
+        typeByInterpreter[itp] = createZeroMeetingTypes();
+        drTypeByInterpreter[itp] = createZeroDRTypes();
         // ให้ตรง type MonthlyDataRow
         deptByInterpreter[itp] = { iot: 0, hardware: 0, software: 0, other: 0 };
       }

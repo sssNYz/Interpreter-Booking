@@ -17,8 +17,10 @@ import type {
   FooterByInterpreter,
   InterpreterName,
   MeetingType,
-} from "@/types/overview";
-import type { DRType } from "@/types/overview";
+  DRType,
+  TypesApiResponse,
+  MonthlyDataRowWithDR,
+} from "@/types/admin-dashboard";
 import {
   Select,
   SelectContent,
@@ -29,17 +31,7 @@ import {
 import { Button } from "@/components/ui/button";
 
 /* =================== Types from API =================== */
-type MonthlyDataRowWithDR = MonthlyDataRow & {
-  drTypeByInterpreter: Record<InterpreterName, Record<DRType, number>>;
-};
-
-type TypesApiResponse = {
-  months: MonthName[];
-  interpreters: InterpreterName[];
-  year: number;
-  yearData: MonthlyDataRowWithDR[];
-  typesMGIFooter: FooterByInterpreter;
-};
+// Using centralized TypesApiResponse and MonthlyDataRowWithDR from @/types/admin-dashboard
 
 /* =================== Labels & mapping =================== */
 type PriorityLabel =

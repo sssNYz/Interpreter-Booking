@@ -15,7 +15,11 @@ import { AssignmentLogsTab } from "@/components/AdminDashboards/assignment-logs"
 
 import type {
   MonthName,
-} from "@/types/overview";
+  JobsApiResponse,
+  HoursApiResponse,
+  DepartmentsApiResponse,
+  TypesApiResponse,
+} from "@/types/admin-dashboard";
 
 /* ---------------- Theme wrapper (match Booking page) ---------------- */
 const PAGE_WRAPPER = "min-h-screen bg-[#f7f7f7] font-sans text-gray-900";
@@ -66,27 +70,10 @@ export default function Page() {
   const [activeYear, setActiveYear] = useState<number>(years[0]);
   const [agg, setAgg] = useState<"month" | "year">("month");
   const [activeTab, setActiveTab] = useState<string>("jobs");
-  const [jobsData, setJobsData] = useState<{
-    jobsFooter?: { grand: number };
-    months?: string[];
-    totalJobsStack?: Array<{ total: number }>;
-  } | null>(null);
-  const [hoursData, setHoursData] = useState<{
-    hoursFooter?: { grand: number };
-    months?: string[];
-    totalHoursLineMinutes?: Array<{ total: number }>;
-  } | null>(null);
-  const [deptData, setDeptData] = useState<{
-    deptMGIFooter?: { grand: number };
-    months?: string[];
-    yearData?: Array<{
-      deptMeetings: Record<string, number>;
-    }>;
-  } | null>(null);
-  const [typesData, setTypesData] = useState<{
-    typesMGIFooter?: { grand: number };
-    months?: string[];
-  } | null>(null);
+  const [jobsData, setJobsData] = useState<JobsApiResponse | null>(null);
+  const [hoursData, setHoursData] = useState<HoursApiResponse | null>(null);
+  const [deptData, setDeptData] = useState<DepartmentsApiResponse | null>(null);
+  const [typesData, setTypesData] = useState<TypesApiResponse | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const currentMonthLabel = getCurrentFiscalMonthLabel();

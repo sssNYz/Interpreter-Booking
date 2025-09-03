@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/prisma/prisma";
 
-// ใช้ type กลางของคุณ
+// ใช้ centralized admin dashboard types
 import type {
   MonthName,
   MonthlyDataRow,
@@ -10,19 +10,23 @@ import type {
   InterpreterName,
   OwnerGroup,
   MeetingType,
-} from "@/types/overview";
-
-const MONTH_LABELS: MonthName[] = [
-  "Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec",
-];
-
-const DEPARTMENTS: OwnerGroup[] = ["iot", "hardware", "software", "other"];
-const MEETING_TYPES: MeetingType[] = ["DR", "VIP", "Weekly", "General", "Augent", "Other"];
+  DepartmentsApiResponse,
+} from "@/types/admin-dashboard";
+import {
+  MONTH_LABELS,
+  OWNER_GROUPS,
+  MEETING_TYPES,
+} from "@/types/admin-dashboard";
+import {
+  getUtcMonthIndex,
+  getMonthLabel,
+  calculateFooterStats,
+  parseYearParam,
+  createApiResponse,
+  createErrorResponse,
+} from "@/utils/admin-dashboard";
 
 type Params = { year?: string };
-
-const getUtcMonthIndex = (d: Date) => d.getUTCMonth();
-const getMonthLabel = (d: Date): MonthName => MONTH_LABELS[getUtcMonthIndex(d)];
 
 export async function GET(
   req: NextRequest,
@@ -32,8 +36,8 @@ export async function GET(
     const { year: paramYear } = await ctx.params;
     const queryYear = req.nextUrl.searchParams.get("year") ?? undefined;
 
-    let yearNum = Number(paramYear ?? queryYear ?? new Date().getUTCFullYear());
-    if (!Number.isFinite(yearNum) || yearNum < 1970 || yearNum > 3000) {
+    let yearNum = parseYearParam(paramYear ?? queryYear ?? new Date().getUTCFullYear().toString());
+    if (!yearNum) {
       yearNum = new Date().getUTCFullYear();
     }
 
@@ -147,7 +151,7 @@ export async function GET(
     const perInterpreter: number[] = interpreters.map((itp) =>
       yearData.reduce((sumMonths, r) => {
         let perMonthSum = 0;
-        for (const g of DEPARTMENTS) {
+        for (const g of OWNER_GROUPS) {
           perMonthSum += r.deptByInterpreter[itp][g] ?? 0;
         }
         return sumMonths + perMonthSum;
@@ -162,7 +166,7 @@ export async function GET(
     const result = {
       months: MONTH_LABELS,
       interpreters,
-      departments: DEPARTMENTS,
+      departments: OWNER_GROUPS,
       year: yearNum,
       yearData,
       deptMGIFooter: footer,

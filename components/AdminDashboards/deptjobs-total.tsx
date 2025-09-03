@@ -17,8 +17,9 @@ import type {
   FooterByInterpreter,
   InterpreterName,
   OwnerGroup,
-} from "@/types/overview";
-import { OwnerGroupLabel as OGLabel } from "@/types/overview";
+  DepartmentsApiResponse,
+} from "@/types/admin-dashboard";
+import { OwnerGroupLabel as OGLabel } from "@/types/admin-dashboard";
 import {
   Select,
   SelectContent,
@@ -29,14 +30,7 @@ import {
 import { Button } from "@/components/ui/button";
 
 /* ---------------------- Types for API response ---------------------- */
-type DeptApiResponse = {
-  months: MonthName[];
-  interpreters: InterpreterName[];
-  departments: OwnerGroup[];
-  year: number;
-  yearData: MonthlyDataRow[];
-  deptMGIFooter: FooterByInterpreter;
-};
+// Using centralized DepartmentsApiResponse from @/types/admin-dashboard
 
 /* ---------------------- Helpers ---------------------- */
 
@@ -68,7 +62,7 @@ function diffClass(v: number): string {
 
 export function DeptTab({ year }: { year: number }) {
   // hooks ต้องอยู่บนสุด
-  const [data, setData] = React.useState<DeptApiResponse | null>(null);
+  const [data, setData] = React.useState<DepartmentsApiResponse | null>(null);
   const [selectedMonth, setSelectedMonth] = React.useState<MonthName | "">("");
   const [showAllMonths, setShowAllMonths] = React.useState<boolean>(false);
 
@@ -80,7 +74,7 @@ export function DeptTab({ year }: { year: number }) {
     })
       .then(async (r) => {
         if (!r.ok) throw new Error(`Failed (${r.status})`);
-        const j = (await r.json()) as DeptApiResponse;
+        const j = (await r.json()) as DepartmentsApiResponse;
         if (alive) {
           setData(j);
           // ✅ ตั้งค่าเริ่มต้นเป็น "เดือนปฏิทินปัจจุบัน"
