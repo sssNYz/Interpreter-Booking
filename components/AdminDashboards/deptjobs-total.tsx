@@ -29,39 +29,14 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 
-/* ---------------------- Types for API response ---------------------- */
-// Using centralized DepartmentsApiResponse from @/types/admin-dashboard
+import { getCurrentCalendarMonth, diffRange, diffClass } from "@/utils/admin-dashboard";
 
-/* ---------------------- Helpers ---------------------- */
-
+/* ---------------------- Type ---------------------- */
 type SingleMonthDeptBar = { group: string } & Record<InterpreterName, number>;
-
-/** ✅ ใช้เดือนปฏิทินปัจจุบัน (ไม่เลื่อนแบบ fiscal) */
-function getCurrentCalendarMonth(months: MonthName[]): MonthName {
-  const cur = new Date().toLocaleString("en-US", { month: "short" }) as MonthName; // "Aug"
-  return months.includes(cur) ? cur : (months[0] as MonthName);
-}
-
-function diffRange(values: number[]): number {
-  if (!values.length) return 0;
-  let min = values[0], max = values[0];
-  for (let i = 1; i < values.length; i++) {
-    const v = values[i];
-    if (v < min) min = v;
-    if (v > max) max = v;
-  }
-  return max - min;
-}
-
-function diffClass(v: number): string {
-  return v === 0 ? "text-emerald-700" : "text-red-600";
-}
-
 
 /* ---------------------- Component ---------------------- */
 
 export function DeptTab({ year }: { year: number }) {
-  // hooks ต้องอยู่บนสุด
   const [data, setData] = React.useState<DepartmentsApiResponse | null>(null);
   const [selectedMonth, setSelectedMonth] = React.useState<MonthName | "">("");
   const [showAllMonths, setShowAllMonths] = React.useState<boolean>(false);
@@ -77,7 +52,6 @@ export function DeptTab({ year }: { year: number }) {
         const j = (await r.json()) as DepartmentsApiResponse;
         if (alive) {
           setData(j);
-          // ✅ ตั้งค่าเริ่มต้นเป็น "เดือนปฏิทินปัจจุบัน"
           setSelectedMonth((prev) => (prev ? prev : getCurrentCalendarMonth(j.months)));
         }
       })
@@ -88,7 +62,7 @@ export function DeptTab({ year }: { year: number }) {
     return () => { alive = false; };
   }, [year]);
 
-  // safe defaults ให้ hooks ด้านล่างรันทุกครั้ง
+  // Data from API or fallback
   const activeYear = React.useMemo(() => data?.year ?? year, [data?.year, year]);
   const months: MonthName[] = React.useMemo(() => data?.months ?? [], [data?.months]);
   const interpreters: InterpreterName[] = React.useMemo(() => data?.interpreters ?? [], [data?.interpreters]);
@@ -99,7 +73,7 @@ export function DeptTab({ year }: { year: number }) {
     [data?.deptMGIFooter]
   );
 
-  // 👉 เดือนปฏิทินปัจจุบัน (ไว้ไฮไลต์คอลัมน์ใน Table A)
+  // present month
   const currentMonth = React.useMemo<MonthName | "">(
     () => (months.length ? getCurrentCalendarMonth(months) : ""),
     [months]
@@ -153,7 +127,7 @@ export function DeptTab({ year }: { year: number }) {
 
   return (
     <>
-      {/* Chart (เลือกเดือนเดียว) */}
+      {/* Chart select month */}
       <Card className="h-[380px] mb-4">
         <CardHeader className="pb-0">
           <div className="flex items-center justify-between gap-3">
@@ -161,7 +135,7 @@ export function DeptTab({ year }: { year: number }) {
               Meetings by Department — Month {selectedMonth || "-"} (Year {activeYear})
             </CardTitle>
             <Select
-              value={selectedMonth || ""} // คุมให้เป็น string เสมอ
+              value={selectedMonth || ""}
               onValueChange={(v) => setSelectedMonth(v as MonthName)}
             >
               <SelectTrigger className="h-9 w-[120px]">
@@ -207,7 +181,7 @@ export function DeptTab({ year }: { year: number }) {
                       key={m}
                       className={[
                         "p-2 text-right",
-                        // ✅ ไฮไลต์หัวคอลัมน์ของเดือนปัจจุบัน
+                        // highlight current month column in thead
                         m === currentMonth ? "bg-blue-100 dark:bg-blue-900/40" : "",
                       ].join(" ")}
                     >
@@ -240,7 +214,7 @@ export function DeptTab({ year }: { year: number }) {
                           key={m}
                           className={[
                             "p-2 text-right",
-                            // ✅ ไฮไลต์ทั้งคอลัมน์ใน tbody ของเดือนปัจจุบัน
+                            // highlight current month column in tbody
                             m === currentMonth ? "bg-blue-50 dark:bg-blue-900/20 font-semibold" : "",
                           ].join(" ")}
                         >
@@ -263,7 +237,7 @@ export function DeptTab({ year }: { year: number }) {
                         key={m}
                         className={[
                           "p-2 text-right",
-                          // ✅ ไฮไลต์คอลัมน์รวมของเดือนปัจจุบันด้วย
+                          // highlight current month column in tfoot
                           m === currentMonth ? "bg-blue-50 dark:bg-blue-900/20 font-semibold" : "",
                         ].join(" ")}
                       >

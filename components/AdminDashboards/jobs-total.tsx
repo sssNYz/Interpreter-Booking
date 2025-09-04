@@ -12,26 +12,21 @@ import {
   Tooltip,
 } from "recharts";
 
-// ⬇️ Use centralized admin dashboard types
 import {
   MonthName,
-  JobsRow,
-  FooterByInterpreter,
   InterpreterName,
   JobsApiResponse,
 } from "@/types/admin-dashboard";
 
-/** ใช้ “เดือนปฏิทิน” ปัจจุบัน (Jan..Dec) เพื่อไฮไลต์ในตาราง */
+import { diffClass } from "@/utils/admin-dashboard";
+
+// months present in the data
 function getCurrentCalendarMonth(months: MonthName[]): MonthName | "" {
   if (!months?.length) return "";
-  const idx = new Date().getMonth(); // 0=Jan ... 11=Dec
+  const idx = new Date().getMonth(); 
   return months[idx] ?? "";
 }
 
-/** ✅ สี Diff แบบ 2 ระดับ: 0 = เขียว, >0 = แดง */
-function diffClass(v: number): string {
-  return v === 0 ? "text-emerald-700" : "text-red-600";
-}
 
 export function JobsTab({ year }: { year: number }) {
   const [data, setData] = React.useState<JobsApiResponse | null>(null);
@@ -152,14 +147,14 @@ export function JobsTab({ year }: { year: number }) {
                           </td>
                         ))}
 
-                        {/* ✅ ใส่สี Diff แบบ 2 สี */}
+                        {/* Color diff */}
                         <td className={`p-2 text-right font-medium ${diffClass(d)}`}>{d}</td>
                         <td className="p-2 text-right font-medium">{r.total}</td>
                       </tr>
                     );
                   })}
 
-                  {/* TOTAL row — keep green on hover + สี Diff แบบ 2 สี */}
+                  {/* TOTAL row*/}
                   <tr className="bg-emerald-50 text-emerald-900 font-semibold hover:bg-emerald-50">
                     <td className="p-2">TOTAL</td>
                     {jobsFooter.perInterpreter.map((v: number, idx: number) => (

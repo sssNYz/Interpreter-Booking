@@ -1,4 +1,3 @@
-// "@/components/AdminDashboards/assignment-logs.tsx"
 "use client";
 
 import React from "react";
@@ -26,7 +25,6 @@ import type {
   AssignmentLogsApiResponse,
 } from "@/types/admin-dashboard";
 
-// Use centralized types
 type LogItem = AssignmentLogItem;
 type ApiResponse = AssignmentLogsApiResponse;
 
@@ -39,7 +37,7 @@ const toLocalDateTime = (iso: string) => new Date(iso).toLocaleString();
 const formatDR = (v?: string | null) => {
   switch (v) {
     case "PR_PR":
-      return "DR-I";
+      return "PDR";
     case "DR_k":
       return "DR-k";
     case "DR_II":
@@ -86,7 +84,7 @@ const getOwnerDisplayName = (owner: LogItem["bookingPlan"]["employee"]) => {
 };
 
 const MEETING_TYPES = [
-  "all",
+  "All",
   "DR",
   "VIP",
   "Weekly",
@@ -98,7 +96,6 @@ const MEETING_TYPES = [
 /* ========= Component ========= */
 export function AssignmentLogsTab() {
   const [allLogs, setAllLogs] = React.useState<LogItem[]>([]);
-  // 🔹 default เป็น "" (ทั้งหมด)
   const [selectedDate, setSelectedDate] = React.useState<string>("");
   const [selectedMeetingTypes, setSelectedMeetingTypes] = React.useState<
     string[]
@@ -120,7 +117,7 @@ export function AssignmentLogsTab() {
         sort: "createdAt:desc",
       });
 
-      // 🔹 ส่ง from/to เฉพาะเมื่อมีวันที่เลือก
+      // Add date filter if selected
       if (selectedDate) {
         const fromDate = new Date(selectedDate + "T00:00:00");
         const toDate = new Date(selectedDate + "T23:59:59");
@@ -166,7 +163,7 @@ export function AssignmentLogsTab() {
       return meetingTypeOk && statusOk;
     });
 
-    // Apply sorting by Requested At (createdAt)
+    // Apply sorting by  Requeste(createdAt)
     filteredLogs = filteredLogs.sort((a, b) => {
       const timeA = new Date(a.createdAt).getTime();
       const timeB = new Date(b.createdAt).getTime();
@@ -176,7 +173,7 @@ export function AssignmentLogsTab() {
     return filteredLogs;
   }, [allLogs, selectedMeetingTypes, sortByDateAsc]);
 
-  // 🔹 paginate ฝั่ง client
+  // Pagination calculations
   const filteredTotal = filtered.length;
   const startIdx = (page - 1) * pageSize;
   const endIdx = Math.min(startIdx + pageSize, filteredTotal);
@@ -203,10 +200,10 @@ export function AssignmentLogsTab() {
     setPage(1);
   };
 
-  // Sorting toggle: toggle between ascending and descending
+  // Sorting toggle
   const handleDateSortToggle = () => {
     setSortByDateAsc((prev) => !prev);
-    setPage(1); // Reset to first page when sorting changes
+    setPage(1);
   };
 
   return (
@@ -289,7 +286,7 @@ export function AssignmentLogsTab() {
                       className="flex items-center gap-2 hover:bg-gray-100 px-2 py-1 rounded transition-colors"
                       title={`Sort by ${sortByDateAsc ? "oldest" : "newest"} first`}
                     >
-                      <span>Requested At</span>
+                      <span>Request</span>
                       {sortByDateAsc ? (
                         <ChevronUp className="h-4 w-4 text-gray-600" />
                       ) : (
@@ -298,7 +295,7 @@ export function AssignmentLogsTab() {
                     </button>
                   </th>
                   <th className="px-4 py-3 text-left">Meeting Time</th>
-                  <th className="px-4 py-3 text-left">Owner</th>
+                  <th className="px-4 py-3 text-left">User</th>
                   <th className="px-4 py-3 text-left">Interpreter</th>
                   <th className="px-4 py-3 text-left">Meeting Type</th>
                   <th className="px-4 py-3 text-center">Room</th>
@@ -350,8 +347,7 @@ export function AssignmentLogsTab() {
                         size="sm"
                         className="h-8 px-3"
                         onClick={() => {
-                          // TODO: Show popup dialog with reason details
-                          console.log("Reason button clicked for log:", l.id);
+                          //coming soon: Show popup dialog with reason details
                         }}
                         title="View reason details"
                       >
@@ -364,16 +360,15 @@ export function AssignmentLogsTab() {
             </table>
           </div>
 
-          {/* Mobile/Tablet Card View */}
+          {/* MobTablet Card View */}
           <div className="xl:hidden">
-
             <div className="divide-y border-t">
               {pageItems.map((l) => (
                 <div key={l.id} className="p-4 hover:bg-gray-50 border-b border-gray-200 last:border-b-0">
                   <div className="space-y-2">
-                    {/* Requested At */}
+                    {/* Request */}
                     <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-gray-500">Requested At</span>
+                      <span className="text-sm font-medium text-gray-500">Request</span>
                       <span className="text-sm text-gray-900">{toLocalDateTime(l.createdAt)}</span>
                     </div>
 
@@ -390,7 +385,7 @@ export function AssignmentLogsTab() {
 
                     {/* Owner */}
                     <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-gray-500">Owner</span>
+                      <span className="text-sm font-medium text-gray-500">User</span>
                       <span className="text-sm text-gray-900">{getOwnerDisplayName(l.bookingPlan.employee)}</span>
                     </div>
 
@@ -434,8 +429,7 @@ export function AssignmentLogsTab() {
                         size="sm"
                         className="h-8 px-3"
                         onClick={() => {
-                          // TODO: Show popup dialog with reason details
-                          console.log("Reason button clicked for log:", l.id);
+                          //coming soon: Show popup dialog with reason details
                         }}
                         title="View reason details"
                       >
