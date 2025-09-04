@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAutoApprovalEngine } from "@/lib/assignment/auto-approval";
+import { getAutoApprovalEngine } from "@/lib/assignment/config/auto-approval";
 
 /**
  * POST /api/admin/auto-approval/evaluate
@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
       message: "System load evaluation completed",
       data: {
         loadAssessment,
-        recommendedAction: loadAssessment.recommendedMode !== (await import("@/lib/assignment/policy")).loadPolicy().then(p => p.mode) ?
+        recommendedAction: loadAssessment.recommendedMode !== (await import("@/lib/assignment/config/policy")).loadPolicy().then(p => p.mode) ?
           `Consider switching to ${loadAssessment.recommendedMode} mode` :
           `Current mode is optimal`
       },

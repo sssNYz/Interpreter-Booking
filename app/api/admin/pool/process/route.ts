@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { processPoolNow, getPoolScheduler } from "@/lib/assignment/pool-scheduler";
-import { getPoolStatus } from "@/lib/assignment/pool";
+import { processPoolNow, getPoolScheduler } from "@/lib/assignment/pool/pool-scheduler";
+import { getPoolStatus } from "@/lib/assignment/pool/pool";
 
 /**
  * POST /api/admin/pool/process - Manually trigger pool processing

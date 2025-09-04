@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { loadPolicy, loadMeetingTypePriorities } from "@/lib/assignment/policy";
-import { validateAssignmentPolicy } from "@/lib/assignment/config-validation";
+import { loadPolicy, loadMeetingTypePriorities } from "@/lib/assignment/config/policy";
+import { validateAssignmentPolicy } from "@/lib/assignment/validation/config-validation";
 
 export async function GET(request: NextRequest) {
   try {

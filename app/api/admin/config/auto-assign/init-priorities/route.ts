@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createDefaultMeetingTypePriorities, loadMeetingTypePriorities } from "@/lib/assignment/policy";
+import { createDefaultMeetingTypePriorities, loadMeetingTypePriorities } from "@/lib/assignment/config/policy";
 
 export async function POST(request: NextRequest) {
     try {
