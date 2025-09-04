@@ -20,22 +20,13 @@ import {
   HoursApiResponse,
 } from "@/types/admin-dashboard";
 
-import { diffClass } from "@/utils/admin-dashboard";
-
-// covert minutes to "H.MM h" format
-function formatHoursDecimal(mins: number): string {
-  const m = Math.max(0, Math.round(Number(mins) || 0));
-  const h = Math.floor(m / 60);
-  const mm = m % 60;
-  return `${h}.${String(mm).padStart(2, "0")} h`;
-}
-
-function buildTwoHourTicks(maxMinutes: number): number[] {
-  const topHours = Math.ceil((Math.max(0, maxMinutes) / 60) / 2) * 2;
-  const out: number[] = [];
-  for (let h = 0; h <= topHours; h += 2) out.push(h * 60);
-  return out.length ? out : [0, 120]; 
-}
+import { 
+  diffClass,
+  formatHoursDecimal,
+  buildTwoHourTicks,
+  getInterpreterColorPaletteAsMap,
+  getCurrentCalendarMonthStrict
+} from "@/utils/admin-dashboard";
 
 
 /** Helper: index a row by interpreter without using `any` */
@@ -73,22 +64,11 @@ export function HoursTab({ year }: { year: number }) {
 
   // current month for highlight
   const currentMonth = React.useMemo<MonthName | "">(() => {
-    if (!data?.months?.length) return "";
-    const idx = new Date().getMonth(); 
-    return data.months[idx] ?? "";
+    return getCurrentCalendarMonthStrict(data?.months || []);
   }, [data]);
 
- 
   const interpreterColors = React.useMemo<Map<InterpreterName, string>>(() => {
-    const palette = [
-      "#2563EB", "#16A34A", "#F59E0B", "#DC2626", "#7C3AED",
-      "#0EA5E9", "#059669", "#CA8A04", "#EA580C", "#9333EA",
-    ];
-    const m = new Map<InterpreterName, string>();
-    for (let i = 0; i < interpreters.length; i++) {
-      m.set(interpreters[i], palette[i % palette.length] ?? "#94a3b8");
-    }
-    return m;
+    return getInterpreterColorPaletteAsMap(interpreters);
   }, [interpreters]);
 
   // max minutes for Y axis

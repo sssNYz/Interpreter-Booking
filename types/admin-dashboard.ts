@@ -134,6 +134,40 @@ export const DR_TYPES: DRType[] = ["PR_PR", "DR_k", "DR_II", "DR_I", "Other"];
 
 export const OWNER_GROUPS: OwnerGroup[] = ["iot", "hardware", "software", "other"];
 
+// ===== Unified Chart Data Types =====
+export interface BaseChartDataRow {
+  [key: string]: string | number;
+}
+
+export interface InterpreterChartRow extends BaseChartDataRow {
+  month: MonthName;
+  total: number;
+}
+
+export interface CategoryChartRow extends BaseChartDataRow {
+  group: string;
+}
+
+export interface TypeChartRow extends BaseChartDataRow {
+  type: string;
+}
+
+// ===== Unified Table Types =====
+export interface BaseTableRow {
+  TOTAL: number;
+  [key: string]: string | number;
+}
+
+export type MonthlyTableRow = BaseTableRow & {
+  [K in MonthName]: number;
+}
+
+export interface DetailedTableRow {
+  values: number[];
+  total: number;
+  diff: number;
+}
+
 // ===== Legacy Type Aliases (for backward compatibility) =====
 export type ApiResponse = JobsApiResponse; // Default to JobsApiResponse for backward compatibility
 export type DeptApiResponse = DepartmentsApiResponse;
