@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getMonitoringDashboard } from '@/lib/assignment/monitoring-dashboard';
+import { getMonitoringDashboard } from '@/lib/assignment/logging/monitoring-dashboard';
 
 /**
  * GET /api/admin/monitoring/dashboard

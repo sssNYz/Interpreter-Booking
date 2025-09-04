@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { run } from "@/lib/assignment/run";
+import { run } from "@/lib/assignment/core/run";
 
 export async function POST(request: NextRequest) {
   try {

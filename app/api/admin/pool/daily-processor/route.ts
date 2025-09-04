@@ -5,8 +5,8 @@ import {
   getDailyProcessingStatistics,
   initializeDailyPoolProcessor,
   stopDailyPoolProcessor
-} from "@/lib/assignment/daily-pool-processor";
-import { getServerStatus, initializeServer } from "@/lib/assignment/server-startup";
+} from "@/lib/assignment/pool/daily-pool-processor";
+import { getServerStatus, initializeServer } from "@/lib/assignment/core/server-startup";
 
 /**
  * GET /api/admin/pool/daily-processor

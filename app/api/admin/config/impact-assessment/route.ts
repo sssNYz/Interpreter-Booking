@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getConfigurationValidator } from "@/lib/assignment/config-validator";
-import { loadPolicy } from "@/lib/assignment/policy";
+import { getConfigurationValidator } from "@/lib/assignment/validation/config-validator";
+import { loadPolicy } from "@/lib/assignment/config/policy";
 import type { AssignmentPolicy } from "@/types/assignment";
 
 /**
@@ -103,8 +103,8 @@ export async function GET() {
   try {
     console.log("📊 Getting current system state for impact assessment...");
 
-    const { bookingPool } = await import("@/lib/assignment/pool");
-    const { loadPolicy } = await import("@/lib/assignment/policy");
+    const { bookingPool } = await import("@/lib/assignment/pool/pool");
+    const { loadPolicy } = await import("@/lib/assignment/config/policy");
     const prisma = (await import("@/prisma/prisma")).default;
 
     const [

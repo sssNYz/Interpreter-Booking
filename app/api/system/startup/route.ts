@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { initializeAssignmentSystem, checkAssignmentSystemHealth } from "@/lib/assignment/startup";
+import { initializeAssignmentSystem, checkAssignmentSystemHealth } from "@/lib/assignment/core/startup";
 
 /**
  * POST /api/system/startup - Initialize assignment system

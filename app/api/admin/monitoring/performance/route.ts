@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAssignmentMonitor } from '@/lib/assignment/monitoring';
+import { getAssignmentMonitor } from '@/lib/assignment/logging/monitoring';
 
 /**
  * GET /api/admin/monitoring/performance
@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
     let historicalData = null;
     if (includeHistory) {
       try {
-        const { LogAnalyzer } = await import('@/lib/assignment/logging');
+        const { LogAnalyzer } = await import('@/lib/assignment/logging/logging');
         
         const endDate = new Date();
         const startDate = new Date();

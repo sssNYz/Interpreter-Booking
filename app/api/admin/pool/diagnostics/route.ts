@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getPoolMonitor } from "@/lib/assignment/pool-monitoring";
-import { getPoolHistoryTracker } from "@/lib/assignment/pool-history-tracker";
-import { getPoolProcessingEngine } from "@/lib/assignment/pool-engine";
-import { getPoolErrorRecoveryManager } from "@/lib/assignment/pool-error-recovery";
-import { bookingPool } from "@/lib/assignment/pool";
+import { getPoolMonitor } from "@/lib/assignment/pool/pool-monitoring";
+import { getPoolHistoryTracker } from "@/lib/assignment/pool/pool-history-tracker";
+import { getPoolProcessingEngine } from "@/lib/assignment/pool/pool-engine";
+import { getPoolErrorRecoveryManager } from "@/lib/assignment/error-handling/pool-error-recovery";
+import { bookingPool } from "@/lib/assignment/pool/pool";
 
 /**
  * GET /api/admin/pool/diagnostics
