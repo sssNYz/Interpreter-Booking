@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getConfigurationValidator } from "@/lib/assignment/config-validator";
-import type { ConfigChangeLogEntry } from "@/lib/assignment/config-validator";
+import { getConfigurationValidator } from "@/lib/assignment/validation/config-validator";
+import type { ConfigChangeLogEntry } from "@/lib/assignment/validation/config-validator";
 
 /**
  * POST /api/admin/config/change-log

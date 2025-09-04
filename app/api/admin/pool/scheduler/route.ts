@@ -4,7 +4,7 @@ import {
   stopPoolScheduler, 
   getPoolScheduler,
   initializePoolScheduler 
-} from "@/lib/assignment/pool-scheduler";
+} from "@/lib/assignment/pool/pool-scheduler";
 
 /**
  * POST /api/admin/pool/scheduler - Control pool processing scheduler

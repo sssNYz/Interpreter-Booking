@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getPoolErrorRecoveryManager } from "@/lib/assignment/pool-error-recovery";
-import { bookingPool } from "@/lib/assignment/pool";
+import { getPoolErrorRecoveryManager } from "@/lib/assignment/error-handling/pool-error-recovery";
+import { bookingPool } from "@/lib/assignment/pool/pool";
 import prisma from "@/prisma/prisma";
 import { PoolStatus } from "@prisma/client";
 

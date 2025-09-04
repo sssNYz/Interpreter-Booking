@@ -52,7 +52,7 @@ function verifyImplementation() {
 
   // Check integration points
   console.log('\n🔗 Integration Points:');
-  allGood &= checkFileContains('app/layout.tsx', '@/lib/assignment/init');
+  allGood &= checkFileContains('app/layout.tsx', '@/lib/assignment/core/init');
   allGood &= checkFileContains('lib/assignment/startup.ts', 'initializeDailyPoolProcessor');
 
   // Check key functionality in implementation

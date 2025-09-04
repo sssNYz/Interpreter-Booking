@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { loadPolicy } from "@/lib/assignment/policy";
+import { loadPolicy } from "@/lib/assignment/config/policy";
 import { 
   validateAssignmentPolicy, 
   validateMeetingTypePriority, 
   getParameterLockStatus, 
   getModeRecommendations,
   assessConfigurationImpact 
-} from "@/lib/assignment/config-validation";
+} from "@/lib/assignment/validation/config-validation";
 
 /**
  * Real-time validation endpoint for configuration changes
@@ -163,7 +163,7 @@ export async function GET(request: NextRequest) {
     const recommendations = getModeRecommendations(mode);
     
     // Get validation rules from the validation system
-    const { VALIDATION_RULES, MODE_CONSTRAINTS } = await import("@/lib/assignment/config-validation");
+    const { VALIDATION_RULES, MODE_CONSTRAINTS } = await import("@/lib/assignment/validation/config-validation");
     
     return NextResponse.json({
       success: true,

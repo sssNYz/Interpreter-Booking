@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { loadPolicy, updatePolicy, loadMeetingTypePriorities, updateMeetingTypePriority, applyModeThresholds } from "@/lib/assignment/policy";
-import { validateAssignmentPolicy, validateMeetingTypePriority, getParameterLockStatus, getModeRecommendations } from "@/lib/assignment/config-validation";
+import { loadPolicy, updatePolicy, loadMeetingTypePriorities, updateMeetingTypePriority, applyModeThresholds } from "@/lib/assignment/config/policy";
+import { validateAssignmentPolicy, validateMeetingTypePriority, getParameterLockStatus, getModeRecommendations } from "@/lib/assignment/validation/config-validation";
 import prisma from "@/prisma/prisma";
 
 export async function GET(request: NextRequest) {

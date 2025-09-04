@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getConfigurationValidator } from "@/lib/assignment/config-validator";
+import { getConfigurationValidator } from "@/lib/assignment/validation/config-validator";
 import type { AssignmentPolicy } from "@/types/assignment";
 
 /**
@@ -66,7 +66,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const { getDRPolicyRecommendations, getModeDefaults } = await import("@/lib/assignment/policy");
+    const { getDRPolicyRecommendations, getModeDefaults } = await import("@/lib/assignment/config/policy");
     
     const recommendations = getDRPolicyRecommendations(mode);
     const defaults = getModeDefaults(mode);

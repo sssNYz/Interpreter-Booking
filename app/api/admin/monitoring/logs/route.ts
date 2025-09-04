@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { LogAnalyzer } from '@/lib/assignment/logging';
+import { LogAnalyzer } from '@/lib/assignment/logging/logging';
 
 /**
  * GET /api/admin/monitoring/logs

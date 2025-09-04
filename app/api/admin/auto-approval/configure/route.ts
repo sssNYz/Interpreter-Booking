@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAutoApprovalEngine, type AutoApprovalConfig } from "@/lib/assignment/auto-approval";
+import { getAutoApprovalEngine, type AutoApprovalConfig } from "@/lib/assignment/config/auto-approval";
 
 /**
  * POST /api/admin/auto-approval/configure

@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getPoolProcessingEngine } from "@/lib/assignment/pool-engine";
-import { getPoolErrorRecoveryManager } from "@/lib/assignment/pool-error-recovery";
-import { getDailyPoolProcessor } from "@/lib/assignment/daily-pool-processor";
-import { bookingPool } from "@/lib/assignment/pool";
+import { getPoolProcessingEngine } from "@/lib/assignment/pool/pool-engine";
+import { getPoolErrorRecoveryManager } from "@/lib/assignment/error-handling/pool-error-recovery";
+import { getDailyPoolProcessor } from "@/lib/assignment/pool/daily-pool-processor";
+import { bookingPool } from "@/lib/assignment/pool/pool";
 
 /**
  * GET /api/admin/pool/status

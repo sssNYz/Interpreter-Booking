@@ -35,7 +35,7 @@ The existing DR history system will be improved to handle fairness windows and d
 interface EnhancedDRHistory {
   getLastGlobalDRAssignment(before: Date, options?: DRHistoryOptions): Promise<LastGlobalDRAssignment>;
   checkConsecutiveHistory(interpreterId: string, params: ConsecutiveCheckParams): Promise<ConsecutiveDRAssignmentHistory>;
-  adjustForDynamicPool(interpreterPool: string[], fairnessWindow: number): Promise<void>;
+  adjustForDynamicPool(interpreterList: string[], fairnessWindow: number): Promise<void>;
 }
 ```
 

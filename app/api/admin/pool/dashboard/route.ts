@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getPoolMonitor } from "@/lib/assignment/pool-monitoring";
+import { getPoolMonitor } from "@/lib/assignment/pool/pool-monitoring";
 
 /**
  * GET /api/admin/pool/dashboard

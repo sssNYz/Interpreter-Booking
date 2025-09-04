@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/prisma/prisma";
+import prisma from "@/prisma/prisma";
 
 /**
  * GET /api/admin/pool/history
