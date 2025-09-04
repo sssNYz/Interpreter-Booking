@@ -135,8 +135,6 @@ export function DeptTab({ year, data: externalData }: DeptTabProps) {
     return { perInterpreter, grand, diff };
   }, [showAllMonths, deptMGIFooter, interpreters, monthsToRender, yearData, departments]);
 
-
-
   return (
     <>
       {/* Chart select month */}

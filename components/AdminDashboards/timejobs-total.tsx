@@ -29,7 +29,6 @@ import {
 } from "@/utils/admin-dashboard";
 
 
-/** Helper: index a row by interpreter without using `any` */
 type RowIndexable = HoursRow & Partial<Record<InterpreterName, number>> & { total?: number };
 
 const getValue = (row: RowIndexable, person: InterpreterName): number => {

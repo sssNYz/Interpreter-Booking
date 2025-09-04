@@ -9,7 +9,7 @@ export const OwnerGroupLabel: Record<OwnerGroup, string> = {
   other: 'Other',
 };
 
-export type MeetingType = 'DR' | 'VIP' | 'Weekly' | 'General' | 'Augent' | 'Other';
+export type MeetingType = 'DR' | 'PDR' | 'VIP' | 'Weekly' | 'General' | 'Augent' | 'Other';
 export type BookingStatus = 'approve' | 'cancel' | 'waiting' | 'complet';
 export type DRType = 'PR_PR' | 'DR_k' | 'DR_II' | 'DR_I' | 'Other';
 export type OtherTypeScope = 'meeting_type' | 'dr_type';
