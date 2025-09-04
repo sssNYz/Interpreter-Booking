@@ -13,7 +13,6 @@ import {
 } from "recharts";
 import type {
   MonthName,
-  MonthlyDataRow,
   FooterByInterpreter,
   InterpreterName,
   MeetingType,
@@ -29,9 +28,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-
-/* =================== Types from API =================== */
-// Using centralized TypesApiResponse and MonthlyDataRowWithDR from @/types/admin-dashboard
+import { diffClass } from "@/utils/admin-dashboard";
 
 /* =================== Labels & mapping =================== */
 type PriorityLabel =
@@ -77,13 +74,13 @@ const MT_LABEL_TO_KEY: Record<
   VIP: "VIP",
   WEEKLY: "Weekly",
   GENERAL: "General",
-  URGENT: "Augent", // schema ใช้ "Augent"
+  URGENT: "Augent",
   OTHER: "Other",
 };
 
 /* =================== Helpers =================== */
 function getCurrentCalendarMonth(months: MonthName[]): MonthName {
-  const idx = new Date().getMonth(); // 0=Jan ...
+  const idx = new Date().getMonth(); 
   return months[idx] ?? months[0];
 }
 
@@ -96,11 +93,6 @@ function diffRange(values: number[]): number {
     if (v > max) max = v;
   }
   return max - min;
-}
-
-/* 2 สี: 0 = เขียว (สมดุล), >0 = แดง (ไม่สมดุล) */
-function diffClass(v: number): string {
-  return v === 0 ? "text-emerald-700" : "text-red-600";
 }
 
 type SingleMonthBar = { type: PriorityLabel } & Record<string, number>;
@@ -161,7 +153,7 @@ export function TypesTab({ year }: { year: number }) {
   const typesMGIFooter: FooterByInterpreter = React.useMemo(() => 
     data?.typesMGIFooter ?? { perInterpreter: [], grand: 0, diff: 0 }, [data?.typesMGIFooter]);
 
-  // ✅ current month สำหรับไฮไลต์ "คอลัมน์" ใน Table 1
+  // current month for highlight
   const currentMonth = React.useMemo<MonthName | "">(
     () => (months.length ? getCurrentCalendarMonth(months) : ""),
     [months]
@@ -178,7 +170,7 @@ export function TypesTab({ year }: { year: number }) {
     return map;
   }, [interpreters]);
 
-  // ===== Chart dataset (per selected month) =====
+  // ===== Chart dataset  =====
   const monthBarData: SingleMonthBar[] = React.useMemo(() => {
     if (!selectedMonth) return [];
     const mrow = yearData.find((d) => d.month === selectedMonth);
@@ -318,7 +310,7 @@ export function TypesTab({ year }: { year: number }) {
         </CardContent>
       </Card>
 
-      {/* ===== Table 1: Types × Months — ✅ เพิ่มไฮไลต์คอลัมน์เดือนปัจจุบัน ===== */}
+      {/* ===== Table 1: Types × Months  */}
       <Card className="mb-4">
         <CardHeader>
           <CardTitle className="text-base">Types × Months (All interpreters)</CardTitle>

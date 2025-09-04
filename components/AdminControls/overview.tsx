@@ -13,18 +13,13 @@ import { DeptTab } from "@/components/AdminDashboards/deptjobs-total";
 import { TypesTab } from "@/components/AdminDashboards/mtgtypejobs-total";
 import { AssignmentLogsTab } from "@/components/AdminDashboards/assignment-logs";
 
-import type {
-  MonthName,
-  JobsApiResponse,
-  HoursApiResponse,
-  DepartmentsApiResponse,
-  TypesApiResponse,
-} from "@/types/admin-dashboard";
+import { formatMinutes, getCurrentFiscalMonthLabel , years  } from "@/utils/admin-dashboard";
+import type { JobsApiResponse, HoursApiResponse, DepartmentsApiResponse, TypesApiResponse } from "@/types/admin-dashboard";
 
-/* ---------------- Theme wrapper (match Booking page) ---------------- */
+/* ---------------- Theme wrapper ---------------- */
 const PAGE_WRAPPER = "min-h-screen bg-[#f7f7f7] font-sans text-gray-900";
 
-/* ---------------- Utilities & mini UI ---------------- */
+/* ---------------- UI ---------------- */
 
 const Stat = ({
   icon: Icon,
@@ -46,25 +41,6 @@ const Stat = ({
   </div>
 );
 
-// minutes -> "H.MM hr" or "N min"
-function formatMinutes(mins: number): string {
-  if (!Number.isFinite(mins)) return "0 min";
-  const sign = mins < 0 ? "-" : "";
-  const abs = Math.abs(Math.round(mins));
-  const h = Math.floor(abs / 60);
-  const m = abs % 60;
-  return h > 0 ? `${sign}${h}.${String(m).padStart(2, "0")} hr` : `${sign}${abs} min`;
-}
-
-const getCurrentFiscalMonthLabel = (now = new Date()): MonthName => {
-  const mths: MonthName[] = ["Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", "Jan", "Feb", "Mar"];
-  const map: Record<number, number> = { 0: 9, 1: 10, 2: 11, 3: 0, 4: 1, 5: 2, 6: 3, 7: 4, 8: 5, 9: 6, 10: 7, 11: 8 };
-  return mths[map[now.getMonth()]];
-};
-
-/* ---------------- Constants ---------------- */
-const years: number[] = [2025];
-
 /* ---------------- Main component ---------------- */
 export default function Page() {
   const [activeYear, setActiveYear] = useState<number>(years[0]);
@@ -83,7 +59,6 @@ export default function Page() {
     if (showLoading) {
       setIsRefreshing(true);
     }
-
     try {
       const responses = await Promise.all([
         fetch(`/api/admin-dashboard/jobs-total/${activeYear}`, {
@@ -181,12 +156,8 @@ export default function Page() {
       ? typesData?.typesMGIFooter?.grand || 0
       : (() => {
           if (!typesData?.months || !typesData?.typesMGIFooter) return 0;
-          // For monthly view, we'll show the total types for the current month
-          // This would need to be calculated from the types data if available
           return typesData.typesMGIFooter.grand || 0;
         })();
-
-
 
   // year options
   const yearOptions = years.map((y) => (
@@ -197,7 +168,7 @@ export default function Page() {
 
   return (
     <div className={PAGE_WRAPPER}>
-      {/* Top Header (same style as Booking page) */}
+      {/* Top Header */}
       <div className="border-b bg-white border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
@@ -210,7 +181,7 @@ export default function Page() {
                 <p className="text-sm text-gray-500">Monthly jobs, time, departments, and meeting types</p>
               </div>
             </div>
-            {/* Controls (Year + Month/Year) — desktop */}
+            {/* Controls (Year + Month/Year) */}
             <div className="hidden md:flex items-center gap-3">
               <Select value={String(activeYear)} onValueChange={(v) => setActiveYear(Number(v))}>
                 <SelectTrigger className="w-[140px]">
@@ -226,7 +197,7 @@ export default function Page() {
                   Year
                 </Button>
               </div>
-              {/* Only one Logs button on the head */}
+              {/*Logs button*/}
               <Button size="sm" variant="secondary" onClick={() => setActiveTab("logs")}>
                 View Logs
               </Button>
@@ -295,8 +266,6 @@ export default function Page() {
           </Card>
         </div>
 
-
-
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           {/* Removed 'Logs' trigger — use only the head button */}
@@ -307,7 +276,7 @@ export default function Page() {
               <TabsTrigger value="dept">Dept Meetings</TabsTrigger>
               <TabsTrigger value="types">Meeting Types</TabsTrigger>
             </TabsList>
-            {/* Refresh Data Button - positioned near tabs */}
+            {/* Refresh Data Button */}
             <Button 
               onClick={() => fetchDashboardData(true)} 
               disabled={isRefreshing}

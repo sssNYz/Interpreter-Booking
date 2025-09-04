@@ -10,6 +10,8 @@ import type {
 } from "@/types/admin-dashboard";
 import { MONTH_LABELS } from "@/types/admin-dashboard";
 
+
+
 // ===== Date/Time Utilities =====
 export function getUtcMonthIndex(date: Date): number {
   return date.getUTCMonth();
@@ -67,10 +69,10 @@ export function calculateFooterStats(
   const perInterpreter = interpreters.map(interpreter =>
     yearData.reduce((sum, row) => sum + getValue(row, interpreter), 0)
   );
-  
+
   const grand = perInterpreter.reduce((sum, val) => sum + val, 0);
   const diff = Math.max(...perInterpreter) - Math.min(...perInterpreter);
-  
+
   return { perInterpreter, grand, diff };
 }
 
@@ -109,14 +111,14 @@ export function createErrorResponse(message: string, status = 500) {
 // ===== Database Query Utilities =====
 export function buildDateRangeFilter(from: string | null, to: string | null) {
   if (!from || !to) return {};
-  
+
   const fromDate = new Date(from);
   const toDate = new Date(to);
-  
+
   if (isNaN(fromDate.getTime()) || isNaN(toDate.getTime())) {
     return {};
   }
-  
+
   return {
     gte: fromDate,
     lte: toDate,
@@ -125,10 +127,10 @@ export function buildDateRangeFilter(from: string | null, to: string | null) {
 
 export function buildSearchFilter(search: string | null) {
   if (!search || search.trim().length < 2) return {};
-  
+
   const searchTerm = search.trim();
   const bookingId = parseInt(searchTerm);
-  
+
   if (!isNaN(bookingId)) {
     return { bookingId };
   } else {
@@ -143,7 +145,7 @@ export function calculatePagination(page: number, pageSize: number, total: numbe
   const currentPage = Math.max(1, Math.min(page, totalPages));
   const startIndex = (currentPage - 1) * maxPageSize;
   const endIndex = Math.min(startIndex + maxPageSize, total);
-  
+
   return {
     page: currentPage,
     pageSize: maxPageSize,
@@ -202,7 +204,7 @@ export function transformBookingPlanData(bookingPlan: BookingPlanInput) {
 
 export function transformEmployeeData(employee: EmployeeInput | null) {
   if (!employee) return null;
-  
+
   return {
     empCode: employee.empCode,
     firstNameEn: employee.firstNameEn,
@@ -223,3 +225,47 @@ export const DR_SUBTYPES: ReadonlyArray<DRType> = [
 
 export const DEFAULT_PAGE_SIZE = 20;
 export const MAX_PAGE_SIZE = 100;
+
+// ===== Overviews =====
+
+// minutes -> "H.MM hr" or "N min"
+export function formatMinutes(mins: number): string {
+  if (!Number.isFinite(mins)) return "0 min";
+  const sign = mins < 0 ? "-" : "";
+  const abs = Math.abs(Math.round(mins));
+  const h = Math.floor(abs / 60);
+  const m = abs % 60;
+  return h > 0 ? `${sign}${h}.${String(m).padStart(2, "0")} hr` : `${sign}${abs} min`;
+}
+
+export const getCurrentFiscalMonthLabel = (now = new Date()): MonthName => {
+  const mths: MonthName[] = ["Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", "Jan", "Feb", "Mar"];
+  const map: Record<number, number> = { 0: 9, 1: 10, 2: 11, 3: 0, 4: 1, 5: 2, 6: 3, 7: 4, 8: 5, 9: 6, 10: 7, 11: 8 };
+  return mths[map[now.getMonth()]];
+};
+
+export const years: number[] = Array.from(
+  { length: new Date().getFullYear() - 2025 + 1 }, 
+  (_, i) => new Date().getFullYear() - i
+);
+
+// ===== deptjobs =====
+export function getCurrentCalendarMonth(months: MonthName[]): MonthName {
+  const cur = new Date().toLocaleString("en-US", { month: "short" }) as MonthName; 
+  return months.includes(cur) ? cur : (months[0] as MonthName);
+}
+
+export function diffRange(values: number[]): number {
+  if (!values.length) return 0;
+  let min = values[0], max = values[0];
+  for (let i = 1; i < values.length; i++) {
+    const v = values[i];
+    if (v < min) min = v;
+    if (v > max) max = v;
+  }
+  return max - min;
+}
+
+export function diffClass(v: number): string {
+  return v === 0 ? "text-emerald-700" : "text-red-600";
+}

@@ -12,7 +12,6 @@ import {
   Tooltip,
 } from "recharts";
 
-// ⬇️ Use centralized admin dashboard types
 import {
   MonthName,
   HoursRow,
@@ -21,7 +20,9 @@ import {
   HoursApiResponse,
 } from "@/types/admin-dashboard";
 
-/** เดิม: แสดงเป็น h.mm h (คงรูปแบบเดิมของคุณไว้) */
+import { diffClass } from "@/utils/admin-dashboard";
+
+// covert minutes to "H.MM h" format
 function formatHoursDecimal(mins: number): string {
   const m = Math.max(0, Math.round(Number(mins) || 0));
   const h = Math.floor(m / 60);
@@ -29,21 +30,13 @@ function formatHoursDecimal(mins: number): string {
   return `${h}.${String(mm).padStart(2, "0")} h`;
 }
 
-/** ticks ทุก 2 ชั่วโมง: รับ max (นาที) คืนอาร์เรย์ของนาที [0, 120, 240, ...] */
 function buildTwoHourTicks(maxMinutes: number): number[] {
-  const topHours = Math.ceil((Math.max(0, maxMinutes) / 60) / 2) * 2; // ปัดขึ้น step 2 ชม.
+  const topHours = Math.ceil((Math.max(0, maxMinutes) / 60) / 2) * 2;
   const out: number[] = [];
   for (let h = 0; h <= topHours; h += 2) out.push(h * 60);
-  return out.length ? out : [0, 120]; // กันกรณีข้อมูลเป็นศูนย์
+  return out.length ? out : [0, 120]; 
 }
 
-/** สี diff สำหรับตาราง (เหมือนเดิม) */
-function diffClass(v: number): string {
-  if (v >= 10) return "text-red-600";
-  if (v >= 5) return "text-orange-600";
-  if (v >= 2) return "text-amber-600";
-  return "text-emerald-700";
-}
 
 /** Helper: index a row by interpreter without using `any` */
 type RowIndexable = HoursRow & Partial<Record<InterpreterName, number>> & { total?: number };
@@ -51,7 +44,6 @@ const getValue = (row: RowIndexable, person: InterpreterName): number =>
   Number((row as Record<InterpreterName, number>)[person] ?? 0);
 
 export function HoursTab({ year }: { year: number }) {
-  // Hooks (ลำดับต้องคงที่)
   const [data, setData] = React.useState<HoursApiResponse | null>(null);
 
   React.useEffect(() => {
@@ -73,20 +65,20 @@ export function HoursTab({ year }: { year: number }) {
     };
   }, [year]);
 
-  // Derivations (ใช้ค่า fallback เมื่อยังไม่มี data เพื่อไม่ให้ลำดับ hooks เปลี่ยน)
+ // Data extraction with defaults
   const interpreters: InterpreterName[] = data?.interpreters ?? [];
   const rows: HoursRow[] = data?.totalHoursLineMinutes ?? [];
   const footer: FooterByInterpreter | null = data?.hoursFooter ?? null;
   const theYear = data?.year ?? year;
 
-  // หาเดือนปฏิทินปัจจุบันจาก data.months เพื่อทำ highlight ในตาราง
+  // current month for highlight
   const currentMonth = React.useMemo<MonthName | "">(() => {
     if (!data?.months?.length) return "";
-    const idx = new Date().getMonth(); // 0=Jan ... 11=Dec
+    const idx = new Date().getMonth(); 
     return data.months[idx] ?? "";
   }, [data]);
 
-  // สีของแต่ละล่าม — ใช้ Map เพื่อเลี่ยง object assertions
+ 
   const interpreterColors = React.useMemo<Map<InterpreterName, string>>(() => {
     const palette = [
       "#2563EB", "#16A34A", "#F59E0B", "#DC2626", "#7C3AED",
@@ -99,7 +91,7 @@ export function HoursTab({ year }: { year: number }) {
     return m;
   }, [interpreters]);
 
-  // ค่าสูงสุดของนาทีในชุดข้อมูล (เพื่อสร้าง domain/ticks)
+  // max minutes for Y axis
   const maxMinutes = React.useMemo(() => {
     let max = 0;
     for (const row of rows as RowIndexable[]) {
@@ -111,7 +103,7 @@ export function HoursTab({ year }: { year: number }) {
     return max;
   }, [rows, interpreters]);
 
-  // ticks ทุก 2 ชั่วโมง + domain เริ่ม 0 เสมอ
+  // Y axis ticks and domain
   const yTicks = React.useMemo(() => buildTwoHourTicks(maxMinutes), [maxMinutes]);
   const yDomain: [number, number] = [0, yTicks[yTicks.length - 1] ?? 0];
 
@@ -129,7 +121,6 @@ export function HoursTab({ year }: { year: number }) {
             <BarChart data={rows as RowIndexable[]}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="month" />
-              {/* เริ่มที่ 0 และเพิ่มทีละ 2 ชั่วโมง; label เป็นชั่วโมงเต็ม */}
               <YAxis
                 domain={yDomain}
                 ticks={yTicks}
@@ -174,7 +165,6 @@ export function HoursTab({ year }: { year: number }) {
                   {interpreters.map((p) => (
                     <th key={p} className="p-2 text-right">{p}</th>
                   ))}
-                  {/* ย้าย Diff มาก่อน Total ตามสไตล์ใหม่ */}
                   <th className="p-2 text-right">Diff</th>
                   <th className="p-2 text-right">Total</th>
                 </tr>
@@ -193,13 +183,10 @@ export function HoursTab({ year }: { year: number }) {
                       className={[
                         "border-b",
                         isCurrent
-                          // แถวเดือนปัจจุบัน: ไฮไลต์ฟ้า และ hover แล้วยังคงสีเดิม
                           ? "bg-blue-100 dark:bg-blue-900/40 font-semibold hover:bg-blue-100 dark:hover:bg-blue-900/40"
-                          // แถวปกติ: zebra + hover เทาอ่อน
                           : "odd:bg-white even:bg-muted/30 hover:bg-muted/40",
                       ].join(" ").trim()}
                     >
-                      {/* ใช้ bg-inherit ให้เซลล์ sticky รับสีพื้นจากแถว */}
                       <td className="p-2 sticky left-0 z-10 bg-inherit">{r.month}</td>
 
                       {interpreters.map((p) => (
@@ -207,7 +194,7 @@ export function HoursTab({ year }: { year: number }) {
                           {formatHoursDecimal(getValue(r, p))}
                         </td>
                       ))}
-                      {/* Diff ก่อน Total */}
+                      {/* Diff */}
                       <td className={`p-2 text-right font-medium ${diffClass(d)}`}>
                         {formatHoursDecimal(d)}
                       </td>
@@ -217,7 +204,7 @@ export function HoursTab({ year }: { year: number }) {
                     </tr>
                   );
                 })}
-                {/* TOTAL row (คงสีเขียว และ hover ไม่เปลี่ยนสี) */}
+                {/* TOTAL row */}
                 <tr className="bg-emerald-50 text-emerald-900 font-semibold hover:bg-emerald-50">
                   <td className="p-2">TOTAL</td>
                   {(footer?.perInterpreter ?? []).map((v, idx) => (

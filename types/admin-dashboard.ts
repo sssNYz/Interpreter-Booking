@@ -137,3 +137,5 @@ export const OWNER_GROUPS: OwnerGroup[] = ["iot", "hardware", "software", "other
 // ===== Legacy Type Aliases (for backward compatibility) =====
 export type ApiResponse = JobsApiResponse; // Default to JobsApiResponse for backward compatibility
 export type DeptApiResponse = DepartmentsApiResponse;
+
+
