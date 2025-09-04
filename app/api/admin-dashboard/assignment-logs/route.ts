@@ -9,6 +9,7 @@ import {
   transformEmployeeData,
   createApiResponse,
   createErrorResponse,
+  createApiResponseHeaders,
   DEFAULT_PAGE_SIZE,
   MAX_PAGE_SIZE,
 } from "@/utils/admin-dashboard";
@@ -236,9 +237,10 @@ export async function GET(request: NextRequest) {
     });
 
     // Align headers with response (AFTER dedupe)
-    jsonResponse.headers.set("Cache-Control", "public, s-maxage=60, stale-while-revalidate=300");
-    jsonResponse.headers.set("X-Total-Count", String(finalLogs.length));
-    jsonResponse.headers.set("X-Page-Count", String(totalPagesOut));
+    const headers = createApiResponseHeaders(finalLogs.length, totalPagesOut);
+    Object.entries(headers).forEach(([key, value]) => {
+      jsonResponse.headers.set(key, value);
+    });
 
     return jsonResponse;
   } catch (error) {

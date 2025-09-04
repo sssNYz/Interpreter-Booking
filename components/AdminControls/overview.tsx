@@ -290,16 +290,16 @@ export default function Page() {
           </div>
 
           <TabsContent value="jobs">
-            <JobsTab year={activeYear} />
+            <JobsTab year={activeYear} data={jobsData} />
           </TabsContent>
           <TabsContent value="hours">
-            <HoursTab year={activeYear} />
+            <HoursTab year={activeYear} data={hoursData} />
           </TabsContent>
           <TabsContent value="dept">
-            <DeptTab year={activeYear} />
+            <DeptTab year={activeYear} data={deptData} />
           </TabsContent>
           <TabsContent value="types">
-            <TypesTab year={activeYear} />
+            <TypesTab year={activeYear} data={typesData} />
           </TabsContent>
           <TabsContent value="logs">
             <AssignmentLogsTab />

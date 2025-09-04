@@ -31,41 +31,54 @@ import {
 
 /** Helper: index a row by interpreter without using `any` */
 type RowIndexable = HoursRow & Partial<Record<InterpreterName, number>> & { total?: number };
-const getValue = (row: RowIndexable, person: InterpreterName): number =>
-  Number((row as Record<InterpreterName, number>)[person] ?? 0);
 
-export function HoursTab({ year }: { year: number }) {
+const getValue = (row: RowIndexable, person: InterpreterName): number => {
+  const value = row[person];
+  return typeof value === 'number' ? value : 0;
+};
+
+interface HoursTabProps {
+  year: number;
+  data?: HoursApiResponse | null;
+}
+
+export function HoursTab({ year, data: externalData }: HoursTabProps) {
   const [data, setData] = React.useState<HoursApiResponse | null>(null);
 
-  React.useEffect(() => {
-    let alive = true;
-    fetch(`/api/admin-dashboard/timejobs-total/${year}`, {
-      cache: "no-store",
-      next: { revalidate: 0 },
-    })
-      .then(async (r) => {
-        if (!r.ok) throw new Error(`Failed (${r.status})`);
-        const j = (await r.json()) as HoursApiResponse;
-        if (alive) setData(j);
-      })
-      .catch((e) => {
-        if (alive) console.error("Error fetching hours data:", e);
-      });
-    return () => {
-      alive = false;
-    };
-  }, [year]);
+  // Use external data if provided, otherwise fetch internally
+  const currentData = externalData !== undefined ? externalData : data;
 
- // Data extraction with defaults
-  const interpreters: InterpreterName[] = data?.interpreters ?? [];
-  const rows: HoursRow[] = data?.totalHoursLineMinutes ?? [];
-  const footer: FooterByInterpreter | null = data?.hoursFooter ?? null;
-  const theYear = data?.year ?? year;
+  React.useEffect(() => {
+    if (externalData === undefined) {
+      let alive = true;
+      fetch(`/api/admin-dashboard/timejobs-total/${year}`, {
+        cache: "no-store",
+        next: { revalidate: 0 },
+      })
+        .then(async (r) => {
+          if (!r.ok) throw new Error(`Failed (${r.status})`);
+          const j = (await r.json()) as HoursApiResponse;
+          if (alive) setData(j);
+        })
+        .catch((e) => {
+          if (alive) console.error("Error fetching hours data:", e);
+        });
+      return () => {
+        alive = false;
+      };
+    }
+  }, [year, externalData]);
+
+  // Data extraction with defaults
+  const interpreters: InterpreterName[] = React.useMemo(() => currentData?.interpreters ?? [], [currentData?.interpreters]);
+  const rows: HoursRow[] = React.useMemo(() => currentData?.totalHoursLineMinutes ?? [], [currentData?.totalHoursLineMinutes]);
+  const footer: FooterByInterpreter | null = React.useMemo(() => currentData?.hoursFooter ?? null, [currentData?.hoursFooter]);
+  const theYear = React.useMemo(() => currentData?.year ?? year, [currentData?.year, year]);
 
   // current month for highlight
   const currentMonth = React.useMemo<MonthName | "">(() => {
-    return getCurrentCalendarMonthStrict(data?.months || []);
-  }, [data]);
+    return getCurrentCalendarMonthStrict(currentData?.months || []);
+  }, [currentData]);
 
   const interpreterColors = React.useMemo<Map<InterpreterName, string>>(() => {
     return getInterpreterColorPaletteAsMap(interpreters);
@@ -74,9 +87,9 @@ export function HoursTab({ year }: { year: number }) {
   // max minutes for Y axis
   const maxMinutes = React.useMemo(() => {
     let max = 0;
-    for (const row of rows as RowIndexable[]) {
+    for (const row of rows) {
       for (const p of interpreters) {
-        const v = getValue(row, p);
+        const v = getValue(row as RowIndexable, p);
         if (v > max) max = v;
       }
     }
@@ -150,8 +163,9 @@ export function HoursTab({ year }: { year: number }) {
                 </tr>
               </thead>
               <tbody>
-                {(rows as RowIndexable[]).map((r) => {
-                  const vals = interpreters.map((p) => getValue(r, p));
+                {rows.map((r) => {
+                  const rowData = r as RowIndexable;
+                  const vals = interpreters.map((p) => getValue(rowData, p));
                   const maxV = vals.length ? Math.max(...vals) : 0;
                   const minV = vals.length ? Math.min(...vals) : 0;
                   const d = maxV - minV;
@@ -171,7 +185,7 @@ export function HoursTab({ year }: { year: number }) {
 
                       {interpreters.map((p) => (
                         <td key={p} className="p-2 text-right">
-                          {formatHoursDecimal(getValue(r, p))}
+                          {formatHoursDecimal(getValue(rowData, p))}
                         </td>
                       ))}
                       {/* Diff */}
@@ -179,7 +193,7 @@ export function HoursTab({ year }: { year: number }) {
                         {formatHoursDecimal(d)}
                       </td>
                       <td className="p-2 text-right font-medium">
-                        {formatHoursDecimal((r as RowIndexable).total ?? 0)}
+                        {formatHoursDecimal(rowData.total ?? 0)}
                       </td>
                     </tr>
                   );

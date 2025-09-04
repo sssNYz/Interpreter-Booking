@@ -1,12 +1,17 @@
 // Centralized utility functions for Admin Dashboard API routes
 // This file consolidates all repeated utility functions used across admin-dashboard APIs
 
+import { NextResponse } from "next/server";
+import React from "react";
+import type { Prisma } from "@prisma/client";
 import type {
   MonthName,
   InterpreterName,
   OwnerGroup,
   MeetingType,
   DRType,
+  BaseApiResponse,
+  UseDashboardDataResult,
 } from "@/types/admin-dashboard";
 import { MONTH_LABELS } from "@/types/admin-dashboard";
 
@@ -99,7 +104,7 @@ export function createApiResponse<T>(data: T, cacheControl = "public, s-maxage=6
   return response;
 }
 
-export function createErrorResponse(message: string, status = 500) {
+export function createErrorResponseLegacy(message: string, status = 500) {
   return new Response(JSON.stringify({ error: message }), {
     status,
     headers: {
@@ -277,26 +282,23 @@ export function diffClass(v: number): string {
 }
 
 // ===== Chart & UI Utilities =====
+const INTERPRETER_COLOR_PALETTE = [
+  "#2563EB", "#16A34A", "#F59E0B", "#DC2626", "#7C3AED",
+  "#0EA5E9", "#059669", "#CA8A04", "#EA580C", "#9333EA",
+] as const;
+
 export function createInterpreterColorPalette(interpreters: InterpreterName[]): Record<InterpreterName, string> {
-  const palette = [
-    "#2563EB", "#16A34A", "#F59E0B", "#DC2626", "#7C3AED",
-    "#0EA5E9", "#059669", "#CA8A04", "#EA580C", "#9333EA",
-  ];
   const colorMap = {} as Record<InterpreterName, string>;
   interpreters.forEach((name, index) => {
-    colorMap[name] = palette[index % palette.length];
+    colorMap[name] = INTERPRETER_COLOR_PALETTE[index % INTERPRETER_COLOR_PALETTE.length];
   });
   return colorMap;
 }
 
 export function getInterpreterColorPaletteAsMap(interpreters: InterpreterName[]): Map<InterpreterName, string> {
-  const palette = [
-    "#2563EB", "#16A34A", "#F59E0B", "#DC2626", "#7C3AED",
-    "#0EA5E9", "#059669", "#CA8A04", "#EA580C", "#9333EA",
-  ];
   const colorMap = new Map<InterpreterName, string>();
   interpreters.forEach((name, index) => {
-    colorMap.set(name, palette[index % palette.length] ?? "#94a3b8");
+    colorMap.set(name, INTERPRETER_COLOR_PALETTE[index % INTERPRETER_COLOR_PALETTE.length] ?? "#94a3b8");
   });
   return colorMap;
 }
@@ -309,6 +311,14 @@ export function formatHoursDecimal(minutes: number): string {
   return `${h}.${String(mm).padStart(2, "0")} h`;
 }
 
+// Consolidated time formatting - use this instead of formatMinutes for consistency
+export function formatTimeDisplay(minutes: number, format: 'decimal' | 'mixed' = 'decimal'): string {
+  if (format === 'decimal') {
+    return formatHoursDecimal(minutes);
+  }
+  return formatMinutes(minutes);
+}
+
 export function buildTwoHourTicks(maxMinutes: number): number[] {
   const topHours = Math.ceil((Math.max(0, maxMinutes) / 60) / 2) * 2;
   const ticks: number[] = [];
@@ -316,4 +326,143 @@ export function buildTwoHourTicks(maxMinutes: number): number[] {
     ticks.push(h * 60);
   }
   return ticks.length ? ticks : [0, 120];
+}
+
+// ===== API Route Utilities =====
+export function createDateRange(year: number): { start: Date; end: Date } {
+  return {
+    start: new Date(Date.UTC(year, 0, 1, 0, 0, 0)),
+    end: new Date(Date.UTC(year + 1, 0, 1, 0, 0, 0))
+  };
+}
+
+export async function fetchActiveInterpreters(
+  prisma: {
+    employee: {
+      findMany: (args: {
+        where: Prisma.EmployeeWhereInput;
+        select: Prisma.EmployeeSelect;
+        orderBy: Prisma.EmployeeOrderByWithRelationInput;
+      }) => Promise<{ empCode: string; firstNameEn: string | null; lastNameEn: string | null }[]>;
+    };
+  },
+  dateRange: { start: Date; end: Date }
+): Promise<{ empCode: string; firstNameEn: string | null; lastNameEn: string | null }[]> {
+  return await prisma.employee.findMany({
+    where: {
+      isActive: true,
+      bookingsAsInterpreter: {
+        some: {
+          timeStart: { gte: dateRange.start, lt: dateRange.end },
+          interpreterEmpCode: { not: null }
+        }
+      }
+    },
+    select: {
+      empCode: true,
+      firstNameEn: true,
+      lastNameEn: true,
+    },
+    orderBy: {
+      firstNameEn: 'asc'
+    }
+  });
+}
+
+export function createInterpreterMapping(
+  activeInterpreters: { empCode: string; firstNameEn: string | null; lastNameEn: string | null }[]
+): { empCodeToName: Map<string, InterpreterName>; interpreters: InterpreterName[] } {
+  const empCodeToName = new Map<string, InterpreterName>();
+  
+  for (const interpreter of activeInterpreters) {
+    const empCode = interpreter.empCode;
+    const first = interpreter.firstNameEn?.trim() ?? "";
+    const last = interpreter.lastNameEn?.trim() ?? "";
+    const name = (`${first} ${last}`.trim() || empCode) as InterpreterName;
+    empCodeToName.set(empCode, name);
+  }
+
+  const interpreters: InterpreterName[] = Array.from(new Set(empCodeToName.values()))
+    .sort((a, b) => a.localeCompare(b));
+
+  return { empCodeToName, interpreters };
+}
+
+export function createApiResponseHeaders(totalCount?: number, pageCount?: number): Record<string, string> {
+  const headers: Record<string, string> = {
+    'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600'
+  };
+  
+  if (totalCount !== undefined) {
+    headers['X-Total-Count'] = String(totalCount);
+  }
+  
+  if (pageCount !== undefined) {
+    headers['X-Page-Count'] = String(pageCount);
+  }
+  
+  return headers;
+}
+
+export function createErrorResponse(message: string, status = 500) {
+  return NextResponse.json(
+    { message: message ?? "Server error" },
+    { status }
+  );
+}
+
+// ===== Shared React Hooks =====
+export function useDashboardData<T extends BaseApiResponse>(
+  apiEndpoint: string,
+  year: number
+): UseDashboardDataResult<T> {
+  const [data, setData] = React.useState<T | null>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
+
+  const fetchData = React.useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await fetch(apiEndpoint, {
+        cache: "no-store",
+        next: { revalidate: 0 },
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed (${response.status})`);
+      }
+      
+      const result = (await response.json()) as T;
+      setData(result);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Failed to fetch data";
+      setError(errorMessage);
+      console.error(`Error fetching data from ${apiEndpoint}:`, err);
+    } finally {
+      setLoading(false);
+    }
+  }, [apiEndpoint]);
+
+  React.useEffect(() => {
+    fetchData();
+  }, [fetchData, year]);
+
+  return { data, loading, error, refetch: fetchData };
+}
+
+export function useDashboardDataExtraction<T extends BaseApiResponse>(data: T | null, fallbackYear: number) {
+  return React.useMemo(() => ({
+    interpreters: data?.interpreters ?? [],
+    months: data?.months ?? [],
+    year: data?.year ?? fallbackYear,
+  }), [data, fallbackYear]);
+}
+
+export function useInterpreterColors(interpreters: InterpreterName[]): Record<InterpreterName, string> {
+  return React.useMemo(() => createInterpreterColorPalette(interpreters), [interpreters]);
+}
+
+export function useCurrentMonth(months: MonthName[]): MonthName | "" {
+  return React.useMemo(() => getCurrentCalendarMonthStrict(months), [months]);
 }
