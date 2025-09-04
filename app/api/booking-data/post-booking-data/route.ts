@@ -765,7 +765,7 @@ import type { RunResult } from "@/types/assignment";
       if (result.body.success && result.body.data.bookingId && !body.interpreterEmpCode) {
         try {
           console.log(`🚀 Starting auto-assignment for booking ${result.body.data.bookingId} (after transaction)`);
-          const { run } = await import("@/lib/assignment/run");
+          const { run } = await import("@/lib/assignment/core/run");
           
           // If this is a recurring booking, assign parent and all children individually
           if (body.isRecurring) {

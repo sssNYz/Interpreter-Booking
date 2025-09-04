@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getEmergencyProcessingManager } from "@/lib/assignment/emergency-processing";
-import { bookingPool } from "@/lib/assignment/pool";
+import { getEmergencyProcessingManager } from "@/lib/assignment/pool/emergency-processing";
+import { bookingPool } from "@/lib/assignment/pool/pool";
 
 /**
  * POST /api/admin/pool/emergency-process

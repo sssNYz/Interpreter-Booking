@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { modeTransitionManager } from "@/lib/assignment/mode-transition";
-import { loadPolicy } from "@/lib/assignment/policy";
+import { modeTransitionManager } from "@/lib/assignment/config/mode-transition";
+import { loadPolicy } from "@/lib/assignment/config/policy";
 import type { AssignmentPolicy } from "@/types/assignment";
 
 export async function POST(request: NextRequest) {
@@ -195,7 +195,7 @@ async function validateModeSwitch(newMode: AssignmentPolicy['mode']): Promise<{
 
   // Check system state
   try {
-    const { bookingPool } = await import('@/lib/assignment/pool');
+    const { bookingPool } = await import('@/lib/assignment/pool/pool');
     const poolStats = await bookingPool.getPoolStats();
     
     if (poolStats.currentlyProcessing > 0) {
@@ -251,7 +251,7 @@ async function getModeTransitionImpact(
   const warnings: string[] = [];
 
   try {
-    const { bookingPool } = await import('@/lib/assignment/pool');
+    const { bookingPool } = await import('@/lib/assignment/pool/pool');
     const poolStats = await bookingPool.getPoolStats();
 
     // Estimate impact based on mode transition

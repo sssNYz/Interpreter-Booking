@@ -3,7 +3,7 @@ import "./globals.css";
 import ClientShell from "@/components/ClientShell";
 
 // Initialize assignment system on server startup
-import "@/lib/assignment/init";
+import "@/lib/assignment/core/init";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",

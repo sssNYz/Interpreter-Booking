@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getPoolMonitor } from "@/lib/assignment/pool-monitoring";
-import { getPoolHistoryTracker } from "@/lib/assignment/pool-history-tracker";
+import { getPoolMonitor } from "@/lib/assignment/pool/pool-monitoring";
+import { getPoolHistoryTracker } from "@/lib/assignment/pool/pool-history-tracker";
 
 /**
  * GET /api/admin/pool/alerts

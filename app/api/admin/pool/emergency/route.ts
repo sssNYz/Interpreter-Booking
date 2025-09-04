@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getPoolProcessingEngine } from "@/lib/assignment/pool-engine";
-import { getPoolStatus } from "@/lib/assignment/pool";
+import { getPoolProcessingEngine } from "@/lib/assignment/pool/pool-engine";
+import { getPoolStatus } from "@/lib/assignment/pool/pool";
 
 /**
  * POST /api/admin/pool/emergency - Emergency pool processing override

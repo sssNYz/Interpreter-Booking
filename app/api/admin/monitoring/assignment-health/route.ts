@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAssignmentMonitor } from '@/lib/assignment/monitoring';
+import { getAssignmentMonitor } from '@/lib/assignment/logging/monitoring';
 
 /**
  * GET /api/admin/monitoring/assignment-health
@@ -102,7 +102,7 @@ export async function POST(request: NextRequest) {
     // Get additional detailed analysis if requested
     let detailedAnalysis = null;
     if (includeDetailedAnalysis) {
-      const { LogAnalyzer } = await import('@/lib/assignment/logging');
+      const { LogAnalyzer } = await import('@/lib/assignment/logging/logging');
       
       const [assignmentPatterns, conflictStats] = await Promise.all([
         LogAnalyzer.analyzeAssignmentPatterns(startDate, endDate),

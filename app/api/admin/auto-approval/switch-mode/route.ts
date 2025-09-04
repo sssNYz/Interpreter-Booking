@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAutoApprovalEngine } from "@/lib/assignment/auto-approval";
+import { getAutoApprovalEngine } from "@/lib/assignment/config/auto-approval";
 import type { AssignmentPolicy } from "@/types/assignment";
 
 /**
