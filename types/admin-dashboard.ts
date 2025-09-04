@@ -168,6 +168,63 @@ export interface DetailedTableRow {
   diff: number;
 }
 
+// ===== Shared API Types =====
+export interface ApiRouteParams {
+  year?: string;
+}
+
+// ===== Shared Component Types =====
+export interface BaseApiResponse {
+  months: MonthName[];
+  interpreters: InterpreterName[];
+  year: number;
+}
+
+export interface ChartDataRow extends BaseChartDataRow {
+  month: MonthName;
+  total: number;
+}
+
+export type DepartmentChartRow = CategoryChartRow & {
+  [K in InterpreterName]: number;
+}
+
+export type TypeChartDataRow = TypeChartRow & {
+  [K in InterpreterName]: number;
+}
+
+// ===== Shared React Hook Types =====
+export interface UseDashboardDataResult<T> {
+  data: T | null;
+  loading: boolean;
+  error: string | null;
+  refetch: () => void;
+}
+
+export interface InterpreterEmployee {
+  empCode: string;
+  firstNameEn: string | null;
+  lastNameEn: string | null;
+  firstNameTh: string | null;
+  lastNameTh: string | null;
+}
+
+export interface InterpreterMapping {
+  empCodeToName: Map<string, InterpreterName>;
+  interpreters: InterpreterName[];
+}
+
+export interface DateRange {
+  start: Date;
+  end: Date;
+}
+
+export interface ApiResponseHeaders {
+  'Cache-Control': string;
+  'X-Total-Count'?: string;
+  'X-Page-Count'?: string;
+}
+
 // ===== Legacy Type Aliases (for backward compatibility) =====
 export type ApiResponse = JobsApiResponse; // Default to JobsApiResponse for backward compatibility
 export type DeptApiResponse = DepartmentsApiResponse;

@@ -43,7 +43,7 @@ type PriorityLabel =
   | "DR2"
   | "DRK"
   | "VIP"
-  | "PR"
+  | "PDR"
   | "WEEKLY"
   | "GENERAL"
   | "URGENT"
@@ -56,7 +56,7 @@ const TYPE_PRIORITY: readonly PriorityLabel[] = [
   "DRK",
   "DR_OTHER",
   "VIP",
-  "PR",
+  "PDR",
   "WEEKLY",
   "GENERAL",
   "URGENT",
@@ -64,13 +64,13 @@ const TYPE_PRIORITY: readonly PriorityLabel[] = [
 ];
 
 const DR_LABEL_TO_KEY: Record<
-  Extract<PriorityLabel, "DR1" | "DR2" | "DRK" | "PR" | "DR_OTHER">,
+  Extract<PriorityLabel, "DR1" | "DR2" | "DRK" | "PDR" | "DR_OTHER">,
   DRType
 > = {
   DR1: "DR_I",
   DR2: "DR_II",
   DRK: "DR_k",
-  PR: "PR_PR",
+  PDR: "PR_PR",
   DR_OTHER: "Other",
 };
 
@@ -91,7 +91,7 @@ type SingleMonthBar = TypeChartRow & { type: PriorityLabel } & Record<string, nu
 function getDRValue(
   mrow: MonthlyDataRowWithDR | undefined,
   itp: InterpreterName,
-  label: "DR1" | "DR2" | "DRK" | "PR" | "DR_OTHER"
+  label: "DR1" | "DR2" | "DRK" | "PDR" | "DR_OTHER"
 ): number {
   const key = DR_LABEL_TO_KEY[label];
   return mrow?.drTypeByInterpreter?.[itp]?.[key] ?? 0;
@@ -108,41 +108,53 @@ function getMTValue(
 
 /* =================== Component =================== */
 
-export function TypesTab({ year }: { year: number }) {
+interface TypesTabProps {
+  year: number;
+  data?: TypesApiResponse | null;
+}
+
+export function TypesTab({ year, data: externalData }: TypesTabProps) {
   // ---- hooks ----
   const [data, setData] = React.useState<TypesApiResponse | null>(null);
   const [selectedMonth, setSelectedMonth] = React.useState<MonthName | "">("");
   const [showAllMonths, setShowAllMonths] = React.useState<boolean>(false);
 
+  // Use external data if provided, otherwise fetch internally
+  const currentData = externalData !== undefined ? externalData : data;
+
   // fetch API
   React.useEffect(() => {
-    let alive = true;
+    if (externalData === undefined) {
+      let alive = true;
 
-    fetch(`/api/admin-dashboard/typesjob-total/${year}`, {
-      cache: "no-store",
-      next: { revalidate: 0 }
-    })
-      .then(async (r) => {
-        if (!r.ok) throw new Error(`Failed (${r.status})`);
-        const j = (await r.json()) as TypesApiResponse;
-        if (!alive) return;
-        setData(j);
-        setSelectedMonth((prev) => (prev ? prev : getCurrentCalendarMonth(j.months)));
+      fetch(`/api/admin-dashboard/typesjob-total/${year}`, {
+        cache: "no-store",
+        next: { revalidate: 0 }
       })
-      .catch((e) => {
-        if (alive) console.error("Error fetching types data:", e);
-      });
+        .then(async (r) => {
+          if (!r.ok) throw new Error(`Failed (${r.status})`);
+          const j = (await r.json()) as TypesApiResponse;
+          if (!alive) return;
+          setData(j);
+          setSelectedMonth((prev) => (prev ? prev : getCurrentCalendarMonth(j.months)));
+        })
+        .catch((e) => {
+          if (alive) console.error("Error fetching types data:", e);
+        });
 
-    return () => { alive = false; };
-  }, [year]);
+      return () => { alive = false; };
+    } else if (externalData) {
+      setSelectedMonth((prev) => (prev ? prev : getCurrentCalendarMonth(externalData.months)));
+    }
+  }, [year, externalData]);
 
   // safe bindings
-  const activeYear = data?.year ?? year;
-  const months: MonthName[] = React.useMemo(() => data?.months ?? [], [data?.months]);
-  const interpreters: InterpreterName[] = React.useMemo(() => data?.interpreters ?? [], [data?.interpreters]);
-  const yearData: MonthlyDataRowWithDR[] = React.useMemo(() => data?.yearData ?? [], [data?.yearData]);
+  const activeYear = currentData?.year ?? year;
+  const months: MonthName[] = React.useMemo(() => currentData?.months ?? [], [currentData?.months]);
+  const interpreters: InterpreterName[] = React.useMemo(() => currentData?.interpreters ?? [], [currentData?.interpreters]);
+  const yearData: MonthlyDataRowWithDR[] = React.useMemo(() => currentData?.yearData ?? [], [currentData?.yearData]);
   const typesMGIFooter: FooterByInterpreter = React.useMemo(() => 
-    data?.typesMGIFooter ?? { perInterpreter: [], grand: 0, diff: 0 }, [data?.typesMGIFooter]);
+    currentData?.typesMGIFooter ?? { perInterpreter: [], grand: 0, diff: 0 }, [currentData?.typesMGIFooter]);
 
   // current month for highlight
   const currentMonth = React.useMemo<MonthName | "">(
@@ -163,7 +175,7 @@ export function TypesTab({ year }: { year: number }) {
       const rec = { type: label } as SingleMonthBar;
       interpreters.forEach((itp) => {
         let v = 0;
-        if (label === "DR1" || label === "DR2" || label === "DRK" || label === "PR" || label === "DR_OTHER") {
+        if (label === "DR1" || label === "DR2" || label === "DRK" || label === "PDR" || label === "DR_OTHER") {
           v = getDRValue(mrow, itp, label);
         } else {
           v = getMTValue(mrow, itp, label);
@@ -203,7 +215,7 @@ export function TypesTab({ year }: { year: number }) {
       months.forEach((m) => {
         const mrow = yearData.find((d) => d.month === m);
         const v = interpreters.reduce((sum, itp) => {
-          if (label === "DR1" || label === "DR2" || label === "DRK" || label === "PR" || label === "DR_OTHER") {
+          if (label === "DR1" || label === "DR2" || label === "DRK" || label === "PDR" || label === "DR_OTHER") {
             return sum + getDRValue(mrow, itp, label);
           }
           return sum + getMTValue(mrow, itp, label);
@@ -234,7 +246,7 @@ export function TypesTab({ year }: { year: number }) {
     const mrow = yearData.find((d) => d.month === selectedMonth);
     const perInterpreter = interpreters.map((itp) =>
       TYPE_PRIORITY.reduce((sum, label) => {
-        if (label === "DR1" || label === "DR2" || label === "DRK" || label === "PR" || label === "DR_OTHER") {
+        if (label === "DR1" || label === "DR2" || label === "DRK" || label === "PDR" || label === "DR_OTHER") {
           return sum + getDRValue(mrow, itp, label);
         }
         return sum + getMTValue(mrow, itp, label);
@@ -396,7 +408,7 @@ export function TypesTab({ year }: { year: number }) {
                   const mrow = yearData.find((d) => d.month === m);
                   return TYPE_PRIORITY.map((label, idx) => {
                     const perItp = interpreters.map((itp) =>
-                      label === "DR1" || label === "DR2" || label === "DRK" || label === "PR" || label === "DR_OTHER"
+                      label === "DR1" || label === "DR2" || label === "DRK" || label === "PDR" || label === "DR_OTHER"
                         ? getDRValue(mrow, itp, label)
                         : getMTValue(mrow, itp, label)
                     );

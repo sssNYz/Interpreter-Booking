@@ -20,6 +20,10 @@ import {
   createZeroDRTypes,
   NON_DR_TYPES,
   DR_SUBTYPES,
+  createDateRange,
+  fetchActiveInterpreters,
+  createInterpreterMapping,
+  createApiResponseHeaders,
 } from "@/utils/admin-dashboard";
 
 // ===== Helpers =====
@@ -41,13 +45,12 @@ export async function GET(
       yearNum = new Date().getUTCFullYear();
     }
 
-    const rangeStart = new Date(Date.UTC(yearNum, 0, 1, 0, 0, 0));
-    const rangeEnd   = new Date(Date.UTC(yearNum + 1, 0, 1, 0, 0, 0));
+    const dateRange = createDateRange(yearNum);
 
     // ดึงเฉพาะฟิลด์ที่ต้องใช้
     const records = await prisma.bookingPlan.findMany({
       where: {
-        timeStart: { gte: rangeStart, lt: rangeEnd },
+        timeStart: { gte: dateRange.start, lt: dateRange.end },
         interpreterEmpCode: { not: null },
         // IMPORTANT: Only include bookings where interpreter still exists and is active
         interpreterEmployee: {
@@ -65,40 +68,9 @@ export async function GET(
       },
     });
 
-    // Get all active interpreters for the year (even if they have no bookings)
-    const activeInterpreters = await prisma.employee.findMany({
-      where: {
-        isActive: true,
-        // Only include interpreters who have bookings in this year
-        bookingsAsInterpreter: {
-          some: {
-            timeStart: { gte: rangeStart, lt: rangeEnd },
-            interpreterEmpCode: { not: null }
-          }
-        }
-      },
-      select: {
-        empCode: true,
-        firstNameEn: true,
-        lastNameEn: true,
-      },
-      orderBy: {
-        firstNameEn: 'asc'
-      }
-    });
-
-    // สร้าง display name ของล่ามจาก active interpreters
-    const empCodeToName = new Map<string, InterpreterName>();
-    for (const interpreter of activeInterpreters) {
-      const empCode = interpreter.empCode;
-      const first = (interpreter.firstNameEn ?? "").trim();
-      const last  = (interpreter.lastNameEn ?? "").trim();
-      const name: InterpreterName = ( `${first} ${last}`.trim() || empCode ) as InterpreterName;
-      empCodeToName.set(empCode, name);
-    }
-
-    const interpreters: InterpreterName[] = Array.from(new Set(empCodeToName.values()))
-      .sort((a, b) => a.localeCompare(b));
+    // Get all active interpreters for the year using consolidated utility
+    const activeInterpreters = await fetchActiveInterpreters(prisma, dateRange);
+    const { empCodeToName, interpreters } = createInterpreterMapping(activeInterpreters);
 
     // เตรียม yearData 12 เดือน (type-safe) ใส่ทั้ง typeByInterpreter และ drTypeByInterpreter
     const yearData: MonthlyDataRowWithDR[] = MONTH_LABELS.map((m): MonthlyDataRowWithDR => {
@@ -173,9 +145,7 @@ export async function GET(
     };
 
     return NextResponse.json(result, {
-      headers: {
-        'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600',
-      },
+      headers: createApiResponseHeaders(),
     });
   } catch (e) {
     console.error(e);

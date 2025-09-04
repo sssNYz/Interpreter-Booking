@@ -24,44 +24,54 @@ import {
 } from "@/utils/admin-dashboard";
 
 
-export function JobsTab({ year }: { year: number }) {
+interface JobsTabProps {
+  year: number;
+  data?: JobsApiResponse | null;
+}
+
+export function JobsTab({ year, data: externalData }: JobsTabProps) {
   const [data, setData] = React.useState<JobsApiResponse | null>(null);
 
+  // Use external data if provided, otherwise fetch internally
+  const currentData = externalData !== undefined ? externalData : data;
+
   React.useEffect(() => {
-    fetch(`/api/admin-dashboard/jobs-total/${year}`, {
-      cache: "no-store",
-      next: { revalidate: 0 },
-    })
-      .then(async (r) => {
-        if (!r.ok) throw new Error(`Failed (${r.status})`);
-        const j = (await r.json()) as JobsApiResponse;
-        setData(j);
+    if (externalData === undefined) {
+      fetch(`/api/admin-dashboard/jobs-total/${year}`, {
+        cache: "no-store",
+        next: { revalidate: 0 },
       })
-      .catch((e) => {
-        console.error("Error fetching jobs data:", e);
-        setData(null);
-      });
-  }, [year]);
+        .then(async (r) => {
+          if (!r.ok) throw new Error(`Failed (${r.status})`);
+          const j = (await r.json()) as JobsApiResponse;
+          setData(j);
+        })
+        .catch((e) => {
+          console.error("Error fetching jobs data:", e);
+          setData(null);
+        });
+    }
+  }, [year, externalData]);
 
   const interpreterColors = React.useMemo<Record<InterpreterName, string>>(() => {
-    if (!data) return {} as Record<InterpreterName, string>;
-    return createInterpreterColorPalette(data.interpreters);
-  }, [data]);
+    if (!currentData) return {} as Record<InterpreterName, string>;
+    return createInterpreterColorPalette(currentData.interpreters);
+  }, [currentData]);
 
   // Show 0 values when no data instead of returning null
-  const { interpreters, totalJobsStack, jobsFooter } = data || {
+  const { interpreters, totalJobsStack, jobsFooter } = currentData || {
     interpreters: [],
     totalJobsStack: [],
     jobsFooter: { perInterpreter: [], grand: 0, diff: 0 }
   };
-  const currentMonth = getCurrentCalendarMonthStrict(data?.months || []);
+  const currentMonth = getCurrentCalendarMonthStrict(currentData?.months || []);
 
   return (
     <>
       <Card className="h-[380px] mb-4">
         <CardHeader className="pb-0">
           <CardTitle className="text-base">
-            Total Jobs per Month (Year {data?.year || new Date().getFullYear()})
+            Total Jobs per Month (Year {currentData?.year || new Date().getFullYear()})
           </CardTitle>
         </CardHeader>
         <CardContent className="h-[320px]">

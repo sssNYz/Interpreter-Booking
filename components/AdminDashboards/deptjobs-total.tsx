@@ -42,41 +42,53 @@ type SingleMonthDeptBar = CategoryChartRow & Record<InterpreterName, number>;
 
 /* ---------------------- Component ---------------------- */
 
-export function DeptTab({ year }: { year: number }) {
+interface DeptTabProps {
+  year: number;
+  data?: DepartmentsApiResponse | null;
+}
+
+export function DeptTab({ year, data: externalData }: DeptTabProps) {
   const [data, setData] = React.useState<DepartmentsApiResponse | null>(null);
   const [selectedMonth, setSelectedMonth] = React.useState<MonthName | "">("");
   const [showAllMonths, setShowAllMonths] = React.useState<boolean>(false);
 
+  // Use external data if provided, otherwise fetch internally
+  const currentData = externalData !== undefined ? externalData : data;
+
   React.useEffect(() => {
-    let alive = true;
+    if (externalData === undefined) {
+      let alive = true;
 
-    fetch(`/api/admin-dashboard/dept-total/${year}`, {
-      cache: "no-store"
-    })
-      .then(async (r) => {
-        if (!r.ok) throw new Error(`Failed (${r.status})`);
-        const j = (await r.json()) as DepartmentsApiResponse;
-        if (alive) {
-          setData(j);
-          setSelectedMonth((prev) => (prev ? prev : getCurrentCalendarMonth(j.months)));
-        }
+      fetch(`/api/admin-dashboard/dept-total/${year}`, {
+        cache: "no-store"
       })
-      .catch((e) => {
-        if (alive) console.error("Error fetching dept data:", e);
-      });
+        .then(async (r) => {
+          if (!r.ok) throw new Error(`Failed (${r.status})`);
+          const j = (await r.json()) as DepartmentsApiResponse;
+          if (alive) {
+            setData(j);
+            setSelectedMonth((prev) => (prev ? prev : getCurrentCalendarMonth(j.months)));
+          }
+        })
+        .catch((e) => {
+          if (alive) console.error("Error fetching dept data:", e);
+        });
 
-    return () => { alive = false; };
-  }, [year]);
+      return () => { alive = false; };
+    } else if (externalData) {
+      setSelectedMonth((prev) => (prev ? prev : getCurrentCalendarMonth(externalData.months)));
+    }
+  }, [year, externalData]);
 
   // Data from API or fallback
-  const activeYear = React.useMemo(() => data?.year ?? year, [data?.year, year]);
-  const months: MonthName[] = React.useMemo(() => data?.months ?? [], [data?.months]);
-  const interpreters: InterpreterName[] = React.useMemo(() => data?.interpreters ?? [], [data?.interpreters]);
-  const departments: OwnerGroup[] = React.useMemo(() => data?.departments ?? [], [data?.departments]);
-  const yearData: MonthlyDataRow[] = React.useMemo(() => data?.yearData ?? [], [data?.yearData]);
+  const activeYear = React.useMemo(() => currentData?.year ?? year, [currentData?.year, year]);
+  const months: MonthName[] = React.useMemo(() => currentData?.months ?? [], [currentData?.months]);
+  const interpreters: InterpreterName[] = React.useMemo(() => currentData?.interpreters ?? [], [currentData?.interpreters]);
+  const departments: OwnerGroup[] = React.useMemo(() => currentData?.departments ?? [], [currentData?.departments]);
+  const yearData: MonthlyDataRow[] = React.useMemo(() => currentData?.yearData ?? [], [currentData?.yearData]);
   const deptMGIFooter: FooterByInterpreter = React.useMemo(
-    () => data?.deptMGIFooter ?? { perInterpreter: [], grand: 0, diff: 0 },
-    [data?.deptMGIFooter]
+    () => currentData?.deptMGIFooter ?? { perInterpreter: [], grand: 0, diff: 0 },
+    [currentData?.deptMGIFooter]
   );
 
   // present month
