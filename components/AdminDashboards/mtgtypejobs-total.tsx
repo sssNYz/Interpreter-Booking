@@ -19,6 +19,8 @@ import type {
   DRType,
   TypesApiResponse,
   MonthlyDataRowWithDR,
+  TypeChartRow,
+  MonthlyTableRow,
 } from "@/types/admin-dashboard";
 import {
   Select,
@@ -28,7 +30,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { diffClass } from "@/utils/admin-dashboard";
+import { 
+  diffClass,
+  createInterpreterColorPalette,
+  getCurrentCalendarMonth,
+  diffRange 
+} from "@/utils/admin-dashboard";
 
 /* =================== Labels & mapping =================== */
 type PriorityLabel =
@@ -79,23 +86,7 @@ const MT_LABEL_TO_KEY: Record<
 };
 
 /* =================== Helpers =================== */
-function getCurrentCalendarMonth(months: MonthName[]): MonthName {
-  const idx = new Date().getMonth(); 
-  return months[idx] ?? months[0];
-}
-
-function diffRange(values: number[]): number {
-  if (!values.length) return 0;
-  let min = values[0], max = values[0];
-  for (let i = 1; i < values.length; i++) {
-    const v = values[i];
-    if (v < min) min = v;
-    if (v > max) max = v;
-  }
-  return max - min;
-}
-
-type SingleMonthBar = { type: PriorityLabel } & Record<string, number>;
+type SingleMonthBar = TypeChartRow & { type: PriorityLabel } & Record<string, number>;
 
 function getDRValue(
   mrow: MonthlyDataRowWithDR | undefined,
@@ -161,13 +152,7 @@ export function TypesTab({ year }: { year: number }) {
 
   // color palette
   const interpreterColors = React.useMemo<Record<InterpreterName, string>>(() => {
-    const palette = [
-      "#2563EB", "#16A34A", "#F59E0B", "#DC2626", "#7C3AED",
-      "#0EA5E9", "#059669", "#CA8A04", "#EA580C", "#9333EA",
-    ];
-    const map = {} as Record<InterpreterName, string>;
-    interpreters.forEach((n, i) => { map[n] = palette[i % palette.length]; });
-    return map;
+    return createInterpreterColorPalette(interpreters);
   }, [interpreters]);
 
   // ===== Chart dataset  =====
@@ -208,12 +193,11 @@ export function TypesTab({ year }: { year: number }) {
   }, [yMax]);
 
   // ===== Table #1: Types × Months =====
-  type TypesTableRowStrict<M extends string = MonthName> = {
+  type TypesTableRowStrict = MonthlyTableRow & {
     type: string;
-    TOTAL: number;
-  } & Record<M, number>;
+  };
 
-  const tableAllMonthsRows = React.useMemo<TypesTableRowStrict<MonthName>[]>(() => {
+  const tableAllMonthsRows = React.useMemo<TypesTableRowStrict[]>(() => {
     return TYPE_PRIORITY.map((label) => {
       const row: Record<string, number | string> = { type: label, TOTAL: 0 };
       months.forEach((m) => {
@@ -227,7 +211,7 @@ export function TypesTab({ year }: { year: number }) {
         row[m] = v;
       });
       row.TOTAL = months.reduce((a, m) => a + (row[m] as number), 0);
-      return row as TypesTableRowStrict<MonthName>;
+      return row as TypesTableRowStrict;
     });
   }, [months, yearData, interpreters]);
 

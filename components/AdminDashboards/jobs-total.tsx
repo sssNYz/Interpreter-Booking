@@ -13,19 +13,15 @@ import {
 } from "recharts";
 
 import {
-  MonthName,
   InterpreterName,
   JobsApiResponse,
 } from "@/types/admin-dashboard";
 
-import { diffClass } from "@/utils/admin-dashboard";
-
-// months present in the data
-function getCurrentCalendarMonth(months: MonthName[]): MonthName | "" {
-  if (!months?.length) return "";
-  const idx = new Date().getMonth(); 
-  return months[idx] ?? "";
-}
+import { 
+  diffClass, 
+  createInterpreterColorPalette,
+  getCurrentCalendarMonthStrict 
+} from "@/utils/admin-dashboard";
 
 
 export function JobsTab({ year }: { year: number }) {
@@ -49,15 +45,7 @@ export function JobsTab({ year }: { year: number }) {
 
   const interpreterColors = React.useMemo<Record<InterpreterName, string>>(() => {
     if (!data) return {} as Record<InterpreterName, string>;
-    const palette = [
-      "#2563EB", "#16A34A", "#F59E0B", "#DC2626", "#7C3AED",
-      "#0EA5E9", "#059669", "#CA8A04", "#EA580C", "#9333EA",
-    ];
-    const map = {} as Record<InterpreterName, string>;
-    data.interpreters.forEach((n, i) => {
-      map[n] = palette[i % palette.length];
-    });
-    return map;
+    return createInterpreterColorPalette(data.interpreters);
   }, [data]);
 
   // Show 0 values when no data instead of returning null
@@ -66,7 +54,7 @@ export function JobsTab({ year }: { year: number }) {
     totalJobsStack: [],
     jobsFooter: { perInterpreter: [], grand: 0, diff: 0 }
   };
-  const currentMonth = getCurrentCalendarMonth(data?.months || []);
+  const currentMonth = getCurrentCalendarMonthStrict(data?.months || []);
 
   return (
     <>

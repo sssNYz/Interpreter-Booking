@@ -18,6 +18,7 @@ import type {
   InterpreterName,
   OwnerGroup,
   DepartmentsApiResponse,
+  CategoryChartRow,
 } from "@/types/admin-dashboard";
 import { OwnerGroupLabel as OGLabel } from "@/types/admin-dashboard";
 import {
@@ -29,10 +30,15 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 
-import { getCurrentCalendarMonth, diffRange, diffClass } from "@/utils/admin-dashboard";
+import { 
+  getCurrentCalendarMonth, 
+  diffRange, 
+  diffClass,
+  createInterpreterColorPalette 
+} from "@/utils/admin-dashboard";
 
 /* ---------------------- Type ---------------------- */
-type SingleMonthDeptBar = { group: string } & Record<InterpreterName, number>;
+type SingleMonthDeptBar = CategoryChartRow & Record<InterpreterName, number>;
 
 /* ---------------------- Component ---------------------- */
 
@@ -80,13 +86,7 @@ export function DeptTab({ year }: { year: number }) {
   );
 
   const interpreterColors = React.useMemo<Record<InterpreterName, string>>(() => {
-    const palette = [
-      "#2563EB", "#16A34A", "#F59E0B", "#DC2626", "#7C3AED",
-      "#0EA5E9", "#059669", "#CA8A04", "#EA580C", "#9333EA",
-    ];
-    const map = {} as Record<InterpreterName, string>;
-    interpreters.forEach((n, i) => { map[n] = palette[i % palette.length]; });
-    return map;
+    return createInterpreterColorPalette(interpreters);
   }, [interpreters]);
 
   const monthDeptData: SingleMonthDeptBar[] = React.useMemo(() => {

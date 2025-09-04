@@ -249,10 +249,16 @@ export const years: number[] = Array.from(
   (_, i) => new Date().getFullYear() - i
 );
 
-// ===== deptjobs =====
+// ===== Current Month Detection =====
 export function getCurrentCalendarMonth(months: MonthName[]): MonthName {
   const cur = new Date().toLocaleString("en-US", { month: "short" }) as MonthName; 
   return months.includes(cur) ? cur : (months[0] as MonthName);
+}
+
+export function getCurrentCalendarMonthStrict(months: MonthName[]): MonthName | "" {
+  if (!months?.length) return "";
+  const idx = new Date().getMonth(); 
+  return months[idx] ?? "";
 }
 
 export function diffRange(values: number[]): number {
@@ -268,4 +274,46 @@ export function diffRange(values: number[]): number {
 
 export function diffClass(v: number): string {
   return v === 0 ? "text-emerald-700" : "text-red-600";
+}
+
+// ===== Chart & UI Utilities =====
+export function createInterpreterColorPalette(interpreters: InterpreterName[]): Record<InterpreterName, string> {
+  const palette = [
+    "#2563EB", "#16A34A", "#F59E0B", "#DC2626", "#7C3AED",
+    "#0EA5E9", "#059669", "#CA8A04", "#EA580C", "#9333EA",
+  ];
+  const colorMap = {} as Record<InterpreterName, string>;
+  interpreters.forEach((name, index) => {
+    colorMap[name] = palette[index % palette.length];
+  });
+  return colorMap;
+}
+
+export function getInterpreterColorPaletteAsMap(interpreters: InterpreterName[]): Map<InterpreterName, string> {
+  const palette = [
+    "#2563EB", "#16A34A", "#F59E0B", "#DC2626", "#7C3AED",
+    "#0EA5E9", "#059669", "#CA8A04", "#EA580C", "#9333EA",
+  ];
+  const colorMap = new Map<InterpreterName, string>();
+  interpreters.forEach((name, index) => {
+    colorMap.set(name, palette[index % palette.length] ?? "#94a3b8");
+  });
+  return colorMap;
+}
+
+// Hours formatting utilities
+export function formatHoursDecimal(minutes: number): string {
+  const m = Math.max(0, Math.round(Number(minutes) || 0));
+  const h = Math.floor(m / 60);
+  const mm = m % 60;
+  return `${h}.${String(mm).padStart(2, "0")} h`;
+}
+
+export function buildTwoHourTicks(maxMinutes: number): number[] {
+  const topHours = Math.ceil((Math.max(0, maxMinutes) / 60) / 2) * 2;
+  const ticks: number[] = [];
+  for (let h = 0; h <= topHours; h += 2) {
+    ticks.push(h * 60);
+  }
+  return ticks.length ? ticks : [0, 120];
 }
