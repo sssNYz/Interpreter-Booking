@@ -128,7 +128,7 @@ export const MONTH_LABELS: MonthName[] = [
   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 ];
 
-export const MEETING_TYPES: MeetingType[] = ["DR", "VIP", "Weekly", "General", "Augent", "Other"];
+export const MEETING_TYPES: MeetingType[] = ["DR", "PDR", "VIP", "Weekly", "General", "Augent", "Other"];
 
 export const DR_TYPES: DRType[] = ["PR_PR", "DR_k", "DR_II", "DR_I", "Other"];
 

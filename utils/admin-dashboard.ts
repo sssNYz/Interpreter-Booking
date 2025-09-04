@@ -30,6 +30,7 @@ export function getMonthLabel(date: Date): MonthName {
 export function createZeroMeetingTypes(): Record<MeetingType, number> {
   return {
     DR: 0,
+    PDR: 0,
     VIP: 0,
     Weekly: 0,
     General: 0,

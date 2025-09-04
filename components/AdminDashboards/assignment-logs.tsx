@@ -24,14 +24,14 @@ import type {
   AssignmentLogItem,
   AssignmentLogsApiResponse,
 } from "@/types/admin-dashboard";
+import { MEETING_TYPES } from "@/types/admin-dashboard";
 
 type LogItem = AssignmentLogItem;
 type ApiResponse = AssignmentLogsApiResponse;
 
 /* ========= Utils ========= */
 const toLocalDate = (iso: string) => new Date(iso).toLocaleDateString();
-const toLocalTime = (iso: string) =>
-  new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+const toLocalTime = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 const toLocalDateTime = (iso: string) => new Date(iso).toLocaleString();
 
 const formatDR = (v?: string | null) => {
@@ -83,15 +83,7 @@ const getOwnerDisplayName = (owner: LogItem["bookingPlan"]["employee"]) => {
   }
 };
 
-const MEETING_TYPES = [
-  "All",
-  "DR",
-  "VIP",
-  "Weekly",
-  "General",
-  "Augent",
-  "Other",
-];
+const MEETING_TYPES_WITH_ALL = ["All", ...MEETING_TYPES];
 
 /* ========= Component ========= */
 export function AssignmentLogsTab() {
@@ -236,7 +228,7 @@ export function AssignmentLogsTab() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                {MEETING_TYPES.map((mt) => (
+                {MEETING_TYPES_WITH_ALL.map((mt) => (
                   <DropdownMenuCheckboxItem
                     key={mt}
                     checked={selectedMeetingTypes.includes(mt)}
