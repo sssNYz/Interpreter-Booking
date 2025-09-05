@@ -576,128 +576,108 @@ export default function AutoAssignConfig() {
         <>
           <Separator />
 
-          {/* Parameter Configuration with Meeting Type Priorities */}
+          {/* Parameter Configuration - Meeting Type Priorities Left, Fairness + Scoring Right */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Left Column: Fairness Settings + Meeting Type Priorities */}
-            <div className="space-y-6">
-              <ParameterInput
-                policy={localConfig.policy}
-                onPolicyUpdate={updatePolicy}
-                showFairnessOnly={true}
-              />
-              
-              {/* Meeting Type Priorities */}
-              <Card className="h-[300px] flex flex-col">
-                <CardHeader className="flex-shrink-0">
-                  <CardTitle>Meeting Type Priorities</CardTitle>
-                  <CardDescription>Configure priority values and thresholds for each meeting type</CardDescription>
-                </CardHeader>
-                <CardContent className="flex-1 overflow-y-auto">
-                  <div className="space-y-3">
-                    {/* Debug info */}
-                    {localConfig.priorities.length === 0 && (
-                      <div className="text-center p-4 border-2 border-dashed border-gray-300 rounded-lg">
-                        <p className="text-gray-500 mb-2">No meeting type priorities found in database</p>
-                        <p className="text-sm text-gray-400 mb-4">
-                          Meeting type priorities are required for the auto-assignment system to work properly.
-                        </p>
-                        <div className="space-y-2">
-                          <Button
-                            variant="outline"
-                            onClick={async () => {
-                              try {
-                                // Call API to initialize priorities in database
-                                const response = await fetch("/api/admin/config/auto-assign/init-priorities", {
-                                  method: "POST",
-                                  headers: { "Content-Type": "application/json" }
-                                });
-
-                                const result = await response.json();
-
-                                if (result.success) {
-                                  // Reload configuration to get the new priorities
-                                  await loadConfig();
-                                  toast.success("Default priorities created in database");
-                                } else {
-                                  throw new Error(result.error || "Failed to create priorities");
-                                }
-                              } catch (error) {
-                                console.error("Error creating priorities:", error);
-                                toast.error("Failed to create default priorities");
-                              }
-                            }}
-                          >
-                            Initialize Default Priorities
-                          </Button>
-                          <p className="text-xs text-gray-400">
-                            This will create default priorities in the database for DR, VIP, Weekly, General, Augent, and Other meeting types.
-                          </p>
+            {/* Left Column: Meeting Type Priorities */}
+            <Card className="flex flex-col">
+              <CardHeader className="flex-shrink-0 py-2 px-3">
+                <CardTitle className="text-sm font-medium">Meeting Type Priorities</CardTitle>
+                <CardDescription className="text-xs">Priority values and thresholds</CardDescription>
+              </CardHeader>
+              <CardContent className="flex-1 p-3 overflow-y-auto">
+                {localConfig.priorities.length === 0 ? (
+                  <div className="text-center p-4 border-2 border-dashed border-gray-300 rounded">
+                    <p className="text-gray-500 mb-2 text-xs">No priorities found</p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={async () => {
+                        try {
+                          const response = await fetch("/api/admin/config/auto-assign/init-priorities", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" }
+                          });
+                          const result = await response.json();
+                          if (result.success) {
+                            await loadConfig();
+                            toast.success("Default priorities created");
+                          } else {
+                            throw new Error(result.error || "Failed to create priorities");
+                          }
+                        } catch (error) {
+                          console.error("Error creating priorities:", error);
+                          toast.error("Failed to create default priorities");
+                        }
+                      }}
+                    >
+                      Initialize
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {localConfig.priorities.map((priority, index) => (
+                      <div key={priority.meetingType} className="border border-gray-200 rounded p-2 bg-white">
+                        <div className="flex items-center justify-between mb-2">
+                          <h4 className="text-sm font-medium text-gray-800">{priority.meetingType}</h4>
                         </div>
-                      </div>
-                    )}
-
-                    {localConfig.priorities.map((priority) => (
-                      <div key={priority.meetingType} className="grid grid-cols-4 gap-2 p-3 border rounded-lg">
-                        <div>
-                          <Label htmlFor={`name-${priority.meetingType}`} className="text-xs">Meeting Type</Label>
-                          <Input
-                            id={`name-${priority.meetingType}`}
-                            type="text"
-                            value={priority.meetingType}
-                            disabled={true}
-                            className="h-8 text-sm opacity-75 bg-gray-50"
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor={`priority-${priority.meetingType}`} className="text-xs">Priority</Label>
-                          <Input
-                            id={`priority-${priority.meetingType}`}
-                            type="number"
-                            min="1"
-                            max="10"
-                            value={priority.priorityValue || 1}
-                            onChange={(e) => updatePriority(priority.meetingType, { priorityValue: parseInt(e.target.value) || 1 })}
-                            className="h-8 text-sm"
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor={`urgent-${priority.meetingType}`} className="text-xs">Urgent (days)</Label>
-                          <Input
-                            id={`urgent-${priority.meetingType}`}
-                            type="number"
-                            min="0"
-                            max="30"
-                            value={priority.urgentThresholdDays || 0}
-                            onChange={(e) => updatePriority(priority.meetingType, { urgentThresholdDays: parseInt(e.target.value) || 0 })}
-                            className="h-8 text-sm"
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor={`general-${priority.meetingType}`} className="text-xs">General (days)</Label>
-                          <Input
-                            id={`general-${priority.meetingType}`}
-                            type="number"
-                            min="1"
-                            max="90"
-                            value={priority.generalThresholdDays || 1}
-                            onChange={(e) => updatePriority(priority.meetingType, { generalThresholdDays: parseInt(e.target.value) || 1 })}
-                            className="h-8 text-sm"
-                          />
+                        <div className="grid grid-cols-3 gap-2">
+                          <div>
+                            <Label className="text-xs text-gray-600">Priority</Label>
+                            <Input
+                              type="number"
+                              min="1"
+                              max="10"
+                              value={priority.priorityValue || 1}
+                              onChange={(e) => updatePriority(priority.meetingType, { priorityValue: parseInt(e.target.value) || 1 })}
+                              className="h-7 text-xs"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-xs text-gray-600">Urgent</Label>
+                            <Input
+                              type="number"
+                              min="0"
+                              max="30"
+                              value={priority.urgentThresholdDays || 0}
+                              onChange={(e) => updatePriority(priority.meetingType, { urgentThresholdDays: parseInt(e.target.value) || 0 })}
+                              className="h-7 text-xs"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-xs text-gray-600">General</Label>
+                            <Input
+                              type="number"
+                              min="1"
+                              max="90"
+                              value={priority.generalThresholdDays || 1}
+                              onChange={(e) => updatePriority(priority.meetingType, { generalThresholdDays: parseInt(e.target.value) || 1 })}
+                              className="h-7 text-xs"
+                            />
+                          </div>
                         </div>
                       </div>
                     ))}
                   </div>
-                </CardContent>
-              </Card>
-            </div>
+                )}
+              </CardContent>
+            </Card>
 
-            {/* Right Column: Scoring Weights */}
-            <div>
-              <ParameterInput
-                policy={localConfig.policy}
-                onPolicyUpdate={updatePolicy}
-                showScoringOnly={true}
-              />
+            {/* Right Column: Fairness + Scoring Settings */}
+            <div className="space-y-4 h-full flex flex-col">
+              <div className="flex-1">
+                <ParameterInput
+                  policy={localConfig.policy}
+                  onPolicyUpdate={updatePolicy}
+                  showFairnessOnly={true}
+                />
+              </div>
+              <div className="flex-1">
+                <ParameterInput
+                  policy={localConfig.policy}
+                  onPolicyUpdate={updatePolicy}
+                  showScoringOnly={true}
+                />
+              </div>
             </div>
           </div>
         </>
