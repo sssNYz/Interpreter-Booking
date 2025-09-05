@@ -17,7 +17,7 @@ export type AdminBookingRow = {
   requestedTime: string;
   isDR: boolean;
   drType?: "PR_PR" | "DR_k" | "DR_II" | "DR_I" | "Other";
-  meetingType?: "DR" | "VIP" | "Weekly" | "General" | "Urgent" | "Other";
+  meetingType?: "DR" | "PDR" | "VIP" | "Weekly" | "General" | "Urgent" | "Other";
   otherType?: string;
 };
 
@@ -38,7 +38,7 @@ export type BookingManage = {
   requestedTime: string;
   isDR: boolean;
   drType?: "PR_PR" | "DR_k" | "DR_II" | "DR_I" | "Other";
-  meetingType?: "DR" | "VIP" | "Weekly" | "General" | "Urgent" | "Other";
+  meetingType?: "DR" | "PDR" | "VIP" | "Weekly" | "General" | "Urgent" | "Other";
   otherType?: string;
 };
 

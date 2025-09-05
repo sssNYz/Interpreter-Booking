@@ -1,8 +1,8 @@
 import React from "react";
-import { Circle, Star, Users, Calendar, HelpCircle, AlertTriangle } from "lucide-react";
+import { Circle, Star, Users, Calendar, HelpCircle, AlertTriangle, CircleDot } from "lucide-react";
 
-export type PriorityLevel = "VIP" | "DR_I" | "DR_II" | "DR_k" | "General";
-export type MeetingType = "DR" | "VIP" | "Weekly" | "General" | "Urgent" | "Other" | "Augent";
+export type PriorityLevel = "VIP" | "DR_I" | "DR_II" | "DR_k" | "PDR" | "General";
+export type MeetingType = "DR" | "PDR" | "VIP" | "Weekly" | "General" | "Urgent" | "Other" | "Augent";
 
 export interface PriorityConfig {
   level: PriorityLevel;
@@ -59,6 +59,15 @@ export const PRIORITY_CONFIGS: Record<PriorityLevel, PriorityConfig> = {
     borderColor: "",
     order: 4,
   },
+  PDR: {
+    level: "PDR",
+    label: "PDR",
+    icon: CircleDot,
+    color: "text-red-500",
+    bgColor: "",
+    borderColor: "",
+    order: 5,
+  },
   General: {
     level: "General",
     label: "General",
@@ -66,7 +75,7 @@ export const PRIORITY_CONFIGS: Record<PriorityLevel, PriorityConfig> = {
     color: "text-gray-500",
     bgColor: "",
     borderColor: "",
-    order: 5,
+    order: 6,
   },
 };
 
@@ -77,6 +86,13 @@ export const MEETING_TYPE_CONFIGS: Record<MeetingType, MeetingTypeConfig> = {
     icon: Star,
     color: "text-red-600", // High priority red
     priority: "DR_I", // Default, will be overridden by drType
+  },
+  PDR: {
+    type: "PDR",
+    label: "PDR",
+    icon: Star,
+    color: "text-red-600",
+    priority: "DR_I",
   },
   VIP: {
     type: "VIP",
@@ -128,6 +144,8 @@ export function getPriorityLevel(
 ): PriorityLevel {
   // VIP meetings have highest priority
   if (meetingType === "VIP") return "VIP";
+  // PDR lower priority than all DR variants
+  if (meetingType === "PDR") return "PDR";
   
   // DR meetings based on drType
   if (meetingType === "DR" && drType) {

@@ -10,7 +10,7 @@ import {
 import {
   ChevronLeft, ChevronRight, Star, HelpCircle, Info, CheckCircle, XCircle, Hourglass,
   Calendar, ChevronUp, ChevronDown, SquarePen, Users, Circle, AlertTriangle, Clock,
-  RotateCcw,
+  RotateCcw, CircleDot,
 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import type { BookingManage, Stats } from "@/types/admin";
@@ -68,6 +68,7 @@ export default function BookingManagement(): React.JSX.Element {
   const [currentMonth, setCurrentMonth] = useState("");
   const [currentYear, setCurrentYear] = useState<number | null>(null);
   const [sortByDateAsc, setSortByDateAsc] = useState(true);
+  const [agg, setAgg] = useState<"month" | "year">("month");
 
   const [showBookingDetailDialog, setShowBookingDetailDialog] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<BookingManage | null>(null);
@@ -98,39 +99,64 @@ export default function BookingManagement(): React.JSX.Element {
     fetchBookings();
   }, [fetchBookings]);
 
+  const yearOptions = useMemo(() => {
+    const baseYear = currentYear ?? new Date().getFullYear();
+    return [baseYear - 1, baseYear, baseYear + 1];
+  }, [currentYear]);
+
+  // ----- Helpers (pure) -----
+  const isInHeaderWindow = useCallback((dateISO: string): boolean => {
+    const d = new Date(dateISO);
+    if (agg === "year") {
+      return currentYear ? d.getFullYear() === currentYear : true;
+    }
+    const now = new Date();
+    return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+  }, [agg, currentYear]);
+
+  const passesPastToggle = useCallback((dateISO: string, endTime: string): boolean => {
+    if (filters.date) return true;               // explicit date should always be shown
+    if (agg === "year") return true;           // year view ignores past toggle
+    return showPast ? true : !isPastMeeting(dateISO, endTime, 10);
+  }, [filters.date, agg, showPast]);
+
+  const passesFieldFilters = useCallback((b: BookingManage): boolean => {
+    const searchLower = filters.search.toLowerCase();
+    const searchOk = !filters.search ||
+      b.bookedBy.toLowerCase().includes(searchLower) ||
+      b.interpreter.toLowerCase().includes(searchLower);
+    const statusOk = filters.status === "all" || b.status === filters.status;
+    const dateOk = !filters.date || b.dateTime === filters.date;
+    const reqOk = !filters.dateRequest || b.requestedTime.startsWith(filters.dateRequest);
+    const timeOk = filters.time === "all" || b.startTime === filters.time;
+    return searchOk && statusOk && dateOk && reqOk && timeOk;
+  }, [filters]);
+
   // Filter and sort bookings
   const filteredBookings = useMemo(() => {
     const filtered = bookings.filter((b) => {
-      const searchOk =
-        !filters.search ||
-        b.bookedBy.toLowerCase().includes(filters.search.toLowerCase()) ||
-        b.interpreter.toLowerCase().includes(filters.search.toLowerCase());
-      const statusOk = filters.status === "all" || b.status === filters.status;
-      const dateOk = !filters.date || b.dateTime === filters.date;
-      const reqOk = !filters.dateRequest || b.requestedTime.startsWith(filters.dateRequest);
-      const timeOk = filters.time === "all" || b.startTime === filters.time;
-
-      const pastOk = showPast ? true : !isPastMeeting(b.dateTime, b.endTime, 10);
-
-      return searchOk && statusOk && dateOk && reqOk && timeOk && pastOk;
+      const fieldsOk = passesFieldFilters(b);
+      const pastOk = passesPastToggle(b.dateTime, b.endTime);
+      const headerOk = isInHeaderWindow(b.dateTime);
+      return fieldsOk && pastOk && headerOk;
     });
 
     // First sort by priority, then by date
     const prioritySorted = sortByPriority(filtered);
     return sortBookings(prioritySorted, sortByDateAsc);
-  }, [bookings, filters, sortByDateAsc, showPast]);
+  }, [bookings, passesFieldFilters, passesPastToggle, isInHeaderWindow, sortByDateAsc]);
 
   // Calculate statistics
   const stats = useMemo<Stats>(() => {
-    const hasActive = Object.values(filters).some((v) => v !== "" && v !== "all");
-    const base = hasActive ? filteredBookings : getCurrentMonthBookings(bookings);
+    // KPIs depend on header (Month/Year). For Month, respect Past toggle so cards match table.
+    const base = bookings.filter((b) => isInHeaderWindow(b.dateTime) && passesPastToggle(b.dateTime, b.endTime));
     return {
       wait: base.filter((b) => b.status === "Wait").length,
       approve: base.filter((b) => b.status === "Approve").length,
       cancel: base.filter((b) => b.status === "Cancel").length,
       total: base.length,
     };
-  }, [bookings, filteredBookings, filters]);
+  }, [bookings, isInHeaderWindow, passesPastToggle]);
 
   // Pagination logic
   const paginatedBookings = useMemo((): PaginatedBookings => {
@@ -193,7 +219,23 @@ export default function BookingManagement(): React.JSX.Element {
                 <p className="text-sm text-gray-500">Manage & review meeting bookings</p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="hidden md:flex items-center gap-3">
+              <Select value={(currentYear ?? new Date().getFullYear()).toString()} onValueChange={(v) => setCurrentYear(parseInt(v))}>
+                <SelectTrigger className="w-[140px]">
+                  <SelectValue placeholder="Year" />
+                </SelectTrigger>
+                <SelectContent>
+                  {yearOptions.map((y) => (
+                    <SelectItem key={y} value={y.toString()}>
+                      {y}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <div className="flex gap-1">
+                <Button size="sm" variant={agg === "month" ? "default" : "outline"} onClick={() => setAgg("month")}>Month</Button>
+                <Button size="sm" variant={agg === "year" ? "default" : "outline"} onClick={() => setAgg("year")}>Year</Button>
+              </div>
             </div>
           </div>
         </div>
@@ -209,6 +251,10 @@ export default function BookingManagement(): React.JSX.Element {
           <div className="flex items-center gap-2">
             <Star className="h-4 w-4 text-red-600" />
             <span className="text-sm text-gray-700">DR (hover for type)</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <CircleDot className="h-4 w-4 text-red-500" />
+            <span className="text-sm text-gray-700">PDR</span>
           </div>
           <div className="flex items-center gap-2">
             <Users className="h-4 w-4 text-purple-600" />
@@ -244,7 +290,7 @@ export default function BookingManagement(): React.JSX.Element {
               <CardHeader className="pb-3">
                 <CardTitle className={`text-base font-semibold text-${color}-800 flex items-center gap-2`}>
                   <Icon className="h-4 w-4" />
-                  {label} {!Object.values(filters).some(v => v !== "" && v !== "all") && isClient && `- ${currentMonth} ${currentYear}`}
+                  {label} {isClient && (agg === "year" ? `- Year ${currentYear}` : `- ${currentMonth} ${currentYear}`)}
                 </CardTitle>
               </CardHeader>
               <CardContent>

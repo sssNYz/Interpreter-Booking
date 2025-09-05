@@ -141,6 +141,7 @@ enum OwnerGroup {
 }
 enum MeetingType {
   DR
+  PDR
   VIP
   Weekly
   General
