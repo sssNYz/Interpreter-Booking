@@ -9,10 +9,10 @@ import { Switch } from "@/components/ui/switch";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 import { toast } from "sonner";
 import { SaveIcon, TestTubeIcon, AlertTriangleIcon, CheckCircleIcon } from "lucide-react";
-import ModeSelector from "./ModeSelector";
 import ParameterInput from "./ParameterInput";
 
 import type { AssignmentPolicy, MeetingTypePriority } from "@/types/assignment";
@@ -26,9 +26,18 @@ export default function AutoAssignConfig() {
   const [config, setConfig] = useState<ConfigData | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [validating, setValidating] = useState(false);
+  const [, setValidating] = useState(false);
   const [localConfig, setLocalConfig] = useState<ConfigData | null>(null);
-  const [validationResults, setValidationResults] = useState<any>(null);
+  const [validationResults, setValidationResults] = useState<{
+    isValid?: boolean;
+    errors?: string[];
+    warnings?: string[];
+    validation?: {
+      overallValid?: boolean;
+      errors?: string[];
+      warnings?: string[];
+    };
+  } | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   
   // Use ref to track validation state without causing re-renders
@@ -173,7 +182,10 @@ export default function AutoAssignConfig() {
     console.log(`   🎯 Priorities changed: ${prioritiesChanged}`);
     
     // Only send changed data
-    const payload: any = {};
+    const payload: {
+      policy?: AssignmentPolicy;
+      priorities?: MeetingTypePriority[];
+    } = {};
     if (policyChanged) {
       payload.policy = localConfig.policy;
       console.log("   📋 Including policy changes");
@@ -359,14 +371,14 @@ export default function AutoAssignConfig() {
       {/* Real-time Validation Status */}
       {validationResults && (
         <div className="space-y-2">
-          {validationResults.errors?.length > 0 && (
+          {validationResults.errors && validationResults.errors.length > 0 && (
             <Alert variant="destructive">
               <AlertTriangleIcon className="h-4 w-4" />
               <AlertDescription>
                 <div className="space-y-1">
                   <p className="font-medium">Configuration Errors:</p>
                   <ul className="text-sm space-y-1">
-                    {validationResults.errors.map((error: string, index: number) => (
+                    {validationResults.errors?.map((error: string, index: number) => (
                       <li key={index}>• {error}</li>
                     ))}
                   </ul>
@@ -375,14 +387,14 @@ export default function AutoAssignConfig() {
             </Alert>
           )}
 
-          {validationResults.warnings?.length > 0 && (
+          {validationResults.warnings && validationResults.warnings.length > 0 && (
             <Alert variant="default">
               <AlertTriangleIcon className="h-4 w-4" />
               <AlertDescription>
                 <div className="space-y-1">
                   <p className="font-medium">Configuration Warnings:</p>
                   <ul className="text-sm space-y-1">
-                    {validationResults.warnings.map((warning: string, index: number) => (
+                    {validationResults.warnings?.map((warning: string, index: number) => (
                       <li key={index}>• {warning}</li>
                     ))}
                   </ul>
@@ -402,188 +414,274 @@ export default function AutoAssignConfig() {
         </div>
       )}
 
-      {/* Master Toggle */}
-      <Card>
-        <CardContent>
-          <div className="flex items-center justify-between">
-            <div>
-              <Label htmlFor="autoAssignEnabled" className="text-base font-medium">
-                Auto-Assignment System
-              </Label>
-              <p className="text-sm text-muted-foreground">
-                Enable or disable automatic interpreter assignment
-              </p>
-            </div>
-            <div className="flex items-center space-x-2">
-              <Switch
-                id="autoAssignEnabled"
-                checked={localConfig.policy.autoAssignEnabled}
-                onCheckedChange={(checked) => updatePolicy({ autoAssignEnabled: checked })}
-              />
-              <Badge variant={localConfig.policy.autoAssignEnabled ? "default" : "secondary"}>
-                {localConfig.policy.autoAssignEnabled ? "Enabled" : "Disabled"}
-              </Badge>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Mode Selection */}
-      <ModeSelector
-        policy={localConfig.policy}
-        onModeChange={handleModeChange}
-        onPolicyUpdate={updatePolicy}
-      />
-
-      <Separator />
-
-      {/* Parameter Configuration */}
-      <ParameterInput
-        policy={localConfig.policy}
-        onPolicyUpdate={updatePolicy}
-      />
-
-      <Separator />
-
-      {/* Meeting Type Priorities */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Meeting Type Priorities</CardTitle>
-          <CardDescription>Configure priority values and thresholds for each meeting type</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {/* Debug info */}
-            {localConfig.priorities.length === 0 && (
-              <div className="text-center p-4 border-2 border-dashed border-gray-300 rounded-lg">
-                <p className="text-gray-500 mb-2">No meeting type priorities found in database</p>
-                <p className="text-sm text-gray-400 mb-4">
-                  Meeting type priorities are required for the auto-assignment system to work properly.
-                </p>
-                <div className="space-y-2">
-                  <Button
-                    variant="outline"
-                    onClick={async () => {
-                      try {
-                        // Call API to initialize priorities in database
-                        const response = await fetch("/api/admin/config/auto-assign/init-priorities", {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" }
-                        });
-
-                        const result = await response.json();
-
-                        if (result.success) {
-                          // Reload configuration to get the new priorities
-                          await loadConfig();
-                          toast.success("Default priorities created in database");
-                        } else {
-                          throw new Error(result.error || "Failed to create priorities");
-                        }
-                      } catch (error) {
-                        console.error("Error creating priorities:", error);
-                        toast.error("Failed to create default priorities");
-                      }
-                    }}
-                  >
-                    Initialize Default Priorities
-                  </Button>
-                  <p className="text-xs text-gray-400">
-                    This will create default priorities in the database for DR, VIP, Weekly, General, Augent, and Other meeting types.
+      {/* Auto Assign System & Mode Selection - Same Height Cards */}
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+        {/* Auto Assign System Toggle - 25% */}
+        <div className="lg:col-span-1">
+          <Card className="h-64 shadow-md">
+            <CardContent className="pt-6 h-full flex flex-col">
+              <div className="space-y-4 flex-1">
+                <div>
+                  <Label htmlFor="autoAssignEnabled" className="text-base font-medium">
+                    Auto-Assignment System
+                  </Label>
+                  <p className="text-sm text-muted-foreground">
+                    Enable or disable automatic interpreter assignment
                   </p>
                 </div>
-              </div>
-            )}
-
-            {/* Show priorities count for debugging */}
-            <div className="text-sm text-gray-500">
-              Found {localConfig.priorities.length} meeting type priorities
-            </div>
-
-            {/* Debug: Show raw priorities data */}
-            <details className="text-xs text-gray-400">
-              <summary>Debug: Raw priorities data</summary>
-              <pre className="mt-2 p-2 bg-gray-100 rounded overflow-auto">
-                {JSON.stringify(localConfig.priorities, null, 2)}
-              </pre>
-            </details>
-
-            {/* Debug: Show validation results */}
-            <details className="text-xs text-gray-400">
-              <summary>Debug: Validation results</summary>
-              <pre className="mt-2 p-2 bg-gray-100 rounded overflow-auto">
-                {JSON.stringify(validationResults, null, 2)}
-              </pre>
-            </details>
-
-            {/* Debug: Show save button state */}
-            <div className="text-xs text-gray-400 p-2 bg-gray-50 rounded">
-              <p><strong>Save Button Debug:</strong></p>
-              <p>• Saving: {saving ? 'true' : 'false'}</p>
-              <p>• Has validation results: {validationResults ? 'true' : 'false'}</p>
-              <p>• Validation is valid: {validationResults?.isValid ? 'true' : 'false'}</p>
-              <p>• Button disabled: {(saving || (validationResults && !validationResults.isValid)) ? 'true' : 'false'}</p>
-              <p>• Has unsaved changes: {hasUnsavedChanges ? 'true' : 'false'}</p>
-            </div>
-
-            {localConfig.priorities.map((priority) => (
-              <div key={priority.meetingType} className="grid grid-cols-4 gap-4 p-4 border rounded-lg">
-                <div>
-                  <Label htmlFor={`name-${priority.meetingType}`}>Meeting Type Name</Label>
-                  <Input
-                    id={`name-${priority.meetingType}`}
-                    type="text"
-                    value={priority.meetingType}
-                    onChange={(e) => updatePriority(priority.meetingType, { meetingType: e.target.value })}
-                    disabled={localConfig.policy.mode !== 'CUSTOM'}
-                    className={localConfig.policy.mode !== 'CUSTOM' ? 'opacity-50' : ''}
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="autoAssignEnabled"
+                    checked={localConfig.policy.autoAssignEnabled}
+                    onCheckedChange={(checked) => updatePolicy({ autoAssignEnabled: checked })}
                   />
-                </div>
-                <div>
-                  <Label htmlFor={`priority-${priority.meetingType}`}>Priority Value</Label>
-                  <Input
-                    id={`priority-${priority.meetingType}`}
-                    type="number"
-                    min="1"
-                    max="10"
-                    value={priority.priorityValue || 1}
-                    onChange={(e) => updatePriority(priority.meetingType, { priorityValue: parseInt(e.target.value) || 1 })}
-                    disabled={false}
-                    className={''}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor={`urgent-${priority.meetingType}`}>Urgent Threshold (days)</Label>
-                  <Input
-                    id={`urgent-${priority.meetingType}`}
-                    type="number"
-                    min="0"
-                    max="30"
-                    value={priority.urgentThresholdDays || 0}
-                    onChange={(e) => updatePriority(priority.meetingType, { urgentThresholdDays: parseInt(e.target.value) || 0 })}
-                    disabled={localConfig.policy.mode !== 'CUSTOM'}
-                    className={localConfig.policy.mode !== 'CUSTOM' ? 'opacity-50' : ''}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor={`general-${priority.meetingType}`}>General Threshold (days)</Label>
-                  <Input
-                    id={`general-${priority.meetingType}`}
-                    type="number"
-                    min="1"
-                    max="90"
-                    value={priority.generalThresholdDays || 1}
-                    onChange={(e) => updatePriority(priority.meetingType, { generalThresholdDays: parseInt(e.target.value) || 1 })}
-                    disabled={localConfig.policy.mode !== 'CUSTOM'}
-                    className={localConfig.policy.mode !== 'CUSTOM' ? 'opacity-50' : ''}
-                  />
+                  <Badge variant={localConfig.policy.autoAssignEnabled ? "default" : "secondary"}>
+                    {localConfig.policy.autoAssignEnabled ? "Enabled" : "Disabled"}
+                  </Badge>
                 </div>
               </div>
-            ))}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Mode Selection - 75% with 3 horizontal zones */}
+        <div className="lg:col-span-3">
+          <Card className="h-64 shadow-md">
+            <CardContent className="pt-6 h-full">
+              <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 h-full">
+                {/* Zone 1: Mode Selector - 20% */}
+                <div className="lg:col-span-1 flex flex-col">
+                  <Label className="text-sm font-medium mb-3">Assignment Mode</Label>
+                  <div className="flex-1">
+                    <Select
+                      value={localConfig.policy.mode}
+                      onValueChange={handleModeChange}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select mode" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="BALANCE">Balance Mode</SelectItem>
+                        <SelectItem value="URGENT">Urgent Mode</SelectItem>
+                        <SelectItem value="NORMAL">Normal Mode</SelectItem>
+                        <SelectItem value="CUSTOM">Custom Mode</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {/* Zone 2: Mode Characteristics - 40% */}
+                <div className="lg:col-span-2 flex flex-col">
+                  <Label className="text-sm font-medium mb-3">Mode Focus</Label>
+                  <div className="flex-1 text-xs space-y-1">
+                    {localConfig.policy.mode === 'BALANCE' && (
+                      <ul className="space-y-1">
+                        <li>• <strong>Focus:</strong> Equal workload distribution</li>
+                        <li>• <strong>Good for:</strong> Long-term fairness, team morale</li>
+                        <li>• <strong>Bad for:</strong> Urgent assignments, crisis situations</li>
+                        <li>• <strong>Key feature:</strong> High fairness weighting (2.0x)</li>
+                        <li>• <strong>Best when:</strong> You have time to plan assignments</li>
+                      </ul>
+                    )}
+                    {localConfig.policy.mode === 'URGENT' && (
+                      <ul className="space-y-1">
+                        <li>• <strong>Focus:</strong> Immediate assignment processing</li>
+                        <li>• <strong>Good for:</strong> Crisis situations, time-critical bookings</li>
+                        <li>• <strong>Bad for:</strong> Fairness, long-term workload balance</li>
+                        <li>• <strong>Key feature:</strong> High urgency weighting (2.5x)</li>
+                        <li>• <strong>Best when:</strong> Emergency response needed</li>
+                      </ul>
+                    )}
+                    {localConfig.policy.mode === 'NORMAL' && (
+                      <ul className="space-y-1">
+                        <li>• <strong>Focus:</strong> Balanced approach</li>
+                        <li>• <strong>Good for:</strong> Standard operations, daily workflow</li>
+                        <li>• <strong>Bad for:</strong> Extreme situations (crisis or perfect fairness)</li>
+                        <li>• <strong>Key feature:</strong> Balanced weighting (1.2x fairness)</li>
+                        <li>• <strong>Best when:</strong> Regular business operations</li>
+                      </ul>
+                    )}
+                    {localConfig.policy.mode === 'CUSTOM' && (
+                      <ul className="space-y-1">
+                        <li>• <strong>Focus:</strong> Full control over all parameters</li>
+                        <li>• <strong>Good for:</strong> Expert users, specific requirements</li>
+                        <li>• <strong>Bad for:</strong> Beginners, standard operations</li>
+                        <li>• <strong>Key feature:</strong> All parameters configurable</li>
+                        <li>• <strong>Best when:</strong> You need precise control</li>
+                      </ul>
+                    )}
+                  </div>
+                </div>
+
+                {/* Zone 3: Meeting Type Configuration - 40% */}
+                <div className="lg:col-span-2 flex flex-col">
+                  <Label className="text-sm font-medium mb-3">Assignment Timing</Label>
+                  <div className="flex-1 text-xs space-y-1">
+                    {localConfig.priorities.map((priority) => {
+                      // Get the correct urgent threshold based on current mode
+                      const getModeThresholds = (meetingType: string, mode: string) => {
+                        const thresholds = {
+                          BALANCE: {
+                            DR: 7, VIP: 7, Augent: 7, Weekly: 3, General: 7, Other: 3,
+                          },
+                          NORMAL: {
+                            DR: 10, VIP: 7, Augent: 10, Weekly: 7, General: 10, Other: 7,
+                          },
+                          URGENT: {
+                            DR: 14, VIP: 7, Augent: 14, Weekly: 14, General: 14, Other: 7,
+                          },
+                          CUSTOM: {
+                            DR: 1, VIP: 2, Augent: 3, Weekly: 3, General: 3, Other: 5,
+                          },
+                        };
+                        return thresholds[mode as keyof typeof thresholds]?.[meetingType as keyof typeof thresholds.BALANCE] || thresholds.BALANCE.Other;
+                      };
+
+                      const urgentDays = localConfig.policy.mode === 'CUSTOM' ? (priority.urgentThresholdDays || 0) : getModeThresholds(priority.meetingType, localConfig.policy.mode);
+
+                      return (
+                        <div key={priority.meetingType} className="flex justify-between items-center">
+                          <span className="font-medium">{priority.meetingType}</span>
+                          <span className="font-bold text-blue-600">{urgentDays} days before</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      {/* Show message when not in CUSTOM mode */}
+      {localConfig.policy.mode !== 'CUSTOM' && (
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-center text-muted-foreground">
+              <p className="text-lg mb-2">🔒 Advanced Settings Hidden</p>
+              <p className="text-sm">
+                Switch to <strong>CUSTOM</strong> mode to configure fairness parameters, score weights, and meeting type priorities.
+              </p>
+              <p className="text-xs mt-2">
+                Current mode uses pre-configured settings optimized for {localConfig.policy.mode.toLowerCase()} scenarios.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Only show advanced settings when in CUSTOM mode */}
+      {localConfig.policy.mode === 'CUSTOM' && (
+        <>
+          <Separator />
+
+          {/* Parameter Configuration - Meeting Type Priorities Left, Fairness + Scoring Right */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Left Column: Meeting Type Priorities */}
+            <Card className="flex flex-col">
+              <CardHeader className="flex-shrink-0 py-2 px-3">
+                <CardTitle className="text-sm font-medium">Meeting Type Priorities</CardTitle>
+                <CardDescription className="text-xs">Priority values and thresholds</CardDescription>
+              </CardHeader>
+              <CardContent className="flex-1 p-3 overflow-y-auto">
+                {localConfig.priorities.length === 0 ? (
+                  <div className="text-center p-4 border-2 border-dashed border-gray-300 rounded">
+                    <p className="text-gray-500 mb-2 text-xs">No priorities found</p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={async () => {
+                        try {
+                          const response = await fetch("/api/admin/config/auto-assign/init-priorities", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" }
+                          });
+                          const result = await response.json();
+                          if (result.success) {
+                            await loadConfig();
+                            toast.success("Default priorities created");
+                          } else {
+                            throw new Error(result.error || "Failed to create priorities");
+                          }
+                        } catch (error) {
+                          console.error("Error creating priorities:", error);
+                          toast.error("Failed to create default priorities");
+                        }
+                      }}
+                    >
+                      Initialize
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {localConfig.priorities.map((priority, index) => (
+                      <div key={priority.meetingType} className="border border-gray-200 rounded p-2 bg-white">
+                        <div className="flex items-center justify-between mb-2">
+                          <h4 className="text-sm font-medium text-gray-800">{priority.meetingType}</h4>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2">
+                          <div>
+                            <Label className="text-xs text-gray-600">Priority</Label>
+                            <Input
+                              type="number"
+                              min="1"
+                              max="10"
+                              value={priority.priorityValue || 1}
+                              onChange={(e) => updatePriority(priority.meetingType, { priorityValue: parseInt(e.target.value) || 1 })}
+                              className="h-7 text-xs"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-xs text-gray-600">Urgent</Label>
+                            <Input
+                              type="number"
+                              min="0"
+                              max="30"
+                              value={priority.urgentThresholdDays || 0}
+                              onChange={(e) => updatePriority(priority.meetingType, { urgentThresholdDays: parseInt(e.target.value) || 0 })}
+                              className="h-7 text-xs"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-xs text-gray-600">General</Label>
+                            <Input
+                              type="number"
+                              min="1"
+                              max="90"
+                              value={priority.generalThresholdDays || 1}
+                              onChange={(e) => updatePriority(priority.meetingType, { generalThresholdDays: parseInt(e.target.value) || 1 })}
+                              className="h-7 text-xs"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Right Column: Fairness + Scoring Settings */}
+            <div className="space-y-4 h-full flex flex-col">
+              <div className="flex-1">
+                <ParameterInput
+                  policy={localConfig.policy}
+                  onPolicyUpdate={updatePolicy}
+                  showFairnessOnly={true}
+                />
+              </div>
+              <div className="flex-1">
+                <ParameterInput
+                  policy={localConfig.policy}
+                  onPolicyUpdate={updatePolicy}
+                  showScoringOnly={true}
+                />
+              </div>
+            </div>
           </div>
-        </CardContent>
-      </Card>
-
+        </>
+      )}
 
     </div>
   );
