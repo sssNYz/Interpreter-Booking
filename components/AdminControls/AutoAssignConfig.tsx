@@ -159,7 +159,7 @@ export default function AutoAssignConfig() {
 
     // Check for validation errors before saving
     const hasValidationErrors = localConfig.priorities.some(priority => {
-      const urgentValid = (priority.urgentThresholdDays || 0) >= 0 && (priority.urgentThresholdDays || 0) <= 30;
+      const urgentValid = (priority.urgentThresholdDays || 0) >= 0 && (priority.urgentThresholdDays || 0) <= 60;
       const generalValid = (priority.generalThresholdDays || 1) >= 1 && (priority.generalThresholdDays || 1) <= 365;
       const priorityValid = (priority.priorityValue || 1) >= 1 && (priority.priorityValue || 1) <= 10;
       return !urgentValid || !generalValid || !priorityValid;
@@ -339,7 +339,7 @@ export default function AutoAssignConfig() {
           <Button
             onClick={saveConfig}
             disabled={saving || (localConfig && localConfig.priorities.some(priority => {
-              const urgentValid = (priority.urgentThresholdDays || 0) >= 0 && (priority.urgentThresholdDays || 0) <= 30;
+              const urgentValid = (priority.urgentThresholdDays || 0) >= 0 && (priority.urgentThresholdDays || 0) <= 60;
               const generalValid = (priority.generalThresholdDays || 1) >= 1 && (priority.generalThresholdDays || 1) <= 365;
               const priorityValid = (priority.priorityValue || 1) >= 1 && (priority.priorityValue || 1) <= 10;
               return !urgentValid || !generalValid || !priorityValid;
@@ -635,16 +635,16 @@ export default function AutoAssignConfig() {
                               value={priority.urgentThresholdDays || 0}
                               onChange={(e) => updatePriority(priority.meetingType, { urgentThresholdDays: parseInt(e.target.value) || 0 })}
                               className={`h-7 text-xs ${
-                                (priority.urgentThresholdDays || 0) < 0 || (priority.urgentThresholdDays || 0) > 30 
+                                (priority.urgentThresholdDays || 0) < 0 || (priority.urgentThresholdDays || 0) > 60 
                                   ? 'border-red-500 bg-red-50' 
                                   : ''
                               }`}
                             />
                             {(priority.urgentThresholdDays || 0) < 0 && (
-                              <p className="text-xs text-red-500 mt-1">⚠️ Urgent must be 0-30 days</p>
+                              <p className="text-xs text-red-500 mt-1">⚠️ Urgent must be 0-60 days</p>
                             )}
-                            {(priority.urgentThresholdDays || 0) > 30 && (
-                              <p className="text-xs text-red-500 mt-1">⚠️ Urgent must be 0-30 days</p>
+                            {(priority.urgentThresholdDays || 0) > 60 && (
+                              <p className="text-xs text-red-500 mt-1">⚠️ Urgent must be 0-60 days</p>
                             )}
                           </div>
                           <div>
