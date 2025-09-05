@@ -278,35 +278,89 @@ class DatabaseBookingPool implements DatabasePoolManager {
 
   /**
    * Get bookings from database that are ready for assignment
+   * Using database time directly to avoid timezone issues
    */
   async getReadyForAssignment(): Promise<EnhancedPoolEntry[]> {
     try {
-      const now = new Date();
-      
-      const readyBookings = await prisma.bookingPlan.findMany({
-        where: {
-          OR: [
-            // Bookings with waiting status that have reached their deadline
-            {
-              poolStatus: PoolStatus.waiting,
-              poolDeadlineTime: {
-                lte: now
-              }
-            },
-            // Bookings with ready status
-            {
-              poolStatus: PoolStatus.ready
-            }
-          ]
-        },
-        orderBy: [
-          { poolDeadlineTime: 'asc' },
-          { poolEntryTime: 'asc' }
-        ]
-      });
+      // Use database's current time instead of JavaScript new Date()
+      // This avoids timezone conversion issues between server and database
+      const readyBookings = await prisma.$queryRaw<Array<{
+        BOOKING_ID: number;
+        OWNER_EMP_CODE: string;
+        OWNER_GROUP: string;
+        MEETING_ROOM: string;
+        MEETING_TYPE: string;
+        MEETING_DETAIL: string | null;
+        APPLICABLE_MODEL: string | null;
+        TIME_START: Date;
+        TIME_END: Date;
+        INTERPRETER_EMP_CODE: string | null;
+        BOOKING_STATUS: string;
+        created_at: Date;
+        updated_at: Date;
+        DR_TYPE: string | null;
+        OTHER_TYPE: string | null;
+        OTHER_TYPE_SCOPE: string | null;
+        IS_RECURRING: number;
+        RECURRENCE_TYPE: string | null;
+        RECURRENCE_INTERVAL: number | null;
+        RECURRENCE_END_TYPE: string | null;
+        RECURRENCE_END_DATE: Date | null;
+        RECURRENCE_END_OCCURRENCES: number | null;
+        RECURRENCE_WEEKDAYS: string | null;
+        RECURRENCE_MONTHDAY: number | null;
+        RECURRENCE_WEEK_ORDER: number | null;
+        PARENT_BOOKING_ID: number | null;
+        POOL_STATUS: string | null;
+        POOL_ENTRY_TIME: Date | null;
+        POOL_DEADLINE_TIME: Date | null;
+        POOL_PROCESSING_ATTEMPTS: number;
+      }>>`
+        SELECT * FROM BOOKING_PLAN 
+        WHERE (
+          (POOL_STATUS = 'waiting' AND POOL_DEADLINE_TIME <= NOW()) 
+          OR POOL_STATUS = 'ready'
+        )
+        ORDER BY POOL_DEADLINE_TIME ASC, POOL_ENTRY_TIME ASC
+      `;
 
       console.log(`🔍 Found ${readyBookings.length} bookings ready for assignment`);
-      return this.convertToEnhancedEntries(readyBookings);
+      
+      // Convert raw query results to Prisma format
+      const prismaFormatBookings = readyBookings.map(booking => ({
+        bookingId: booking.BOOKING_ID,
+        ownerEmpCode: booking.OWNER_EMP_CODE,
+        ownerGroup: booking.OWNER_GROUP,
+        meetingRoom: booking.MEETING_ROOM,
+        meetingType: booking.MEETING_TYPE,
+        meetingDetail: booking.MEETING_DETAIL,
+        applicableModel: booking.APPLICABLE_MODEL,
+        timeStart: booking.TIME_START,
+        timeEnd: booking.TIME_END,
+        interpreterEmpCode: booking.INTERPRETER_EMP_CODE,
+        bookingStatus: booking.BOOKING_STATUS,
+        createdAt: booking.created_at,
+        updatedAt: booking.updated_at,
+        drType: booking.DR_TYPE,
+        otherType: booking.OTHER_TYPE,
+        otherTypeScope: booking.OTHER_TYPE_SCOPE,
+        isRecurring: booking.IS_RECURRING,
+        recurrenceType: booking.RECURRENCE_TYPE,
+        recurrenceInterval: booking.RECURRENCE_INTERVAL,
+        recurrenceEndType: booking.RECURRENCE_END_TYPE,
+        recurrenceEndDate: booking.RECURRENCE_END_DATE,
+        recurrenceEndOccurrences: booking.RECURRENCE_END_OCCURRENCES,
+        recurrenceWeekdays: booking.RECURRENCE_WEEKDAYS,
+        recurrenceMonthday: booking.RECURRENCE_MONTHDAY,
+        recurrenceWeekOrder: booking.RECURRENCE_WEEK_ORDER,
+        parentBookingId: booking.PARENT_BOOKING_ID,
+        poolStatus: booking.POOL_STATUS as any,
+        poolEntryTime: booking.POOL_ENTRY_TIME,
+        poolDeadlineTime: booking.POOL_DEADLINE_TIME,
+        poolProcessingAttempts: booking.POOL_PROCESSING_ATTEMPTS
+      }));
+
+      return this.convertToEnhancedEntries(prismaFormatBookings);
     } catch (error) {
       console.error('❌ Failed to get ready assignments:', error);
       return [];
@@ -329,6 +383,7 @@ class DatabaseBookingPool implements DatabasePoolManager {
 
   /**
    * Check if an entry is ready for processing based on mode-specific logic
+   * Note: This method is now primarily for reference - actual ready checks use database queries
    */
   private isReadyForProcessing(entry: EnhancedPoolEntry, now: Date): boolean {
     switch (entry.mode) {
@@ -354,27 +409,87 @@ class DatabaseBookingPool implements DatabasePoolManager {
 
   /**
    * Get bookings that have reached their deadline (emergency processing)
+   * Using database time directly to avoid timezone issues
    */
   async getDeadlineEntries(): Promise<EnhancedPoolEntry[]> {
     try {
-      const now = new Date();
-      
-      const deadlineBookings = await prisma.bookingPlan.findMany({
-        where: {
-          poolStatus: {
-            in: [PoolStatus.waiting, PoolStatus.ready]
-          },
-          poolDeadlineTime: {
-            lte: now
-          }
-        },
-        orderBy: {
-          poolDeadlineTime: 'asc'
-        }
-      });
+      // Use database's current time instead of JavaScript new Date()
+      // This avoids timezone conversion issues between server and database
+      const deadlineBookings = await prisma.$queryRaw<Array<{
+        BOOKING_ID: number;
+        OWNER_EMP_CODE: string;
+        OWNER_GROUP: string;
+        MEETING_ROOM: string;
+        MEETING_TYPE: string;
+        MEETING_DETAIL: string | null;
+        APPLICABLE_MODEL: string | null;
+        TIME_START: Date;
+        TIME_END: Date;
+        INTERPRETER_EMP_CODE: string | null;
+        BOOKING_STATUS: string;
+        created_at: Date;
+        updated_at: Date;
+        DR_TYPE: string | null;
+        OTHER_TYPE: string | null;
+        OTHER_TYPE_SCOPE: string | null;
+        IS_RECURRING: number;
+        RECURRENCE_TYPE: string | null;
+        RECURRENCE_INTERVAL: number | null;
+        RECURRENCE_END_TYPE: string | null;
+        RECURRENCE_END_DATE: Date | null;
+        RECURRENCE_END_OCCURRENCES: number | null;
+        RECURRENCE_WEEKDAYS: string | null;
+        RECURRENCE_MONTHDAY: number | null;
+        RECURRENCE_WEEK_ORDER: number | null;
+        PARENT_BOOKING_ID: number | null;
+        POOL_STATUS: string | null;
+        POOL_ENTRY_TIME: Date | null;
+        POOL_DEADLINE_TIME: Date | null;
+        POOL_PROCESSING_ATTEMPTS: number;
+      }>>`
+        SELECT * FROM BOOKING_PLAN 
+        WHERE POOL_STATUS IN ('waiting', 'ready') 
+        AND POOL_DEADLINE_TIME <= NOW()
+        ORDER BY POOL_DEADLINE_TIME ASC
+      `;
 
       console.log(`🚨 Found ${deadlineBookings.length} bookings past deadline`);
-      return this.convertToEnhancedEntries(deadlineBookings);
+      
+      // Convert raw query results to Prisma format
+      const prismaFormatBookings = deadlineBookings.map(booking => ({
+        bookingId: booking.BOOKING_ID,
+        ownerEmpCode: booking.OWNER_EMP_CODE,
+        ownerGroup: booking.OWNER_GROUP,
+        meetingRoom: booking.MEETING_ROOM,
+        meetingType: booking.MEETING_TYPE,
+        meetingDetail: booking.MEETING_DETAIL,
+        applicableModel: booking.APPLICABLE_MODEL,
+        timeStart: booking.TIME_START,
+        timeEnd: booking.TIME_END,
+        interpreterEmpCode: booking.INTERPRETER_EMP_CODE,
+        bookingStatus: booking.BOOKING_STATUS,
+        createdAt: booking.created_at,
+        updatedAt: booking.updated_at,
+        drType: booking.DR_TYPE,
+        otherType: booking.OTHER_TYPE,
+        otherTypeScope: booking.OTHER_TYPE_SCOPE,
+        isRecurring: booking.IS_RECURRING,
+        recurrenceType: booking.RECURRENCE_TYPE,
+        recurrenceInterval: booking.RECURRENCE_INTERVAL,
+        recurrenceEndType: booking.RECURRENCE_END_TYPE,
+        recurrenceEndDate: booking.RECURRENCE_END_DATE,
+        recurrenceEndOccurrences: booking.RECURRENCE_END_OCCURRENCES,
+        recurrenceWeekdays: booking.RECURRENCE_WEEKDAYS,
+        recurrenceMonthday: booking.RECURRENCE_MONTHDAY,
+        recurrenceWeekOrder: booking.RECURRENCE_WEEK_ORDER,
+        parentBookingId: booking.PARENT_BOOKING_ID,
+        poolStatus: booking.POOL_STATUS as any,
+        poolEntryTime: booking.POOL_ENTRY_TIME,
+        poolDeadlineTime: booking.POOL_DEADLINE_TIME,
+        poolProcessingAttempts: booking.POOL_PROCESSING_ATTEMPTS
+      }));
+
+      return this.convertToEnhancedEntries(prismaFormatBookings);
     } catch (error) {
       console.error('❌ Failed to get deadline entries:', error);
       return [];
@@ -564,8 +679,6 @@ class DatabaseBookingPool implements DatabasePoolManager {
    */
   async getPoolStats(): Promise<PoolStats> {
     try {
-      const now = new Date();
-      
       // Get total count
       const totalInPool = await prisma.bookingPlan.count({
         where: {
@@ -575,22 +688,15 @@ class DatabaseBookingPool implements DatabasePoolManager {
         }
       });
 
-      // Get ready for processing count
-      const readyForProcessing = await prisma.bookingPlan.count({
-        where: {
-          OR: [
-            {
-              poolStatus: PoolStatus.waiting,
-              poolDeadlineTime: {
-                lte: now
-              }
-            },
-            {
-              poolStatus: PoolStatus.ready
-            }
-          ]
-        }
-      });
+      // Get ready for processing count using database time to avoid timezone issues
+      const readyForProcessingResult = await prisma.$queryRaw<Array<{ count: bigint }>>`
+        SELECT COUNT(*) as count FROM BOOKING_PLAN 
+        WHERE (
+          (POOL_STATUS = 'waiting' AND POOL_DEADLINE_TIME <= NOW()) 
+          OR POOL_STATUS = 'ready'
+        )
+      `;
+      const readyForProcessing = Number(readyForProcessingResult[0]?.count || 0);
 
       // Get currently processing count
       const currentlyProcessing = await prisma.bookingPlan.count({
