@@ -26,9 +26,18 @@ export default function AutoAssignConfig() {
   const [config, setConfig] = useState<ConfigData | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [validating, setValidating] = useState(false);
+  const [, setValidating] = useState(false);
   const [localConfig, setLocalConfig] = useState<ConfigData | null>(null);
-  const [validationResults, setValidationResults] = useState<any>(null);
+  const [validationResults, setValidationResults] = useState<{
+    isValid?: boolean;
+    errors?: string[];
+    warnings?: string[];
+    validation?: {
+      overallValid?: boolean;
+      errors?: string[];
+      warnings?: string[];
+    };
+  } | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   
   // Use ref to track validation state without causing re-renders
@@ -173,7 +182,10 @@ export default function AutoAssignConfig() {
     console.log(`   🎯 Priorities changed: ${prioritiesChanged}`);
     
     // Only send changed data
-    const payload: any = {};
+    const payload: {
+      policy?: AssignmentPolicy;
+      priorities?: MeetingTypePriority[];
+    } = {};
     if (policyChanged) {
       payload.policy = localConfig.policy;
       console.log("   📋 Including policy changes");
@@ -359,14 +371,14 @@ export default function AutoAssignConfig() {
       {/* Real-time Validation Status */}
       {validationResults && (
         <div className="space-y-2">
-          {validationResults.errors?.length > 0 && (
+          {validationResults.errors && validationResults.errors.length > 0 && (
             <Alert variant="destructive">
               <AlertTriangleIcon className="h-4 w-4" />
               <AlertDescription>
                 <div className="space-y-1">
                   <p className="font-medium">Configuration Errors:</p>
                   <ul className="text-sm space-y-1">
-                    {validationResults.errors.map((error: string, index: number) => (
+                    {validationResults.errors?.map((error: string, index: number) => (
                       <li key={index}>• {error}</li>
                     ))}
                   </ul>
@@ -375,14 +387,14 @@ export default function AutoAssignConfig() {
             </Alert>
           )}
 
-          {validationResults.warnings?.length > 0 && (
+          {validationResults.warnings && validationResults.warnings.length > 0 && (
             <Alert variant="default">
               <AlertTriangleIcon className="h-4 w-4" />
               <AlertDescription>
                 <div className="space-y-1">
                   <p className="font-medium">Configuration Warnings:</p>
                   <ul className="text-sm space-y-1">
-                    {validationResults.warnings.map((warning: string, index: number) => (
+                    {validationResults.warnings?.map((warning: string, index: number) => (
                       <li key={index}>• {warning}</li>
                     ))}
                   </ul>
@@ -435,18 +447,38 @@ export default function AutoAssignConfig() {
         onPolicyUpdate={updatePolicy}
       />
 
-      <Separator />
+      {/* Show message when not in CUSTOM mode */}
+      {localConfig.policy.mode !== 'CUSTOM' && (
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-center text-muted-foreground">
+              <p className="text-lg mb-2">🔒 Advanced Settings Hidden</p>
+              <p className="text-sm">
+                Switch to <strong>CUSTOM</strong> mode to configure fairness parameters, score weights, and meeting type priorities.
+              </p>
+              <p className="text-xs mt-2">
+                Current mode uses pre-configured settings optimized for {localConfig.policy.mode.toLowerCase()} scenarios.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
-      {/* Parameter Configuration */}
-      <ParameterInput
-        policy={localConfig.policy}
-        onPolicyUpdate={updatePolicy}
-      />
+      {/* Only show advanced settings when in CUSTOM mode */}
+      {localConfig.policy.mode === 'CUSTOM' && (
+        <>
+          <Separator />
 
-      <Separator />
+          {/* Parameter Configuration */}
+          <ParameterInput
+            policy={localConfig.policy}
+            onPolicyUpdate={updatePolicy}
+          />
 
-      {/* Meeting Type Priorities */}
-      <Card>
+          <Separator />
+
+          {/* Meeting Type Priorities */}
+          <Card>
         <CardHeader>
           <CardTitle>Meeting Type Priorities</CardTitle>
           <CardDescription>Configure priority values and thresholds for each meeting type</CardDescription>
@@ -583,7 +615,8 @@ export default function AutoAssignConfig() {
           </div>
         </CardContent>
       </Card>
-
+        </>
+      )}
 
     </div>
   );
