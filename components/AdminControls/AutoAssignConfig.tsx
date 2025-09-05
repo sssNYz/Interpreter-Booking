@@ -102,16 +102,6 @@ export default function AutoAssignConfig() {
     }
   };
 
-  // Manual validation function for immediate validation (e.g., before save)
-  const validateNow = () => {
-    if (localConfig) {
-      // Clear any pending validation
-      if (validationTimeoutRef.current) {
-        clearTimeout(validationTimeoutRef.current);
-      }
-      runValidation(localConfig);
-    }
-  };
 
   useEffect(() => {
     // Clear any existing timeout
@@ -164,6 +154,19 @@ export default function AutoAssignConfig() {
 
     if (saving) {
       console.log("⚠️ Save already in progress, ignoring duplicate call");
+      return;
+    }
+
+    // Check for validation errors before saving
+    const hasValidationErrors = localConfig.priorities.some(priority => {
+      const urgentValid = (priority.urgentThresholdDays || 0) >= 0 && (priority.urgentThresholdDays || 0) <= 30;
+      const generalValid = (priority.generalThresholdDays || 1) >= 1 && (priority.generalThresholdDays || 1) <= 365;
+      const priorityValid = (priority.priorityValue || 1) >= 1 && (priority.priorityValue || 1) <= 10;
+      return !urgentValid || !generalValid || !priorityValid;
+    });
+
+    if (hasValidationErrors) {
+      toast.error("⚠️ Please fix validation errors before saving");
       return;
     }
 
@@ -328,30 +331,6 @@ export default function AutoAssignConfig() {
             <TestTubeIcon className="h-4 w-4" />
             Test Modes
           </Button>
-          <Button
-            onClick={async () => {
-              try {
-                const response = await fetch("/api/admin/config/debug");
-                const result = await response.json();
-                console.log("🔍 Debug info:", result);
-                toast.success("Debug info logged to console");
-              } catch (error) {
-                console.error("Debug error:", error);
-                toast.error("Debug failed");
-              }
-            }}
-            variant="outline"
-            className="flex items-center gap-2"
-          >
-            🔍 Debug
-          </Button>
-          <Button
-            onClick={validateNow}
-            variant="outline"
-            className="flex items-center gap-2"
-          >
-            ✅ Validate Now
-          </Button>
           {hasUnsavedChanges && (
             <Button onClick={resetConfig} variant="outline">
               Reset
@@ -359,7 +338,12 @@ export default function AutoAssignConfig() {
           )}
           <Button
             onClick={saveConfig}
-            disabled={saving}
+            disabled={saving || (localConfig && localConfig.priorities.some(priority => {
+              const urgentValid = (priority.urgentThresholdDays || 0) >= 0 && (priority.urgentThresholdDays || 0) <= 30;
+              const generalValid = (priority.generalThresholdDays || 1) >= 1 && (priority.generalThresholdDays || 1) <= 365;
+              const priorityValid = (priority.priorityValue || 1) >= 1 && (priority.priorityValue || 1) <= 10;
+              return !urgentValid || !generalValid || !priorityValid;
+            }))}
             className="flex items-center gap-2"
           >
             <SaveIcon className="h-4 w-4" />
@@ -629,30 +613,60 @@ export default function AutoAssignConfig() {
                               max="10"
                               value={priority.priorityValue || 1}
                               onChange={(e) => updatePriority(priority.meetingType, { priorityValue: parseInt(e.target.value) || 1 })}
-                              className="h-7 text-xs"
+                              className={`h-7 text-xs ${
+                                (priority.priorityValue || 1) < 1 || (priority.priorityValue || 1) > 10 
+                                  ? 'border-red-500 bg-red-50' 
+                                  : ''
+                              }`}
                             />
+                            {(priority.priorityValue || 1) < 1 && (
+                              <p className="text-xs text-red-500 mt-1">⚠️ Priority must be 1-10</p>
+                            )}
+                            {(priority.priorityValue || 1) > 10 && (
+                              <p className="text-xs text-red-500 mt-1">⚠️ Priority must be 1-10</p>
+                            )}
                           </div>
                           <div>
                             <Label className="text-xs text-gray-600">Urgent</Label>
                             <Input
                               type="number"
                               min="0"
-                              max="30"
+                              max="60"
                               value={priority.urgentThresholdDays || 0}
                               onChange={(e) => updatePriority(priority.meetingType, { urgentThresholdDays: parseInt(e.target.value) || 0 })}
-                              className="h-7 text-xs"
+                              className={`h-7 text-xs ${
+                                (priority.urgentThresholdDays || 0) < 0 || (priority.urgentThresholdDays || 0) > 30 
+                                  ? 'border-red-500 bg-red-50' 
+                                  : ''
+                              }`}
                             />
+                            {(priority.urgentThresholdDays || 0) < 0 && (
+                              <p className="text-xs text-red-500 mt-1">⚠️ Urgent must be 0-30 days</p>
+                            )}
+                            {(priority.urgentThresholdDays || 0) > 30 && (
+                              <p className="text-xs text-red-500 mt-1">⚠️ Urgent must be 0-30 days</p>
+                            )}
                           </div>
                           <div>
                             <Label className="text-xs text-gray-600">General</Label>
                             <Input
                               type="number"
                               min="1"
-                              max="90"
+                              max="365"
                               value={priority.generalThresholdDays || 1}
                               onChange={(e) => updatePriority(priority.meetingType, { generalThresholdDays: parseInt(e.target.value) || 1 })}
-                              className="h-7 text-xs"
+                              className={`h-7 text-xs ${
+                                (priority.generalThresholdDays || 1) < 1 || (priority.generalThresholdDays || 1) > 365 
+                                  ? 'border-red-500 bg-red-50' 
+                                  : ''
+                              }`}
                             />
+                            {(priority.generalThresholdDays || 1) < 1 && (
+                              <p className="text-xs text-red-500 mt-1">⚠️ General must be 1-365 days</p>
+                            )}
+                            {(priority.generalThresholdDays || 1) > 365 && (
+                              <p className="text-xs text-red-500 mt-1">⚠️ General must be 1-365 days</p>
+                            )}
                           </div>
                         </div>
                       </div>
