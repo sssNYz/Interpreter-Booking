@@ -632,10 +632,10 @@ export function validateMeetingTypePriority(
 
   // Validate threshold days
   if (priority.urgentThresholdDays !== undefined) {
-    if (priority.urgentThresholdDays < 0 || priority.urgentThresholdDays > 30) {
+    if (priority.urgentThresholdDays < 0 || priority.urgentThresholdDays > 60) {
       errors.push({
         field: 'urgentThresholdDays',
-        message: "Urgent threshold must be between 0 and 30 days",
+        message: "Urgent threshold must be between 0 and 60 days",
         severity: 'critical'
       });
     }
