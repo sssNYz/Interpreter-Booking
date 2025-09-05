@@ -39,10 +39,10 @@ model BookingPlan {
   poolDeadlineTime         DateTime?         @map("POOL_DEADLINE_TIME") @db.DateTime(0)
   poolProcessingAttempts   Int?              @default(0) @map("POOL_PROCESSING_ATTEMPTS")
   assignmentLogs           AssignmentLog[]
-  interpreterEmployee      Employee?                @relation("InterpreterEmployee", fields: [interpreterEmpCode], references: [empCode])
-  employee                 Employee                 @relation("OwnerEmployee", fields: [ownerEmpCode], references: [empCode])
-  parentBooking            BookingPlan?             @relation("RecurringBookings", fields: [parentBookingId], references: [bookingId])
-  recurringBookings        BookingPlan[]            @relation("RecurringBookings")
+  interpreterEmployee      Employee?         @relation("InterpreterEmployee", fields: [interpreterEmpCode], references: [empCode])
+  employee                 Employee          @relation("OwnerEmployee", fields: [ownerEmpCode], references: [empCode])
+  parentBooking            BookingPlan?      @relation("RecurringBookings", fields: [parentBookingId], references: [bookingId])
+  recurringBookings        BookingPlan[]     @relation("RecurringBookings")
   inviteEmails             InviteEmailList[]
   poolProcessingLogEntries PoolProcessingLogEntry[]
   poolEntryHistory         PoolEntryHistory[]
@@ -111,7 +111,7 @@ model AutoAssignmentConfig {
   mode                 String   @default("NORMAL") @map("MODE")
   fairnessWindowDays   Int      @default(30) @map("FAIRNESS_WINDOW_DAYS")
   maxGapHours          Int      @default(10) @map("MAX_GAP_HOURS")
-  MIN_ADVANCE_DAYS     Int      @default(2)
+  minAdvanceDays       Int      @default(2) @map("MIN_ADVANCE_DAYS")
   w_fair               Float    @default(1.2) @map("W_FAIR")
   w_urgency            Float    @default(0.5) @map("W_URGENCY")
   w_lrs                Float    @default(0.3) @map("W_LRS")
@@ -400,3 +400,4 @@ model SystemErrorLog {
   @@index([errorName])
   @@map("SYSTEM_ERROR_LOG")
 }
+
