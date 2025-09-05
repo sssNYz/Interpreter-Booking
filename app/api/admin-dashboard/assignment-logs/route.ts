@@ -4,24 +4,11 @@ import type { Prisma } from "@prisma/client";
 import {
   buildDateRangeFilter,
   buildSearchFilter,
-  calculatePagination,
-  transformBookingPlanData,
-  transformEmployeeData,
-  createApiResponse,
-  createErrorResponse,
+
   createApiResponseHeaders,
   DEFAULT_PAGE_SIZE,
   MAX_PAGE_SIZE,
 } from "@/utils/admin-dashboard";
-
-/**
- * Assignment Logs API
- *
- * - Shows logs only when interpreter still exists & is active
- * - Deduplicates by bookingId (keep most recent createdAt)
- * - Optional filters: status, interpreterEmpCode, search, from/to
- * - Supports mode=all (or no page/pageSize) => return all after dedupe
- */
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -51,7 +38,6 @@ export async function GET(request: NextRequest) {
     }
 
     // Only show logs where interpreter still exists and is active
-    // (matches previous behavior)
     whereConditions.interpreterEmployee = {
       isActive: true,
     };

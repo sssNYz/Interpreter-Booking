@@ -3,20 +3,14 @@ import prisma from "@/prisma/prisma";
 
 // Use your shared types
 import {
-  MonthName,
   HoursRow,
   FooterByInterpreter,
-  InterpreterName,
-  HoursApiResponse,
   MONTH_LABELS,
 } from "@/types/admin-dashboard";
 import {
   getUtcMonthIndex,
   getMonthLabel,
-  calculateFooterStats,
   parseYearParam,
-  createApiResponse,
-  createErrorResponse,
   createDateRange,
   fetchActiveInterpreters,
   createInterpreterMapping,
@@ -67,7 +61,7 @@ export async function GET(
     const activeInterpreters = await fetchActiveInterpreters(prisma, dateRange);
     const { empCodeToName, interpreters } = createInterpreterMapping(activeInterpreters);
 
-    // ✅ Initialize rows AFTER we know interpreters, and pre-fill zeros
+    // Helper to create zeroed objects matching the types
     const rows: HoursRow[] = MONTH_LABELS.map((m) => {
       const base: Record<string, number> = {};
       for (const itp of interpreters) base[itp] = 0;
