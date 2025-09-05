@@ -41,16 +41,28 @@ export async function GET(
       orderBy: { timeStart: sort },
       skip: (page - 1) * pageSize,
       take: pageSize,
-      include: {
+      select: {
+        bookingId: true,
+        ownerEmpCode: true,
+        ownerGroup: true,
+        meetingRoom: true,
+        meetingDetail: true,
+        timeStart: true,
+        timeEnd: true,
+        bookingStatus: true,
+        createdAt: true,
+        updatedAt: true,
         employee: {
           select: { prefixEn: true, firstNameEn: true, lastNameEn: true, email: true, telExt: true },
         },
         interpreterEmployee: {
           select: { empCode: true, firstNameEn: true, lastNameEn: true },
         },
-        inviteEmails: true,
+        inviteEmails: {
+          select: { email: true },
+        },
       },
-    } as Parameters<typeof prisma.bookingPlan.findMany>[0]),
+    }),
   ]);
 
   const toIso = (d: Date) => d.toISOString();
@@ -64,22 +76,7 @@ export async function GET(
     return "other";
   };
 
-  const items: BookingData[] = (rows as Array<{
-    bookingId: number;
-    ownerEmpCode: string;
-    ownerGroup: string;
-    meetingRoom: string;
-    meetingDetail: string | null;
-    highPriority: boolean;
-    timeStart: Date;
-    timeEnd: Date;
-    bookingStatus: string;
-    createdAt: Date;
-    updatedAt: Date;
-    employee?: { prefixEn: string | null; firstNameEn: string | null; lastNameEn: string | null; email: string | null; telExt: string | null } | null;
-    interpreterEmployee?: { empCode: string | null; firstNameEn: string | null; lastNameEn: string | null } | null;
-    inviteEmails?: Array<{ email: string }> | null;
-  }>).map((b) => ({
+  const items: BookingData[] = rows.map((b) => ({
     bookingId: b.bookingId,
     ownerEmpCode: b.ownerEmpCode,
     ownerPrefix: b.employee?.prefixEn ?? "",
@@ -90,7 +87,7 @@ export async function GET(
     ownerGroup: asOwnerGroup(b.ownerGroup),
     meetingRoom: b.meetingRoom,
     meetingDetail: b.meetingDetail ?? "",
-    highPriority: b.highPriority,
+    highPriority: false, // Field doesn't exist in schema, default to false
     timeStart: formatDateTime(b.timeStart),
     timeEnd: formatDateTime(b.timeEnd),
     interpreterId: b.interpreterEmployee?.empCode ?? null,
