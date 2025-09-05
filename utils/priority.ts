@@ -2,7 +2,7 @@ import React from "react";
 import { Circle, Star, Users, Calendar, HelpCircle, AlertTriangle } from "lucide-react";
 
 export type PriorityLevel = "VIP" | "DR_I" | "DR_II" | "DR_k" | "General";
-export type MeetingType = "DR" | "VIP" | "Weekly" | "General" | "Urgent" | "Other";
+export type MeetingType = "DR" | "VIP" | "Weekly" | "General" | "Urgent" | "Other" | "Augent";
 
 export interface PriorityConfig {
   level: PriorityLevel;
@@ -113,6 +113,13 @@ export const MEETING_TYPE_CONFIGS: Record<MeetingType, MeetingTypeConfig> = {
     color: "text-slate-600", // Neutral slate
     priority: "General",
   },
+  Augent: {
+    type: "Augent",
+    label: "Augent",
+    icon: Calendar,
+    color: "text-blue-600", // Blue for Augent
+    priority: "General",
+  },
 };
 
 export function getPriorityLevel(
@@ -155,7 +162,7 @@ export function sortByPriority<T extends { meetingType?: string; drType?: string
 }
 
 export function getMeetingTypeConfig(type: MeetingType): MeetingTypeConfig {
-  return MEETING_TYPE_CONFIGS[type];
+  return MEETING_TYPE_CONFIGS[type] || MEETING_TYPE_CONFIGS["General"];
 }
 
 export function getMeetingTypeBadge(
@@ -165,6 +172,13 @@ export function getMeetingTypeBadge(
 ): React.ReactElement {
   const type = (meetingType as MeetingType) || "General";
   const config = getMeetingTypeConfig(type);
+  
+  // Safety check to ensure config exists
+  if (!config) {
+    console.warn(`No config found for meeting type: ${type}`);
+    return React.createElement("span", { className: "text-xs text-gray-500" }, "Unknown");
+  }
+  
   const Icon = config.icon;
   
   // For DR meetings, show tooltip with DR type
