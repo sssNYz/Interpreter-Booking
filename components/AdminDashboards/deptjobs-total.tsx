@@ -37,10 +37,10 @@ import {
   createInterpreterColorPalette 
 } from "@/utils/admin-dashboard";
 
-/* ---------------------- Type ---------------------- */
+/* ========= Types ========= */
 type SingleMonthDeptBar = CategoryChartRow & Record<InterpreterName, number>;
 
-/* ---------------------- Component ---------------------- */
+/* ========= Component ========= */
 
 interface DeptTabProps {
   year: number;

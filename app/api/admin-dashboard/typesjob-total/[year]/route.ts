@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/prisma/prisma";
 
-// ===== ใช้ centralized admin dashboard types =====
 import type {
   MonthlyDataRow,
   FooterByInterpreter,
@@ -29,12 +28,11 @@ import {
 // ===== Helpers =====
 type Params = { year?: string };
 
-// Using centralized utility functions from @/utils/admin-dashboard
 
 // ===== Handler =====
 export async function GET(
   req: NextRequest,
-  ctx: { params: Promise<Params> } // ✅ ต้อง await ตาม App Router
+  ctx: { params: Promise<Params> } 
 ) {
   try {
     const { year: paramYear } = await ctx.params;
@@ -47,7 +45,6 @@ export async function GET(
 
     const dateRange = createDateRange(yearNum);
 
-    // ดึงเฉพาะฟิลด์ที่ต้องใช้
     const records = await prisma.bookingPlan.findMany({
       where: {
         timeStart: { gte: dateRange.start, lt: dateRange.end },
@@ -59,8 +56,8 @@ export async function GET(
       },
       select: {
         timeStart: true,
-        meetingType: true,   // <— ใช้สรุป MeetingType
-        drType: true,        // <— ใช้สรุป DR แยกย่อย เมื่อ meetingType === 'DR'
+        meetingType: true,
+        drType: true,     
         interpreterEmpCode: true,
         interpreterEmployee: {
           select: { firstNameEn: true, lastNameEn: true, empCode: true },
@@ -72,7 +69,7 @@ export async function GET(
     const activeInterpreters = await fetchActiveInterpreters(prisma, dateRange);
     const { empCodeToName, interpreters } = createInterpreterMapping(activeInterpreters);
 
-    // เตรียม yearData 12 เดือน (type-safe) ใส่ทั้ง typeByInterpreter และ drTypeByInterpreter
+    // prepare yearData 12 months with full MonthlyDataRowWithDR structure
     const yearData: MonthlyDataRowWithDR[] = MONTH_LABELS.map((m): MonthlyDataRowWithDR => {
       const typeByInterpreter: Record<InterpreterName, Record<MeetingType, number>> = {};
       const drTypeByInterpreter: Record<InterpreterName, Record<DRType, number>> = {};
@@ -91,22 +88,21 @@ export async function GET(
         deptMeetings: { iot: 0, hardware: 0, software: 0, other: 0 },
         deptByInterpreter: {} as MonthlyDataRow["deptByInterpreter"],
         typeByInterpreter,
-        drTypeByInterpreter, // <- เพิ่มฟิลด์นี้ให้ฝั่ง UI ใช้อ่านค่า DR1/DR2/DRK/PR
+        drTypeByInterpreter, 
       };
     });
 
-    // รวมข้อมูลลง yearData
+    // Aggregate counts per month per interpreter
     for (const r of records) {
       const monthLabel = getMonthLabel(new Date(r.timeStart));
       const row = yearData[MONTH_LABELS.indexOf(monthLabel)];
       const itp = empCodeToName.get(r.interpreterEmpCode as string);
 
       if (itp) { // Only process if interpreter is still active
-        // นับ MeetingType หลักเสมอ
         const mt = r.meetingType as MeetingType;
         row.typeByInterpreter[itp][mt] += 1;
 
-        // ถ้าเป็น DR และมี drType ให้ลงกลุ่มย่อยด้วย
+        // If meeting type is DR, also count the drType subtype
         if (mt === "DR" && r.drType) {
           const dt = r.drType as DRType;
           row.drTypeByInterpreter[itp][dt] += 1;
@@ -114,8 +110,6 @@ export async function GET(
       }
     }
 
-    // ===== Footer รวมทั้งปีสำหรับตารางใหญ่ใน TypesTab =====
-    // ตาม UI: รวม DR แยกย่อย (DR_I, DR_II, DR_k, PR_PR) + MeetingType ที่ไม่ใช่ DR ทั้งหมด
     const perInterpreter: number[] = interpreters.map((itp) =>
       yearData.reduce((sumMonths, r) => {
         let s = 0;
@@ -135,7 +129,7 @@ export async function GET(
 
     const typesMGIFooter: FooterByInterpreter = { perInterpreter, grand, diff };
 
-    // ===== ส่งผลลัพธ์ =====
+  
     const result = {
       months: MONTH_LABELS,
       interpreters,
