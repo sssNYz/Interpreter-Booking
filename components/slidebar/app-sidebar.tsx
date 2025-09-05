@@ -1,7 +1,7 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import {BarChart2, Calendar, Home, Inbox, Settings, ChevronRight, LayoutDashboard, Star, LogOut, Cog } from "lucide-react"
+import { BarChart2, Calendar, Home, Inbox, Settings, ChevronRight, LayoutDashboard, Star, LogOut, Cog } from "lucide-react"
 
 import {
   Sidebar,
