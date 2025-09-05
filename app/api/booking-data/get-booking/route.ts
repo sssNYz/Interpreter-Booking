@@ -50,7 +50,7 @@
         requestedTime: `${extractYMD(b.createdAt.toISOString())} ${extractHHMM(b.createdAt.toISOString())}:00`,
         isDR: b.meetingType === "DR",                              // boolean - based on meetingType
         drType: b.drType,                                          // DR type from schema
-        meetingType: b.meetingType,                                // Meeting type from schema
+        meetingType: b.meetingType,                                // Meeting type from schema (DR/PDR/VIP/...)
         otherType: b.otherType,                                    // Other type from schema
       };
     });
