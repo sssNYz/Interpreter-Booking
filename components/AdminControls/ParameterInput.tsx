@@ -25,6 +25,8 @@ import type { AssignmentPolicy } from "@/types/assignment";
 interface ParameterInputProps {
   policy: AssignmentPolicy;
   onPolicyUpdate: (updates: Partial<AssignmentPolicy>) => void;
+  showFairnessOnly?: boolean;
+  showScoringOnly?: boolean;
 }
 
 interface ParameterConfig {
@@ -228,14 +230,9 @@ const PARAMETER_CONFIGS: ParameterConfig[] = [
   },
 ];
 
-export default function ParameterInput({
-  policy,
-  onPolicyUpdate,
-}: ParameterInputProps) {
-  const [validationResults, setValidationResults] = useState<
-    Record<string, any>
-  >({});
-  const isCustomMode = policy.mode === "CUSTOM";
+export default function ParameterInput({ policy, onPolicyUpdate, showFairnessOnly = false, showScoringOnly = false }: ParameterInputProps) {
+  const [validationResults, setValidationResults] = useState<Record<string, any>>({});
+  const isCustomMode = policy.mode === 'CUSTOM';
 
   useEffect(() => {
     // Validate all parameters when policy changes
@@ -380,43 +377,108 @@ export default function ParameterInput({
     ["w_fair", "w_urgency", "w_lrs", "drConsecutivePenalty"].includes(c.key)
   );
 
+  // Show only fairness settings
+  if (showFairnessOnly) {
+    return (
+      <TooltipProvider>
+        <Card className="h-[300px] flex flex-col">
+          <CardHeader className="flex-shrink-0">
+            <CardTitle className="flex items-center gap-2">
+              Fairness Settings
+              {!isCustomMode && (
+                <Badge variant="outline" className="text-xs">
+                  <LockIcon className="h-3 w-3 mr-1" />
+                  Locked
+                </Badge>
+              )}
+            </CardTitle>
+            <CardDescription>
+              Configure workload balance and fairness parameters
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6 flex-1 overflow-y-auto">
+            {fairnessParams.map(renderParameterInput)}
+          </CardContent>
+        </Card>
+      </TooltipProvider>
+    );
+  }
+
+  // Show only scoring weights
+  if (showScoringOnly) {
+    return (
+      <TooltipProvider>
+        <Card className="h-[600px] flex flex-col">
+          <CardHeader className="flex-shrink-0">
+            <CardTitle className="flex items-center gap-2">
+              Scoring Weights
+              {!isCustomMode && (
+                <Badge variant="outline" className="text-xs">
+                  <LockIcon className="h-3 w-3 mr-1" />
+                  Locked
+                </Badge>
+              )}
+            </CardTitle>
+            <CardDescription>
+              Configure the importance of different factors in interpreter selection
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6 flex-1 overflow-y-auto">
+            {scoringParams.map(renderParameterInput)}
+          </CardContent>
+        </Card>
+      </TooltipProvider>
+    );
+  }
+
+  // Show both sections (original layout)
   return (
     <TooltipProvider>
       <div className="space-y-6">
-        {/* Fairness Settings */}
-        {isCustomMode && (
-          <Card>
-            <CardHeader>
+        {/* Fairness Settings and Scoring Weights - Side by Side */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Fairness Settings - Left Side */}
+          <Card className="h-[600px] flex flex-col">
+            <CardHeader className="flex-shrink-0">
               <CardTitle className="flex items-center gap-2">
                 Fairness Settings
+                {!isCustomMode && (
+                  <Badge variant="outline" className="text-xs">
+                    <LockIcon className="h-3 w-3 mr-1" />
+                    Locked
+                  </Badge>
+                )}
               </CardTitle>
               <CardDescription>
                 Configure workload balance and fairness parameters
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
+            <CardContent className="space-y-6 flex-1 overflow-y-auto">
               {fairnessParams.map(renderParameterInput)}
             </CardContent>
           </Card>
-        )}
 
-        {/* Scoring Weights */}
-        {isCustomMode && (
-          <Card>
-            <CardHeader>
+          {/* Scoring Weights - Right Side */}
+          <Card className="h-[600px] flex flex-col">
+            <CardHeader className="flex-shrink-0">
               <CardTitle className="flex items-center gap-2">
                 Scoring Weights
+                {!isCustomMode && (
+                  <Badge variant="outline" className="text-xs">
+                    <LockIcon className="h-3 w-3 mr-1" />
+                    Locked
+                  </Badge>
+                )}
               </CardTitle>
               <CardDescription>
-                Configure the importance of different factors in interpreter
-                selection
+                Configure the importance of different factors in interpreter selection
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
+            <CardContent className="space-y-6 flex-1 overflow-y-auto">
               {scoringParams.map(renderParameterInput)}
             </CardContent>
           </Card>
-        )}
+        </div>
 
         {/* Parameter Summary for Custom Mode */}
         {isCustomMode && (

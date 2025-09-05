@@ -15,14 +15,10 @@ import { Switch } from "@/components/ui/switch";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 import { toast } from "sonner";
-import {
-  SaveIcon,
-  TestTubeIcon,
-  AlertTriangleIcon,
-  CheckCircleIcon,
-} from "lucide-react";
+import { SaveIcon, TestTubeIcon, AlertTriangleIcon, CheckCircleIcon } from "lucide-react";
 import ModeSelector from "./ModeSelector";
 import ParameterInput from "./ParameterInput";
 
@@ -37,9 +33,18 @@ export default function AutoAssignConfig() {
   const [config, setConfig] = useState<ConfigData | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [validating, setValidating] = useState(false);
+  const [, setValidating] = useState(false);
   const [localConfig, setLocalConfig] = useState<ConfigData | null>(null);
-  const [validationResults, setValidationResults] = useState<any>(null);
+  const [validationResults, setValidationResults] = useState<{
+    isValid?: boolean;
+    errors?: string[];
+    warnings?: string[];
+    validation?: {
+      overallValid?: boolean;
+      errors?: string[];
+      warnings?: string[];
+    };
+  } | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   // Use ref to track validation state without causing re-renders
@@ -133,16 +138,6 @@ export default function AutoAssignConfig() {
     }
   };
 
-  // Manual validation function for immediate validation (e.g., before save)
-  const validateNow = () => {
-    if (localConfig) {
-      // Clear any pending validation
-      if (validationTimeoutRef.current) {
-        clearTimeout(validationTimeoutRef.current);
-      }
-      runValidation(localConfig);
-    }
-  };
 
   useEffect(() => {
     // Clear any existing timeout
@@ -198,6 +193,19 @@ export default function AutoAssignConfig() {
       return;
     }
 
+    // Check for validation errors before saving
+    const hasValidationErrors = localConfig.priorities.some(priority => {
+      const urgentValid = (priority.urgentThresholdDays || 0) >= 0 && (priority.urgentThresholdDays || 0) <= 60;
+      const generalValid = (priority.generalThresholdDays || 1) >= 1 && (priority.generalThresholdDays || 1) <= 365;
+      const priorityValid = (priority.priorityValue || 1) >= 1 && (priority.priorityValue || 1) <= 10;
+      return !urgentValid || !generalValid || !priorityValid;
+    });
+
+    if (hasValidationErrors) {
+      toast.error("⚠️ Please fix validation errors before saving");
+      return;
+    }
+
     // Detect what has actually changed
     const policyChanged =
       JSON.stringify(config.policy) !== JSON.stringify(localConfig.policy);
@@ -216,7 +224,10 @@ export default function AutoAssignConfig() {
     console.log(`   🎯 Priorities changed: ${prioritiesChanged}`);
 
     // Only send changed data
-    const payload: any = {};
+    const payload: {
+      policy?: AssignmentPolicy;
+      priorities?: MeetingTypePriority[];
+    } = {};
     if (policyChanged) {
       payload.policy = localConfig.policy;
       console.log("   📋 Including policy changes");
@@ -369,30 +380,6 @@ export default function AutoAssignConfig() {
             <TestTubeIcon className="h-4 w-4" />
             Test Modes
           </Button>
-          <Button
-            onClick={async () => {
-              try {
-                const response = await fetch("/api/admin/config/debug");
-                const result = await response.json();
-                console.log("🔍 Debug info:", result);
-                toast.success("Debug info logged to console");
-              } catch (error) {
-                console.error("Debug error:", error);
-                toast.error("Debug failed");
-              }
-            }}
-            variant="outline"
-            className="flex items-center gap-2"
-          >
-            🔍 Debug
-          </Button>
-          <Button
-            onClick={validateNow}
-            variant="outline"
-            className="flex items-center gap-2"
-          >
-            ✅ Validate Now
-          </Button>
           {hasUnsavedChanges && (
             <Button onClick={resetConfig} variant="outline">
               Reset
@@ -400,7 +387,12 @@ export default function AutoAssignConfig() {
           )}
           <Button
             onClick={saveConfig}
-            disabled={saving}
+            disabled={saving || (localConfig && localConfig.priorities.some(priority => {
+              const urgentValid = (priority.urgentThresholdDays || 0) >= 0 && (priority.urgentThresholdDays || 0) <= 60;
+              const generalValid = (priority.generalThresholdDays || 1) >= 1 && (priority.generalThresholdDays || 1) <= 365;
+              const priorityValid = (priority.priorityValue || 1) >= 1 && (priority.priorityValue || 1) <= 10;
+              return !urgentValid || !generalValid || !priorityValid;
+            }))}
             className="flex items-center gap-2"
           >
             <SaveIcon className="h-4 w-4" />
@@ -412,36 +404,32 @@ export default function AutoAssignConfig() {
       {/* Real-time Validation Status */}
       {validationResults && (
         <div className="space-y-2">
-          {validationResults.errors?.length > 0 && (
+          {validationResults.errors && validationResults.errors.length > 0 && (
             <Alert variant="destructive">
               <AlertTriangleIcon className="h-4 w-4" />
               <AlertDescription>
                 <div className="space-y-1">
                   <p className="font-medium">Configuration Errors:</p>
                   <ul className="text-sm space-y-1">
-                    {validationResults.errors.map(
-                      (error: string, index: number) => (
-                        <li key={index}>• {error}</li>
-                      )
-                    )}
+                    {validationResults.errors.map((error: string, index: number) => (
+                      <li key={index}>• {error}</li>
+                    ))}
                   </ul>
                 </div>
               </AlertDescription>
             </Alert>
           )}
 
-          {validationResults.warnings?.length > 0 && (
+          {validationResults.warnings && validationResults.warnings.length > 0 && (
             <Alert variant="default">
               <AlertTriangleIcon className="h-4 w-4" />
               <AlertDescription>
                 <div className="space-y-1">
                   <p className="font-medium">Configuration Warnings:</p>
                   <ul className="text-sm space-y-1">
-                    {validationResults.warnings.map(
-                      (warning: string, index: number) => (
-                        <li key={index}>• {warning}</li>
-                      )
-                    )}
+                    {validationResults.warnings.map((warning: string, index: number) => (
+                      <li key={index}>• {warning}</li>
+                    ))}
                   </ul>
                 </div>
               </AlertDescription>
@@ -465,10 +453,7 @@ export default function AutoAssignConfig() {
         <CardContent>
           <div className="flex items-center justify-between">
             <div>
-              <Label
-                htmlFor="autoAssignEnabled"
-                className="text-base font-medium"
-              >
+              <Label htmlFor="autoAssignEnabled" className="text-base font-medium">
                 Auto-Assignment System
               </Label>
               <p className="text-sm text-muted-foreground">
@@ -479,15 +464,9 @@ export default function AutoAssignConfig() {
               <Switch
                 id="autoAssignEnabled"
                 checked={localConfig.policy.autoAssignEnabled}
-                onCheckedChange={(checked) =>
-                  updatePolicy({ autoAssignEnabled: checked })
-                }
+                onCheckedChange={(checked) => updatePolicy({ autoAssignEnabled: checked })}
               />
-              <Badge
-                variant={
-                  localConfig.policy.autoAssignEnabled ? "default" : "secondary"
-                }
-              >
+              <Badge variant={localConfig.policy.autoAssignEnabled ? "default" : "secondary"}>
                 {localConfig.policy.autoAssignEnabled ? "Enabled" : "Disabled"}
               </Badge>
             </div>
@@ -510,213 +489,148 @@ export default function AutoAssignConfig() {
         onPolicyUpdate={updatePolicy}
       />
 
-      {/* Show message when not in CUSTOM mode */}
-      {localConfig.policy.mode !== "CUSTOM" && (
-        <Card>
-          <CardContent className="text-center py-6">
-            <div className="space-y-2">
-              <p className="text-muted-foreground">
-                Advanced configuration options are only available in{" "}
-                <strong>CUSTOM</strong> mode.
-              </p>
-              <p className="text-sm text-muted-foreground">
-                Switch to CUSTOM mode to access Fairness Settings, Scoring
-                Weights, and Meeting Type Priorities.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       <Separator />
 
       {/* Meeting Type Priorities */}
-      {localConfig.policy.mode === "CUSTOM" && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Meeting Type Priorities</CardTitle>
-            <CardDescription>
-              Configure priority values and thresholds for each meeting type
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {/* Debug info */}
-              {localConfig.priorities.length === 0 && (
-                <div className="text-center p-4 border-2 border-dashed border-gray-300 rounded-lg">
-                  <p className="text-gray-500 mb-2">
-                    No meeting type priorities found in database
-                  </p>
-                  <p className="text-sm text-gray-400 mb-4">
-                    Meeting type priorities are required for the auto-assignment
-                    system to work properly.
-                  </p>
-                  <div className="space-y-2">
-                    <Button
-                      variant="outline"
-                      onClick={async () => {
-                        try {
-                          // Call API to initialize priorities in database
-                          const response = await fetch(
-                            "/api/admin/config/auto-assign/init-priorities",
-                            {
-                              method: "POST",
-                              headers: { "Content-Type": "application/json" },
-                            }
-                          );
+      <Card>
+        <CardHeader>
+          <CardTitle>Meeting Type Priorities</CardTitle>
+          <CardDescription>Configure priority values and thresholds for each meeting type</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {/* Debug info */}
+            {localConfig.priorities.length === 0 && (
+              <div className="text-center p-4 border-2 border-dashed border-gray-300 rounded-lg">
+                <p className="text-gray-500 mb-2">No meeting type priorities found in database</p>
+                <p className="text-sm text-gray-400 mb-4">
+                  Meeting type priorities are required for the auto-assignment system to work properly.
+                </p>
+                <div className="space-y-2">
+                  <Button
+                    variant="outline"
+                    onClick={async () => {
+                      try {
+                        // Call API to initialize priorities in database
+                        const response = await fetch("/api/admin/config/auto-assign/init-priorities", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" }
+                        });
 
-                          const result = await response.json();
+                        const result = await response.json();
 
-                          if (result.success) {
-                            // Reload configuration to get the new priorities
-                            await loadConfig();
-                            toast.success(
-                              "Default priorities created in database"
-                            );
-                          } else {
-                            throw new Error(
-                              result.error || "Failed to create priorities"
-                            );
-                          }
-                        } catch (error) {
-                          console.error("Error creating priorities:", error);
-                          toast.error("Failed to create default priorities");
+                        if (result.success) {
+                          // Reload configuration to get the new priorities
+                          await loadConfig();
+                          toast.success("Default priorities created in database");
+                        } else {
+                          throw new Error(result.error || "Failed to create priorities");
                         }
-                      }}
-                    >
-                      Initialize Default Priorities
-                    </Button>
-                    <p className="text-xs text-gray-400">
-                      This will create default priorities in the database for
-                      DR, VIP, Weekly, General, Augent, and Other meeting types.
-                    </p>
-                  </div>
+                      } catch (error) {
+                        console.error("Error creating priorities:", error);
+                        toast.error("Failed to create default priorities");
+                      }
+                    }}
+                  >
+                    Initialize Default Priorities
+                  </Button>
+                  <p className="text-xs text-gray-400">
+                    This will create default priorities in the database for DR, VIP, Weekly, General, Augent, and Other meeting types.
+                  </p>
                 </div>
-              )}
-
-              {/* Show priorities count for debugging */}
-              <div className="text-sm text-gray-500">
-                Found {localConfig.priorities.length} meeting type priorities
               </div>
+            )}
 
-              {/* Debug: Show raw priorities data */}
-              <details className="text-xs text-gray-400">
-                <summary>Debug: Raw priorities data</summary>
-                <pre className="mt-2 p-2 bg-gray-100 rounded overflow-auto">
-                  {JSON.stringify(localConfig.priorities, null, 2)}
-                </pre>
-              </details>
-
-              {/* Debug: Show validation results */}
-              <details className="text-xs text-gray-400">
-                <summary>Debug: Validation results</summary>
-                <pre className="mt-2 p-2 bg-gray-100 rounded overflow-auto">
-                  {JSON.stringify(validationResults, null, 2)}
-                </pre>
-              </details>
-
-              {/* Debug: Show save button state */}
-              <div className="text-xs text-gray-400 p-2 bg-gray-50 rounded">
-                <p>
-                  <strong>Save Button Debug:</strong>
-                </p>
-                <p>• Saving: {saving ? "true" : "false"}</p>
-                <p>
-                  • Has validation results:{" "}
-                  {validationResults ? "true" : "false"}
-                </p>
-                <p>
-                  • Validation is valid:{" "}
-                  {validationResults?.isValid ? "true" : "false"}
-                </p>
-                <p>
-                  • Button disabled:{" "}
-                  {saving || (validationResults && !validationResults.isValid)
-                    ? "true"
-                    : "false"}
-                </p>
-                <p>
-                  • Has unsaved changes: {hasUnsavedChanges ? "true" : "false"}
-                </p>
-              </div>
-
-              {localConfig.priorities.map((priority) => (
-                <div
-                  key={priority.meetingType}
-                  className="grid grid-cols-4 gap-4 p-4 border rounded-lg"
-                >
-                  <div>
-                    <Label htmlFor={`name-${priority.meetingType}`}>
-                      Meeting Type Name
-                    </Label>
-                    <Input
-                      id={`name-${priority.meetingType}`}
-                      type="text"
-                      value={priority.meetingType}
-                      onChange={(e) =>
-                        updatePriority(priority.meetingType, {
-                          meetingType: e.target.value,
-                        })
-                      }
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor={`priority-${priority.meetingType}`}>
-                      Priority Value
-                    </Label>
-                    <Input
-                      id={`priority-${priority.meetingType}`}
-                      type="number"
-                      min="1"
-                      max="10"
-                      value={priority.priorityValue || 1}
-                      onChange={(e) =>
-                        updatePriority(priority.meetingType, {
-                          priorityValue: parseInt(e.target.value) || 1,
-                        })
-                      }
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor={`urgent-${priority.meetingType}`}>
-                      Urgent Threshold (days)
-                    </Label>
-                    <Input
-                      id={`urgent-${priority.meetingType}`}
-                      type="number"
-                      min="0"
-                      max="30"
-                      value={priority.urgentThresholdDays || 0}
-                      onChange={(e) =>
-                        updatePriority(priority.meetingType, {
-                          urgentThresholdDays: parseInt(e.target.value) || 0,
-                        })
-                      }
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor={`general-${priority.meetingType}`}>
-                      General Threshold (days)
-                    </Label>
-                    <Input
-                      id={`general-${priority.meetingType}`}
-                      type="number"
-                      min="1"
-                      max="90"
-                      value={priority.generalThresholdDays || 1}
-                      onChange={(e) =>
-                        updatePriority(priority.meetingType, {
-                          generalThresholdDays: parseInt(e.target.value) || 1,
-                        })
-                      }
-                    />
-                  </div>
-                </div>
-              ))}
+            {/* Show priorities count for debugging */}
+            <div className="text-sm text-gray-500">
+              Found {localConfig.priorities.length} meeting type priorities
             </div>
-          </CardContent>
-        </Card>
-      )}
+
+            {/* Debug: Show raw priorities data */}
+            <details className="text-xs text-gray-400">
+              <summary>Debug: Raw priorities data</summary>
+              <pre className="mt-2 p-2 bg-gray-100 rounded overflow-auto">
+                {JSON.stringify(localConfig.priorities, null, 2)}
+              </pre>
+            </details>
+
+            {/* Debug: Show validation results */}
+            <details className="text-xs text-gray-400">
+              <summary>Debug: Validation results</summary>
+              <pre className="mt-2 p-2 bg-gray-100 rounded overflow-auto">
+                {JSON.stringify(validationResults, null, 2)}
+              </pre>
+            </details>
+
+            {/* Debug: Show save button state */}
+            <div className="text-xs text-gray-400 p-2 bg-gray-50 rounded">
+              <p><strong>Save Button Debug:</strong></p>
+              <p>• Saving: {saving ? 'true' : 'false'}</p>
+              <p>• Has validation results: {validationResults ? 'true' : 'false'}</p>
+              <p>• Validation is valid: {validationResults?.isValid ? 'true' : 'false'}</p>
+              <p>• Button disabled: {(saving || (validationResults && !validationResults.isValid)) ? 'true' : 'false'}</p>
+              <p>• Has unsaved changes: {hasUnsavedChanges ? 'true' : 'false'}</p>
+            </div>
+
+            {localConfig.priorities.map((priority) => (
+              <div key={priority.meetingType} className="grid grid-cols-4 gap-4 p-4 border rounded-lg">
+                <div>
+                  <Label htmlFor={`name-${priority.meetingType}`}>Meeting Type Name</Label>
+                  <Input
+                    id={`name-${priority.meetingType}`}
+                    type="text"
+                    value={priority.meetingType}
+                    onChange={(e) => updatePriority(priority.meetingType, { meetingType: e.target.value })}
+                    disabled={localConfig.policy.mode !== 'CUSTOM'}
+                    className={localConfig.policy.mode !== 'CUSTOM' ? 'opacity-50' : ''}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor={`priority-${priority.meetingType}`}>Priority Value</Label>
+                  <Input
+                    id={`priority-${priority.meetingType}`}
+                    type="number"
+                    min="1"
+                    max="10"
+                    value={priority.priorityValue || 1}
+                    onChange={(e) => updatePriority(priority.meetingType, { priorityValue: parseInt(e.target.value) || 1 })}
+                    disabled={false}
+                    className={''}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor={`urgent-${priority.meetingType}`}>Urgent Threshold (days)</Label>
+                  <Input
+                    id={`urgent-${priority.meetingType}`}
+                    type="number"
+                    min="0"
+                    max="30"
+                    value={priority.urgentThresholdDays || 0}
+                    onChange={(e) => updatePriority(priority.meetingType, { urgentThresholdDays: parseInt(e.target.value) || 0 })}
+                    disabled={localConfig.policy.mode !== 'CUSTOM'}
+                    className={localConfig.policy.mode !== 'CUSTOM' ? 'opacity-50' : ''}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor={`general-${priority.meetingType}`}>General Threshold (days)</Label>
+                  <Input
+                    id={`general-${priority.meetingType}`}
+                    type="number"
+                    min="1"
+                    max="90"
+                    value={priority.generalThresholdDays || 1}
+                    onChange={(e) => updatePriority(priority.meetingType, { generalThresholdDays: parseInt(e.target.value) || 1 })}
+                    disabled={localConfig.policy.mode !== 'CUSTOM'}
+                    className={localConfig.policy.mode !== 'CUSTOM' ? 'opacity-50' : ''}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+
     </div>
   );
 }
