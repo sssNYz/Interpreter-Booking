@@ -1,7 +1,5 @@
 import { toast } from "sonner";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import type { BookingFormState, ToastConfig, UserProfile, BookingSubmissionData } from "@/types/booking-form";
-import type { OwnerGroup } from "@/types/booking";
 
 // Email validation
 export const isValidEmail = (email: string): boolean => {

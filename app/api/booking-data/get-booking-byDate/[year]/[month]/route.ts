@@ -35,7 +35,17 @@ export async function GET(
       },
     },
     orderBy: { timeStart: "asc" },
-    include: {
+    select: {
+      bookingId: true,
+      ownerEmpCode: true,
+      ownerGroup: true,
+      meetingRoom: true,
+      meetingDetail: true,
+      timeStart: true,
+      timeEnd: true,
+      bookingStatus: true,
+      createdAt: true,
+      updatedAt: true,
       employee: {
         select: { firstNameEn: true, lastNameEn: true, email: true, telExt: true },
       },
@@ -43,7 +53,7 @@ export async function GET(
         select: { empCode: true },
       },
     },
-  } as Parameters<typeof prisma.bookingPlan.findMany>[0]);
+  });
 
   // Map to the BookingData shape expected by the frontend
   const toIso = (d: Date) => d.toISOString();
@@ -57,21 +67,7 @@ export async function GET(
     return "other";
   };
 
-  const result: BookingData[] = (bookings as Array<{
-    bookingId: number;
-    ownerEmpCode: string;
-    ownerGroup: string;
-    meetingRoom: string;
-    meetingDetail: string | null;
-    highPriority: boolean;
-    timeStart: Date;
-    timeEnd: Date;
-    bookingStatus: string;
-    createdAt: Date;
-    updatedAt: Date;
-    employee?: { firstNameEn: string | null; lastNameEn: string | null; email: string | null; telExt: string | null } | null;
-    interpreterEmployee?: { empCode: string | null } | null;
-  }>).map((b) => ({
+  const result: BookingData[] = bookings.map((b) => ({
     bookingId: b.bookingId,
     ownerEmpCode: b.ownerEmpCode,
     ownerName: b.employee?.firstNameEn ?? "",
@@ -81,7 +77,7 @@ export async function GET(
     ownerGroup: asOwnerGroup(b.ownerGroup),
     meetingRoom: b.meetingRoom,
     meetingDetail: b.meetingDetail ?? "",
-    highPriority: b.highPriority,
+    highPriority: false, // Field doesn't exist in schema, default to false
     timeStart: formatDateTime(b.timeStart),
     timeEnd: formatDateTime(b.timeEnd),
     interpreterId: b.interpreterEmployee?.empCode ?? null,
