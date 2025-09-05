@@ -116,6 +116,7 @@ model AutoAssignmentConfig {
   w_urgency            Float    @default(0.5) @map("W_URGENCY")
   w_lrs                Float    @default(0.3) @map("W_LRS")
   drConsecutivePenalty Float    @default(-0.7) @map("DR_CONSECUTIVE_PENALTY")
+
   createdAt            DateTime @default(now()) @map("created_at") @db.Timestamp(0)
   updatedAt            DateTime @updatedAt @map("updated_at") @db.Timestamp(0)
 
@@ -400,3 +401,4 @@ model SystemErrorLog {
   @@index([errorName])
   @@map("SYSTEM_ERROR_LOG")
 }
+

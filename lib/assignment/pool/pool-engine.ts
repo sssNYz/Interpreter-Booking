@@ -98,13 +98,17 @@ export class PoolProcessingEngine {
 
   /**
    * Determine urgency level for a pool entry
+   * Using simple time comparison to avoid timezone issues
    */
   private determineUrgencyLevel(entry: EnhancedPoolEntry): 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' {
-    const now = new Date();
-    const timeToDeadline = entry.deadlineTime.getTime() - now.getTime();
+    // Use the deadline time directly from database without creating new Date()
+    // Calculate hours to deadline using simple math
+    const deadlineTimestamp = entry.deadlineTime.getTime();
+    const currentTimestamp = Date.now(); // This is UTC timestamp, safe to use
+    const timeToDeadline = deadlineTimestamp - currentTimestamp;
     const hoursToDeadline = timeToDeadline / (1000 * 60 * 60);
     
-    if (now >= entry.deadlineTime) {
+    if (timeToDeadline <= 0) {
       return 'CRITICAL';
     } else if (hoursToDeadline <= 2) {
       return 'CRITICAL';
