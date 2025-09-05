@@ -129,7 +129,7 @@ export async function GET(
 
     const typesMGIFooter: FooterByInterpreter = { perInterpreter, grand, diff };
 
-  
+
     const result = {
       months: MONTH_LABELS,
       interpreters,

@@ -1,23 +1,15 @@
-// app/api/admin-dashboard/jobs-total/[year]/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/prisma/prisma";
 
-// ✅ Use centralized admin dashboard types
 import {
-  MonthName,
   JobsRow,
   FooterByInterpreter,
-  InterpreterName,
-  JobsApiResponse,
   MONTH_LABELS,
 } from "@/types/admin-dashboard";
 import {
   getUtcMonthIndex,
   getMonthLabel,
-  calculateFooterStats,
   parseYearParam,
-  createApiResponse,
-  createErrorResponse,
   createDateRange,
   fetchActiveInterpreters,
   createInterpreterMapping,
@@ -28,7 +20,7 @@ type Params = { year?: string };
 
 export async function GET(
   req: NextRequest,
-  ctx: { params: Promise<Params> } // ⬅️ params must be awaited
+  ctx: { params: Promise<Params> } 
 ) {
   // Add caching headers for better performance
   const response = NextResponse.next();
@@ -36,7 +28,6 @@ export async function GET(
   try {
     const url = req.nextUrl;
 
-    // ⬇️ Await params before accessing
     const { year: paramYear } = await ctx.params;
     const queryYear = url.searchParams.get("year") ?? undefined;
 
@@ -94,7 +85,7 @@ export async function GET(
       }
     }
 
-    // Footer
+
     const perInterpreter: FooterByInterpreter["perInterpreter"] = interpreters.map((itp) =>
       rows.reduce((sum, r) => sum + (Number(r[itp]) || 0), 0)
     );
