@@ -68,7 +68,7 @@ export const DEFAULT_FORM_STATE: BookingFormState = {
   meetingRoom: "",
   meetingDetail: "",
   highPriority: false,
-  interpreterId: "none",
+  interpreterId: "",
   inviteEmails: [],
   newEmail: "",
   isSubmitting: false,
