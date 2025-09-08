@@ -194,8 +194,8 @@ export default function AutoAssignConfig() {
 
     // Check for validation errors before saving
     const hasValidationErrors = localConfig.priorities.some(priority => {
-      const urgentValid = (priority.urgentThresholdDays || 0) >= 0 && (priority.urgentThresholdDays || 0) <= 60;
-      const generalValid = (priority.generalThresholdDays || 1) >= 1 && (priority.generalThresholdDays || 1) <= 365;
+      const urgentValid = (priority.urgentThresholdDays || 0) >= 0 && (priority.urgentThresholdDays || 0) <= 365;
+      const generalValid = (priority.generalThresholdDays || 1) >= 1 && (priority.generalThresholdDays || 1) <= 1000;
       const priorityValid = (priority.priorityValue || 1) >= 1 && (priority.priorityValue || 1) <= 10;
       return !urgentValid || !generalValid || !priorityValid;
     });
@@ -387,8 +387,8 @@ export default function AutoAssignConfig() {
           <Button
             onClick={saveConfig}
             disabled={saving || (localConfig && localConfig.priorities.some(priority => {
-              const urgentValid = (priority.urgentThresholdDays || 0) >= 0 && (priority.urgentThresholdDays || 0) <= 60;
-              const generalValid = (priority.generalThresholdDays || 1) >= 1 && (priority.generalThresholdDays || 1) <= 365;
+              const urgentValid = (priority.urgentThresholdDays || 0) >= 0 && (priority.urgentThresholdDays || 0) <= 365;
+              const generalValid = (priority.generalThresholdDays || 1) >= 1 && (priority.generalThresholdDays || 1) <= 1000;
               const priorityValid = (priority.priorityValue || 1) >= 1 && (priority.priorityValue || 1) <= 10;
               return !urgentValid || !generalValid || !priorityValid;
             }))}
@@ -680,20 +680,20 @@ export default function AutoAssignConfig() {
                             <Input
                               type="number"
                               min="0"
-                              max="60"
+                              max="365"
                               value={priority.urgentThresholdDays || 0}
                               onChange={(e) => updatePriority(priority.meetingType, { urgentThresholdDays: parseInt(e.target.value) || 0 })}
                               className={`h-7 text-xs ${
-                                (priority.urgentThresholdDays || 0) < 0 || (priority.urgentThresholdDays || 0) > 60 
+                                (priority.urgentThresholdDays || 0) < 0 || (priority.urgentThresholdDays || 0) > 365 
                                   ? 'border-red-500 bg-red-50' 
                                   : ''
                               }`}
                             />
                             {(priority.urgentThresholdDays || 0) < 0 && (
-                              <p className="text-xs text-red-500 mt-1">⚠️ Urgent must be 0-60 days</p>
+                              <p className="text-xs text-red-500 mt-1">⚠️ Urgent must be 0-365 days</p>
                             )}
-                            {(priority.urgentThresholdDays || 0) > 60 && (
-                              <p className="text-xs text-red-500 mt-1">⚠️ Urgent must be 0-60 days</p>
+                            {(priority.urgentThresholdDays || 0) > 365 && (
+                              <p className="text-xs text-red-500 mt-1">⚠️ Urgent must be 0-365 days</p>
                             )}
                           </div>
                           <div>
@@ -701,20 +701,20 @@ export default function AutoAssignConfig() {
                             <Input
                               type="number"
                               min="1"
-                              max="365"
+                              max="1000"
                               value={priority.generalThresholdDays || 1}
                               onChange={(e) => updatePriority(priority.meetingType, { generalThresholdDays: parseInt(e.target.value) || 1 })}
                               className={`h-7 text-xs ${
-                                (priority.generalThresholdDays || 1) < 1 || (priority.generalThresholdDays || 1) > 365 
+                                (priority.generalThresholdDays || 1) < 1 || (priority.generalThresholdDays || 1) > 1000 
                                   ? 'border-red-500 bg-red-50' 
                                   : ''
                               }`}
                             />
                             {(priority.generalThresholdDays || 1) < 1 && (
-                              <p className="text-xs text-red-500 mt-1">⚠️ General must be 1-365 days</p>
+                              <p className="text-xs text-red-500 mt-1">⚠️ General must be 1-1000 days</p>
                             )}
-                            {(priority.generalThresholdDays || 1) > 365 && (
-                              <p className="text-xs text-red-500 mt-1">⚠️ General must be 1-365 days</p>
+                            {(priority.generalThresholdDays || 1) > 1000 && (
+                              <p className="text-xs text-red-500 mt-1">⚠️ General must be 1-1000 days</p>
                             )}
                           </div>
                         </div>

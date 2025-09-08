@@ -50,6 +50,16 @@ interface ParameterConfig {
   }[];
 }
 
+type Severity = 'warning' | 'error';
+type WarningItem = { condition: (value: number) => boolean; message: string; severity: Severity };
+type RecommendationItem = { condition: (value: number) => boolean; message: string };
+type ValidationResult = {
+  warnings: WarningItem[];
+  recommendations: RecommendationItem[];
+  hasErrors: boolean;
+  hasWarnings: boolean;
+};
+
 const PARAMETER_CONFIGS: ParameterConfig[] = [
   {
     key: "fairnessWindowDays",
@@ -231,23 +241,22 @@ const PARAMETER_CONFIGS: ParameterConfig[] = [
 ];
 
 export default function ParameterInput({ policy, onPolicyUpdate, showFairnessOnly = false, showScoringOnly = false }: ParameterInputProps) {
-  const [validationResults, setValidationResults] = useState<Record<string, any>>({});
+  const [validationResults, setValidationResults] = useState<Partial<Record<keyof AssignmentPolicy, ValidationResult>>>({});
   const isCustomMode = policy.mode === 'CUSTOM';
 
   useEffect(() => {
     // Validate all parameters when policy changes
-    const results: Record<string, any> = {};
-    PARAMETER_CONFIGS.forEach((config) => {
+    const results: Partial<Record<keyof AssignmentPolicy, ValidationResult>> = {};
+    PARAMETER_CONFIGS.forEach(config => {
       const value = policy[config.key] as number;
       results[config.key] = validateParameter(config, value);
     });
     setValidationResults(results);
   }, [policy]);
 
-  const validateParameter = (config: ParameterConfig, value: number) => {
-    const warnings = config.warnings?.filter((w) => w.condition(value)) || [];
-    const recommendations =
-      config.recommendations?.filter((r) => r.condition(value)) || [];
+  const validateParameter = (config: ParameterConfig, value: number): ValidationResult => {
+    const warnings: WarningItem[] = (config.warnings ?? []).filter(w => w.condition(value));
+    const recommendations: RecommendationItem[] = (config.recommendations ?? []).filter(r => r.condition(value));
 
     return {
       warnings,
@@ -263,10 +272,8 @@ export default function ParameterInput({ policy, onPolicyUpdate, showFairnessOnl
 
   const renderParameterInput = (config: ParameterConfig) => {
     const value = policy[config.key] as number;
-    const validation = validationResults[config.key] || {};
-    const displayValue = config.format
-      ? config.format(value)
-      : value.toString();
+    const validation = validationResults[config.key];
+    const displayValue = config.format ? config.format(value) : value.toString();
 
     return (
       <div key={config.key} className="space-y-3">
@@ -295,7 +302,7 @@ export default function ParameterInput({ policy, onPolicyUpdate, showFairnessOnl
             </Tooltip>
           </div>
           <div className="flex items-center gap-2">
-            {validation.recommendations?.length > 0 && (
+            {(validation?.recommendations?.length ?? 0) > 0 && (
               <Badge variant="secondary" className="text-xs">
                 Recommended
               </Badge>
@@ -341,11 +348,8 @@ export default function ParameterInput({ policy, onPolicyUpdate, showFairnessOnl
         )}
 
         {/* Validation Messages */}
-        {validation.warnings?.map((warning: any, index: number) => (
-          <Alert
-            key={index}
-            variant={warning.severity === "error" ? "destructive" : "default"}
-          >
+        {validation?.warnings?.map((warning: WarningItem, index: number) => (
+          <Alert key={index} variant={warning.severity === 'error' ? 'destructive' : 'default'}>
             <AlertTriangleIcon className="h-4 w-4" />
             <AlertDescription className="text-sm">
               {warning.message}
@@ -353,12 +357,8 @@ export default function ParameterInput({ policy, onPolicyUpdate, showFairnessOnl
           </Alert>
         ))}
 
-        {validation.recommendations?.map((rec: any, index: number) => (
-          <Alert
-            key={index}
-            variant="default"
-            className="border-green-200 bg-green-50"
-          >
+        {validation?.recommendations?.map((rec: RecommendationItem, index: number) => (
+          <Alert key={index} variant="default" className="border-green-200 bg-green-50">
             <InfoIcon className="h-4 w-4 text-green-600" />
             <AlertDescription className="text-sm text-green-800">
               {rec.message}

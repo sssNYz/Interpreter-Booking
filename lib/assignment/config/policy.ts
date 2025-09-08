@@ -19,30 +19,30 @@ export function getScoringWeights(mode: string): { w_fair: number; w_urgency: nu
   switch (mode.toUpperCase()) {
     case 'BALANCE':
       return {
-        w_fair: 2.0,      // Maximize fairness
-        w_urgency: 0.6,   // Slightly reduced urgency
-        w_lrs: 0.6        // Enhanced rotation for fairness
+        w_fair: 2.0,      // High - make work equal between interpreters
+        w_urgency: 0.6,   // Medium - some speed is good
+        w_lrs: 0.6        // High - give turns to everyone
       };
     case 'URGENT':
       return {
-        w_fair: 0.5,      // Significantly reduced fairness
-        w_urgency: 2.5,   // 2.5x more important than fairness
-        w_lrs: 0.2        // Minimal rotation consideration
+        w_fair: 0.5,      // Low - speed is more important than fairness
+        w_urgency: 2.5,   // Very High - assign fast, don't wait
+        w_lrs: 0.2        // Low - don't worry about turns
       };
-    case 'CUSTOM':
-      // For CUSTOM mode, return the current config values
-      // This will be handled by the calling function
-      return {
-        w_fair: 1.0,      // Placeholder, will be overridden
-        w_urgency: 1.0,   // Placeholder, will be overridden
-        w_lrs: 1.0        // Placeholder, will be overridden
-      };
-    case 'NORMAL':
+      case 'NORMAL':
     default:
       return {
-        w_fair: 1.2,      // Balanced fairness
-        w_urgency: 0.8,   // Moderate-to-high urgency as default
-        w_lrs: 0.3        // Standard rotation
+        w_fair: 1.2,      // High - keep work balanced
+        w_urgency: 0.8,   // Medium-High - speed matters
+        w_lrs: 0.3        // Medium - some turns are good
+      };
+
+    case 'CUSTOM':
+      // Admin can change these numbers
+      return {
+        w_fair: 1.0,      // Will be changed by admin
+        w_urgency: 1.0,   // Will be changed by admin
+        w_lrs: 1.0        // Will be changed by admin
       };
   }
 }
