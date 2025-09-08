@@ -38,6 +38,7 @@ model BookingPlan {
   parentBooking            BookingPlan?      @relation("RecurringBookings", fields: [parentBookingId], references: [bookingId])
   recurringBookings        BookingPlan[]     @relation("RecurringBookings")
   inviteEmails             InviteEmailList[]
+
   @@index([ownerEmpCode])
   @@index([interpreterEmpCode])
   @@index([parentBookingId])
@@ -54,6 +55,7 @@ model InviteEmailList {
   @@unique([bookingId, email], name: "unique_booking_email")
   @@map("INVITE_EMAIL_LIST")
 }
+
 model Employee {
   id                    Int             @id @default(autoincrement()) @map("ID")
   empCode               String          @unique @map("EMP_CODE") @db.VarChar(64)
@@ -77,29 +79,35 @@ model Employee {
   bookingsAsInterpreter BookingPlan[]   @relation("InterpreterEmployee")
   bookingsOwned         BookingPlan[]   @relation("OwnerEmployee")
   userRoles             UserRole[]
+
   @@map("EMPLOYEE")
 }
+
 model UserRole {
   userId   Int      @map("USER_ID")
   roleCode RoleCode @map("ROLE_CODE")
   employee Employee @relation(fields: [userId], references: [id])
+
   @@id([userId, roleCode])
   @@map("USER_ROLE")
 }
+
 model AutoAssignmentConfig {
-  id                 Int      @id @default(autoincrement()) @map("ID")
-  autoAssignEnabled  Boolean  @default(true) @map("AUTO_ASSIGN_ENABLED")
-  fairnessWindowDays Int      @default(30) @map("FAIRNESS_WINDOW_DAYS")
-  maxGapHours        Int      @default(10) @map("MAX_GAP_HOURS")
-  minAdvanceDays     Int      @default(2) @map("MIN_ADVANCE_DAYS")
-  w_fair             Float    @default(1.2) @map("W_FAIR")
-  w_urgency          Float    @default(0.5) @map("W_URGENCY")
-  w_lrs              Float    @default(0.3) @map("W_LRS")
-  drConsecutivePenalty Float  @default(-0.7) @map("DR_CONSECUTIVE_PENALTY")
-  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamp(0)
-  updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamp(0)
+  id                   Int      @id @default(autoincrement()) @map("ID")
+  autoAssignEnabled    Boolean  @default(true) @map("AUTO_ASSIGN_ENABLED")
+  fairnessWindowDays   Int      @default(30) @map("FAIRNESS_WINDOW_DAYS")
+  maxGapHours          Int      @default(10) @map("MAX_GAP_HOURS")
+  minAdvanceDays       Int      @default(2) @map("MIN_ADVANCE_DAYS")
+  w_fair               Float    @default(1.2) @map("W_FAIR")
+  w_urgency            Float    @default(0.5) @map("W_URGENCY")
+  w_lrs                Float    @default(0.3) @map("W_LRS")
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt            DateTime @updatedAt @map("updated_at") @db.Timestamp(0)
+  drConsecutivePenalty Float    @default(-0.7) @map("DR_CONSECUTIVE_PENALTY")
+
   @@map("AUTO_ASSIGNMENT_CONFIG")
 }
+
 model AssignmentLog {
   id                  Int         @id @default(autoincrement()) @map("ID")
   bookingId           Int         @map("BOOKING_ID")
@@ -114,24 +122,30 @@ model AssignmentLog {
   createdAt           DateTime    @default(now()) @map("created_at") @db.Timestamp(0)
   bookingPlan         BookingPlan @relation(fields: [bookingId], references: [bookingId], onDelete: Cascade)
   interpreterEmployee Employee?   @relation("AssignmentLogInterpreter", fields: [interpreterEmpCode], references: [empCode])
+
   @@index([bookingId])
   @@index([interpreterEmpCode])
   @@index([status])
   @@map("ASSIGNMENT_LOG")
 }
+
 enum DRType {
   PR_PR @map("PR-PR")
   DR_k  @map("DR-k")
   DR_II @map("DR-II")
   DR_I  @map("DR-I")
   Other @map("Other")
+
   @@map("dr_type")
 }
+
 enum OtherTypeScope {
   meeting_type
   dr_type
+
   @@map("other_type_scope")
 }
+
 enum OwnerGroup {
   iot
   hardware
@@ -139,22 +153,25 @@ enum OwnerGroup {
   other
   @@map("owner_group")
 }
+
 enum MeetingType {
   DR
-  PDR
   VIP
   Weekly
   General
   Augent
   Other
 }
+
 enum BookingStatus {
   approve
   cancel
   waiting
   complet
+
   @@map("booking_status")
 }
+
 enum RecurrenceType {
   daily
   weekly
@@ -162,11 +179,13 @@ enum RecurrenceType {
   monthly
   custom
 }
+
 enum EndType {
   never
   on_date
   after_occurrences
 }
+
 enum WeekOrder {
   first
   second
@@ -174,6 +193,7 @@ enum WeekOrder {
   fourth
   last
 }
+
 enum RoleCode {
   ADMIN
   INTERPRETER
