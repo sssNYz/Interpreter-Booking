@@ -594,15 +594,26 @@ async function performAssignment(booking: {
   
   //Hard filter for fairness
   const eligibleIds: string[] = [];
+  
+  // Calculate real booking duration for accurate simulation
+  const bookingDuration = (booking.timeEnd.getTime() - booking.timeStart.getTime()) / (1000 * 60 * 60);
+  console.log(`🔍 Hard filter: Using real booking duration ${bookingDuration.toFixed(2)} hours`);
+  
   for (const interpreter of availableInterpreters) {
     const simulatedHours = { ...preHoursSnapshot };
-    simulatedHours[interpreter.empCode] = (simulatedHours[interpreter.empCode] || 0) + 1; // assume 1 hour
+    const currentHours = simulatedHours[interpreter.empCode] || 0;
+    simulatedHours[interpreter.empCode] = currentHours + bookingDuration; // Use real booking duration
 
     const hours = Object.values(simulatedHours);
     const gap = Math.max(...hours) - Math.min(...hours);
+    
+    console.log(`🔍 Hard filter for ${interpreter.empCode}: current=${currentHours.toFixed(1)}h, after=${(currentHours + bookingDuration).toFixed(1)}h, gap=${gap.toFixed(1)}h, maxGap=${effectiveMaxGapHours}h`);
 
     if (gap <= effectiveMaxGapHours) {
       eligibleIds.push(interpreter.empCode);
+      console.log(`✅ ${interpreter.empCode} PASSED hard filter (gap ${gap.toFixed(1)}h <= ${effectiveMaxGapHours}h)`);
+    } else {
+      console.log(`❌ ${interpreter.empCode} FAILED hard filter (gap ${gap.toFixed(1)}h > ${effectiveMaxGapHours}h)`);
     }
   }
 

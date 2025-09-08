@@ -1,8 +1,8 @@
 import { getMeetingTypePriority } from "../config/policy";
 
 /**
- * Compute enhanced urgency score based on meeting type priority and lead time
- * Uses diminishing returns model and priority multiplication
+ * Calculate how urgent a booking is
+ * Uses meeting type priority and time left
  */
 export async function computeEnhancedUrgencyScore(
   startTime: Date,
@@ -13,25 +13,25 @@ export async function computeEnhancedUrgencyScore(
   const priorityValue = priority?.priorityValue || 1;
   const urgentThreshold = priority?.urgentThresholdDays || 1;
   
-  // If already past start time, maximum urgency
+  // If booking already started, it is very urgent
   if (daysUntil < 0) {
     return 1.0;
   }
   
-  // If within urgent threshold days, calculate urgency with diminishing returns
+  // If booking is close to start time, calculate urgency
   if (daysUntil <= urgentThreshold) {
-    // Exponential decay: closer = exponentially higher score
+    // Closer to start time = higher score
     const timeScore = Math.pow(2, (urgentThreshold - daysUntil) / 2);
-    const cappedTimeScore = Math.min(timeScore, 100); // Cap at 100x
+    const cappedTimeScore = Math.min(timeScore, 100); // Limit to 100 max
     
-    // Combine priority and time using multiplication
+    // Multiply priority and time score
     const urgencyScore = priorityValue * cappedTimeScore;
     
-    // Normalize to 0-1 range with priority influence
+    // Make final score between 0 and 1
     return Math.min(1.0, urgencyScore / 100);
   }
   
-  // If well in advance, no urgency
+  // If booking is far in future, not urgent
   return 0.0;
 }
 
