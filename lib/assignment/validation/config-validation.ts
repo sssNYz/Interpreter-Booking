@@ -632,20 +632,20 @@ export function validateMeetingTypePriority(
 
   // Validate threshold days
   if (priority.urgentThresholdDays !== undefined) {
-    if (priority.urgentThresholdDays < 0 || priority.urgentThresholdDays > 60) {
+    if (priority.urgentThresholdDays < 0 || priority.urgentThresholdDays > 365) {
       errors.push({
         field: 'urgentThresholdDays',
-        message: "Urgent threshold must be between 0 and 60 days",
+        message: "Urgent threshold must be between 0 and 365 days",
         severity: 'critical'
       });
     }
   }
 
   if (priority.generalThresholdDays !== undefined) {
-    if (priority.generalThresholdDays < 1 || priority.generalThresholdDays > 365) {
+    if (priority.generalThresholdDays < 1 || priority.generalThresholdDays > 1000) {
       errors.push({
         field: 'generalThresholdDays',
-        message: "General threshold must be between 1 and 365 days",
+        message: "General threshold must be between 1 and 1000 days",
         severity: 'critical'
       });
     }
