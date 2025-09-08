@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { UserRoleDialog } from "@/components/AdminForm/user-set-role";
+import { UserRoleDialog } from "@/components/AdminForm/user-set-role-form";
 import type { Role, PageSize, ApiStats, ApiResponse, RoleFilter, AnyFilter, UserRow, FilterTree } from "@/types/user";
 
 // Constants for styling
