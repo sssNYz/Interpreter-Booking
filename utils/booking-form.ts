@@ -55,7 +55,7 @@ export const getDefaultFormState = (): Partial<BookingFormState> => ({
   meetingRoom: "",
   meetingDetail: "",
   highPriority: false,
-  interpreterId: "none",
+  interpreterId: "",
   inviteEmails: [],
   newEmail: "",
   errors: {},
