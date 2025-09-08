@@ -131,8 +131,13 @@ export default function ModeSelector({ policy, onModeChange, onPolicyUpdate }: M
     if (policy.mode === 'CUSTOM') return null;
     
     const config = MODE_CONFIGS[policy.mode];
-    const isMatching = Object.entries(config.defaults).every(([key, value]) => {
-      return Math.abs((policy as any)[key] - value) < 0.01; // Allow for floating point precision
+    const isMatching = (Object.keys(config.defaults) as Array<keyof AssignmentPolicy>).every((key) => {
+      const expected = config.defaults[key];
+      const current = policy[key];
+      if (typeof expected === 'number' && typeof current === 'number') {
+        return Math.abs(current - expected) < 0.01;
+      }
+      return current === expected;
     });
     
     return isMatching ? 'matching' : 'modified';
