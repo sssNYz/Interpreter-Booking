@@ -103,14 +103,14 @@ export async function POST(req: NextRequest) {
                     ${prefixTh}, ${firstNameTh}, ${lastNameTh},
                     ${fno}, ${deptPath}, ${positionTitle},
                     ${email}, ${telExt},
-                    1, ${nowIso}, ${nowIso}, NOW(), NOW()
+                    1, ${nowIso}, ${nowIso}, ${nowIso}, ${nowIso}
                 )
                 ON DUPLICATE KEY UPDATE 
                     PREFIX_EN=VALUES(PREFIX_EN), FIRST_NAME_EN=VALUES(FIRST_NAME_EN), LAST_NAME_EN=VALUES(LAST_NAME_EN),
                     PREFIX_TH=VALUES(PREFIX_TH), FIRST_NAME_TH=VALUES(FIRST_NAME_TH), LAST_NAME_TH=VALUES(LAST_NAME_TH),
                     FNO=VALUES(FNO), DEPT_PATH=VALUES(DEPT_PATH), POSITION_TITLE=VALUES(POSITION_TITLE),
                     EMAIL=VALUES(EMAIL), TEL_EXT=VALUES(TEL_EXT),
-                    LAST_LOGIN_AT=VALUES(LAST_LOGIN_AT), SYNCED_AT=VALUES(SYNCED_AT), updated_at=NOW()
+                    LAST_LOGIN_AT=VALUES(LAST_LOGIN_AT), SYNCED_AT=VALUES(SYNCED_AT), updated_at=${nowIso}
             `;
     } catch (err) {
       console.error("[/api/login] DB write failed", {

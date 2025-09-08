@@ -31,11 +31,20 @@ export function useSlotData({
       const startStr = typeof b.timeStart === 'string' ? b.timeStart : (b.timeStart as unknown as Date).toISOString();
       const endStr = typeof b.timeEnd === 'string' ? b.timeEnd : (b.timeEnd as unknown as Date).toISOString();
 
-      const startParts = startStr.includes('T') ? startStr.split('T') : startStr.split(' ');
-      const endParts = endStr.includes('T') ? endStr.split('T') : endStr.split(' ');
-      const dateKey = startParts[0];
-      const startTime = startParts[1].slice(0,5);
-      const endTimeRaw = endParts[1].slice(0,5);
+      // Parse ISO, then use local parts for grid keys
+      const start = new Date(startStr);
+      const end = new Date(endStr);
+
+      const y = start.getFullYear();
+      const m = String(start.getMonth() + 1).padStart(2, "0");
+      const d = String(start.getDate()).padStart(2, "0");
+      const dateKey = `${y}-${m}-${d}`;
+
+      const hhmm = (dt: Date) =>
+        `${String(dt.getHours()).padStart(2, "0")}:${String(dt.getMinutes()).padStart(2, "0")}`;
+
+      const startTime = hhmm(start);
+      const endTimeRaw = hhmm(end);
       const endTime = endTimeRaw === "17:00" ? "17:00" : endTimeRaw;
 
       // Step through 30-min slots between start and end using string math

@@ -21,10 +21,14 @@ import type { RunResult } from "@/types/assignment";
 
   // Standard API response shape moved to '@/types/api'
 
-  // Date validation helper: strict "YYYY-MM-DD HH:mm:ss"
-  const isValidDateString = (s: string): boolean => {
-    return /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(s);
-  };
+  // Date validation helpers
+  // Accept either strict "YYYY-MM-DD HH:mm:ss" or ISO8601 with timezone (e.g. 2025-09-12T01:00:00Z)
+  const isValidSqlYmdHms = (s: string): boolean =>
+    /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(s);
+  const isValidIso = (s: string): boolean =>
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,3})?)?(Z|[+-]\d{2}:?\d{2})$/.test(s);
+  const isValidInputDateTime = (s: string | null | undefined): s is string =>
+    typeof s === 'string' && (isValidSqlYmdHms(s) || isValidIso(s));
 
   // Validation function
   const validateBookingData = (
@@ -137,22 +141,20 @@ import type { RunResult } from "@/types/assignment";
       }
     }
 
-    if (!data.timeStart || !isValidDateString(data.timeStart)) {
-      errors.push("timeStart is required and must be 'YYYY-MM-DD HH:mm:ss'");
+    if (!isValidInputDateTime(data.timeStart)) {
+      errors.push("timeStart is required and must be ISO8601 with timezone or 'YYYY-MM-DD HH:mm:ss'");
     }
 
-    if (!data.timeEnd || !isValidDateString(data.timeEnd)) {
-      errors.push("timeEnd is required and must be 'YYYY-MM-DD HH:mm:ss'");
+    if (!isValidInputDateTime(data.timeEnd)) {
+      errors.push("timeEnd is required and must be ISO8601 with timezone or 'YYYY-MM-DD HH:mm:ss'");
     }
 
     // Validate time range
     if (
-      data.timeStart &&
-      data.timeEnd &&
-      isValidDateString(data.timeStart) &&
-      isValidDateString(data.timeEnd)
+      isValidInputDateTime(data.timeStart) &&
+      isValidInputDateTime(data.timeEnd)
     ) {
-      if (data.timeStart >= data.timeEnd) {
+      if (new Date(data.timeStart) >= new Date(data.timeEnd)) {
         errors.push("timeEnd must be after timeStart");
       }
     }
@@ -231,8 +233,8 @@ import type { RunResult } from "@/types/assignment";
         );
       }
       if (data.recurrenceEndDate) {
-        if (!isValidDateString(data.recurrenceEndDate)) {
-          errors.push("recurrenceEndDate must be 'YYYY-MM-DD HH:mm:ss'");
+        if (!isValidInputDateTime(data.recurrenceEndDate)) {
+          errors.push("recurrenceEndDate must be 'YYYY-MM-DD HH:mm:ss' or ISO8601 with timezone");
         }
       }
       if (
@@ -256,9 +258,39 @@ import type { RunResult } from "@/types/assignment";
     };
   };
 
-  // No conversion; use provided strings directly
-  const parseBookingDates = (timeStart: string, timeEnd: string) => {
-    return { timeStart, timeEnd };
+  // Formatting helpers
+  const pad2 = (n: number) => String(n).padStart(2, '0');
+  const toSqlUtc = (d: Date): string =>
+    `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())} ${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}:${pad2(d.getUTCSeconds())}`;
+  const toSqlLocal = (d: Date): string =>
+    `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
+
+  // Parse client-provided datetime (ISO with timezone or local SQL string) into both local and UTC SQL strings
+  const parseClientDateTime = (input: string): { localSql: string; utcSql: string; date: Date } => {
+    let d: Date;
+    if (input.includes('T')) {
+      d = new Date(input); // ISO 8601
+    } else if (isValidSqlYmdHms(input)) {
+      const [datePart, timePart] = input.split(' ');
+      const [y, m, day] = datePart.split('-').map(Number);
+      const [hh, mm, ss] = timePart.split(':').map(Number);
+      d = new Date(y, (m || 1) - 1, day || 1, hh || 0, mm || 0, ss || 0, 0); // interpret as local wall-time
+    } else {
+      throw new Error('Invalid datetime format');
+    }
+    return { localSql: toSqlLocal(d), utcSql: toSqlUtc(d), date: d };
+  };
+
+  // Normalize incoming times to UTC for storage, while keeping local for recurrence generation
+  const normalizeBookingDates = (timeStartIn: string, timeEndIn: string) => {
+    const s = parseClientDateTime(timeStartIn);
+    const e = parseClientDateTime(timeEndIn);
+    return {
+      timeStartLocal: s.localSql,
+      timeEndLocal: e.localSql,
+      timeStartUtc: s.utcSql,
+      timeEndUtc: e.utcSql,
+    } as const;
   };
 
   // Helpers for recurrence date generation
@@ -508,10 +540,18 @@ import type { RunResult } from "@/types/assignment";
         );
       }
 
-      const { timeStart, timeEnd } = parseBookingDates(
+      const { timeStartLocal, timeEndLocal, timeStartUtc, timeEndUtc } = normalizeBookingDates(
         body.timeStart,
         body.timeEnd
       );
+
+      // If recurrenceEndDate provided, normalize to UTC for storage
+      const recurrenceEndUtc = body.recurrenceEndDate && isValidInputDateTime(body.recurrenceEndDate)
+        ? parseClientDateTime(body.recurrenceEndDate).utcSql
+        : null;
+
+      // Precompute a single NOW in UTC for consistent timestamps
+      const nowUtcSql = toSqlUtc(new Date());
 
       // Use an interactive transaction to keep operations atomic (insert + related records)
       const result = await prisma.$transaction(
@@ -548,7 +588,7 @@ import type { RunResult } from "@/types/assignment";
             SELECT COUNT(*) AS cnt
             FROM BOOKING_PLAN
             WHERE BOOKING_STATUS <> 'cancel'
-            AND (TIME_START < ${timeEnd} AND TIME_END > ${timeStart})
+            AND (TIME_START < ${timeEndUtc} AND TIME_END > ${timeStartUtc})
             FOR UPDATE
           `;
             const capCntVal = capCounts?.[0]?.cnt;
@@ -575,7 +615,7 @@ import type { RunResult } from "@/types/assignment";
             FROM BOOKING_PLAN
             WHERE MEETING_ROOM = ${body.meetingRoom}
             AND BOOKING_STATUS <> 'cancel'
-            AND (TIME_START < ${timeEnd} AND TIME_END > ${timeStart})
+            AND (TIME_START < ${timeEndUtc} AND TIME_END > ${timeStartUtc})
           `;
             const sameRoomCntVal = sameRoomCounts?.[0]?.cnt;
             const sameRoomOverlap =
@@ -608,20 +648,20 @@ import type { RunResult } from "@/types/assignment";
             ) VALUES (
               ${body.ownerEmpCode.trim()}, ${body.ownerGroup}, ${body.meetingRoom.trim()}, ${
               body.meetingType ?? null
-            }, ${body.meetingDetail ?? null}, ${body.applicableModel ?? null}, ${timeStart}, ${timeEnd}, ${body.interpreterEmpCode ?? null}, ${
+            }, ${body.meetingDetail ?? null}, ${body.applicableModel ?? null}, ${timeStartUtc}, ${timeEndUtc}, ${body.interpreterEmpCode ?? null}, ${
               body.bookingStatus || BookingStatus.waiting
             },
               ${body.drType ?? null}, ${body.otherType ?? null}, ${body.otherTypeScope ?? null},
               ${body.isRecurring ? 1 : 0}, ${body.recurrenceType ?? null}, ${
               body.recurrenceInterval ?? null
             }, ${body.recurrenceEndType ?? null}, ${
-              body.recurrenceEndDate ?? null
+              recurrenceEndUtc
             }, ${body.recurrenceEndOccurrences ?? null}, ${
               body.recurrenceWeekdays ?? null
             }, ${body.recurrenceMonthday ?? null}, ${
               body.recurrenceWeekOrder ?? null
             },
-              NOW(), NOW()
+              ${nowUtcSql}, ${nowUtcSql}
             )
           `;
             const inserted = await tx.$queryRaw<
@@ -654,7 +694,8 @@ import type { RunResult } from "@/types/assignment";
             // 4) If recurring, generate and insert child occurrences
             let childrenInserted = 0;
             if (bookingId && body.isRecurring) {
-              const occ = generateOccurrences(timeStart, timeEnd, {
+              // Generate occurrences based on LOCAL wall-time so the pattern stays consistent for the user
+              const occ = generateOccurrences(timeStartLocal, timeEndLocal, {
                 recurrenceType: body.recurrenceType,
                 recurrenceInterval: body.recurrenceInterval,
                 recurrenceEndType: body.recurrenceEndType,
@@ -666,8 +707,12 @@ import type { RunResult } from "@/types/assignment";
                 skipWeekends: body.skipWeekends ?? null,
               });
               for (const o of occ) {
+                // Convert each occurrence to UTC for storage
+                const childNorm = normalizeBookingDates(o.timeStart, o.timeEnd);
+                const tsUtc = childNorm.timeStartUtc;
+                const teUtc = childNorm.timeEndUtc;
                 // capacity check per child
-                const capOk = await capacityOk(o.timeStart, o.timeEnd);
+                const capOk = await capacityOk(tsUtc, teUtc);
                 if (!capOk) continue;
                 // same-room warning: skip check if force is true
                 if (!body.force) {
@@ -678,7 +723,7 @@ import type { RunResult } from "@/types/assignment";
                   FROM BOOKING_PLAN
                   WHERE MEETING_ROOM = ${body.meetingRoom}
                   AND BOOKING_STATUS <> 'cancel'
-                  AND (TIME_START < ${o.timeEnd} AND TIME_END > ${o.timeStart})
+                  AND (TIME_START < ${teUtc} AND TIME_END > ${tsUtc})
                 `;
                   const overlapVal = sameRoomCountsChild?.[0]?.cnt;
                   const overlapCount =
@@ -695,12 +740,12 @@ import type { RunResult } from "@/types/assignment";
                   ${body.ownerEmpCode.trim()}, ${body.ownerGroup}, ${body.meetingRoom.trim()}, ${
                   body.meetingType ?? null
                 }, ${body.meetingDetail ?? null}, ${body.applicableModel ?? null}, ${
-                  o.timeStart
-                }, ${o.timeEnd}, ${body.interpreterEmpCode ?? null}, ${
+                  tsUtc
+                }, ${teUtc}, ${body.interpreterEmpCode ?? null}, ${
                   body.bookingStatus || BookingStatus.waiting
                 }, ${bookingId},
                   ${body.drType ?? null}, ${body.otherType ?? null}, ${body.otherTypeScope ?? null},
-                  NOW(), NOW()
+                  ${nowUtcSql}, ${nowUtcSql}
                 )
               `;
                 // copy invite emails if any
@@ -742,8 +787,8 @@ import type { RunResult } from "@/types/assignment";
                 data: {
                   bookingId,
                   meetingRoom: body.meetingRoom.trim(),
-                  timeStart,
-                  timeEnd,
+                  timeStart: timeStartUtc,
+                  timeEnd: timeEndUtc,
                   bookingStatus: body.bookingStatus || BookingStatus.waiting,
                   inviteEmailsSaved: Array.isArray(body.inviteEmails)
                     ? body.inviteEmails.length

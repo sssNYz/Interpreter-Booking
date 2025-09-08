@@ -24,8 +24,9 @@ export async function GET(
     });
   }
 
-  const startDate = new Date(yearNum, monthNum - 1, 1);
-  const endDate = new Date(yearNum, monthNum, 0, 23, 59, 59);
+  // Use UTC month boundaries to match UTC storage
+  const startDate = new Date(Date.UTC(yearNum, monthNum - 1, 1, 0, 0, 0));
+  const endDate = new Date(Date.UTC(yearNum, monthNum, 0, 23, 59, 59));
 
   const bookings = await prisma.bookingPlan.findMany({
     where: {
@@ -45,11 +46,13 @@ export async function GET(
     },
   } as Parameters<typeof prisma.bookingPlan.findMany>[0]);
 
-  // Map to the BookingData shape expected by the frontend
-  const toIso = (d: Date) => d.toISOString();
-  const extractYMD = (iso: string) => iso.split("T")[0];
-  const extractHMS = (iso: string) => iso.split("T")[1].slice(0, 8);
-  const formatDateTime = (d: Date): string => `${extractYMD(toIso(d))} ${extractHMS(toIso(d))}`;
+  {/**
+    // Map to the BookingData shape expected by the frontend
+    const toIso = (d: Date) => d.toISOString();
+    const extractYMD = (iso: string) => iso.split("T")[0];
+    const extractHMS = (iso: string) => iso.split("T")[1].slice(0, 8);
+    const formatDateTime = (d: Date): string => `${extractYMD(toIso(d))} ${extractHMS(toIso(d))}`;
+   */}
 
   const asOwnerGroup = (v: unknown): OwnerGroupUI => {
     const s = String(v || "").toLowerCase();
@@ -81,12 +84,12 @@ export async function GET(
     meetingRoom: b.meetingRoom,
     meetingDetail: b.meetingDetail ?? "",
     // highPriority removed from API response
-    timeStart: formatDateTime(b.timeStart),
-    timeEnd: formatDateTime(b.timeEnd),
+    timeStart: b.timeStart.toISOString(),
+    timeEnd: b.timeEnd.toISOString(),
     interpreterId: b.interpreterEmployee?.empCode ?? null,
     bookingStatus: b.bookingStatus,
-    createdAt: formatDateTime(b.createdAt),
-    updatedAt: formatDateTime(b.updatedAt),
+    createdAt: b.createdAt.toISOString(),
+    updatedAt: b.updatedAt.toISOString(),
   }));
 
   return new Response(JSON.stringify(result), {
