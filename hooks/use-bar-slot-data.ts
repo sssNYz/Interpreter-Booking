@@ -3,13 +3,15 @@ import type { BookingData, DayInfo, BarItem } from "@/types/booking";
 import { MAX_LANES } from "@/utils/constants";
 
 function toIndices(startStrIn: string, endStrIn: string, timeSlots: string[]) {
-  // Accepts either 'YYYY-MM-DD HH:mm:ss' or ISO 'YYYY-MM-DDTHH:mm:ss'
-  const s = startStrIn.includes('T') ? startStrIn.split('T')[1] : startStrIn.split(' ')[1];
-  const e = endStrIn.includes('T') ? endStrIn.split('T')[1] : endStrIn.split(' ')[1];
-  const startStr = s.slice(0, 5);
-  const endStr = e.slice(0, 5);
+  const start = new Date(startStrIn); // parse ISO (UTC) → Date
+  const end = new Date(endStrIn);
+
+  const hhmm = (dt: Date) =>
+    `${String(dt.getHours()).padStart(2, "0")}:${String(dt.getMinutes()).padStart(2, "0")}`;
+
+  const startStr = hhmm(start); // local time for display grid
+  const endStr = hhmm(end);
   const startIndex = timeSlots.indexOf(startStr);
-  // If end is 17:00, render bar to the final cell (after 16:30)
   const endIndex = endStr === "17:00" ? timeSlots.length : timeSlots.indexOf(endStr);
   return { startIndex, endIndex };
 }
@@ -28,16 +30,19 @@ export function useSlotDataForBars({
     const occupancyByDay = new Map<number, number[]>();
 
     daysInMonth.forEach((day, dayIdx) => {
-      // 1) Build the same local-like date string used by cells: YYYY-MM-DD
+      // Local date string for the row (matches visible grid)
       const year = day.fullDate.getFullYear();
       const month = String(day.fullDate.getMonth() + 1).padStart(2, "0");
       const date = String(day.date).padStart(2, "0");
       const dayLocalStr = `${year}-${month}-${date}`;
 
       const dayBookings = bookings.filter((b) => {
-        const src = b.timeStart;
-        const startDateISO = src.includes("T") ? src.split("T")[0] : src.split(" ")[0];
-        return startDateISO === dayLocalStr;
+        const d = new Date(b.timeStart); // parse ISO as Date
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, "0");
+        const dd = String(d.getDate()).padStart(2, "0");
+        const startLocalStr = `${y}-${m}-${dd}`;
+        return startLocalStr === dayLocalStr;
       });
 
       // 2) Map to intervals
