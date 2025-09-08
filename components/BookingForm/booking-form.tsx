@@ -526,7 +526,7 @@ export function BookingForm({
                       <SelectValue placeholder="Select an interpreter" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">No Interpreter</SelectItem>
+                      <SelectItem value="none">No Interpreter</SelectItem>
                       {availableInterpreters.map((interpreter) => (
                         <SelectItem
                           key={interpreter.interpreterId}
