@@ -248,8 +248,12 @@ export default function Page() {
                         : "text-gray-700 bg-transparent"
                     }`}
                     onClick={() => {
-                      setAgg("month");
-                      setIsMonthDropdownOpen(!isMonthDropdownOpen);
+                      if (agg !== "month") {
+                        setAgg("month");
+                        setIsMonthDropdownOpen(false);
+                      } else {
+                        setIsMonthDropdownOpen((prev) => !prev);
+                      }
                     }}
                   >
                     {agg === "month" ? selectedMonth : "Month"}
@@ -336,8 +340,12 @@ export default function Page() {
                     : "text-gray-700 bg-transparent"
                 }`}
                 onClick={() => {
-                  setAgg("month");
-                  setIsMonthDropdownOpen(!isMonthDropdownOpen);
+                  if (agg !== "month") {
+                    setAgg("month");
+                    setIsMonthDropdownOpen(false);
+                  } else {
+                    setIsMonthDropdownOpen((prev) => !prev);
+                  }
                 }}
               >
                 {agg === "month" ? selectedMonth : "Month"}
