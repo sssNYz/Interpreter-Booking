@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
@@ -53,22 +53,21 @@ export default function Page() {
   const [typesData, setTypesData] = useState<TypesApiResponse | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isMonthDropdownOpen, setIsMonthDropdownOpen] = useState(false);
+  const monthWrapperDesktopRef = useRef<HTMLDivElement | null>(null);
+  const monthWrapperMobileRef = useRef<HTMLDivElement | null>(null);
 
-  // Close dropdown when clicking outside
+  // Close dropdown when clicking outside the month button group (desktop or mobile)
   useEffect(() => {
-    const handleClickOutside = () => {
-      if (isMonthDropdownOpen) {
-        setIsMonthDropdownOpen(false);
-      }
+    const handleClickOutside = (event: MouseEvent) => {
+      if (!isMonthDropdownOpen) return;
+      const targetNode = event.target instanceof Node ? event.target : null;
+      const isInsideDesktop = monthWrapperDesktopRef.current?.contains(targetNode as Node);
+      const isInsideMobile = monthWrapperMobileRef.current?.contains(targetNode as Node);
+      if (!isInsideDesktop && !isInsideMobile) setIsMonthDropdownOpen(false);
     };
 
-    if (isMonthDropdownOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isMonthDropdownOpen]);
 
   // Fetch data function that can be called manually or on mount
@@ -183,8 +182,29 @@ export default function Page() {
     </SelectItem>
   ));
 
-  // month options - get from jobsData if available, otherwise use current fiscal months
-  const monthOptions = jobsData?.months || [getCurrentFiscalMonthLabel()];
+  // Month options — prefer whichever dataset has months
+  const monthOptions = useMemo(() => {
+    return (
+      jobsData?.months ||
+      hoursData?.months ||
+      deptData?.months ||
+      typesData?.months ||
+      []
+    );
+  }, [jobsData?.months, hoursData?.months, deptData?.months, typesData?.months]);
+
+  // Ensure selectedMonth is always one of available options once data arrives
+  useEffect(() => {
+    if (!monthOptions || monthOptions.length === 0) return;
+    if (!selectedMonth || !monthOptions.includes(selectedMonth)) {
+      // Try to pick current fiscal month if present, otherwise use the last month (most recent)
+      const current = getCurrentFiscalMonthLabel();
+      const fallback = monthOptions.includes(current)
+        ? current
+        : monthOptions[monthOptions.length - 1];
+      setSelectedMonth(fallback);
+    }
+  }, [monthOptions, selectedMonth]);
 
   return (
     <div className={PAGE_WRAPPER}>
@@ -220,7 +240,7 @@ export default function Page() {
                 />
                 
                 {/* Month Dropdown Button */}
-                <div className="relative basis-1/2 grow-0 shrink-0">
+                <div ref={monthWrapperDesktopRef} className="relative basis-1/2 grow-0 shrink-0">
                   <button 
                     className={`relative z-10 w-full h-full px-3 text-sm font-medium rounded transition-colors duration-200 flex items-center justify-center whitespace-nowrap overflow-hidden text-ellipsis leading-none focus:outline-none focus-visible:outline-none ${
                       agg === "month" 
@@ -239,7 +259,7 @@ export default function Page() {
                   </button>
                   
                   {/* Month Dropdown */}
-                  {isMonthDropdownOpen && (
+                  {isMonthDropdownOpen && monthOptions && monthOptions.length > 0 && (
                     <div className="absolute top-full left-0 mt-1 w-full bg-white border border-gray-200 rounded-md shadow-lg z-20 animate-in slide-in-from-top-2 fade-in-0 duration-200">
                       {monthOptions.map((month) => (
                         <button
@@ -249,6 +269,7 @@ export default function Page() {
                           }`}
                           onClick={() => {
                             setSelectedMonth(month);
+                            setAgg("month");
                             setIsMonthDropdownOpen(false);
                           }}
                         >
@@ -307,7 +328,7 @@ export default function Page() {
             />
             
             {/* Month Dropdown Button */}
-            <div className="relative flex-1">
+            <div ref={monthWrapperMobileRef} className="relative flex-1">
               <button 
                 className={`w-full h-full px-1.5 text-xs rounded transition-colors duration-200 flex items-center justify-center whitespace-nowrap leading-none focus:outline-none focus-visible:outline-none ${
                   agg === "month" 
@@ -326,7 +347,7 @@ export default function Page() {
               </button>
               
               {/* Month Dropdown */}
-              {isMonthDropdownOpen && (
+              {isMonthDropdownOpen && monthOptions && monthOptions.length > 0 && (
                 <div className="absolute top-full left-0 mt-1 w-full bg-white border border-gray-200 rounded-md shadow-lg z-20 animate-in slide-in-from-top-2 fade-in-0 duration-200">
                   {monthOptions.map((month) => (
                     <button
@@ -336,6 +357,7 @@ export default function Page() {
                       }`}
                       onClick={() => {
                         setSelectedMonth(month);
+                        setAgg("month");
                         setIsMonthDropdownOpen(false);
                       }}
                     >
