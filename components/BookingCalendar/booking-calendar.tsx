@@ -152,6 +152,7 @@ const BookingCalendar: React.FC = () => {
   const autoScrolledMonthRef = useRef<string | null>(null);
   const forceScrollToTodayRef = useRef<boolean>(false);
   const [highlightToday, setHighlightToday] = useState(false);
+  const highlightTimerRef = useRef<number | null>(null);
   // Add this ref near the other refs
   const horizontalScrollRef = useRef<number>(0);
   const userScrollRef = useRef<number>(0);
@@ -174,6 +175,11 @@ useEffect(() => {
 
 const goToToday = useCallback(() => {
   forceScrollToTodayRef.current = true;
+  // Clear any existing highlight timer before starting a new blink
+  if (highlightTimerRef.current !== null) {
+    window.clearTimeout(highlightTimerRef.current);
+    highlightTimerRef.current = null;
+  }
   setHighlightToday(true);
   setCurrentDate(new Date());
 
@@ -181,21 +187,36 @@ const goToToday = useCallback(() => {
   const now = new Date();
   const currentHour = now.getHours();
   const currentMinute = now.getMinutes();
+  
 
   const slotIndex = (currentHour - 8) * 2 + Math.floor(currentMinute / 30);
   const scrollLeft = Math.max(0, slotIndex * cellWidth);
 
-  // Store the scroll position and reset user scroll
+  // Store the scroll position and update user scroll
   horizontalScrollRef.current = scrollLeft;
-  userScrollRef.current = 0; // Reset user scroll when using TODAY
+  userScrollRef.current = scrollLeft; // Update user scroll when using TODAY
 
   // Scroll horizontally
   if (scrollAreaViewportRef.current) {
     scrollAreaViewportRef.current.scrollLeft = scrollLeft;
   }
 
-  window.setTimeout(() => setHighlightToday(false), 1500);
+  // Short, crisp blink that completes before data refresh debounce
+  highlightTimerRef.current = window.setTimeout(() => {
+    setHighlightToday(false);
+    highlightTimerRef.current = null;
+  }, 500);
 }, [cellWidth]);
+
+  // Cleanup on unmount to avoid dangling timers
+  useEffect(() => {
+    return () => {
+      if (highlightTimerRef.current !== null) {
+        window.clearTimeout(highlightTimerRef.current);
+        highlightTimerRef.current = null;
+      }
+    };
+  }, []);
 
   // When viewing the current month, scroll to today's row
   useEffect(() => {
@@ -223,10 +244,10 @@ useEffect(() => {
   if (loading || !scrollAreaViewportRef.current) return;
   
   // Restore horizontal scroll position after data loads
-  // Use user's scroll position if they scrolled manually, otherwise use TODAY position
-  const scrollPosition = userScrollRef.current > 0 ? userScrollRef.current : horizontalScrollRef.current;
+  // Always use user's scroll position to preserve where they were
+  const scrollPosition = userScrollRef.current;
   
-  if (scrollPosition > 0) {
+  if (scrollPosition >= 0) {
     scrollAreaViewportRef.current.scrollLeft = scrollPosition;
   }
 }, [loading]);
