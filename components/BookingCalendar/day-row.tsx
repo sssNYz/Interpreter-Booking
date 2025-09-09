@@ -22,6 +22,7 @@ type Props = {
   style: React.CSSProperties;
   cellWidth?: number;
   dayLabelWidth?: number;
+  isHighlighted: boolean;
 };
 
 const DayRow: React.FC<Props> = ({
@@ -35,6 +36,7 @@ const DayRow: React.FC<Props> = ({
   style,
   cellWidth = 120,
   dayLabelWidth = 120,
+  isHighlighted = false,
 }) => {
   const isWeekendDay = ["Sat", "Sun"].includes(day.dayName);
   const isPastDay = day.isPast;
@@ -64,8 +66,8 @@ const DayRow: React.FC<Props> = ({
       }}
     >
       {/* ✅ คอลัมน์ซ้าย: ป้ายวัน (ต้องมีเสมอ) */}
-      <div className="sticky left-0 z-20 bg-secondary border-r border-b border-border text-center text-xs flex
-  flex-col justify-center text-secondary-foreground">
+      <div className={`sticky left-0 z-20 bg-secondary border-r border-b border-border text-center text-xs flex
+  flex-col justify-center text-secondary-foreground ${isHighlighted ? "ring-2 ring-primary bg-primary/10" : ""}`}>
         <span className="font-semibold">{day.dayName}</span>
         <span>{day.date}</span>
       </div>
@@ -220,6 +222,9 @@ const DayRow: React.FC<Props> = ({
           );
         })}
       </div>
+      {isHighlighted && (
+        <div className="absolute inset-0 bg-primary/10 pointer-events-none z-10" />
+      )}
     </div>
   );
 };
