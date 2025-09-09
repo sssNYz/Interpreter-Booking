@@ -5,13 +5,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { Users, Clock, BarChart2, RefreshCw } from "lucide-react";
+import { Users, Clock, BarChart2, RefreshCw, ChevronDown } from "lucide-react";
 
-import { JobsTab } from "@/components/AdminDashboards/jobs-total";
-import { HoursTab } from "@/components/AdminDashboards/timejobs-total";
-import { DeptTab } from "@/components/AdminDashboards/deptjobs-total";
-import { TypesTab } from "@/components/AdminDashboards/mtgtypejobs-total";
-import { AssignmentLogsTab } from "@/components/AdminDashboards/assignment-logs";
+import { JobsTab } from "@/components/AdminDashboards/TotalMonth/jobs-total";
+import { HoursTab } from "@/components/AdminDashboards/TotalMonth/timejobs-total";
+import { DeptTab } from "@/components/AdminDashboards/TotalMonth/deptjobs-total";
+import { TypesTab } from "@/components/AdminDashboards/TotalMonth/mtgtypejobs-total";
+import { AssignmentLogsTab } from "@/components/AdminDashboards/TotalMonth/assignment-logs";
 
 import { formatMinutes, getCurrentFiscalMonthLabel , years  } from "@/utils/admin-dashboard";
 import type { JobsApiResponse, HoursApiResponse, DepartmentsApiResponse, TypesApiResponse } from "@/types/admin-dashboard";
@@ -44,15 +44,32 @@ const Stat = ({
 /* ---------------- Main component ---------------- */
 export default function Page() {
   const [activeYear, setActiveYear] = useState<number>(years[0]);
-  const [agg, setAgg] = useState<"month" | "year">("month");
+  const [agg, setAgg] = useState<"month" | "totalAll">("month");
+  const [selectedMonth, setSelectedMonth] = useState<string>(getCurrentFiscalMonthLabel());
   const [activeTab, setActiveTab] = useState<string>("jobs");
   const [jobsData, setJobsData] = useState<JobsApiResponse | null>(null);
   const [hoursData, setHoursData] = useState<HoursApiResponse | null>(null);
   const [deptData, setDeptData] = useState<DepartmentsApiResponse | null>(null);
   const [typesData, setTypesData] = useState<TypesApiResponse | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isMonthDropdownOpen, setIsMonthDropdownOpen] = useState(false);
 
-  const currentMonthLabel = getCurrentFiscalMonthLabel();
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = () => {
+      if (isMonthDropdownOpen) {
+        setIsMonthDropdownOpen(false);
+      }
+    };
+
+    if (isMonthDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isMonthDropdownOpen]);
 
   // Fetch data function that can be called manually or on mount
   const fetchDashboardData = useCallback(async (showLoading = false) => {
@@ -120,39 +137,39 @@ export default function Page() {
 
   // KPI - Use API data from existing endpoints
   const kpiJobs =
-    agg === "year"
+    agg === "totalAll"
       ? jobsData?.jobsFooter?.grand || 0
       : (() => {
           if (!jobsData?.months || !jobsData?.totalJobsStack) return 0;
-          const currentMonthIndex = jobsData.months.indexOf(currentMonthLabel);
-          return currentMonthIndex >= 0 ? jobsData.totalJobsStack[currentMonthIndex]?.total || 0 : 0;
+          const monthIndex = jobsData.months.indexOf(selectedMonth);
+          return monthIndex >= 0 ? jobsData.totalJobsStack[monthIndex]?.total || 0 : 0;
         })();
 
   const kpiHours =
-    agg === "year"
+    agg === "totalAll"
       ? hoursData?.hoursFooter?.grand || 0
       : (() => {
           if (!hoursData?.months || !hoursData?.totalHoursLineMinutes) return 0;
-          const currentMonthIndex = hoursData.months.indexOf(currentMonthLabel);
-          return currentMonthIndex >= 0 ? hoursData.totalHoursLineMinutes[currentMonthIndex]?.total || 0 : 0;
+          const monthIndex = hoursData.months.indexOf(selectedMonth);
+          return monthIndex >= 0 ? hoursData.totalHoursLineMinutes[monthIndex]?.total || 0 : 0;
         })();
 
   const kpiDept =
-    agg === "year"
+    agg === "totalAll"
       ? deptData?.deptMGIFooter?.grand || 0
       : (() => {
           if (!deptData?.months || !deptData?.yearData) return 0;
-          const currentMonthIndex = deptData.months.indexOf(currentMonthLabel);
-          if (currentMonthIndex < 0) return 0;
-          const currentMonthData = deptData.yearData[currentMonthIndex];
-          return currentMonthData
-            ? Object.values(currentMonthData.deptMeetings).reduce((sum: number, val: number) => sum + (val || 0), 0)
+          const monthIndex = deptData.months.indexOf(selectedMonth);
+          if (monthIndex < 0) return 0;
+          const monthData = deptData.yearData[monthIndex];
+          return monthData
+            ? Object.values(monthData.deptMeetings).reduce((sum: number, val: number) => sum + (val || 0), 0)
             : 0;
         })();
 
-  // Get current month data for types KPI
+  // Get selected month data for types KPI
   const kpiTypes =
-    agg === "year"
+    agg === "totalAll"
       ? typesData?.typesMGIFooter?.grand || 0
       : (() => {
           if (!typesData?.months || !typesData?.typesMGIFooter) return 0;
@@ -165,6 +182,9 @@ export default function Page() {
       {y}
     </SelectItem>
   ));
+
+  // month options - get from jobsData if available, otherwise use current fiscal months
+  const monthOptions = jobsData?.months || [getCurrentFiscalMonthLabel()];
 
   return (
     <div className={PAGE_WRAPPER}>
@@ -181,7 +201,7 @@ export default function Page() {
                 <p className="text-sm text-gray-500">Monthly jobs, time, departments, and meeting types</p>
               </div>
             </div>
-            {/* Controls (Year + Month/Year) */}
+            {/* Controls (Year + Month/Total All) */}
             <div className="hidden md:flex items-center gap-3">
               <Select value={String(activeYear)} onValueChange={(v) => setActiveYear(Number(v))}>
                 <SelectTrigger className="w-[140px]">
@@ -189,14 +209,74 @@ export default function Page() {
                 </SelectTrigger>
                 <SelectContent>{yearOptions}</SelectContent>
               </Select>
-              <div className="flex gap-1">
-                <Button size="sm" variant={agg === "month" ? "default" : "outline"} onClick={() => setAgg("month")}>
-                  Month
-                </Button>
-                <Button size="sm" variant={agg === "year" ? "default" : "outline"} onClick={() => setAgg("year")}>
-                  Year
-                </Button>
+              
+              {/* Custom Button Group with Smooth Transitions */}
+              <div className="relative flex bg-gray-100 rounded-md p-0.5 h-8 w-56">
+                {/* Highlight Bar */}
+                <div 
+                  className={`absolute inset-y-0 left-0 w-1/2 bg-gray-900 rounded transition-transform duration-300 ease-in-out z-0 pointer-events-none ${
+                    agg === "month" ? "translate-x-0" : "translate-x-full"
+                  }`}
+                />
+                
+                {/* Month Dropdown Button */}
+                <div className="relative basis-1/2 grow-0 shrink-0">
+                  <button 
+                    className={`relative z-10 w-full h-full px-3 text-sm font-medium rounded transition-colors duration-200 flex items-center justify-center whitespace-nowrap overflow-hidden text-ellipsis leading-none focus:outline-none focus-visible:outline-none ${
+                      agg === "month" 
+                        ? "text-white bg-transparent" 
+                        : "text-gray-700 bg-transparent"
+                    }`}
+                    onClick={() => {
+                      setAgg("month");
+                      setIsMonthDropdownOpen(!isMonthDropdownOpen);
+                    }}
+                  >
+                    {agg === "month" ? selectedMonth : "Month"}
+                    <ChevronDown className={`ml-1 h-3 w-3 transition-transform duration-200 ${
+                      isMonthDropdownOpen ? "rotate-180" : ""
+                    }`} />
+                  </button>
+                  
+                  {/* Month Dropdown */}
+                  {isMonthDropdownOpen && (
+                    <div className="absolute top-full left-0 mt-1 w-full bg-white border border-gray-200 rounded-md shadow-lg z-20 animate-in slide-in-from-top-2 fade-in-0 duration-200">
+                      {monthOptions.map((month) => (
+                        <button
+                          key={month}
+                          className={`w-full text-left px-2 py-1.5 text-xs hover:bg-gray-100 first:rounded-t-md last:rounded-b-md transition-colors ${
+                            selectedMonth === month ? "bg-gray-100 font-medium" : ""
+                          }`}
+                          onClick={() => {
+                            setSelectedMonth(month);
+                            setIsMonthDropdownOpen(false);
+                          }}
+                        >
+                          {month}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                
+                {/* Total All Button */}
+                <div className="basis-1/2 grow-0 shrink-0">
+                  <button 
+                    className={`relative z-10 w-full h-full px-3 text-sm font-medium rounded transition-colors duration-200 flex items-center justify-center whitespace-nowrap overflow-hidden text-ellipsis leading-none focus:outline-none focus-visible:outline-none ${
+                      agg === "totalAll" 
+                        ? "text-white bg-transparent" 
+                        : "text-gray-700 bg-transparent"
+                    }`}
+                    onClick={() => {
+                      setAgg("totalAll");
+                      setIsMonthDropdownOpen(false);
+                    }}
+                  >
+                    Total All
+                  </button>
+                </div>
               </div>
+              
               {/*Logs button*/}
               <Button size="sm" variant="secondary" onClick={() => setActiveTab("logs")}>
                 View Logs
@@ -216,13 +296,72 @@ export default function Page() {
             </SelectTrigger>
             <SelectContent>{yearOptions}</SelectContent>
           </Select>
-          <div className="flex gap-1">
-            <Button size="sm" variant={agg === "month" ? "default" : "outline"} onClick={() => setAgg("month")}>
-              Month
-            </Button>
-            <Button size="sm" variant={agg === "year" ? "default" : "outline"} onClick={() => setAgg("year")}>
-              Year
-            </Button>
+          
+          {/* Mobile Button Group */}
+          <div className="relative flex bg-gray-100 rounded-md p-0.5 gap-0.5 h-6 w-48">
+            {/* Highlight Bar */}
+            <div 
+              className={`absolute top-0.5 bottom-0.5 bg-gray-900 rounded transition-all duration-300 ease-in-out ${
+                agg === "month" ? "left-0.5 right-1/2" : "left-1/2 right-0.5"
+              }`}
+            />
+            
+            {/* Month Dropdown Button */}
+            <div className="relative flex-1">
+              <button 
+                className={`w-full h-full px-1.5 text-xs rounded transition-colors duration-200 flex items-center justify-center whitespace-nowrap leading-none focus:outline-none focus-visible:outline-none ${
+                  agg === "month" 
+                    ? "text-white bg-transparent" 
+                    : "text-gray-700 bg-transparent"
+                }`}
+                onClick={() => {
+                  setAgg("month");
+                  setIsMonthDropdownOpen(!isMonthDropdownOpen);
+                }}
+              >
+                {agg === "month" ? selectedMonth : "Month"}
+                <ChevronDown className={`ml-1 h-2 w-2 transition-transform duration-200 ${
+                  isMonthDropdownOpen ? "rotate-180" : ""
+                }`} />
+              </button>
+              
+              {/* Month Dropdown */}
+              {isMonthDropdownOpen && (
+                <div className="absolute top-full left-0 mt-1 w-full bg-white border border-gray-200 rounded-md shadow-lg z-20 animate-in slide-in-from-top-2 fade-in-0 duration-200">
+                  {monthOptions.map((month) => (
+                    <button
+                      key={month}
+                      className={`w-full text-left px-1.5 py-1 text-xs hover:bg-gray-100 first:rounded-t-md last:rounded-b-md transition-colors ${
+                        selectedMonth === month ? "bg-gray-100 font-medium" : ""
+                      }`}
+                      onClick={() => {
+                        setSelectedMonth(month);
+                        setIsMonthDropdownOpen(false);
+                      }}
+                    >
+                      {month}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            
+            {/* Total All Button */}
+            <div className="flex-1">
+              <button 
+                className={`w-full h-full px-1.5 text-xs rounded transition-colors duration-200 flex items-center justify-center whitespace-nowrap leading-none focus:outline-none focus-visible:outline-none ${
+                  agg === "totalAll" 
+                    ? "text-white bg-transparent" 
+                    : "text-gray-700 bg-transparent"
+                }`}
+                onClick={() => {
+                  setAgg("totalAll");
+                  setIsMonthDropdownOpen(false);
+                }}
+              >
+                Total All
+              </button>
+            </div>
           </div>
         </div>
 
@@ -231,7 +370,7 @@ export default function Page() {
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-base">
-                Total Jobs ({agg === "year" ? `Year ${activeYear}` : `Month ${currentMonthLabel}`})
+                Total Jobs ({agg === "totalAll" ? `Year ${activeYear}` : `Month ${selectedMonth}`})
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -241,7 +380,7 @@ export default function Page() {
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-base">
-                Total Time ({agg === "year" ? `Year ${activeYear}` : `Month ${currentMonthLabel}`})
+                Total Time ({agg === "totalAll" ? `Year ${activeYear}` : `Month ${selectedMonth}`})
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -250,7 +389,7 @@ export default function Page() {
           </Card>
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-base">Meetings by Dept ({agg === "year" ? "Year" : "Month"})</CardTitle>
+              <CardTitle className="text-base">Meetings by Dept ({agg === "totalAll" ? "Year" : "Month"})</CardTitle>
             </CardHeader>
             <CardContent>
               <Stat icon={Users} label="Meetings by Dept" value={kpiDept} />
@@ -258,7 +397,7 @@ export default function Page() {
           </Card>
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-base">Meeting Types ({agg === "year" ? "Year" : "Month"})</CardTitle>
+              <CardTitle className="text-base">Meeting Types ({agg === "totalAll" ? "Year" : "Month"})</CardTitle>
             </CardHeader>
             <CardContent>
               <Stat icon={BarChart2} label="Meeting Types" value={kpiTypes} />
