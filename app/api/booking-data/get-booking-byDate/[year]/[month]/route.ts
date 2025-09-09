@@ -24,6 +24,11 @@ export async function GET(
     });
   }
 
+  // Keep API session in UTC so Prisma Dates are true UTC
+  try {
+    await prisma.$executeRaw`SET time_zone = '+00:00'`;
+  } catch {}
+
   // Use UTC month boundaries to match UTC storage
   const startDate = new Date(Date.UTC(yearNum, monthNum - 1, 1, 0, 0, 0));
   const endDate = new Date(Date.UTC(yearNum, monthNum, 0, 23, 59, 59));

@@ -34,6 +34,11 @@ export async function GET(
       : {}),
   };
 
+  // Keep Prisma session in UTC to ensure TIMESTAMPs map to proper UTC instants
+  try {
+    await prisma.$executeRaw`SET time_zone = '+00:00'`;
+  } catch {}
+
   const [total, rows] = await Promise.all([
     prisma.bookingPlan.count({ where }),
     prisma.bookingPlan.findMany({
@@ -53,10 +58,7 @@ export async function GET(
     } as Parameters<typeof prisma.bookingPlan.findMany>[0]),
   ]);
 
-  const toIso = (d: Date) => d.toISOString();
-  const extractYMD = (iso: string) => iso.split("T")[0];
-  const extractHMS = (iso: string) => iso.split("T")[1].slice(0, 8);
-  const formatDateTime = (d: Date): string => `${extractYMD(toIso(d))} ${extractHMS(toIso(d))}`;
+  
 
   const asOwnerGroup = (v: unknown): OwnerGroupUI => {
     const s = String(v || "").toLowerCase();
@@ -89,14 +91,14 @@ export async function GET(
     ownerGroup: asOwnerGroup(b.ownerGroup),
     meetingRoom: b.meetingRoom,
     meetingDetail: b.meetingDetail ?? "",
-    timeStart: formatDateTime(b.timeStart),
-    timeEnd: formatDateTime(b.timeEnd),
+    timeStart: b.timeStart.toISOString(),
+    timeEnd: b.timeEnd.toISOString(),
     interpreterId: b.interpreterEmployee?.empCode ?? null,
     interpreterName: b.interpreterEmployee ? `${b.interpreterEmployee.firstNameEn ?? ""} ${b.interpreterEmployee.lastNameEn ?? ""}`.trim() : "",
     inviteEmails: (b.inviteEmails || []).map((ie) => ie.email),
     bookingStatus: b.bookingStatus,
-    createdAt: formatDateTime(b.createdAt),
-    updatedAt: formatDateTime(b.updatedAt),
+    createdAt: b.createdAt.toISOString(),
+    updatedAt: b.updatedAt.toISOString(),
   }));
 
   const responseBody: BookingApiResponse = { items, total, page, pageSize };

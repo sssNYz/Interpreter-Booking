@@ -75,7 +75,15 @@ export const isValidYmdHms = (s: string): boolean => {
 
 // Small shared helpers for string-based formatting
 export const extractHHMM = (dateTimeStr: string): string => {
-  const t = dateTimeStr.includes("T") ? dateTimeStr.split("T")[1] : dateTimeStr.split(" ")[1] || "";
+  // If ISO string is provided, format using local timezone
+  if (typeof dateTimeStr === "string" && dateTimeStr.includes("T")) {
+    const d = new Date(dateTimeStr);
+    const hh = String(d.getHours()).padStart(2, "0");
+    const mm = String(d.getMinutes()).padStart(2, "0");
+    return `${hh}:${mm}`;
+  }
+  // Fallback for legacy 'YYYY-MM-DD HH:mm:ss'
+  const t = dateTimeStr.split(" ")[1] || "";
   return t.slice(0, 5);
 };
 

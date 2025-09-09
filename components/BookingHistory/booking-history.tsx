@@ -21,11 +21,20 @@ type StatusFilter = "all" | "approve" | "waiting" | "cancel";
 // monthSpan no longer needed
 
 function formatDateDDMMMYYYY(dateStr: string) {
-  // dateStr can be 'YYYY-MM-DD HH:mm:ss' or ISO
-  const date = (dateStr.includes('T') ? dateStr.split('T')[0] : dateStr.split(' ')[0]);
-  const [y, m, d] = date.split('-').map(Number);
-  const months = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
-  return `${String(d).padStart(2, '0')} ${months[m - 1]} ${y}`;
+  // Accepts ISO8601 or 'YYYY-MM-DD HH:mm:ss'. Use local timezone for display.
+  const months = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"] as const;
+  let d: Date;
+  if (typeof dateStr === 'string' && dateStr.includes('T')) {
+    d = new Date(dateStr);
+  } else {
+    const [ymd] = dateStr.split(' ');
+    const [y, m, dd] = (ymd || '').split('-').map(Number);
+    d = new Date(y || 0, (m || 1) - 1, dd || 1);
+  }
+  const day = String(d.getDate()).padStart(2, '0');
+  const mon = months[d.getMonth()] || "";
+  const year = d.getFullYear();
+  return `${day} ${mon} ${year}`;
 }
 
 function extractHHMM(dateTimeStr: string) {
