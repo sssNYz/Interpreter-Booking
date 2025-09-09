@@ -1,33 +1,92 @@
 "use client"
 
-import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { BarChart2, Calendar, Home, Inbox, Settings, LayoutDashboard, Star, LogOut, Cog } from "lucide-react"
-
+import { usePathname, useRouter } from "next/navigation"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { motion } from "framer-motion"
 import {
-  NavigationMenu,
-  NavigationMenuContent,
-  NavigationMenuItem,
-  NavigationMenuLink,
-  NavigationMenuList,
-  NavigationMenuTrigger,
-  navigationMenuTriggerStyle,
-} from "@/components/ui/navigation-menu"
+  Calendar,
+  CheckCircle,
+  LayoutDashboard,
+  LogOut,
+  BarChart2,
+  Inbox,
+  Calendar as CalendarIcon,
+  Settings,
+  Cog,
+  Star,
+} from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { cn } from "@/lib/utils"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
 // Admin submenu items
 const adminItems = [
   { title: "Overview", url: "/AdminPage/overview-workload-page", icon: BarChart2 },
   { title: "Bookings management", url: "/AdminPage/booking-manage-page", icon: Inbox },
-  { title: "Interpreters management", url: "#", icon: Calendar },
+  { title: "Interpreters management", url: "#", icon: CalendarIcon },
   { title: "User management", url: "/AdminPage/user-manage-page", icon: Settings },
   { title: "Auto-Assignment Config", url: "/AdminPage/auto-assign-config", icon: Cog },
 ]
 
+// A clean segmented-control style navbar that:
+// - Animates the active highlight to the exact width of the active button
+// - Works with the Admin dropdown (no clipping, no z-index issues)
+// - Uses portal-based DropdownMenu so the menu renders above the pill
 export function AppNavbar() {
   const router = useRouter()
+  const pathname = usePathname()
+
+  type Key = "calendar" | "mybookings" | "admin"
+  const [active, setActive] = useState<Key>("calendar")
+
+  // Refs to measure each button
+  const containerRef = useRef<HTMLDivElement | null>(null)
+  const btnRefs = useRef<Record<Key, HTMLButtonElement | null>>({
+    calendar: null,
+    mybookings: null,
+    admin: null,
+  })
+
+  const [pill, setPill] = useState({ left: 0, width: 0, ready: false })
+
+  // Update active based on the URL
+  useEffect(() => {
+    if (!pathname) return
+    if (pathname === "/" || pathname.startsWith("/BookingPage")) setActive("calendar")
+    else if (pathname.startsWith("/MyBookings")) setActive("mybookings")
+    else if (pathname.startsWith("/AdminPage")) setActive("admin")
+  }, [pathname])
+
+  // Compute the pill position/size to match the active button
+  const updatePill = () => {
+    const c = containerRef.current
+    const el = btnRefs.current[active]
+    if (!c || !el) return
+    const cRect = c.getBoundingClientRect()
+    const bRect = el.getBoundingClientRect()
+    setPill({ left: bRect.left - cRect.left, width: bRect.width, ready: true })
+  }
+
+  useEffect(() => {
+    updatePill()
+    // Reposition on resize
+    const ro = new ResizeObserver(() => updatePill())
+    if (containerRef.current) ro.observe(containerRef.current)
+    const handle = () => updatePill()
+    window.addEventListener("resize", handle)
+    return () => {
+      ro.disconnect()
+      window.removeEventListener("resize", handle)
+    }
+  }, [active])
 
   const handleLogout = async () => {
     try {
@@ -39,76 +98,91 @@ export function AppNavbar() {
     router.push("/login")
   }
 
+  const itemClass = (isActive: boolean) =>
+    `relative z-10 h-8 px-4 rounded-full text-sm font-medium transition-colors flex items-center gap-2 whitespace-nowrap ` +
+    (isActive ? "text-primary-foreground" : "text-muted-foreground hover:text-foreground")
+
   return (
     <nav className="sticky top-0 z-[70] border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 shadow-sm">
       <div className="container mx-auto px-4">
         <div className="flex h-16 items-center justify-between">
-          {/* Logo/Brand */}
+          {/* Logo */}
           <div className="flex items-center gap-2">
             <LayoutDashboard className="h-6 w-6" />
             <span className="text-lg font-semibold">Interpreter Booking</span>
           </div>
 
-          {/* Navigation Menu */}
-          <NavigationMenu viewport={false}>
-            <NavigationMenuList className="flex items-center gap-1">
-              {/* Home */}
-              <NavigationMenuItem>
-                <Link href="/" legacyBehavior passHref>
-                  <NavigationMenuLink className={cn(navigationMenuTriggerStyle(), "flex items-center")}>
-                    <Home className="h-4 w-4 mr-2" />
-                    Home
-                  </NavigationMenuLink>
-                </Link>
-              </NavigationMenuItem>
+          {/* Segmented nav */}
+          <div className="flex items-center gap-2">
+            <div
+              ref={containerRef}
+              className="relative flex items-center gap-1 bg-muted rounded-full p-1 h-10 overflow-hidden"
+            >
+              {/* Animated highlight */}
+              {pill.ready && (
+                <motion.div
+                   className="absolute top-1 bottom-1 rounded-full bg-neutral-700 z-0"
+                  animate={{ left: pill.left, width: pill.width }}
+                  transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                />
+              )}
 
-              {/* Booking */}
-              <NavigationMenuItem>
-                <Link href="/BookingPage" legacyBehavior passHref>
-                  <NavigationMenuLink className={cn(navigationMenuTriggerStyle(), "flex items-center")}>
-                    <Inbox className="h-4 w-4 mr-2" />
-                    Booking
-                  </NavigationMenuLink>
-                </Link>
-              </NavigationMenuItem>
-
-              {/* Admin Dropdown */}
-              <NavigationMenuItem>
-                <NavigationMenuTrigger className="flex items-center">
-                  <Star className="h-4 w-4 mr-2" />
-                  Admin
-                </NavigationMenuTrigger>
-                <NavigationMenuContent>
-                  <ul className="grid min-w-[260px] w-[300px] md:w-[360px] gap-2 p-2">
-                    {adminItems.map((item) => (
-                      <li key={item.title}>
-                        <NavigationMenuLink asChild>
-                          <Link href={item.url} className="flex items-center gap-2">
-                            <item.icon className="h-4 w-4" />
-                            <span className="text-sm font-medium leading-none">
-                              {item.title}
-                            </span>
-                          </Link>
-                        </NavigationMenuLink>
-                      </li>
-                    ))}
-                  </ul>
-                </NavigationMenuContent>
-              </NavigationMenuItem>
-
-              {/* Logout */}
-              <NavigationMenuItem>
-                <Button
-                  variant="ghost"
-                  onClick={handleLogout}
-                  className={cn(navigationMenuTriggerStyle(), "h-9 flex items-center")}
+              {/* Calendar */}
+              <Link href="/BookingPage" className="contents">
+                <button
+                  ref={(el) => { btnRefs.current.calendar = el }}
+                  className={itemClass(active === "calendar")}
+                  onClick={() => setActive("calendar")}
                 >
-                  <LogOut className="h-4 w-4 mr-2" />
-                  Logout
-                </Button>
-              </NavigationMenuItem>
-            </NavigationMenuList>
-          </NavigationMenu>
+                  <Calendar className="h-4 w-4" />
+                  <span>Calendar</span>
+                </button>
+              </Link>
+
+              {/* My Bookings */}
+              <Link href="/MyBookings" className="contents">
+                <button
+                  ref={(el) => { btnRefs.current.mybookings = el }}
+                  className={itemClass(active === "mybookings")}
+                  onClick={() => setActive("mybookings")}
+                >
+                  <CheckCircle className="h-4 w-4" />
+                  <span>My Bookings</span>
+                </button>
+              </Link>
+
+              {/* Admin dropdown (portal so it won't get clipped by the pill container) */}
+              <DropdownMenu onOpenChange={(open) => open && setActive("admin")}> 
+                <DropdownMenuTrigger asChild>
+                  <button
+                    ref={(el) => { btnRefs.current.admin = el }}
+                    className={itemClass(active === "admin")}
+                  >
+                    <Star className="h-4 w-4" />
+                    <span>Admin</span>
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-72">
+                  <DropdownMenuLabel>Admin</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {adminItems.map((item) => (
+                    <DropdownMenuItem key={item.title} asChild>
+                      <Link href={item.url} className="flex items-center gap-2 py-2">
+                        <item.icon className="h-4 w-4" />
+                        <span>{item.title}</span>
+                      </Link>
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+
+            {/* Logout */}
+            <Button variant="ghost" onClick={handleLogout} className="h-9 flex items-center px-3">
+              <LogOut className="h-4 w-4 mr-2" />
+              Logout
+            </Button>
+          </div>
         </div>
       </div>
     </nav>
