@@ -111,12 +111,13 @@ function getMTValue(
 interface TypesTabProps {
   year: number;
   data?: TypesApiResponse | null;
+  selectedMonth?: string;
 }
 
-export function TypesTab({ year, data: externalData }: TypesTabProps) {
+export function TypesTab({ year, data: externalData, selectedMonth: propSelectedMonth }: TypesTabProps) {
   // ---- hooks ----
   const [data, setData] = React.useState<TypesApiResponse | null>(null);
-  const [selectedMonth, setSelectedMonth] = React.useState<MonthName | "">("");
+  const [selectedMonth, setSelectedMonth] = React.useState<MonthName | "">(propSelectedMonth || "");
   const [showAllMonths, setShowAllMonths] = React.useState<boolean>(false);
 
   // Use external data if provided, otherwise fetch internally
