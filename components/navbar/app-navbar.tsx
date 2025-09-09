@@ -103,7 +103,7 @@ export function AppNavbar() {
     (isActive ? "text-primary-foreground" : "text-muted-foreground hover:text-foreground")
 
   return (
-    <nav className="sticky top-0 z-[70] border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 shadow-sm">
+    <nav className="sticky top-0 z-[50] border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 shadow-sm">
       <div className="container mx-auto px-4">
         <div className="flex h-16 items-center justify-between">
           {/* Logo */}
