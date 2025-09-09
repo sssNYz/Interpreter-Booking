@@ -7,11 +7,11 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@
 import { Button } from "@/components/ui/button";
 import { Users, Clock, BarChart2, RefreshCw, ChevronDown } from "lucide-react";
 
-import { JobsTab } from "@/components/AdminDashboards/TotalMonth/jobs-total";
-import { HoursTab } from "@/components/AdminDashboards/TotalMonth/timejobs-total";
-import { DeptTab } from "@/components/AdminDashboards/TotalMonth/deptjobs-total";
-import { TypesTab } from "@/components/AdminDashboards/TotalMonth/mtgtypejobs-total";
-import { AssignmentLogsTab } from "@/components/AdminDashboards/TotalMonth/assignment-logs";
+import { JobsTab } from "@/components/AdminDashboards/TotalMonth/jobs-total-month";
+import { HoursTab } from "@/components/AdminDashboards/TotalMonth/timejobs-total-month";
+import { DeptTab } from "@/components/AdminDashboards/TotalMonth/deptjobs-total-month";
+import { TypesTab } from "@/components/AdminDashboards/TotalMonth/mtgtypejobs-total-month";
+import { AssignmentLogsTab } from "@/components/AdminDashboards/assignment-logs";
 
 import { formatMinutes, getCurrentFiscalMonthLabel , years  } from "@/utils/admin-dashboard";
 import type { JobsApiResponse, HoursApiResponse, DepartmentsApiResponse, TypesApiResponse } from "@/types/admin-dashboard";
@@ -459,10 +459,10 @@ export default function Page() {
           </div>
 
           <TabsContent value="jobs">
-            <JobsTab year={activeYear} data={jobsData} />
+            <JobsTab year={activeYear} data={jobsData} selectedMonth={selectedMonth} />
           </TabsContent>
           <TabsContent value="hours">
-            <HoursTab year={activeYear} data={hoursData} />
+            <HoursTab year={activeYear} data={hoursData} selectedMonth={selectedMonth} />
           </TabsContent>
           <TabsContent value="dept">
             <DeptTab year={activeYear} data={deptData} />
