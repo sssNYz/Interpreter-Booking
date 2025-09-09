@@ -5,9 +5,7 @@
 
   export const dynamic = "force-dynamic";
 
-  // Pure string extraction using ISO; avoid timezone math entirely
-  const extractYMD = (iso: string) => iso.split("T")[0];
-  const extractHHMM = (iso: string) => iso.split("T")[1].slice(0, 5);
+  // Return ISO8601 timestamps consistently; UI derives local display
 
   // 'approve'|'cancel'|'waiting'|'complet' -> 'Approve'|'Cancel'|'Wait'|'Complete'
   const mapStatus = (
@@ -20,6 +18,9 @@
   };
 
   export async function GET() {
+    // Ensure Prisma session works in UTC
+    try { await prisma.$executeRaw`SET time_zone = '+00:00'`; } catch {}
+
     const rows = await prisma.bookingPlan.findMany({
       orderBy: { timeStart: "asc" },
       include: {
@@ -35,22 +36,18 @@
         : "";
 
       return {
-        id: b.bookingId,                          // number
-        dateTime: extractYMD(b.timeStart.toISOString()),           // "YYYY-MM-DD"
-        interpreter,                              // ชื่อ-นามสกุลล่าม
-        room: b.meetingRoom,                      // string
-
-        group: b.ownerGroup,                      // NEW: 'iot' | 'hardware' | 'software' | 'other'
-        meetingDetail: b.meetingDetail ?? "",     // NEW: string (รายละเอียดเต็ม)
-
-        // คงไว้เพื่อ compatibility กับโค้ดเดิม
+        id: b.bookingId,
+        interpreter,
+        room: b.meetingRoom,
+        group: b.ownerGroup,
+        meetingDetail: b.meetingDetail ?? "",
+        // legacy compatibility
         topic: b.meetingDetail ?? "",
-
-        bookedBy,                                 // ชื่อผู้จอง
-        status: mapStatus(b.bookingStatus),       // 'Approve' | 'Wait' | 'Cancel'
-        startTime: extractHHMM(b.timeStart.toISOString()),          // "HH:mm"
-        endTime: extractHHMM(b.timeEnd.toISOString()),              // "HH:mm"
-        requestedTime: `${extractYMD(b.createdAt.toISOString())} ${extractHHMM(b.createdAt.toISOString())}:00`,
+        bookedBy,
+        status: mapStatus(b.bookingStatus),
+        timeStart: b.timeStart.toISOString(),
+        timeEnd: b.timeEnd.toISOString(),
+        createdAt: b.createdAt.toISOString(),
       };
     });
 

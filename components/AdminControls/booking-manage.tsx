@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 
 import type { BookingManage as BookingMange, Stats } from "@/types/admin";
+import { extractHHMM } from "@/utils/time";
 import type { StatusOption } from "@/types/admin";
 import { generateStandardTimeSlots } from "@/utils/time";
 
@@ -49,6 +50,15 @@ const formatRequestedTime = (s: string) => {
   const hh = `${d.getHours()}`.padStart(2, "0");
   const mm = `${d.getMinutes()}`.padStart(2, "0");
   return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()} ${hh}:${mm}`;
+};
+
+// Helpers to normalize API ISO timestamps to local display strings
+const ymdLocal = (iso: string) => {
+  const d = new Date(iso);
+  const y = d.getFullYear();
+  const m = `${d.getMonth() + 1}`.padStart(2, "0");
+  const day = `${d.getDate()}`.padStart(2, "0");
+  return `${y}-${m}-${day}`;
 };
 
 const getFullDate = (s: string, isClient: boolean) => {
@@ -119,7 +129,22 @@ export default function BookingManagement(): React.JSX.Element {
       setError(null);
       const res = await fetch("/api/booking-data/get-booking", { cache: "no-store" });
       if (!res.ok) throw new Error(`Failed to load bookings (${res.status})`);
-      const data = (await res.json()) as BookingMange[];
+      const raw = (await res.json()) as Array<any>;
+      // Normalize ISO fields from API into UI-friendly strings
+      const data: BookingMange[] = raw.map((b) => ({
+        id: b.id,
+        dateTime: ymdLocal(b.timeStart),
+        interpreter: b.interpreter || "",
+        room: b.room,
+        group: b.group,
+        meetingDetail: b.meetingDetail || "",
+        topic: b.topic || "",
+        bookedBy: b.bookedBy || "",
+        status: b.status,
+        startTime: extractHHMM(b.timeStart),
+        endTime: extractHHMM(b.timeEnd),
+        requestedTime: b.createdAt, // ISO; formatter will localize
+      }));
       setBookings(data);
     } catch (e) {
       setError((e as Error).message);

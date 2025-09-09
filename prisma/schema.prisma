@@ -15,8 +15,8 @@ model BookingPlan {
   meetingType              MeetingType       @map("MEETING_TYPE")
   meetingDetail            String?           @map("MEETING_DETAIL") @db.Text
   applicableModel          String?           @map("APPLICABLE_MODEL") @db.VarChar(255)
-  timeStart                DateTime          @map("TIME_START") @db.DateTime(0)
-  timeEnd                  DateTime          @map("TIME_END") @db.DateTime(0)
+  timeStart                DateTime          @map("TIME_START") @db.Timestamp(0)
+  timeEnd                  DateTime          @map("TIME_END") @db.Timestamp(0)
   interpreterEmpCode       String?           @map("INTERPRETER_EMP_CODE") @db.VarChar(64)
   bookingStatus            BookingStatus     @default(waiting) @map("BOOKING_STATUS")
   createdAt                DateTime          @default(now()) @map("created_at") @db.Timestamp(0)
