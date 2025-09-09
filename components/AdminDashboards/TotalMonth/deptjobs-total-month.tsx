@@ -45,11 +45,12 @@ type SingleMonthDeptBar = CategoryChartRow & Record<InterpreterName, number>;
 interface DeptTabProps {
   year: number;
   data?: DepartmentsApiResponse | null;
+  selectedMonth?: string;
 }
 
-export function DeptTab({ year, data: externalData }: DeptTabProps) {
+export function DeptTab({ year, data: externalData, selectedMonth: propSelectedMonth }: DeptTabProps) {
   const [data, setData] = React.useState<DepartmentsApiResponse | null>(null);
-  const [selectedMonth, setSelectedMonth] = React.useState<MonthName | "">("");
+  const [selectedMonth, setSelectedMonth] = React.useState<MonthName | "">(propSelectedMonth || "");
   const [showAllMonths, setShowAllMonths] = React.useState<boolean>(false);
 
   // Use external data if provided, otherwise fetch internally

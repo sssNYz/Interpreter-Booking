@@ -7,10 +7,15 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@
 import { Button } from "@/components/ui/button";
 import { Users, Clock, BarChart2, RefreshCw, ChevronDown } from "lucide-react";
 
-import { JobsTab } from "@/components/AdminDashboards/TotalMonth/jobs-total-month";
-import { HoursTab } from "@/components/AdminDashboards/TotalMonth/timejobs-total-month";
-import { DeptTab } from "@/components/AdminDashboards/TotalMonth/deptjobs-total-month";
-import { TypesTab } from "@/components/AdminDashboards/TotalMonth/mtgtypejobs-total-month";
+import { JobsTab as JobsTabMonth } from "@/components/AdminDashboards/TotalMonth/jobs-total-month";
+import { HoursTab as HoursTabMonth } from "@/components/AdminDashboards/TotalMonth/timejobs-total-month";
+import { DeptTab as DeptTabMonth } from "@/components/AdminDashboards/TotalMonth/deptjobs-total-month";
+import { TypesTab as TypesTabMonth } from "@/components/AdminDashboards/TotalMonth/mtgtypejobs-total-month";
+
+import { JobsTab as JobsTabAll } from "@/components/AdminDashboards/TotalAll/jobs-total-all";
+import { HoursTab as HoursTabAll } from "@/components/AdminDashboards/TotalAll/timejobs-total-all";
+import { DeptTab as DeptTabAll } from "@/components/AdminDashboards/TotalAll/deptjobs-total-all";
+import { TypesTab as TypesTabAll } from "@/components/AdminDashboards/TotalAll/mtgtypejobs-total-all";
 import { AssignmentLogsTab } from "@/components/AdminDashboards/assignment-logs";
 
 import { formatMinutes, getCurrentFiscalMonthLabel , years  } from "@/utils/admin-dashboard";
@@ -459,16 +464,32 @@ export default function Page() {
           </div>
 
           <TabsContent value="jobs">
-            <JobsTab year={activeYear} data={jobsData} selectedMonth={selectedMonth} />
+            {agg === "totalAll" ? (
+              <JobsTabAll year={activeYear} data={jobsData} />
+            ) : (
+              <JobsTabMonth year={activeYear} data={jobsData} selectedMonth={selectedMonth} />
+            )}
           </TabsContent>
           <TabsContent value="hours">
-            <HoursTab year={activeYear} data={hoursData} selectedMonth={selectedMonth} />
+            {agg === "totalAll" ? (
+              <HoursTabAll year={activeYear} data={hoursData} />
+            ) : (
+              <HoursTabMonth year={activeYear} data={hoursData} selectedMonth={selectedMonth} />
+            )}
           </TabsContent>
           <TabsContent value="dept">
-            <DeptTab year={activeYear} data={deptData} />
+            {agg === "totalAll" ? (
+              <DeptTabAll year={activeYear} data={deptData} />
+            ) : (
+              <DeptTabMonth year={activeYear} data={deptData} selectedMonth={selectedMonth} />
+            )}
           </TabsContent>
           <TabsContent value="types">
-            <TypesTab year={activeYear} data={typesData} />
+            {agg === "totalAll" ? (
+              <TypesTabAll year={activeYear} data={typesData} />
+            ) : (
+              <TypesTabMonth year={activeYear} data={typesData} selectedMonth={selectedMonth} />
+            )}
           </TabsContent>
           <TabsContent value="logs">
             <AssignmentLogsTab />
