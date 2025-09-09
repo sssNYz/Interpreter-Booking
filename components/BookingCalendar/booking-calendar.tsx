@@ -1,9 +1,22 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { Calendar, ChevronLeft, ChevronRight, Clock, RefreshCw, Disc } from "lucide-react";
+import {
+  Calendar,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  RefreshCw,
+  Disc,
+} from "lucide-react";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { BookingForm } from "@/components/BookingForm/booking-form";
 
@@ -12,7 +25,12 @@ import DayRow from "./day-row";
 import { generateTimeSlots, getDaysInMonth } from "@/utils/calendar";
 import { useBookings } from "@/hooks/use-booking";
 import { useSlotDataForBars } from "@/hooks/use-bar-slot-data";
-import { ROW_HEIGHT, BAR_HEIGHT, LANE_TOP_OFFSET, BAR_STACK_GAP } from "@/utils/constants";
+import {
+  ROW_HEIGHT,
+  BAR_HEIGHT,
+  LANE_TOP_OFFSET,
+  BAR_STACK_GAP,
+} from "@/utils/constants";
 import { getStatusStyle } from "@/utils/status";
 import type { DayInfo } from "@/types/booking";
 import { Button } from "@/components/ui/button";
@@ -26,10 +44,8 @@ const BookingCalendar: React.FC = () => {
   // Debounced date for fetching to avoid multiple API calls during rapid navigation
   const [debouncedDate, setDebouncedDate] = useState(currentDate);
 
-  
   // Controls whether the booking form modal is open
   const [isFormOpen, setIsFormOpen] = useState(false);
-  
 
   // Stores which time slot was clicked (day + time) to pass to booking form
   const [selectedSlot, setSelectedSlot] = useState<
@@ -46,7 +62,6 @@ const BookingCalendar: React.FC = () => {
 
   // Generate time slots for the day (e.g., ["08:00", "08:30", "09:00", ...])
   const timeSlots = useMemo(() => generateTimeSlots(), []);
-  
 
   // Get all days in the current month with their date info
   const daysInMonth: DayInfo[] = useMemo(
@@ -154,7 +169,9 @@ const BookingCalendar: React.FC = () => {
     const shouldForce = forceScrollToTodayRef.current;
     const notYetScrolledThisMonth = autoScrolledMonthRef.current !== monthKey;
     if (shouldForce || notYetScrolledThisMonth) {
-      rowVirtualizer.scrollToIndex(Math.max(0, today.getDate() - 1), { align: "center" });
+      rowVirtualizer.scrollToIndex(Math.max(0, today.getDate() - 1), {
+        align: "center",
+      });
       autoScrolledMonthRef.current = monthKey;
       forceScrollToTodayRef.current = false;
     }
@@ -172,7 +189,9 @@ const BookingCalendar: React.FC = () => {
     const shouldForce = forceScrollToTodayRef.current;
     const notYetScrolledThisMonth = autoScrolledMonthRef.current !== monthKey;
     if (shouldForce || notYetScrolledThisMonth) {
-      rowVirtualizer.scrollToIndex(Math.max(0, today.getDate() - 1), { align: "center" });
+      rowVirtualizer.scrollToIndex(Math.max(0, today.getDate() - 1), {
+        align: "center",
+      });
       autoScrolledMonthRef.current = monthKey;
       forceScrollToTodayRef.current = false;
     }
@@ -231,7 +250,8 @@ const BookingCalendar: React.FC = () => {
       refetch();
     };
     window.addEventListener("booking:updated", onUpdated as EventListener);
-    return () => window.removeEventListener("booking:updated", onUpdated as EventListener);
+    return () =>
+      window.removeEventListener("booking:updated", onUpdated as EventListener);
   }, [refetch]);
 
   return (
@@ -241,9 +261,11 @@ const BookingCalendar: React.FC = () => {
         {/* Left side: Title with calendar icon */}
         <div className="flex items-center gap-2 justify-center min-w-[280px] sm:min-w-[370px] rounded-t-4xl bg-neutral-700 px-4 py-2">
           <Calendar className="w-6 h-6 sm:w-8 sm:h-8 text-primary-foreground" />
-          <h1 className="text-[16px] sm:text-[20px] font-medium text-primary-foreground">Book Appointment</h1>
+          <h1 className="text-[16px] sm:text-[20px] font-medium text-primary-foreground">
+            Book Appointment
+          </h1>
         </div>
-        
+
         {/* Right side: Month navigation buttons */}
         <div className="flex items-center justify-center max-w-[280px]">
           <div className="flex items-center gap-2">
@@ -269,13 +291,11 @@ const BookingCalendar: React.FC = () => {
         </div>
       </div>
 
-
       {/* Main calendar grid */}
       <div className="border border-border rounded-3xl overflow-hidden bg-background">
         {/* KEEPING ScrollArea + virtualizer viewport TOGETHER */}
         {loading ? (
           <div className="h-[clamp(600px,calc(100dvh-300px),78vh)] overflow-x-auto overflow-y-auto">
-
             {/* Header skeleton (time labels row) */}
             <div
               className="sticky top-0 z-30 bg-secondary border-b border-border min-w-[800px]"
@@ -328,7 +348,10 @@ const BookingCalendar: React.FC = () => {
             ))}
           </div>
         ) : (
-          <ScrollArea className="h-[clamp(500px,calc(100dvh-360px),550px)]" viewportRef={scrollAreaViewportRef}>
+          <ScrollArea
+            className="h-[clamp(500px,calc(100dvh-360px),550px)]"
+            viewportRef={scrollAreaViewportRef}
+          >
             {/* Fixed header row with time labels */}
             <div
               className="sticky top-0 z-30 bg-secondary border-b border-border min-w-[800px]"
@@ -356,7 +379,6 @@ const BookingCalendar: React.FC = () => {
 
             {/* Virtualized day rows - only renders visible rows for performance */}
             <div
-              ref={scrollAreaViewportRef}
               style={{
                 height: `${rowVirtualizer.getTotalSize()}px`,
                 position: "relative",
@@ -370,7 +392,10 @@ const BookingCalendar: React.FC = () => {
                   currentDate={currentDate}
                   timeSlots={timeSlots}
                   bars={barsByDay.get(vr.index) ?? []}
-                  occupancy={occupancyByDay.get(vr.index) ?? Array(timeSlots.length).fill(0)}
+                  occupancy={
+                    occupancyByDay.get(vr.index) ??
+                    Array(timeSlots.length).fill(0)
+                  }
                   isTimeSlotPast={isTimeSlotPast}
                   onSlotClick={handleSlotClick}
                   cellWidth={cellWidth}
@@ -387,11 +412,10 @@ const BookingCalendar: React.FC = () => {
             </div>
 
             {/* Horizontal scrollbar */}
-            <ScrollBar orientation="horizontal" className="z-[10]"/>
+            <ScrollBar orientation="horizontal" className="z-[10]" />
           </ScrollArea>
         )}
       </div>
-
 
       {/* Bottom controls and legend */}
       <div className="flex flex-col sm:flex-row items-center justify-between mt-3 gap-3">
@@ -409,7 +433,11 @@ const BookingCalendar: React.FC = () => {
             className="bg-neutral-700 text-white rounded-full hover:bg-black/90 h-10 w-24 sm:w-28 text-sm sm:text-base"
             disabled={loading}
           >
-            <RefreshCw className={`w-8 h-8 sm:w-10 sm:h-10 ${loading ? "animate-spin" : ""}`} />
+            <RefreshCw
+              className={`w-8 h-8 sm:w-10 sm:h-10 ${
+                loading ? "animate-spin" : ""
+              }`}
+            />
             {loading ? "Refreshing..." : "Refresh"}
           </Button>
           <BookingRules />
@@ -418,16 +446,34 @@ const BookingCalendar: React.FC = () => {
         {/* Right: legend */}
         <div className="bg-neutral-700 flex items-center justify-center gap-3 sm:gap-6 text-sm max-w-[280px] sm:max-w-[320px] min-h-[40px] rounded-br-4xl rounded-bl-4xl px-3 sm:px-4 py-2">
           <div className="flex items-center gap-1 sm:gap-2">
-            <span className={`inline-block h-2.5 w-2.5 rounded-full border border-primary-foreground ${getStatusStyle("approve").bg}`} />
-            <span className="text-primary-foreground text-xs sm:text-sm">Approved</span>
+            <span
+              className={`inline-block h-2.5 w-2.5 rounded-full border border-primary-foreground ${
+                getStatusStyle("approve").bg
+              }`}
+            />
+            <span className="text-primary-foreground text-xs sm:text-sm">
+              Approved
+            </span>
           </div>
           <div className="flex items-center gap-1 sm:gap-2">
-            <span className={`inline-block h-2.5 w-2.5 rounded-full border border-primary-foreground ${getStatusStyle("waiting").bg}`} />
-            <span className="text-primary-foreground text-xs sm:text-sm">Waiting</span>
+            <span
+              className={`inline-block h-2.5 w-2.5 rounded-full border border-primary-foreground ${
+                getStatusStyle("waiting").bg
+              }`}
+            />
+            <span className="text-primary-foreground text-xs sm:text-sm">
+              Waiting
+            </span>
           </div>
           <div className="flex items-center gap-1 sm:gap-2">
-            <span className={`inline-block h-2.5 w-2.5 rounded-full border border-primary-foreground ${getStatusStyle("cancel").bg}`} />
-            <span className="text-primary-foreground text-xs sm:text-sm">Cancelled</span>
+            <span
+              className={`inline-block h-2.5 w-2.5 rounded-full border border-primary-foreground ${
+                getStatusStyle("cancel").bg
+              }`}
+            />
+            <span className="text-primary-foreground text-xs sm:text-sm">
+              Cancelled
+            </span>
           </div>
         </div>
       </div>
@@ -440,15 +486,13 @@ const BookingCalendar: React.FC = () => {
         daysInMonth={daysInMonth}
         dayOccupancy={
           selectedSlot
-            ? occupancyByDay.get(selectedSlot.day - 1) ?? Array(timeSlots.length).fill(0)
+            ? occupancyByDay.get(selectedSlot.day - 1) ??
+              Array(timeSlots.length).fill(0)
             : undefined
         }
       />
-
-      
     </div>
   );
 };
 
 export default BookingCalendar;
-
