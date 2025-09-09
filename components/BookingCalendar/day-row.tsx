@@ -67,7 +67,7 @@ const DayRow: React.FC<Props> = ({
     >
       {/* ✅ คอลัมน์ซ้าย: ป้ายวัน (ต้องมีเสมอ) */}
       <div className={`sticky left-0 z-20 bg-secondary border-r border-b border-border text-center text-xs flex
-  flex-col justify-center text-secondary-foreground ${isHighlighted ? "ring-2 ring-primary bg-primary/10" : ""}`}>
+  flex-col justify-center text-secondary-foreground ${isHighlighted ? "" : ""}`}>
         <span className="font-semibold">{day.dayName}</span>
         <span>{day.date}</span>
       </div>
@@ -223,7 +223,33 @@ const DayRow: React.FC<Props> = ({
         })}
       </div>
       {isHighlighted && (
-        <div className="absolute inset-0 bg-primary/10 pointer-events-none z-10" />
+        <div className="absolute inset-0 pointer-events-none z-10">
+          {/* Neon wave glow background */}
+          <div className="absolute inset-0 rounded-lg neon-glow" />
+          {/* Ripple border glow */}
+          <div className="absolute inset-0 rounded-lg neon-border" />
+          <style jsx>{`
+            @keyframes neonGlowKeyframes {
+              0% { opacity: 0; box-shadow: 0 0 0 rgba(63,63,70,0); }
+              40% { opacity: 1; box-shadow: 0 0 22px rgba(63,63,70,0.65), 0 0 36px rgba(63,63,70,0.35); }
+              100% { opacity: 0; box-shadow: 0 0 0 rgba(63,63,70,0); }
+            }
+            @keyframes neonBorderKeyframes {
+              0% { opacity: 0.9; transform: scale(0.985); }
+              55% { opacity: 1; transform: scale(1.005); }
+              100% { opacity: 0; transform: scale(1.035); }
+            }
+            .neon-glow { 
+              background: radial-gradient(120% 100% at 50% 50%, rgba(63,63,70,0.18) 0%, rgba(63,63,70,0.12) 35%, rgba(63,63,70,0.06) 65%, rgba(63,63,70,0) 100%);
+              animation: neonGlowKeyframes 0.5s ease-out 1 forwards;
+            }
+            .neon-border {
+              border: 2px solid #3f3f46; /* zinc-700 */
+              box-shadow: 0 0 22px rgba(63,63,70,0.65), 0 0 34px rgba(63,63,70,0.35);
+              animation: neonBorderKeyframes 0.5s ease-out 1 forwards;
+            }
+          `}</style>
+        </div>
       )}
     </div>
   );
