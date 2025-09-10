@@ -63,7 +63,7 @@ export type BarItem = {
   status: string; // affects color
   startIndex: number; // inclusive
   endIndex: number; // exclusive
-  lane: 0 | 1; // stacked level
+  lane: number; // stacked level
   interpreterName?: string; // interpreter name if assigned
   meetingDetail?: string; // meeting details
   ownerEmail?: string; // owner email
