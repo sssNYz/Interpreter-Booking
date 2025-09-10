@@ -25,7 +25,14 @@ import DayRow from "./day-row";
 import { generateTimeSlots, getDaysInMonth } from "@/utils/calendar";
 import { useBookings } from "@/hooks/use-booking";
 import { useSlotDataForBars } from "@/hooks/use-bar-slot-data";
-import { ROW_HEIGHT } from "@/utils/constants";
+
+import {
+  ROW_HEIGHT,
+  BAR_HEIGHT,
+  LANE_TOP_OFFSET,
+  BAR_STACK_GAP,
+} from "@/utils/constants";
+
 import { getStatusStyle } from "@/utils/status";
 import type { DayInfo } from "@/types/booking";
 import { Button } from "@/components/ui/button";
@@ -41,7 +48,6 @@ const BookingCalendar: React.FC = () => {
 
   // Controls whether the booking form modal is open
   const [isFormOpen, setIsFormOpen] = useState(false);
-  
 
   // Stores which time slot was clicked (day + time) to pass to booking form
   const [selectedSlot, setSelectedSlot] = useState<

@@ -8,7 +8,7 @@ import {
 import type { LoginRequest, LoginResponse } from "@/types/auth";
 
 const REF_API_URL =
-  process.env.REF_API_URL || "http://192.168.1.184/api/login";
+  process.env.REF_API_URL || "http://localhost:4001/api/login";
 
 export async function POST(req: NextRequest) {
   let body: LoginRequest;
