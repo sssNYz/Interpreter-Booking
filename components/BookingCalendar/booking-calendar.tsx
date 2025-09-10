@@ -25,12 +25,14 @@ import DayRow from "./day-row";
 import { generateTimeSlots, getDaysInMonth } from "@/utils/calendar";
 import { useBookings } from "@/hooks/use-booking";
 import { useSlotDataForBars } from "@/hooks/use-bar-slot-data";
+
 import {
   ROW_HEIGHT,
   BAR_HEIGHT,
   LANE_TOP_OFFSET,
   BAR_STACK_GAP,
 } from "@/utils/constants";
+
 import { getStatusStyle } from "@/utils/status";
 import type { DayInfo } from "@/types/booking";
 import { Button } from "@/components/ui/button";
@@ -68,6 +70,15 @@ const BookingCalendar: React.FC = () => {
     () => getDaysInMonth(currentDate),
     [currentDate]
   );
+
+  // In booking-calendar.tsx
+const [interpreterCount, setInterpreterCount] = useState(2); // default
+
+useEffect(() => {
+  fetch('/api/employees/get-interpreter-number')
+    .then(res => res.json())
+    .then(data => setInterpreterCount(data.count));
+}, []);
 
   // Debounce currentDate → debouncedDate by 1s
   useEffect(() => {
@@ -113,12 +124,13 @@ const BookingCalendar: React.FC = () => {
   );
 
   // Process booking data to create visual bars and occupancy data
-  // barsByDay: Map of day index → array of booking bars for that day
-  // occupancyByDay: Map of day index → array showing how many bookings per time slot
+  // barsByDay: Map of day index → array of booking bars for that day example output  : {0: [BarItem, BarItem, BarItem], 1: [BarItem, BarItem, BarItem], 2: [BarItem, BarItem, BarItem]}
+  // occupancyByDay: Map of day index → array showing how many bookings per time slot example output  : {0: [1, 2, 3], 1: [1, 2, 3], 2: [1, 2, 3]}
   const { barsByDay, occupancyByDay } = useSlotDataForBars({
     bookings,
     daysInMonth,
     timeSlots,
+    maxLanes: interpreterCount,
   });
 
   // Virtualization setup for rendering only visible day rows
@@ -151,11 +163,71 @@ const BookingCalendar: React.FC = () => {
   // Track whether we've already auto-scrolled for a given month to avoid jumping on data refreshes
   const autoScrolledMonthRef = useRef<string | null>(null);
   const forceScrollToTodayRef = useRef<boolean>(false);
+  const [highlightToday, setHighlightToday] = useState(false);
+  const highlightTimerRef = useRef<number | null>(null);
+  // Add this ref near the other refs
+  const horizontalScrollRef = useRef<number>(0);
+  const userScrollRef = useRef<number>(0);
 
-  const goToToday = useCallback(() => {
-    // Force a scroll-to-today on next layout cycle
-    forceScrollToTodayRef.current = true;
-    setCurrentDate(new Date());
+// Track horizontal scroll position when user scrolls manually
+useEffect(() => {
+  if (!scrollAreaViewportRef.current) return;
+  
+  const handleScroll = () => {
+    userScrollRef.current = scrollAreaViewportRef.current!.scrollLeft;
+  };
+
+  const scrollElement = scrollAreaViewportRef.current;
+  scrollElement.addEventListener('scroll', handleScroll);
+  
+  return () => {
+    scrollElement.removeEventListener('scroll', handleScroll);
+  };
+}, [loading]); // Re-run when loading changes
+
+const goToToday = useCallback(() => {
+  forceScrollToTodayRef.current = true;
+  // Clear any existing highlight timer before starting a new blink
+  if (highlightTimerRef.current !== null) {
+    window.clearTimeout(highlightTimerRef.current);
+    highlightTimerRef.current = null;
+  }
+  setHighlightToday(true);
+  setCurrentDate(new Date());
+
+  // Scroll to current time horizontally
+  const now = new Date();
+  const currentHour = now.getHours();
+  const currentMinute = now.getMinutes();
+  
+
+  const slotIndex = (currentHour - 8) * 2 + Math.floor(currentMinute / 30);
+  const scrollLeft = Math.max(0, slotIndex * cellWidth);
+
+  // Store the scroll position and update user scroll
+  horizontalScrollRef.current = scrollLeft;
+  userScrollRef.current = scrollLeft; // Update user scroll when using TODAY
+
+  // Scroll horizontally
+  if (scrollAreaViewportRef.current) {
+    scrollAreaViewportRef.current.scrollLeft = scrollLeft;
+  }
+
+  // Short, crisp blink that completes before data refresh debounce
+  highlightTimerRef.current = window.setTimeout(() => {
+    setHighlightToday(false);
+    highlightTimerRef.current = null;
+  }, 500);
+}, [cellWidth]);
+
+  // Cleanup on unmount to avoid dangling timers
+  useEffect(() => {
+    return () => {
+      if (highlightTimerRef.current !== null) {
+        window.clearTimeout(highlightTimerRef.current);
+        highlightTimerRef.current = null;
+      }
+    };
   }, []);
 
   // When viewing the current month, scroll to today's row
@@ -176,6 +248,21 @@ const BookingCalendar: React.FC = () => {
       forceScrollToTodayRef.current = false;
     }
   }, [currentDate, rowVirtualizer]);
+  
+  // Add this effect after the existing effects
+// Replace the existing restore effect (lines 203-210) with this:
+// Replace the existing restore effect (lines 203-210) with this:
+useEffect(() => {
+  if (loading || !scrollAreaViewportRef.current) return;
+  
+  // Restore horizontal scroll position after data loads
+  // Always use user's scroll position to preserve where they were
+  const scrollPosition = userScrollRef.current;
+  
+  if (scrollPosition >= 0) {
+    scrollAreaViewportRef.current.scrollLeft = scrollPosition;
+  }
+}, [loading]);
 
   // Ensure scroll happens after loading completes (since the grid isn't mounted during skeleton)
   useEffect(() => {
@@ -271,7 +358,7 @@ const BookingCalendar: React.FC = () => {
           <div className="flex items-center gap-2">
             <button
               onClick={() => shiftMonth(-1)}
-              className="p-2 border border-border rounded-[10px] hover:bg-accent hover:border-primary transition-colors"
+              className="p-2 border border-border rounded-[10px] hover:bg-accent hover:border-primary shadow-md hover:shadow-lg active:shadow-md transition"
             >
               <ChevronLeft className="text-foreground" />
             </button>
@@ -283,7 +370,7 @@ const BookingCalendar: React.FC = () => {
             </span>
             <button
               onClick={() => shiftMonth(1)}
-              className="p-2 border border-border rounded-[10px] hover:bg-accent hover:border-primary transition-colors"
+              className="p-2 border border-border rounded-[10px] hover:bg-accent hover:border-primary shadow-md hover:shadow-lg active:shadow-md transition"
             >
               <ChevronRight className="text-foreground" />
             </button>
@@ -292,13 +379,13 @@ const BookingCalendar: React.FC = () => {
       </div>
 
       {/* Main calendar grid */}
-      <div className="border border-border rounded-3xl overflow-hidden bg-background">
+      <div className="border border-border rounded-3xl overflow-hidden bg-background shadow-lg">
         {/* KEEPING ScrollArea + virtualizer viewport TOGETHER */}
         {loading ? (
           <div className="h-[clamp(600px,calc(100dvh-300px),78vh)] overflow-x-auto overflow-y-auto">
             {/* Header skeleton (time labels row) */}
             <div
-              className="sticky top-0 z-30 bg-secondary border-b border-border min-w-[800px]"
+              className="sticky top-0 z-30 bg-secondary border-b border-border min-w-[800px] shadow-sm"
               style={{
                 display: "grid",
                 gridTemplateColumns: `${dayLabelWidth}px repeat(${timeSlots.length}, ${cellWidth}px)`,
@@ -354,7 +441,7 @@ const BookingCalendar: React.FC = () => {
           >
             {/* Fixed header row with time labels */}
             <div
-              className="sticky top-0 z-30 bg-secondary border-b border-border min-w-[800px]"
+              className="sticky top-0 z-30 bg-secondary border-b border-border min-w-[800px] shadow-sm"
               style={{
                 display: "grid",
                 gridTemplateColumns: `${dayLabelWidth}px repeat(${timeSlots.length}, ${cellWidth}px)`,
@@ -385,6 +472,7 @@ const BookingCalendar: React.FC = () => {
               }}
             >
               {/* Render only the day rows that are currently visible */}
+              {/**sand to day-row.tsx */}
               {rowVirtualizer.getVirtualItems().map((vr) => (
                 <DayRow
                   key={vr.index}
@@ -400,6 +488,13 @@ const BookingCalendar: React.FC = () => {
                   onSlotClick={handleSlotClick}
                   cellWidth={cellWidth}
                   dayLabelWidth={dayLabelWidth}
+                  maxLanes={interpreterCount}  // ← Add this
+    
+                  isHighlighted={
+                    highlightToday &&
+                    daysInMonth[vr.index].fullDate.toDateString() ===
+                      new Date().toDateString()
+                  }
                   style={{
                     position: "absolute",
                     top: `${vr.start}px`,
@@ -421,16 +516,17 @@ const BookingCalendar: React.FC = () => {
       <div className="flex flex-col sm:flex-row items-center justify-between mt-3 gap-3">
         {/* Left: controls */}
         <div className="flex items-center gap-2 flex-wrap">
+          {/* Today button */}
           <Button
             onClick={goToToday}
-            className="bg-neutral-700 text-white rounded-full hover:bg-black/90 w-24 sm:w-28 h-10 text-sm sm:text-base"
+            className="bg-neutral-700 text-white rounded-full hover:bg-black/90 w-24 sm:w-28 h-10 text-sm sm:text-base shadow-md hover:shadow-lg active:shadow-md transition"
           >
             <Disc className="w-8 h-8 sm:w-10 sm:h-10" />
             Today
           </Button>
           <Button
             onClick={() => refetch()}
-            className="bg-neutral-700 text-white rounded-full hover:bg-black/90 h-10 w-24 sm:w-28 text-sm sm:text-base"
+            className="bg-neutral-700 text-white rounded-full hover:bg-black/90 h-10 w-24 sm:w-28 text-sm sm:text-base shadow-md hover:shadow-lg active:shadow-md transition"
             disabled={loading}
           >
             <RefreshCw
@@ -489,7 +585,9 @@ const BookingCalendar: React.FC = () => {
             ? occupancyByDay.get(selectedSlot.day - 1) ??
               Array(timeSlots.length).fill(0)
             : undefined
+        
         }
+        maxLanes={interpreterCount}
       />
     </div>
   );
