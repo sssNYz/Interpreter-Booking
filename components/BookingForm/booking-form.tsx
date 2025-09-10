@@ -55,6 +55,7 @@ export function BookingForm({
   selectedSlot,
   daysInMonth,
   dayOccupancy,
+  maxLanes = MAX_LANES,
 }: BookingFormProps) {
   // Form state
   const [startTime, setStartTime] = useState<string>("");
@@ -474,7 +475,7 @@ export function BookingForm({
   const isStartDisabled = (t: string) => {
     if (!dayOccupancy) return false;
     const idx = slotsTime.indexOf(t);
-    return idx >= 0 && dayOccupancy[idx] >= MAX_LANES;
+    return idx >= 0 && dayOccupancy[idx] >= maxLanes;
   };
 
   const isEndDisabled = (t: string) => {
@@ -484,7 +485,7 @@ export function BookingForm({
     const endExclusive = endIdx === -1 ? slotsTime.length : endIdx;
     if (endExclusive <= startIdx) return true;
     for (let i = startIdx; i < endExclusive; i++) {
-      if (dayOccupancy[i] >= MAX_LANES) return true;
+      if (dayOccupancy[i] >= maxLanes) return true;
     }
     return false;
   };

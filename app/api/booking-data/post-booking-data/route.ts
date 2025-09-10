@@ -17,13 +17,31 @@ import type { RunResult } from "@/types/assignment";
   // Interface moved to '@/types/booking-requests'
 
   // Global capacity across all rooms
-  const GLOBAL_SLOT_CAPACITY = 2;
+  //const GLOBAL_SLOT_CAPACITY = 2;
 
   // Standard API response shape moved to '@/types/api'
 
   // Date validation helper: strict "YYYY-MM-DD HH:mm:ss"
   const isValidDateString = (s: string): boolean => {
     return /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(s);
+  };
+
+  const getInterpreterCount = async (): Promise<number> => {
+    try {
+      const count = await prisma.employee.count({
+        where: {
+          userRoles: {
+            some: {
+              roleCode: 'INTERPRETER'
+            }
+          }
+        }
+      });
+      return Math.max(1, count); // At least 1 interpreter
+    } catch (error) {
+      console.error('Failed to get interpreter count:', error);
+      return 2; // Fallback to 2
+    }
   };
 
   // Validation function
@@ -512,6 +530,7 @@ import type { RunResult } from "@/types/assignment";
         body.timeStart,
         body.timeEnd
       );
+      const interpreterCount = await getInterpreterCount();
 
       // Use an interactive transaction to keep operations atomic (insert + related records)
       const result = await prisma.$transaction(
@@ -540,7 +559,7 @@ import type { RunResult } from "@/types/assignment";
             `;
               const capCntVal = capCounts?.[0]?.cnt;
               const totalOverlap = capCntVal != null ? Number(capCntVal) : 0;
-              return totalOverlap < GLOBAL_SLOT_CAPACITY;
+              return totalOverlap < interpreterCount;
             };
 
             // 1) Global capacity check (NOT by room) for parent
@@ -553,7 +572,7 @@ import type { RunResult } from "@/types/assignment";
           `;
             const capCntVal = capCounts?.[0]?.cnt;
             const totalOverlap = capCntVal != null ? Number(capCntVal) : 0;
-            if (totalOverlap >= GLOBAL_SLOT_CAPACITY) {
+            if (totalOverlap >= interpreterCount) {
               return {
                 success: false as const,
                 status: 409,
@@ -562,7 +581,7 @@ import type { RunResult } from "@/types/assignment";
                   error: "Time slot full",
                   message: "The selected time slot has reached its capacity",
                   code: "CAPACITY_FULL",
-                  data: { totalOverlap, capacity: GLOBAL_SLOT_CAPACITY },
+                  data: { totalOverlap, capacity: interpreterCount },
                 },
               };
             }

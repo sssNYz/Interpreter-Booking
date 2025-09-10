@@ -25,12 +25,7 @@ import DayRow from "./day-row";
 import { generateTimeSlots, getDaysInMonth } from "@/utils/calendar";
 import { useBookings } from "@/hooks/use-booking";
 import { useSlotDataForBars } from "@/hooks/use-bar-slot-data";
-import {
-  ROW_HEIGHT,
-  BAR_HEIGHT,
-  LANE_TOP_OFFSET,
-  BAR_STACK_GAP,
-} from "@/utils/constants";
+import { ROW_HEIGHT } from "@/utils/constants";
 import { getStatusStyle } from "@/utils/status";
 import type { DayInfo } from "@/types/booking";
 import { Button } from "@/components/ui/button";
@@ -46,6 +41,7 @@ const BookingCalendar: React.FC = () => {
 
   // Controls whether the booking form modal is open
   const [isFormOpen, setIsFormOpen] = useState(false);
+  
 
   // Stores which time slot was clicked (day + time) to pass to booking form
   const [selectedSlot, setSelectedSlot] = useState<
@@ -68,6 +64,15 @@ const BookingCalendar: React.FC = () => {
     () => getDaysInMonth(currentDate),
     [currentDate]
   );
+
+  // In booking-calendar.tsx
+const [interpreterCount, setInterpreterCount] = useState(2); // default
+
+useEffect(() => {
+  fetch('/api/employees/get-interpreter-number')
+    .then(res => res.json())
+    .then(data => setInterpreterCount(data.count));
+}, []);
 
   // Debounce currentDate → debouncedDate by 1s
   useEffect(() => {
@@ -113,12 +118,13 @@ const BookingCalendar: React.FC = () => {
   );
 
   // Process booking data to create visual bars and occupancy data
-  // barsByDay: Map of day index → array of booking bars for that day
-  // occupancyByDay: Map of day index → array showing how many bookings per time slot
+  // barsByDay: Map of day index → array of booking bars for that day example output  : {0: [BarItem, BarItem, BarItem], 1: [BarItem, BarItem, BarItem], 2: [BarItem, BarItem, BarItem]}
+  // occupancyByDay: Map of day index → array showing how many bookings per time slot example output  : {0: [1, 2, 3], 1: [1, 2, 3], 2: [1, 2, 3]}
   const { barsByDay, occupancyByDay } = useSlotDataForBars({
     bookings,
     daysInMonth,
     timeSlots,
+    maxLanes: interpreterCount,
   });
 
   // Virtualization setup for rendering only visible day rows
@@ -346,7 +352,7 @@ useEffect(() => {
           <div className="flex items-center gap-2">
             <button
               onClick={() => shiftMonth(-1)}
-              className="p-2 border border-border rounded-[10px] hover:bg-accent hover:border-primary transition-colors"
+              className="p-2 border border-border rounded-[10px] hover:bg-accent hover:border-primary shadow-md hover:shadow-lg active:shadow-md transition"
             >
               <ChevronLeft className="text-foreground" />
             </button>
@@ -358,7 +364,7 @@ useEffect(() => {
             </span>
             <button
               onClick={() => shiftMonth(1)}
-              className="p-2 border border-border rounded-[10px] hover:bg-accent hover:border-primary transition-colors"
+              className="p-2 border border-border rounded-[10px] hover:bg-accent hover:border-primary shadow-md hover:shadow-lg active:shadow-md transition"
             >
               <ChevronRight className="text-foreground" />
             </button>
@@ -367,13 +373,13 @@ useEffect(() => {
       </div>
 
       {/* Main calendar grid */}
-      <div className="border border-border rounded-3xl overflow-hidden bg-background">
+      <div className="border border-border rounded-3xl overflow-hidden bg-background shadow-lg">
         {/* KEEPING ScrollArea + virtualizer viewport TOGETHER */}
         {loading ? (
           <div className="h-[clamp(600px,calc(100dvh-300px),78vh)] overflow-x-auto overflow-y-auto">
             {/* Header skeleton (time labels row) */}
             <div
-              className="sticky top-0 z-30 bg-secondary border-b border-border min-w-[800px]"
+              className="sticky top-0 z-30 bg-secondary border-b border-border min-w-[800px] shadow-sm"
               style={{
                 display: "grid",
                 gridTemplateColumns: `${dayLabelWidth}px repeat(${timeSlots.length}, ${cellWidth}px)`,
@@ -429,7 +435,7 @@ useEffect(() => {
           >
             {/* Fixed header row with time labels */}
             <div
-              className="sticky top-0 z-30 bg-secondary border-b border-border min-w-[800px]"
+              className="sticky top-0 z-30 bg-secondary border-b border-border min-w-[800px] shadow-sm"
               style={{
                 display: "grid",
                 gridTemplateColumns: `${dayLabelWidth}px repeat(${timeSlots.length}, ${cellWidth}px)`,
@@ -460,6 +466,7 @@ useEffect(() => {
               }}
             >
               {/* Render only the day rows that are currently visible */}
+              {/**sand to day-row.tsx */}
               {rowVirtualizer.getVirtualItems().map((vr) => (
                 <DayRow
                   key={vr.index}
@@ -475,6 +482,8 @@ useEffect(() => {
                   onSlotClick={handleSlotClick}
                   cellWidth={cellWidth}
                   dayLabelWidth={dayLabelWidth}
+                  maxLanes={interpreterCount}  // ← Add this
+    
                   isHighlighted={
                     highlightToday &&
                     daysInMonth[vr.index].fullDate.toDateString() ===
@@ -504,14 +513,14 @@ useEffect(() => {
           {/* Today button */}
           <Button
             onClick={goToToday}
-            className="bg-neutral-700 text-white rounded-full hover:bg-black/90 w-24 sm:w-28 h-10 text-sm sm:text-base"
+            className="bg-neutral-700 text-white rounded-full hover:bg-black/90 w-24 sm:w-28 h-10 text-sm sm:text-base shadow-md hover:shadow-lg active:shadow-md transition"
           >
             <Disc className="w-8 h-8 sm:w-10 sm:h-10" />
             Today
           </Button>
           <Button
             onClick={() => refetch()}
-            className="bg-neutral-700 text-white rounded-full hover:bg-black/90 h-10 w-24 sm:w-28 text-sm sm:text-base"
+            className="bg-neutral-700 text-white rounded-full hover:bg-black/90 h-10 w-24 sm:w-28 text-sm sm:text-base shadow-md hover:shadow-lg active:shadow-md transition"
             disabled={loading}
           >
             <RefreshCw
@@ -570,7 +579,9 @@ useEffect(() => {
             ? occupancyByDay.get(selectedSlot.day - 1) ??
               Array(timeSlots.length).fill(0)
             : undefined
+        
         }
+        maxLanes={interpreterCount}
       />
     </div>
   );
