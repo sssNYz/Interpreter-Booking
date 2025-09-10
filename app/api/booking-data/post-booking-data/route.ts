@@ -16,21 +16,33 @@ import type { RunResult } from "@/types/assignment";
 
 // Interface moved to '@/types/booking-requests'
 
-// Global capacity across all rooms
-const GLOBAL_SLOT_CAPACITY = 2;
+  // Global capacity across all rooms
+  //const GLOBAL_SLOT_CAPACITY = 2;
 
 // Standard API response shape moved to '@/types/api'
 
-// Date validation helpers
-// Accept either strict "YYYY-MM-DD HH:mm:ss" or ISO8601 with timezone (e.g. 2025-09-12T01:00:00Z)
-const isValidSqlYmdHms = (s: string): boolean =>
-  /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(s);
-const isValidIso = (s: string): boolean =>
-  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,3})?)?(Z|[+-]\d{2}:?\d{2})$/.test(
-    s
-  );
-const isValidInputDateTime = (s: string | null | undefined): s is string =>
-  typeof s === "string" && (isValidSqlYmdHms(s) || isValidIso(s));
+  // Date validation helper: strict "YYYY-MM-DD HH:mm:ss"
+  const isValidDateString = (s: string): boolean => {
+    return /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(s);
+  };
+
+  const getInterpreterCount = async (): Promise<number> => {
+    try {
+      const count = await prisma.employee.count({
+        where: {
+          userRoles: {
+            some: {
+              roleCode: 'INTERPRETER'
+            }
+          }
+        }
+      });
+      return Math.max(1, count); // At least 1 interpreter
+    } catch (error) {
+      console.error('Failed to get interpreter count:', error);
+      return 2; // Fallback to 2
+    }
+  };
 
 // Validation function
 const validateBookingData = (
@@ -586,22 +598,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Ensure DB session interprets TIMESTAMP values as UTC for inserts/selects
-    try {
-      await prisma.$executeRaw`SET time_zone = '+00:00'`;
-    } catch {}
-
-    const { timeStartLocal, timeEndLocal, timeStartUtc, timeEndUtc } =
-      normalizeBookingDates(body.timeStart, body.timeEnd);
-
-    // If recurrenceEndDate provided, normalize to UTC for storage
-    const recurrenceEndUtc =
-      body.recurrenceEndDate && isValidInputDateTime(body.recurrenceEndDate)
-        ? parseClientDateTime(body.recurrenceEndDate).utcSql
-        : null;
-
-    // Precompute a single NOW in UTC for consistent timestamps
-    const nowUtcSql = toSqlUtc(new Date());
+      const { timeStart, timeEnd } = parseBookingDates(
+        body.timeStart,
+        body.timeEnd
+      );
+      const interpreterCount = await getInterpreterCount();
 
     // Use an interactive transaction to keep operations atomic (insert + related records)
     const result = await prisma.$transaction(
@@ -650,10 +651,10 @@ export async function POST(request: NextRequest) {
               AND (TIME_START < ${te} AND TIME_END > ${ts})
               FOR UPDATE
             `;
-            const capCntVal = capCounts?.[0]?.cnt;
-            const totalOverlap = capCntVal != null ? Number(capCntVal) : 0;
-            return totalOverlap < GLOBAL_SLOT_CAPACITY;
-          };
+              const capCntVal = capCounts?.[0]?.cnt;
+              const totalOverlap = capCntVal != null ? Number(capCntVal) : 0;
+              return totalOverlap < interpreterCount;
+            };
 
           // 1) Global capacity check (NOT by room) for parent
           const capCounts = await tx.$queryRaw<Array<{ cnt: number | bigint }>>`
@@ -663,21 +664,21 @@ export async function POST(request: NextRequest) {
             AND (TIME_START < ${timeEndUtc} AND TIME_END > ${timeStartUtc})
             FOR UPDATE
           `;
-          const capCntVal = capCounts?.[0]?.cnt;
-          const totalOverlap = capCntVal != null ? Number(capCntVal) : 0;
-          if (totalOverlap >= GLOBAL_SLOT_CAPACITY) {
-            return {
-              success: false as const,
-              status: 409,
-              body: {
-                success: false,
-                error: "Time slot full",
-                message: "The selected time slot has reached its capacity",
-                code: "CAPACITY_FULL",
-                data: { totalOverlap, capacity: GLOBAL_SLOT_CAPACITY },
-              },
-            };
-          }
+            const capCntVal = capCounts?.[0]?.cnt;
+            const totalOverlap = capCntVal != null ? Number(capCntVal) : 0;
+            if (totalOverlap >= interpreterCount) {
+              return {
+                success: false as const,
+                status: 409,
+                body: {
+                  success: false,
+                  error: "Time slot full",
+                  message: "The selected time slot has reached its capacity",
+                  code: "CAPACITY_FULL",
+                  data: { totalOverlap, capacity: interpreterCount },
+                },
+              };
+            }
 
           // 2) Same-room overlap warning (informational, requires confirmation)
           const sameRoomCounts = await tx.$queryRaw<

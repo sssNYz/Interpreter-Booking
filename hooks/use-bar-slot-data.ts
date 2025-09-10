@@ -20,10 +20,12 @@ export function useSlotDataForBars({
   bookings,
   daysInMonth,
   timeSlots,
+  maxLanes = MAX_LANES,
 }: {
   bookings: BookingData[];
   daysInMonth: DayInfo[];
   timeSlots: string[];
+  maxLanes?: number;
 }): { barsByDay: Map<number, BarItem[]>; occupancyByDay: Map<number, number[]> } {
   return useMemo(() => {
     const barsByDay = new Map<number, BarItem[]>();
@@ -65,7 +67,7 @@ export function useSlotDataForBars({
             ownerEmail: b.ownerEmail,
             ownerTel: b.ownerTel,
             ownerGroup: b.ownerGroup,
-          } as Omit<BarItem, "lane"> & { lane?: 0 | 1 };
+          } as Omit<BarItem, "lane"> & { lane?: number };
         })
         .filter(
           (iv) =>
@@ -77,28 +79,32 @@ export function useSlotDataForBars({
         (a, b) => a.startIndex - b.startIndex || a.endIndex - b.endIndex
       );
 
-      // 3) Assign lanes greedily
-      const lanesEnd: number[] = Array(MAX_LANES).fill(-Infinity);
+      // 3) Assign lanes greedily with UNLIMITED placement
+      //    We dynamically grow lanes so all bars are placed for display.
+      const lanesEnd: number[] = [];
       const placed: BarItem[] = [];
       for (const iv of intervals) {
         let laneUsed = -1;
-        for (let l = 0; l < MAX_LANES; l++) {
+        for (let l = 0; l < lanesEnd.length; l++) {
           if (iv.startIndex >= lanesEnd[l]) {
             laneUsed = l;
             break;
           }
         }
-        if (laneUsed >= 0) {
-            placed.push({ ...iv, lane: laneUsed as 0 | 1 });
-            lanesEnd[laneUsed] = iv.endIndex;
-          }
+        if (laneUsed === -1) {
+          // create a new lane
+          lanesEnd.push(-Infinity);
+          laneUsed = lanesEnd.length - 1;
+        }
+        placed.push({ ...iv, lane: laneUsed });
+        lanesEnd[laneUsed] = iv.endIndex;
       }
 
-      // 4) Build occupancy
+      // 4) Build occupancy (capped by maxLanes for click blocking)
       const occ = Array(timeSlots.length).fill(0);
       for (const bar of placed) {
         for (let i = bar.startIndex; i < bar.endIndex; i++) {
-          occ[i] = Math.min(MAX_LANES, occ[i] + 1);
+          occ[i] = Math.min(maxLanes, occ[i] + 1);
         }
       }
 
