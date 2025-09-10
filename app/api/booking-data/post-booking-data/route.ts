@@ -8,7 +8,6 @@ import prisma, {
   RecurrenceType,
   EndType,
   WeekOrder,
-  DRType,
 } from "@/prisma/prisma";
 import type { CreateBookingRequest } from "@/types/booking-requests";
 import type { ApiResponse } from "@/types/api";
@@ -16,33 +15,45 @@ import type { RunResult } from "@/types/assignment";
 
 // Interface moved to '@/types/booking-requests'
 
-  // Global capacity across all rooms
-  //const GLOBAL_SLOT_CAPACITY = 2;
+// Global capacity across all rooms
+//const GLOBAL_SLOT_CAPACITY = 2;
 
 // Standard API response shape moved to '@/types/api'
 
-  // Date validation helper: strict "YYYY-MM-DD HH:mm:ss"
-  const isValidDateString = (s: string): boolean => {
-    return /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(s);
-  };
+// Date/time validators
 
-  const getInterpreterCount = async (): Promise<number> => {
-    try {
-      const count = await prisma.employee.count({
-        where: {
-          userRoles: {
-            some: {
-              roleCode: 'INTERPRETER'
-            }
-          }
-        }
-      });
-      return Math.max(1, count); // At least 1 interpreter
-    } catch (error) {
-      console.error('Failed to get interpreter count:', error);
-      return 2; // Fallback to 2
-    }
-  };
+// Accept either ISO 8601 with timezone (contains 'T') or SQL local string "YYYY-MM-DD HH:mm:ss"
+const isValidInputDateTime = (input: string): boolean => {
+  if (!input || typeof input !== "string") return false;
+  if (input.includes("T")) {
+    const d = new Date(input);
+    return !Number.isNaN(d.getTime());
+  }
+  return /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(input);
+};
+
+// Strict validator for SQL local datetime format
+const isValidSqlYmdHms = (s: string): boolean => {
+  return /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(s);
+};
+
+const getInterpreterCount = async (): Promise<number> => {
+  try {
+    const count = await prisma.employee.count({
+      where: {
+        userRoles: {
+          some: {
+            roleCode: "INTERPRETER",
+          },
+        },
+      },
+    });
+    return Math.max(1, count); // At least 1 interpreter
+  } catch (error) {
+    console.error("Failed to get interpreter count:", error);
+    return 2; // Fallback to 2
+  }
+};
 
 // Validation function
 const validateBookingData = (
@@ -598,11 +609,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
-      const { timeStart, timeEnd } = parseBookingDates(
-        body.timeStart,
-        body.timeEnd
-      );
-      const interpreterCount = await getInterpreterCount();
+    // Normalize incoming datetimes: store UTC in DB, keep local for recurrence
+    const { timeStartLocal, timeEndLocal, timeStartUtc, timeEndUtc } =
+      normalizeBookingDates(body.timeStart, body.timeEnd);
+
+    // Timestamps for created_at/updated_at
+    const nowUtcSql = toSqlUtc(new Date());
+
+    // Parse recurrence end date (to UTC) if provided
+    const recurrenceEndUtc = body.recurrenceEndDate
+      ? (() => {
+          try {
+            return parseClientDateTime(String(body.recurrenceEndDate)).utcSql;
+          } catch {
+            return null;
+          }
+        })()
+      : null;
+
+    const interpreterCount = await getInterpreterCount();
 
     // Use an interactive transaction to keep operations atomic (insert + related records)
     const result = await prisma.$transaction(
@@ -651,10 +676,10 @@ export async function POST(request: NextRequest) {
               AND (TIME_START < ${te} AND TIME_END > ${ts})
               FOR UPDATE
             `;
-              const capCntVal = capCounts?.[0]?.cnt;
-              const totalOverlap = capCntVal != null ? Number(capCntVal) : 0;
-              return totalOverlap < interpreterCount;
-            };
+            const capCntVal = capCounts?.[0]?.cnt;
+            const totalOverlap = capCntVal != null ? Number(capCntVal) : 0;
+            return totalOverlap < interpreterCount;
+          };
 
           // 1) Global capacity check (NOT by room) for parent
           const capCounts = await tx.$queryRaw<Array<{ cnt: number | bigint }>>`
@@ -664,21 +689,21 @@ export async function POST(request: NextRequest) {
             AND (TIME_START < ${timeEndUtc} AND TIME_END > ${timeStartUtc})
             FOR UPDATE
           `;
-            const capCntVal = capCounts?.[0]?.cnt;
-            const totalOverlap = capCntVal != null ? Number(capCntVal) : 0;
-            if (totalOverlap >= interpreterCount) {
-              return {
-                success: false as const,
-                status: 409,
-                body: {
-                  success: false,
-                  error: "Time slot full",
-                  message: "The selected time slot has reached its capacity",
-                  code: "CAPACITY_FULL",
-                  data: { totalOverlap, capacity: interpreterCount },
-                },
-              };
-            }
+          const capCntVal = capCounts?.[0]?.cnt;
+          const totalOverlap = capCntVal != null ? Number(capCntVal) : 0;
+          if (totalOverlap >= interpreterCount) {
+            return {
+              success: false as const,
+              status: 409,
+              body: {
+                success: false,
+                error: "Time slot full",
+                message: "The selected time slot has reached its capacity",
+                code: "CAPACITY_FULL",
+                data: { totalOverlap, capacity: interpreterCount },
+              },
+            };
+          }
 
           // 2) Same-room overlap warning (informational, requires confirmation)
           const sameRoomCounts = await tx.$queryRaw<
@@ -883,7 +908,7 @@ export async function POST(request: NextRequest) {
     );
 
     // Auto-assign interpreter AFTER transaction commits (if enabled and no interpreter specified)
-    let autoAssignmentResult = null;
+    let autoAssignmentResult: RunResult | null = null;
     if (
       result.body.success &&
       result.body.data.bookingId &&
@@ -919,7 +944,7 @@ export async function POST(request: NextRequest) {
 
           // 3. Run auto-assignment for each child booking
           let successfulChildAssignments = 0;
-          const childResults = [];
+          const childResults: { bookingId: number; result: RunResult }[] = [];
 
           for (const childBooking of childBookings) {
             try {
@@ -949,7 +974,10 @@ export async function POST(request: NextRequest) {
               );
               childResults.push({
                 bookingId: childBooking.bookingId,
-                result: { status: "escalated", reason: "assignment error" },
+                result: {
+                  status: "escalated",
+                  reason: "assignment error",
+                } as RunResult,
               });
             }
           }
