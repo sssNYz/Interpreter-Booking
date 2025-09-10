@@ -22,7 +22,49 @@ import type { RunResult } from "@/types/assignment";
 
 // Date/time validators
 
-// Accept either ISO 8601 with timezone (contains 'T') or SQL local string "YYYY-MM-DD HH:mm:ss"
+// Business timezone handling (no external deps):
+// - Interpret plain "YYYY-MM-DD HH:mm:ss" and naive ISO (no Z/offset) as business-local wall time.
+// - Default offset is +07:00 (Asia/Bangkok); override via env BUSINESS_TZ_OFFSET_MINUTES.
+const BUSINESS_TZ_OFFSET_MINUTES: number = (() => {
+  const raw = process.env.BUSINESS_TZ_OFFSET_MINUTES;
+  const n = raw != null ? Number(raw) : NaN;
+  return Number.isFinite(n) ? n : 7 * 60; // default +07:00
+})();
+
+const pad2 = (n: number) => String(n).padStart(2, "0");
+const toSqlUtc = (d: Date): string =>
+  `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(
+    d.getUTCDate()
+  )} ${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}:${pad2(
+    d.getUTCSeconds()
+  )}`;
+const toSqlBusinessLocalFromUtcDate = (utcDate: Date): string => {
+  // Shift the UTC instant into business-local wall time and format as SQL string
+  const ms = utcDate.getTime() + BUSINESS_TZ_OFFSET_MINUTES * 60_000;
+  const d = new Date(ms);
+  // Use UTC getters after shifting to avoid server-local timezone interference
+  return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(
+    d.getUTCDate()
+  )} ${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}:${pad2(
+    d.getUTCSeconds()
+  )}`;
+};
+
+const businessLocalSqlPartsToUtcDate = (
+  y: number,
+  m: number,
+  day: number,
+  hh: number,
+  mm: number,
+  ss: number
+): Date => {
+  // Treat provided parts as business-local wall time, convert to UTC instant
+  const msLocalWall = Date.UTC(y, (m || 1) - 1, day || 1, hh || 0, mm || 0, ss || 0, 0);
+  const msUtc = msLocalWall - BUSINESS_TZ_OFFSET_MINUTES * 60_000;
+  return new Date(msUtc);
+};
+
+// Accept either ISO 8601 (with or without timezone) or SQL local string "YYYY-MM-DD HH:mm:ss"
 const isValidInputDateTime = (input: string): boolean => {
   if (!input || typeof input !== "string") return false;
   if (input.includes("T")) {
@@ -320,34 +362,39 @@ const validateBookingData = (
 };
 
 // Formatting helpers
-const pad2 = (n: number) => String(n).padStart(2, "0");
-const toSqlUtc = (d: Date): string =>
-  `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(
-    d.getUTCDate()
-  )} ${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}:${pad2(
-    d.getUTCSeconds()
-  )}`;
 const toSqlLocal = (d: Date): string =>
   `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${pad2(
     d.getHours()
   )}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
 
-// Parse client-provided datetime (ISO with timezone or local SQL string) into both local and UTC SQL strings
+// Parse client-provided datetime into business-local and UTC SQL strings.
+// Rules:
+// - If input is ISO with explicit offset/Z, respect it.
+// - If input is ISO without offset (naive) or plain SQL (YYYY-MM-DD HH:mm:ss), treat as business-local.
 const parseClientDateTime = (
   input: string
 ): { localSql: string; utcSql: string; date: Date } => {
-  let d: Date;
-  if (input.includes("T")) {
-    d = new Date(input); // ISO 8601
-  } else if (isValidSqlYmdHms(input)) {
-    const [datePart, timePart] = input.split(" ");
-    const [y, m, day] = datePart.split("-").map(Number);
-    const [hh, mm, ss] = timePart.split(":").map(Number);
-    d = new Date(y, (m || 1) - 1, day || 1, hh || 0, mm || 0, ss || 0, 0); // interpret as local wall-time
-  } else {
-    throw new Error("Invalid datetime format");
+  // Detect ISO with explicit timezone
+  const isIso = input.includes("T");
+  const hasExplicitTz = /[+-]\d{2}:?\d{2}$|Z$/.test(input);
+
+  if (isIso && hasExplicitTz) {
+    const d = new Date(input); // exact instant
+    return {
+      localSql: toSqlBusinessLocalFromUtcDate(d),
+      utcSql: toSqlUtc(d),
+      date: d,
+    };
   }
-  return { localSql: toSqlLocal(d), utcSql: toSqlUtc(d), date: d };
+
+  // Treat as business-local wall time (either naive ISO or SQL string)
+  const [datePart, timePartRaw] = input.split(/[T ]/);
+  const [y, m, day] = (datePart || "").split("-").map(Number);
+  const timePart = (timePartRaw || "00:00:00").padEnd(8, ":00");
+  const [hh, mm, ss] = timePart.split(":").map(Number);
+  const dUtc = businessLocalSqlPartsToUtcDate(y, m, day, hh, mm, ss);
+  const localSql = `${pad2(y)}-${pad2(m)}-${pad2(day)} ${pad2(hh)}:${pad2(mm)}:${pad2(ss)}`;
+  return { localSql, utcSql: toSqlUtc(dUtc), date: dUtc };
 };
 
 // Normalize incoming times to UTC for storage, while keeping local for recurrence generation
