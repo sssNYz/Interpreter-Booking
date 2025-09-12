@@ -4,13 +4,18 @@ import { MAX_LANES } from "@/utils/constants";
 
 function toIndices(startStrIn: string, endStrIn: string, timeSlots: string[]) {
   // Accepts either 'YYYY-MM-DD HH:mm:ss' or ISO 'YYYY-MM-DDTHH:mm:ss'
-  const s = startStrIn.includes('T') ? startStrIn.split('T')[1] : startStrIn.split(' ')[1];
-  const e = endStrIn.includes('T') ? endStrIn.split('T')[1] : endStrIn.split(' ')[1];
+  const s = startStrIn.includes("T")
+    ? startStrIn.split("T")[1]
+    : startStrIn.split(" ")[1];
+  const e = endStrIn.includes("T")
+    ? endStrIn.split("T")[1]
+    : endStrIn.split(" ")[1];
   const startStr = s.slice(0, 5);
   const endStr = e.slice(0, 5);
   const startIndex = timeSlots.indexOf(startStr);
   // If end is 17:00, render bar to the final cell (after 16:30)
-  const endIndex = endStr === "17:00" ? timeSlots.length : timeSlots.indexOf(endStr);
+  const endIndex =
+    endStr === "17:00" ? timeSlots.length : timeSlots.indexOf(endStr);
   return { startIndex, endIndex };
 }
 
@@ -24,7 +29,10 @@ export function useSlotDataForBars({
   daysInMonth: DayInfo[];
   timeSlots: string[];
   maxLanes?: number;
-}): { barsByDay: Map<number, BarItem[]>; occupancyByDay: Map<number, number[]> } {
+}): {
+  barsByDay: Map<number, BarItem[]>;
+  occupancyByDay: Map<number, number[]>;
+} {
   return useMemo(() => {
     const barsByDay = new Map<number, BarItem[]>();
     const occupancyByDay = new Map<number, number[]>();
@@ -38,7 +46,9 @@ export function useSlotDataForBars({
 
       const dayBookings = bookings.filter((b) => {
         const src = b.timeStart;
-        const startDateISO = src.includes("T") ? src.split("T")[0] : src.split(" ")[0];
+        const startDateISO = src.includes("T")
+          ? src.split("T")[0]
+          : src.split(" ")[0];
         return startDateISO === dayLocalStr;
       });
 
@@ -57,7 +67,11 @@ export function useSlotDataForBars({
             status: b.bookingStatus,
             startIndex,
             endIndex,
-            interpreterName: b.interpreterId ? `Interpreter ID: ${b.interpreterId}` : "No interpreter assigned",
+            interpreterId: b.interpreterId,
+            interpreterName:
+              (b.interpreterName && b.interpreterName.trim() !== "")
+              ? b.interpreterName
+              : "no assign now",
             meetingDetail: b.meetingDetail,
             ownerEmail: b.ownerEmail,
             ownerTel: b.ownerTel,
@@ -66,7 +80,9 @@ export function useSlotDataForBars({
         })
         .filter(
           (iv) =>
-            iv.startIndex !== -1 && iv.endIndex !== -1 && iv.endIndex > iv.startIndex
+            iv.startIndex !== -1 &&
+            iv.endIndex !== -1 &&
+            iv.endIndex > iv.startIndex
         );
 
       // Sort by startIndex then endIndex
@@ -108,5 +124,5 @@ export function useSlotDataForBars({
     });
 
     return { barsByDay, occupancyByDay };
-  }, [bookings, daysInMonth, timeSlots]);
+  }, [bookings, daysInMonth, timeSlots, maxLanes]);
 }

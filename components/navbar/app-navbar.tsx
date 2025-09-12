@@ -31,7 +31,7 @@ import {
 const adminItems = [
   { title: "Overview", url: "/AdminPage/overview-workload-page", icon: BarChart2 },
   { title: "Bookings management", url: "/AdminPage/booking-manage-page", icon: Inbox },
-  { title: "Interpreters management", url: "#", icon: CalendarIcon },
+  { title: "Interpreters management", url: "/AdminPage/interpreter-manage-page", icon: CalendarIcon },
   { title: "User management", url: "/AdminPage/user-manage-page", icon: Settings },
   { title: "Auto-Assignment Config", url: "/AdminPage/auto-assign-config", icon: Cog },
 ]

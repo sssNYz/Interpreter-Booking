@@ -65,6 +65,7 @@ export type BarItem = {
   endIndex: number; // exclusive
   lane: number; // stacked level
   interpreterName?: string; // interpreter name if assigned
+  interpreterId?: string | null; // interpreter id if assigned
   meetingDetail?: string; // meeting details
   ownerEmail?: string; // owner email
   ownerTel?: string; // owner phone
