@@ -273,7 +273,7 @@ const DayRow: React.FC<Props> = ({
                   <div className="p-1 space-y-3">
                     {/* Booking By */}
                     <div className="flex items-start space-x-3">
-                      <div className="flex-shrink-0 w-2 h-2 bg-neutral-600 rounded-full mt-2"></div>
+                      <div className="flex-shrink-0 w-2 h-2 bg-neutral-700 rounded-full mt-2"></div>
                       <div className="flex-1">
                         <div className="font-semibold text-neutral-500 text-sm mb-1">
                           Booking By
@@ -289,7 +289,7 @@ const DayRow: React.FC<Props> = ({
 
                     {/* Meeting Room */}
                     <div className="flex items-start space-x-3">
-                      <div className="flex-shrink-0 w-2 h-2 bg-neutral-500 rounded-full mt-2"></div>
+                      <div className="flex-shrink-0 w-2 h-2 bg-neutral-600 rounded-full mt-2"></div>
                       <div className="flex-1">
                         <div className="font-semibold text-neutral-500 text-sm mb-1">
                           Meeting Room
@@ -302,17 +302,23 @@ const DayRow: React.FC<Props> = ({
 
                     {/* Interpreter */}
                     <div className="flex items-start space-x-3">
-                      <div className="flex-shrink-0 w-2 h-2 bg-neutral-400 rounded-full mt-2"></div>
+                      <div className="flex-shrink-0 w-2 h-2 bg-neutral-500 rounded-full mt-2"></div>
                       <div className="flex-1">
                         <div className="font-semibold text-neutral-500 text-sm mb-1">
                           Interpreter
                         </div>
-                        <div
-                          className={`font-medium ${
-                            bar.interpreterName 
-                          }`}
-                        >
-                          {bar.interpreterName || "No assignment yet"}
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">
+                            {bar.interpreterName || "No assignment yet"}
+                          </span>
+                          {interpreterColor ? (
+                            <div
+                              className="h-3 w-3 rounded-full"
+                              style={{ backgroundColor: interpreterColor.bg }}
+                            ></div>
+                          ) : (
+                            <div className="h-3 w-3 rounded-full bg-gray-300"></div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -327,17 +333,30 @@ const DayRow: React.FC<Props> = ({
                         <div className="flex items-center gap-2 text-neutral-700">
                           <span className="font-medium">{statusLabel}</span>
                           <div
-                             className={`h-2 w-full rounded-sm mt-1 ${statusStyle.bg}`}
+                             className={`h-3 w-3 rounded-full ${statusStyle.bg}`}
                              ></div>
                         </div>
                         
                       </div>
                     </div>
 
+                    {/* Meeting Type */}
+                    <div className="flex items-start space-x-3">
+                      <div className="flex-shrink-0 w-2 h-2 bg-neutral-300 rounded-full mt-2"></div>
+                      <div className="flex-1">
+                        <div className="font-semibold text-neutral-500 text-sm mb-1">
+                          Meeting Type
+                        </div>
+                        <div className="font-medium text-neutral-700">
+                          {bar.meetingType }
+                        </div>
+                      </div>
+                    </div>
+
                     {/* Contact */}
                     <div className="border-t pt-3">
                       <div className="flex items-start space-x-3">
-                        <div className="flex-shrink-0 w-2 h-2 bg-neutral-300 rounded-full mt-2"></div>
+                        <div className="flex-shrink-0 w-2 h-2 bg-neutral-200 rounded-full mt-2"></div>
                         <div className="flex-1">
                           <div className="font-semibold text-neutral-500 text-sm mb-2">
                             Contact Information
@@ -433,6 +452,10 @@ const DayRow: React.FC<Props> = ({
                           b.endIndex >= timeSlots.length
                             ? timeSlots[timeSlots.length - 1]
                             : timeSlots[b.endIndex];
+                        const interpreterColor = getInterpreterColor(
+                          b.interpreterId,
+                          b.interpreterName
+                        );
                         return (
                           <div
                             key={`hidden-${b.bookingId}`}
@@ -467,13 +490,19 @@ const DayRow: React.FC<Props> = ({
                                 <span className="font-semibold text-neutral-500">
                                   Interpreter:{" "}
                                 </span>
-                                <span
-                                  className={`font-medium ${
-                                    b.interpreterName
-                                  }`}
-                                >
-                                  {b.interpreterName || "No assignment"}
-                                </span>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-medium">
+                                    {b.interpreterName || "No assignment"}
+                                  </span>
+                                  {interpreterColor ? (
+                                    <div
+                                      className="h-3 w-3 rounded-full"
+                                      style={{ backgroundColor: interpreterColor.bg }}
+                                    ></div>
+                                  ) : (
+                                    <div className="h-3 w-3 rounded-full bg-gray-300"></div>
+                                  )}
+                                </div>
                               </div>
 
                               {/* Status */}
@@ -481,18 +510,30 @@ const DayRow: React.FC<Props> = ({
                                 <span className="font-semibold text-neutral-500">
                                   Status:{" "}
                                 </span>
-                                <span className="font-medium text-neutral-700">
-                                  {b.status === "approve"
-                                    ? "Approved"
-                                    : b.status === "waiting"
-                                    ? "Waiting"
-                                    : b.status === "cancel"
-                                    ? "Cancelled"
-                                    : b.status}
+                                <div className="flex items-center gap-2">
+                                  <span className="font-medium text-neutral-700">
+                                    {b.status === "approve"
+                                      ? "Approved"
+                                      : b.status === "waiting"
+                                      ? "Waiting"
+                                      : b.status === "cancel"
+                                      ? "Cancelled"
+                                      : b.status}
+                                  </span>
+                                  <div
+                                    className={`h-3 w-3 rounded-full ${getStatusStyle(b.status).bg}`}
+                                  ></div>
+                                </div>
+                              </div>
+
+                              {/* Meeting Type */}
+                              <div className="text-left">
+                                <span className="font-semibold text-neutral-500">
+                                  Meeting Type:{" "}
                                 </span>
-                                <div
-                                  className={`h-2 w-full rounded-sm mt-1 ${getStatusStyle(b.status).bg}`}
-                                ></div>
+                                <span className="font-medium text-neutral-700">
+                                  {b.meetingType || "Not specified"}
+                                </span>
                               </div>
 
                               {/* Contact info (optional) */}

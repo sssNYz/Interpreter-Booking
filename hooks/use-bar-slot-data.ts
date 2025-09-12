@@ -76,6 +76,7 @@ export function useSlotDataForBars({
             ownerEmail: b.ownerEmail,
             ownerTel: b.ownerTel,
             ownerGroup: b.ownerGroup,
+            meetingType: b.meetingType,
           } as Omit<BarItem, "lane"> & { lane?: number };
         })
         .filter(

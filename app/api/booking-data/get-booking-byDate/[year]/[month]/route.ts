@@ -65,6 +65,7 @@ export async function GET(
     ownerEmpCode: string;
     ownerGroup: string;
     meetingRoom: string;
+    meetingType: string;
     meetingDetail: string | null;
     timeStart: Date;
     timeEnd: Date;
@@ -84,6 +85,7 @@ export async function GET(
     ownerGroup: asOwnerGroup(b.ownerGroup),
     meetingRoom: b.meetingRoom,
     meetingDetail: b.meetingDetail ?? "",
+    meetingType: b.meetingType,
     // highPriority removed from API response
     timeStart: formatDateTime(b.timeStart),
     timeEnd: formatDateTime(b.timeEnd),
