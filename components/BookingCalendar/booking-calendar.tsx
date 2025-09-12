@@ -26,11 +26,10 @@ import { generateTimeSlots, getDaysInMonth } from "@/utils/calendar";
 import { useBookings } from "@/hooks/use-booking";
 import { useSlotDataForBars } from "@/hooks/use-bar-slot-data";
 import { ROW_HEIGHT } from "@/utils/constants";
-import { getStatusStyle } from "@/utils/status";
 import type { DayInfo } from "@/types/booking";
 import { Button } from "@/components/ui/button";
 import BookingRules from "@/components/BookingRules/booking-rules";
-import { Skeleton } from "@/components/ui/skeleton";
+import LoadingThreeDotsJumping from "@/components/ui/loading-three-dots";
 import { useMobile } from "@/hooks/use-mobile";
 import { getInterpreterColor } from "@/utils/interpreter-color";
 
@@ -404,135 +403,87 @@ useEffect(() => {
       {/* Main calendar grid */}
       <div className="border border-border rounded-3xl overflow-hidden bg-background shadow-lg">
         {/* KEEPING ScrollArea + virtualizer viewport TOGETHER */}
-        {loading ? (
-          <div className="h-[clamp(600px,calc(100dvh-300px),78vh)] overflow-x-auto overflow-y-auto">
-            {/* Header skeleton (time labels row) */}
-            <div
-              className="sticky top-0 z-30 bg-secondary border-b border-border min-w-[800px] shadow-sm"
-              style={{
-                display: "grid",
-                gridTemplateColumns: `${dayLabelWidth}px repeat(${timeSlots.length}, ${cellWidth}px)`,
-                height: `${ROW_HEIGHT}px`,
-              }}
-            >
-              {/* Left header cell (clock) */}
-              <div className="sticky left-0 z-30 flex items-center justify-center border-r border-border bg-secondary">
-                <Skeleton className="h-4 w-4 rounded-full" />
-              </div>
-              {/* Time slot header cells */}
-              {timeSlots.map((slot) => (
-                <div
-                  key={`skh-${slot}`}
-                  className="border-r border-border flex items-center justify-center bg-secondary"
-                >
-                  <Skeleton className="h-3 w-14" />
-                </div>
-              ))}
+        <ScrollArea
+          className="h-[clamp(500px,calc(100dvh-360px),550px)]"
+          viewportRef={scrollAreaViewportRef}
+        >
+          {/* Fixed header row with time labels */}
+          <div
+            className="sticky top-0 z-30 bg-secondary border-b border-border min-w-[800px] shadow-sm"
+            style={{
+              display: "grid",
+              gridTemplateColumns: `${dayLabelWidth}px repeat(${timeSlots.length}, ${cellWidth}px)`,
+              height: `${ROW_HEIGHT}px`,
+            }}
+          >
+            {/* Left column: Clock icon */}
+            <div className="sticky left-0 z-30 flex items-center justify-center border-r border-border bg-secondary">
+              <Clock className="w-4 h-4 text-secondary-foreground" />
             </div>
 
-            {/* Body skeleton rows */}
-            {Array.from({ length: 8 }).map((_, rowIdx) => (
+            {/* Time slot headers (08:00, 08:30, 09:00, etc.) */}
+            {timeSlots.map((slot) => (
               <div
-                key={`skr-${rowIdx}`}
-                className="border-b border-border min-w-[800px]"
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: `${dayLabelWidth}px repeat(${timeSlots.length}, ${cellWidth}px)`,
-                  height: `${ROW_HEIGHT}px`,
-                }}
+                key={slot}
+                className="border-r border-border text-center text-sm font-medium flex items-center justify-center bg-secondary text-secondary-foreground"
               >
-                {/* Day label cell */}
-                <div className="sticky left-0 z-10 bg-background border-r border-border flex items-center justify-center">
-                  <Skeleton className="h-4 w-10" />
-                </div>
-                {/* Time slot cells */}
-                {timeSlots.map((slot, colIdx) => (
-                  <div
-                    key={`skc-${rowIdx}-${colIdx}`}
-                    className="border-r border-border flex items-center justify-center"
-                  >
-                    <Skeleton className="h-2 w-10" />
-                  </div>
-                ))}
+                {slot}
               </div>
             ))}
           </div>
-        ) : (
-          <ScrollArea
-            className="h-[clamp(500px,calc(100dvh-360px),550px)]"
-            viewportRef={scrollAreaViewportRef}
+
+          {/* Loading overlay */}
+          {loading && (
+            <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+              <LoadingThreeDotsJumping />
+            </div>
+          )}
+
+          {/* Virtualized day rows - only renders visible rows for performance */}
+          <div
+            style={{
+              height: `${rowVirtualizer.getTotalSize()}px`,
+              position: "relative",
+            }}
           >
-            {/* Fixed header row with time labels */}
-            <div
-              className="sticky top-0 z-30 bg-secondary border-b border-border min-w-[800px] shadow-sm"
-              style={{
-                display: "grid",
-                gridTemplateColumns: `${dayLabelWidth}px repeat(${timeSlots.length}, ${cellWidth}px)`,
-                height: `${ROW_HEIGHT}px`,
-              }}
-            >
-              {/* Left column: Clock icon */}
-              <div className="sticky left-0 z-30 flex items-center justify-center border-r border-border bg-secondary">
-                <Clock className="w-4 h-4 text-secondary-foreground" />
-              </div>
-
-              {/* Time slot headers (08:00, 08:30, 09:00, etc.) */}
-              {timeSlots.map((slot) => (
-                <div
-                  key={slot}
-                  className="border-r border-border text-center text-sm font-medium flex items-center justify-center bg-secondary text-secondary-foreground"
-                >
-                  {slot}
-                </div>
-              ))}
-            </div>
-
-            {/* Virtualized day rows - only renders visible rows for performance */}
-            <div
-              style={{
-                height: `${rowVirtualizer.getTotalSize()}px`,
-                position: "relative",
-              }}
-            >
-              {/* Render only the day rows that are currently visible */}
-              {/**sand to day-row.tsx */}
-              {rowVirtualizer.getVirtualItems().map((vr) => (
-                <DayRow
-                  key={vr.index}
-                  day={daysInMonth[vr.index]}
-                  currentDate={currentDate}
-                  timeSlots={timeSlots}
-                  bars={barsByDay.get(vr.index) ?? []}
-                  occupancy={
-                    occupancyByDay.get(vr.index) ??
-                    Array(timeSlots.length).fill(0)
-                  }
-                  isTimeSlotPast={isTimeSlotPast}
-                  onSlotClick={handleSlotClick}
-                  cellWidth={cellWidth}
-                  dayLabelWidth={dayLabelWidth}
-                  maxLanes={interpreterCount}  // ← Add this
+            {/* Render only the day rows that are currently visible */}
+            {/**sand to day-row.tsx */}
+            {rowVirtualizer.getVirtualItems().map((vr) => (
+              <DayRow
+                key={vr.index}
+                day={daysInMonth[vr.index]}
+                currentDate={currentDate}
+                timeSlots={timeSlots}
+                bars={barsByDay.get(vr.index) ?? []}
+                occupancy={
+                  occupancyByDay.get(vr.index) ??
+                  Array(timeSlots.length).fill(0)
+                }
+                isTimeSlotPast={isTimeSlotPast}
+                onSlotClick={handleSlotClick}
+                cellWidth={cellWidth}
+                dayLabelWidth={dayLabelWidth}
+                maxLanes={interpreterCount}  // ← Add this
     
-                  isHighlighted={
-                    highlightToday &&
-                    daysInMonth[vr.index].fullDate.toDateString() ===
-                      new Date().toDateString()
-                  }
-                  style={{
-                    position: "absolute",
-                    top: `${vr.start}px`,
-                    left: 0,
-                    width: "100%",
-                    height: `${vr.size}px`,
-                  }}
-                />
-              ))}
-            </div>
+                isHighlighted={
+                  highlightToday &&
+                  daysInMonth[vr.index].fullDate.toDateString() ===
+                    new Date().toDateString()
+                }
+                style={{
+                  position: "absolute",
+                  top: `${vr.start}px`,
+                  left: 0,
+                  width: "100%",
+                  height: `${vr.size}px`,
+                }}
+              />
+            ))}
+          </div>
 
-            {/* Horizontal scrollbar */}
-            <ScrollBar orientation="horizontal" className="z-[10]" />
-          </ScrollArea>
-        )}
+          {/* Horizontal scrollbar */}
+          <ScrollBar orientation="horizontal" className="z-[10]" />
+        </ScrollArea>
       </div>
 
       {/* Bottom controls and legend */}
