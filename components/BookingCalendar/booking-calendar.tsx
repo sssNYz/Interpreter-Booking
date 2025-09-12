@@ -32,6 +32,7 @@ import { Button } from "@/components/ui/button";
 import BookingRules from "@/components/BookingRules/booking-rules";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useMobile } from "@/hooks/use-mobile";
+import { getInterpreterColor } from "@/utils/interpreter-color";
 
 const BookingCalendar: React.FC = () => {
   // State for current month/year being displayed
@@ -68,10 +69,38 @@ const BookingCalendar: React.FC = () => {
   // In booking-calendar.tsx
 const [interpreterCount, setInterpreterCount] = useState(2); // default
 
+// State for interpreter legend
+const [activeInterpreters, setActiveInterpreters] = useState<Array<{id: string, name: string}>>([]);
+const [interpreterColors, setInterpreterColors] = useState<Record<string, string>>({});
+
 useEffect(() => {
   fetch('/api/employees/get-interpreter-number')
     .then(res => res.json())
     .then(data => setInterpreterCount(data.count));
+}, []);
+
+// Fetch interpreters and colors for legend
+useEffect(() => {
+  const fetchInterpretersAndColors = async () => {
+    try {
+      const [interpretersRes, colorsRes] = await Promise.all([
+        fetch('/api/admin/interpreters'),
+        fetch('/api/admin/interpreter-colors')
+      ]);
+      
+      if (interpretersRes.ok && colorsRes.ok) {
+        const interpretersData = await interpretersRes.json();
+        const colorsData = await colorsRes.json();
+        
+        setActiveInterpreters(interpretersData.data);
+        setInterpreterColors(colorsData.data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch interpreters:', error);
+    }
+  };
+  
+  fetchInterpretersAndColors();
 }, []);
 
   // Debounce currentDate → debouncedDate by 1s
@@ -533,38 +562,38 @@ useEffect(() => {
           <BookingRules />
         </div>
 
-        {/* Right: legend */}
-        <div className="bg-neutral-700 flex items-center justify-center gap-3 sm:gap-6 text-sm max-w-[280px] sm:max-w-[320px] min-h-[40px] rounded-br-4xl rounded-bl-4xl px-3 sm:px-4 py-2">
-          <div className="flex items-center gap-1 sm:gap-2">
-            <span
-              className={`inline-block h-2.5 w-2.5 rounded-full border border-primary-foreground ${
-                getStatusStyle("approve").bg
-              }`}
-            />
-            <span className="text-primary-foreground text-xs sm:text-sm">
-              Approved
-            </span>
-          </div>
-          <div className="flex items-center gap-1 sm:gap-2">
-            <span
-              className={`inline-block h-2.5 w-2.5 rounded-full border border-primary-foreground ${
-                getStatusStyle("waiting").bg
-              }`}
-            />
-            <span className="text-primary-foreground text-xs sm:text-sm">
-              Waiting
-            </span>
-          </div>
-          <div className="flex items-center gap-1 sm:gap-2">
-            <span
-              className={`inline-block h-2.5 w-2.5 rounded-full border border-primary-foreground ${
-                getStatusStyle("cancel").bg
-              }`}
-            />
-            <span className="text-primary-foreground text-xs sm:text-sm">
-              Cancelled
-            </span>
-          </div>
+        {/* Right: interpreter legend */}
+        <div 
+          className="bg-neutral-700 flex items-center justify-center gap-2 sm:gap-3 text-sm rounded-br-4xl rounded-bl-4xl px-2 sm:px-3 py-2"
+          style={{
+            minWidth: activeInterpreters.length > 0 ? '200px' : '150px',
+            width: 'fit-content',
+            maxWidth: '90vw', // Use viewport width to prevent overflow
+            minHeight: '40px'
+          }}
+        >
+          {activeInterpreters.length > 0 ? (
+            activeInterpreters.map((interpreter) => {
+              const color = interpreterColors[interpreter.id] || getInterpreterColor(interpreter.id, interpreter.name)?.bg || '#6b7280';
+              return (
+                <div key={interpreter.id} className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+                  <span
+                    className="inline-block h-2.5 w-2.5 rounded-full border border-primary-foreground"
+                    style={{ backgroundColor: color }}
+                  />
+                  <span className="text-primary-foreground text-xs sm:text-sm whitespace-nowrap">
+                    {interpreter.name}
+                  </span>
+                </div>
+              );
+            })
+          ) : (
+            <div className="flex items-center gap-1 sm:gap-2">
+              <span className="text-primary-foreground text-xs sm:text-sm">
+                No interpreters found
+              </span>
+            </div>
+          )}
         </div>
       </div>
 
