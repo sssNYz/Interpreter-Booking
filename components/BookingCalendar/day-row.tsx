@@ -198,7 +198,7 @@ const DayRow: React.FC<Props> = ({
           );
           const barClassName = interpreterColor
             ? "pointer-events-auto rounded-sm border"
-            : `pointer-events-auto rounded-sm border ${statusStyle.text} ${statusStyle.bg}`;
+            : "pointer-events-auto rounded-sm border border-neutral-600 bg-neutral-50";
           const statusLabel =
             bar.status === "approve"
               ? "Approved"
