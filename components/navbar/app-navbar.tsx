@@ -1,9 +1,9 @@
-"use client"
+"use client";
 
-import Link from "next/link"
-import { usePathname, useRouter } from "next/navigation"
-import { useEffect, useMemo, useRef, useState } from "react"
-import { motion } from "framer-motion"
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useRef, useState, useCallback } from "react";
+import { motion } from "framer-motion";
 import {
   Calendar,
   CheckCircle,
@@ -15,9 +15,10 @@ import {
   Settings,
   Cog,
   Star,
-} from "lucide-react"
+  DoorOpen,
+} from "lucide-react";
 
-import { Button } from "@/components/ui/button"
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -25,82 +26,108 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+} from "@/components/ui/dropdown-menu";
 
 // Admin submenu items
 const adminItems = [
-  { title: "Overview", url: "/AdminPage/overview-workload-page", icon: BarChart2 },
-  { title: "Bookings management", url: "/AdminPage/booking-manage-page", icon: Inbox },
+  {
+    title: "Overview",
+    url: "/AdminPage/overview-workload-page",
+    icon: BarChart2,
+  },
+  {
+    title: "Bookings management",
+    url: "/AdminPage/booking-manage-page",
+    icon: Inbox,
+  },
+  {
+    title: "Room management",
+    url: "/AdminPage/room-management",
+    icon: DoorOpen,
+  },
   { title: "Interpreters management", url: "#", icon: CalendarIcon },
-  { title: "User management", url: "/AdminPage/user-manage-page", icon: Settings },
-  { title: "Auto-Assignment Config", url: "/AdminPage/auto-assign-config", icon: Cog },
-]
+  {
+    title: "User management",
+    url: "/AdminPage/user-manage-page",
+    icon: Settings,
+  },
+  {
+    title: "Auto-Assignment Config",
+    url: "/AdminPage/auto-assign-config",
+    icon: Cog,
+  },
+];
 
 // A clean segmented-control style navbar that:
 // - Animates the active highlight to the exact width of the active button
 // - Works with the Admin dropdown (no clipping, no z-index issues)
 // - Uses portal-based DropdownMenu so the menu renders above the pill
 export function AppNavbar() {
-  const router = useRouter()
-  const pathname = usePathname()
+  const router = useRouter();
+  const pathname = usePathname();
 
-  type Key = "calendar" | "mybookings" | "admin"
-  const [active, setActive] = useState<Key>("calendar")
+  type Key = "calendar" | "room" | "mybookings" | "admin";
+  const [active, setActive] = useState<Key>("calendar");
 
   // Refs to measure each button
-  const containerRef = useRef<HTMLDivElement | null>(null)
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const btnRefs = useRef<Record<Key, HTMLButtonElement | null>>({
     calendar: null,
+    room: null,
     mybookings: null,
     admin: null,
-  })
+  });
 
-  const [pill, setPill] = useState({ left: 0, width: 0, ready: false })
+  const [pill, setPill] = useState({ left: 0, width: 0, ready: false });
 
   // Update active based on the URL
   useEffect(() => {
-    if (!pathname) return
-    if (pathname === "/" || pathname.startsWith("/BookingPage")) setActive("calendar")
-    else if (pathname.startsWith("/MyBookings")) setActive("mybookings")
-    else if (pathname.startsWith("/AdminPage")) setActive("admin")
-  }, [pathname])
+    if (!pathname) return;
+    if (pathname === "/" || pathname.startsWith("/BookingPage"))
+      setActive("calendar");
+    else if (pathname.startsWith("/BookingRoomPage")) setActive("room");
+    else if (pathname.startsWith("/MyBookings")) setActive("mybookings");
+    else if (pathname.startsWith("/AdminPage")) setActive("admin");
+  }, [pathname]);
 
   // Compute the pill position/size to match the active button
-  const updatePill = () => {
-    const c = containerRef.current
-    const el = btnRefs.current[active]
-    if (!c || !el) return
-    const cRect = c.getBoundingClientRect()
-    const bRect = el.getBoundingClientRect()
-    setPill({ left: bRect.left - cRect.left, width: bRect.width, ready: true })
-  }
+  const updatePill = useCallback(() => {
+    const c = containerRef.current;
+    const el = btnRefs.current[active];
+    if (!c || !el) return;
+    const cRect = c.getBoundingClientRect();
+    const bRect = el.getBoundingClientRect();
+    setPill({ left: bRect.left - cRect.left, width: bRect.width, ready: true });
+  }, [active]);
 
   useEffect(() => {
-    updatePill()
+    updatePill();
     // Reposition on resize
-    const ro = new ResizeObserver(() => updatePill())
-    if (containerRef.current) ro.observe(containerRef.current)
-    const handle = () => updatePill()
-    window.addEventListener("resize", handle)
+    const ro = new ResizeObserver(() => updatePill());
+    if (containerRef.current) ro.observe(containerRef.current);
+    const handle = () => updatePill();
+    window.addEventListener("resize", handle);
     return () => {
-      ro.disconnect()
-      window.removeEventListener("resize", handle)
-    }
-  }, [active])
+      ro.disconnect();
+      window.removeEventListener("resize", handle);
+    };
+  }, [active, updatePill]);
 
   const handleLogout = async () => {
     try {
-      await fetch("/api/logout", { method: "POST" })
+      await fetch("/api/logout", { method: "POST" });
     } catch {}
     try {
-      localStorage.removeItem("booking.user")
+      localStorage.removeItem("booking.user");
     } catch {}
-    router.push("/login")
-  }
+    router.push("/login");
+  };
 
   const itemClass = (isActive: boolean) =>
     `relative z-10 h-8 px-4 rounded-full text-sm font-medium transition-colors flex items-center gap-2 whitespace-nowrap ` +
-    (isActive ? "text-primary-foreground" : "text-muted-foreground hover:text-foreground")
+    (isActive
+      ? "text-primary-foreground"
+      : "text-muted-foreground hover:text-foreground");
 
   return (
     <nav className="sticky top-0 z-[50] border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 shadow-sm">
@@ -121,7 +148,7 @@ export function AppNavbar() {
               {/* Animated highlight */}
               {pill.ready && (
                 <motion.div
-                   className="absolute top-1 bottom-1 rounded-full bg-neutral-700 z-0"
+                  className="absolute top-1 bottom-1 rounded-full bg-neutral-700 z-0"
                   animate={{ left: pill.left, width: pill.width }}
                   transition={{ type: "spring", stiffness: 400, damping: 30 }}
                 />
@@ -130,7 +157,9 @@ export function AppNavbar() {
               {/* Calendar */}
               <Link href="/BookingPage" className="contents">
                 <button
-                  ref={(el) => { btnRefs.current.calendar = el }}
+                  ref={(el) => {
+                    btnRefs.current.calendar = el;
+                  }}
                   className={itemClass(active === "calendar")}
                   onClick={() => setActive("calendar")}
                 >
@@ -139,10 +168,26 @@ export function AppNavbar() {
                 </button>
               </Link>
 
+              {/* Room */}
+              <Link href="/BookingRoomPage" className="contents">
+                <button
+                  ref={(el) => {
+                    btnRefs.current.room = el;
+                  }}
+                  className={itemClass(active === "room")}
+                  onClick={() => setActive("room")}
+                >
+                  <DoorOpen className="h-4 w-4" />
+                  <span>Room</span>
+                </button>
+              </Link>
+
               {/* My Bookings */}
               <Link href="/MyBookings" className="contents">
                 <button
-                  ref={(el) => { btnRefs.current.mybookings = el }}
+                  ref={(el) => {
+                    btnRefs.current.mybookings = el;
+                  }}
                   className={itemClass(active === "mybookings")}
                   onClick={() => setActive("mybookings")}
                 >
@@ -152,10 +197,12 @@ export function AppNavbar() {
               </Link>
 
               {/* Admin dropdown (portal so it won't get clipped by the pill container) */}
-              <DropdownMenu onOpenChange={(open) => open && setActive("admin")}> 
+              <DropdownMenu onOpenChange={(open) => open && setActive("admin")}>
                 <DropdownMenuTrigger asChild>
                   <button
-                    ref={(el) => { btnRefs.current.admin = el }}
+                    ref={(el) => {
+                      btnRefs.current.admin = el;
+                    }}
                     className={itemClass(active === "admin")}
                   >
                     <Star className="h-4 w-4" />
@@ -167,7 +214,10 @@ export function AppNavbar() {
                   <DropdownMenuSeparator />
                   {adminItems.map((item) => (
                     <DropdownMenuItem key={item.title} asChild>
-                      <Link href={item.url} className="flex items-center gap-2 py-2">
+                      <Link
+                        href={item.url}
+                        className="flex items-center gap-2 py-2"
+                      >
                         <item.icon className="h-4 w-4" />
                         <span>{item.title}</span>
                       </Link>
@@ -178,7 +228,11 @@ export function AppNavbar() {
             </div>
 
             {/* Logout */}
-            <Button variant="ghost" onClick={handleLogout} className="h-9 flex items-center px-3">
+            <Button
+              variant="ghost"
+              onClick={handleLogout}
+              className="h-9 flex items-center px-3"
+            >
               <LogOut className="h-4 w-4 mr-2" />
               Logout
             </Button>
@@ -186,5 +240,5 @@ export function AppNavbar() {
         </div>
       </div>
     </nav>
-  )
+  );
 }
