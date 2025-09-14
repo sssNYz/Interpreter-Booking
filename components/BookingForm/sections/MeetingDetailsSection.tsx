@@ -10,8 +10,32 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Presentation } from "lucide-react";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Button } from "@/components/ui/button";
+import { Presentation, Check, ChevronsUpDown } from "lucide-react";
 import type { DRType } from "@/prisma/prisma";
+import { useState, useEffect } from "react";
+import { cn } from "@/lib/utils";
+
+interface Room {
+  id: string;
+  name: string;
+  location: string | null;
+  capacity: number;
+  isActive: boolean;
+}
 
 interface MeetingDetailsSectionProps {
   meetingRoom: string;
@@ -41,9 +65,13 @@ interface MeetingDetailsSectionProps {
   openDropdown?: string | null;
   setOpenDropdown?: (value: string | null) => void;
   repeatChoice: "none" | "daily" | "weekly" | "biweekly" | "monthly" | "custom";
-  handleRepeatChange: (value: "none" | "daily" | "weekly" | "biweekly" | "monthly" | "custom") => void;
+  handleRepeatChange: (
+    value: "none" | "daily" | "weekly" | "biweekly" | "monthly" | "custom"
+  ) => void;
   recurrenceEndType: "never" | "on_date" | "after_occurrences";
-  setRecurrenceEndType: (value: "never" | "on_date" | "after_occurrences") => void;
+  setRecurrenceEndType: (
+    value: "never" | "on_date" | "after_occurrences"
+  ) => void;
   dayObj?: { dayName?: string; fullDate?: Date };
   selectedSlot?: { day?: number; slot?: string };
 }
@@ -80,45 +108,140 @@ export function MeetingDetailsSection({
   dayObj,
   selectedSlot,
 }: MeetingDetailsSectionProps) {
+  const [rooms, setRooms] = useState<Room[]>([]);
+  const [loadingRooms, setLoadingRooms] = useState(false);
+  const [roomComboboxOpen, setRoomComboboxOpen] = useState(false);
+
+  // Fetch rooms from API
+  useEffect(() => {
+    const fetchRooms = async () => {
+      setLoadingRooms(true);
+      try {
+        const response = await fetch("/api/admin/add-room?isActive=true");
+        const data = await response.json();
+        if (data.success) {
+          setRooms(data.data.rooms);
+        }
+      } catch (error) {
+        console.error("Error fetching rooms:", error);
+      } finally {
+        setLoadingRooms(false);
+      }
+    };
+
+    fetchRooms();
+  }, []);
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-2 border-b border-border pb-3">
         <Presentation className="h-5 w-5 text-muted-foreground" />
-        <h2 className="text-lg font-semibold text-foreground">Meeting Details</h2>
+        <h2 className="text-lg font-semibold text-foreground">
+          Meeting Details
+        </h2>
       </div>
 
       {/* Line 1: Meeting Room, Meeting Type, DR Type, Other Type */}
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="meetingRoom" className="text-sm font-medium text-foreground">
+          <Label
+            htmlFor="meetingRoom"
+            className="text-sm font-medium text-foreground"
+          >
             Meeting Room <span className="text-destructive">*</span>
           </Label>
-          <Input
-            id="meetingRoom"
-            placeholder="Enter meeting room"
-            value={meetingRoom}
-            onChange={(e) => setMeetingRoom(e.target.value)}
-            className={errors.meetingRoom ? "border-destructive focus:border-destructive" : ""}
-            aria-describedby={errors.meetingRoom ? "meetingRoom-error" : undefined}
-          />
-
+          <Popover open={roomComboboxOpen} onOpenChange={setRoomComboboxOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                role="combobox"
+                aria-expanded={roomComboboxOpen}
+                className={`w-full justify-between ${
+                  errors.meetingRoom
+                    ? "border-destructive focus:border-destructive"
+                    : ""
+                }`}
+                disabled={loadingRooms}
+                aria-describedby={
+                  errors.meetingRoom ? "meetingRoom-error" : undefined
+                }
+              >
+                {meetingRoom
+                  ? rooms.find((room) => room.name === meetingRoom)?.name
+                  : loadingRooms
+                  ? "Loading..."
+                  : "Select room"}
+                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-full p-0" align="start">
+              <Command>
+                <CommandInput placeholder="Search rooms..." className="h-9" />
+                <CommandList>
+                  <CommandEmpty>No room found.</CommandEmpty>
+                  <CommandGroup>
+                    {rooms.map((room) => (
+                      <CommandItem
+                        key={room.id}
+                        value={room.name}
+                        onSelect={(currentValue) => {
+                          setMeetingRoom(
+                            currentValue === meetingRoom ? "" : currentValue
+                          );
+                          setRoomComboboxOpen(false);
+                        }}
+                      >
+                        <Check
+                          className={cn(
+                            "mr-2 h-4 w-4",
+                            meetingRoom === room.name
+                              ? "opacity-100"
+                              : "opacity-0"
+                          )}
+                        />
+                        <div className="flex flex-col">
+                          <span className="font-medium">{room.name}</span>
+                          {room.location && (
+                            <span className="text-sm text-muted-foreground">
+                              Floor {room.location}
+                            </span>
+                          )}
+                        </div>
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="meetingType" className="text-sm font-medium text-foreground">
+          <Label
+            htmlFor="meetingType"
+            className="text-sm font-medium text-foreground"
+          >
             Meeting Type <span className="text-destructive">*</span>
           </Label>
-          
+
           <Select
             value={meetingType ?? undefined}
             onValueChange={(v) => setMeetingType && setMeetingType(v)}
             open={openDropdown === "meetingType"}
-            onOpenChange={(open) => setOpenDropdown?.(open ? "meetingType" : null)}
+            onOpenChange={(open) =>
+              setOpenDropdown?.(open ? "meetingType" : null)
+            }
           >
             <SelectTrigger
               id="meetingType"
-              className={`w-full ${errors.meetingType ? "border-destructive focus:border-destructive" : ""}`}
-              aria-describedby={errors.meetingType ? "meetingType-error" : undefined}
+              className={`w-full ${
+                errors.meetingType
+                  ? "border-destructive focus:border-destructive"
+                  : ""
+              }`}
+              aria-describedby={
+                errors.meetingType ? "meetingType-error" : undefined
+              }
             >
               <SelectValue placeholder="Select type" />
             </SelectTrigger>
@@ -131,12 +254,14 @@ export function MeetingDetailsSection({
               <SelectItem value="Other">Other</SelectItem>
             </SelectContent>
           </Select>
-
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="drType" className="text-sm font-medium text-foreground">
-            DR Type 
+          <Label
+            htmlFor="drType"
+            className="text-sm font-medium text-foreground"
+          >
+            DR Type
           </Label>
           <Select
             value={drType ?? undefined}
@@ -145,9 +270,13 @@ export function MeetingDetailsSection({
             onOpenChange={(open) => setOpenDropdown?.(open ? "drType" : null)}
             disabled={meetingType !== "DR"}
           >
-            <SelectTrigger 
-              id="drType" 
-              className={`w-full ${errors.drType ? "border-destructive focus:border-destructive" : ""} ${meetingType !== "DR" ? "opacity-50 cursor-not-allowed" : ""}`}
+            <SelectTrigger
+              id="drType"
+              className={`w-full ${
+                errors.drType
+                  ? "border-destructive focus:border-destructive"
+                  : ""
+              } ${meetingType !== "DR" ? "opacity-50 cursor-not-allowed" : ""}`}
               aria-describedby={errors.drType ? "drType-error" : undefined}
             >
               <SelectValue placeholder="Select DR type" />
@@ -160,32 +289,53 @@ export function MeetingDetailsSection({
               <SelectItem value="Other">Other</SelectItem>
             </SelectContent>
           </Select>
-
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="otherType" className="text-sm font-medium text-foreground">
+          <Label
+            htmlFor="otherType"
+            className="text-sm font-medium text-foreground"
+          >
             Other Type
           </Label>
           <Input
             id="otherType"
-            placeholder={meetingType === "DR" ? "Describe DR type..." : "Describe meeting type..."}
+            placeholder={
+              meetingType === "DR"
+                ? "Describe DR type..."
+                : "Describe meeting type..."
+            }
             value={otherType || ""}
             onChange={(e) => setOtherType && setOtherType(e.target.value)}
-            className={`${errors.otherType ? "border-destructive focus:border-destructive" : ""} ${((meetingType === "DR" && drType === "Other") || meetingType === "Other") ? "" : "opacity-50 cursor-not-allowed"}`}
+            className={`${
+              errors.otherType
+                ? "border-destructive focus:border-destructive"
+                : ""
+            } ${
+              (meetingType === "DR" && drType === "Other") ||
+              meetingType === "Other"
+                ? ""
+                : "opacity-50 cursor-not-allowed"
+            }`}
             aria-describedby={errors.otherType ? "otherType-error" : undefined}
             maxLength={255}
-            disabled={!((meetingType === "DR" && drType === "Other") || meetingType === "Other")}
+            disabled={
+              !(
+                (meetingType === "DR" && drType === "Other") ||
+                meetingType === "Other"
+              )
+            }
           />
-
         </div>
       </div>
 
-
-            {/* Line 2: Meeting Time, Repeat Schedule, Until... */}
+      {/* Line 2: Meeting Time, Repeat Schedule, Until... */}
       <div className="grid grid-cols-1 sm:grid-cols-[2fr_1fr_1fr] gap-4 items-start">
         <div className="space-y-1">
-          <Label className="text-sm font-medium text-foreground" htmlFor="meeting-time">
+          <Label
+            className="text-sm font-medium text-foreground"
+            htmlFor="meeting-time"
+          >
             Meeting Time <span className="text-destructive">*</span>
           </Label>
           <TimeRangeSelector
@@ -214,9 +364,9 @@ export function MeetingDetailsSection({
           </label>
           <Select
             value={repeatChoice}
-            onValueChange={(v: "none" | "daily" | "weekly" | "biweekly" | "monthly" | "custom") =>
-              handleRepeatChange && handleRepeatChange(v)
-            }
+            onValueChange={(
+              v: "none" | "daily" | "weekly" | "biweekly" | "monthly" | "custom"
+            ) => handleRepeatChange && handleRepeatChange(v)}
             open={openDropdown === "repeatSchedule"}
             onOpenChange={(open) =>
               setOpenDropdown?.(open ? "repeatSchedule" : null)
@@ -236,9 +386,7 @@ export function MeetingDetailsSection({
               </SelectItem>
               <SelectItem value="monthly">
                 Monthly on day{" "}
-                {selectedSlot?.day ||
-                  dayObj?.fullDate?.getDate() ||
-                  1}
+                {selectedSlot?.day || dayObj?.fullDate?.getDate() || 1}
               </SelectItem>
               <SelectItem value="custom">Custom…</SelectItem>
             </SelectContent>
@@ -258,19 +406,18 @@ export function MeetingDetailsSection({
                 : ""
             }
             onValueChange={(v) =>
-              setRecurrenceEndType && setRecurrenceEndType(v as "never" | "on_date" | "after_occurrences")
+              setRecurrenceEndType &&
+              setRecurrenceEndType(
+                v as "never" | "on_date" | "after_occurrences"
+              )
             }
             disabled={repeatChoice === "none"}
             open={openDropdown === "until"}
-            onOpenChange={(open) =>
-              setOpenDropdown?.(open ? "until" : null)
-            }
+            onOpenChange={(open) => setOpenDropdown?.(open ? "until" : null)}
           >
             <SelectTrigger
               className={`w-full ${
-                repeatChoice === "none"
-                  ? "opacity-50 cursor-not-allowed"
-                  : ""
+                repeatChoice === "none" ? "opacity-50 cursor-not-allowed" : ""
               }`}
               aria-label="Select how recurrence should end"
             >
@@ -287,16 +434,16 @@ export function MeetingDetailsSection({
       </div>
 
       {/* Line 3: Repeat Section (if provided) */}
-      {repeatSection && (
-        <div className="space-y-4">
-          {repeatSection}
-        </div>
-      )}
+      {repeatSection && <div className="space-y-4">{repeatSection}</div>}
 
       {/* Line 4: Meeting Description */}
       <div className="space-y-2">
-        <Label htmlFor="meetingDetail" className="text-sm font-medium text-foreground">
-          Meeting Description <span className="text-muted-foreground">(Optional)</span>
+        <Label
+          htmlFor="meetingDetail"
+          className="text-sm font-medium text-foreground"
+        >
+          Meeting Description{" "}
+          <span className="text-muted-foreground">(Optional)</span>
         </Label>
         <Textarea
           id="meetingDetail"
@@ -310,14 +457,20 @@ export function MeetingDetailsSection({
 
       {/* Line 5: Applicable Model */}
       <div className="space-y-2">
-        <Label htmlFor="applicableModel" className="text-sm font-medium text-foreground">
-          Applicable Model <span className="text-muted-foreground">(Optional)</span>
+        <Label
+          htmlFor="applicableModel"
+          className="text-sm font-medium text-foreground"
+        >
+          Applicable Model{" "}
+          <span className="text-muted-foreground">(Optional)</span>
         </Label>
         <Input
           id="applicableModel"
           placeholder="Enter applicable model..."
           value={applicableModel || ""}
-          onChange={(e) => setApplicableModel && setApplicableModel(e.target.value)}
+          onChange={(e) =>
+            setApplicableModel && setApplicableModel(e.target.value)
+          }
           maxLength={255}
         />
       </div>

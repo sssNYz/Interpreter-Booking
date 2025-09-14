@@ -59,7 +59,15 @@ const businessLocalSqlPartsToUtcDate = (
   ss: number
 ): Date => {
   // Treat provided parts as business-local wall time, convert to UTC instant
-  const msLocalWall = Date.UTC(y, (m || 1) - 1, day || 1, hh || 0, mm || 0, ss || 0, 0);
+  const msLocalWall = Date.UTC(
+    y,
+    (m || 1) - 1,
+    day || 1,
+    hh || 0,
+    mm || 0,
+    ss || 0,
+    0
+  );
   const msUtc = msLocalWall - BUSINESS_TZ_OFFSET_MINUTES * 60_000;
   return new Date(msUtc);
 };
@@ -393,7 +401,9 @@ const parseClientDateTime = (
   const timePart = (timePartRaw || "00:00:00").padEnd(8, ":00");
   const [hh, mm, ss] = timePart.split(":").map(Number);
   const dUtc = businessLocalSqlPartsToUtcDate(y, m, day, hh, mm, ss);
-  const localSql = `${pad2(y)}-${pad2(m)}-${pad2(day)} ${pad2(hh)}:${pad2(mm)}:${pad2(ss)}`;
+  const localSql = `${pad2(y)}-${pad2(m)}-${pad2(day)} ${pad2(hh)}:${pad2(
+    mm
+  )}:${pad2(ss)}`;
   return { localSql, utcSql: toSqlUtc(dUtc), date: dUtc };
 };
 
@@ -701,6 +711,25 @@ export async function POST(request: NextRequest) {
             create: { empCode: interpreterCode },
           } as Parameters<typeof tx.employee.upsert>[0]);
         }
+
+        // Get room ID from room name
+        const room = await tx.room.findFirst({
+          where: { name: body.meetingRoom.trim() },
+          select: { id: true, name: true },
+        });
+
+        if (!room) {
+          return {
+            success: false as const,
+            status: 400,
+            body: {
+              success: false,
+              error: "Room not found",
+              message: `Room "${body.meetingRoom}" does not exist or is not active.`,
+              code: "ROOM_NOT_FOUND",
+            },
+          };
+        }
         // Acquire a global advisory lock to serialize overlap checks + insert
         const lockKey = "booking_global_capacity";
         const lockRes = await tx.$queryRaw<Array<{ locked: number | bigint }>>`
@@ -757,10 +786,11 @@ export async function POST(request: NextRequest) {
             Array<{ cnt: number | bigint }>
           >`
             SELECT COUNT(*) AS cnt
-            FROM BOOKING_PLAN
-            WHERE MEETING_ROOM = ${body.meetingRoom}
-            AND BOOKING_STATUS <> 'cancel'
-            AND (TIME_START < ${timeEndUtc} AND TIME_END > ${timeStartUtc})
+            FROM BOOKING_PLAN bp
+            JOIN ROOM r ON bp.ROOM_ID = r.ROOM_ID
+            WHERE r.ROOM_NAME = ${body.meetingRoom}
+            AND bp.BOOKING_STATUS <> 'cancel'
+            AND (bp.TIME_START < ${timeEndUtc} AND bp.TIME_END > ${timeStartUtc})
           `;
           const sameRoomCntVal = sameRoomCounts?.[0]?.cnt;
           const sameRoomOverlap =
@@ -771,10 +801,9 @@ export async function POST(request: NextRequest) {
               status: 409,
               body: {
                 success: false,
-                error: "Overlap warning",
-                message:
-                  "This room already has a booking overlapping this time. Do you want to proceed?",
-                code: "OVERLAP_WARNING",
+                error: "Room conflict",
+                message: `Room "${body.meetingRoom}" is already booked during this time. Please choose a different room or time.`,
+                code: "ROOM_CONFLICT",
                 data: {
                   meetingRoom: body.meetingRoom.trim(),
                   overlapCount: sameRoomOverlap,
@@ -786,16 +815,16 @@ export async function POST(request: NextRequest) {
           // 3) Insert parent booking (capacity still enforced by the global lock + check)
           await tx.$executeRaw`
             INSERT INTO BOOKING_PLAN (
-              \`OWNER_EMP_CODE\`, \`OWNER_GROUP\`, \`MEETING_ROOM\`, \`MEETING_TYPE\`, \`MEETING_DETAIL\`, \`APPLICABLE_MODEL\`, \`TIME_START\`, \`TIME_END\`, \`INTERPRETER_EMP_CODE\`, \`BOOKING_STATUS\`,
+              \`OWNER_EMP_CODE\`, \`OWNER_GROUP\`, \`ROOM_ID\`, \`MEETING_TYPE\`, \`MEETING_DETAIL\`, \`APPLICABLE_MODEL\`, \`TIME_START\`, \`TIME_END\`, \`INTERPRETER_EMP_CODE\`, \`BOOKING_STATUS\`,
               \`DR_TYPE\`, \`OTHER_TYPE\`, \`OTHER_TYPE_SCOPE\`,
               \`IS_RECURRING\`, \`RECURRENCE_TYPE\`, \`RECURRENCE_INTERVAL\`, \`RECURRENCE_END_TYPE\`, \`RECURRENCE_END_DATE\`, \`RECURRENCE_END_OCCURRENCES\`, \`RECURRENCE_WEEKDAYS\`, \`RECURRENCE_MONTHDAY\`, \`RECURRENCE_WEEK_ORDER\`,
               \`created_at\`, \`updated_at\`
             ) VALUES (
-              ${body.ownerEmpCode.trim()}, ${
-            body.ownerGroup
-          }, ${body.meetingRoom.trim()}, ${body.meetingType ?? null}, ${
-            body.meetingDetail ?? null
-          }, ${body.applicableModel ?? null}, ${timeStartUtc}, ${timeEndUtc}, ${
+              ${body.ownerEmpCode.trim()}, ${body.ownerGroup}, ${room.id}, ${
+            body.meetingType ?? null
+          }, ${body.meetingDetail ?? null}, ${
+            body.applicableModel ?? null
+          }, ${timeStartUtc}, ${timeEndUtc}, ${
             body.interpreterEmpCode ?? null
           }, ${body.bookingStatus || BookingStatus.waiting},
               ${body.drType ?? null}, ${body.otherType ?? null}, ${
@@ -867,10 +896,11 @@ export async function POST(request: NextRequest) {
                   Array<{ cnt: number | bigint }>
                 >`
                   SELECT COUNT(*) AS cnt
-                  FROM BOOKING_PLAN
-                  WHERE MEETING_ROOM = ${body.meetingRoom}
-                  AND BOOKING_STATUS <> 'cancel'
-                  AND (TIME_START < ${teUtc} AND TIME_END > ${tsUtc})
+                  FROM BOOKING_PLAN bp
+                  JOIN ROOM r ON bp.ROOM_ID = r.ROOM_ID
+                  WHERE r.ROOM_NAME = ${body.meetingRoom}
+                  AND bp.BOOKING_STATUS <> 'cancel'
+                  AND (bp.TIME_START < ${teUtc} AND bp.TIME_END > ${tsUtc})
                 `;
                 const overlapVal = sameRoomCountsChild?.[0]?.cnt;
                 const overlapCount =
@@ -880,17 +910,17 @@ export async function POST(request: NextRequest) {
 
               await tx.$executeRaw`
                 INSERT INTO BOOKING_PLAN (
-                  \`OWNER_EMP_CODE\`, \`OWNER_GROUP\`, \`MEETING_ROOM\`, \`MEETING_TYPE\`, \`MEETING_DETAIL\`, \`APPLICABLE_MODEL\`, \`TIME_START\`, \`TIME_END\`, \`INTERPRETER_EMP_CODE\`, \`BOOKING_STATUS\`, \`PARENT_BOOKING_ID\`,
+                  \`OWNER_EMP_CODE\`, \`OWNER_GROUP\`, \`ROOM_ID\`, \`MEETING_TYPE\`, \`MEETING_DETAIL\`, \`APPLICABLE_MODEL\`, \`TIME_START\`, \`TIME_END\`, \`INTERPRETER_EMP_CODE\`, \`BOOKING_STATUS\`, \`PARENT_BOOKING_ID\`,
                   \`DR_TYPE\`, \`OTHER_TYPE\`, \`OTHER_TYPE_SCOPE\`,
                   \`created_at\`, \`updated_at\`
                 ) VALUES (
-                  ${body.ownerEmpCode.trim()}, ${
-                body.ownerGroup
-              }, ${body.meetingRoom.trim()}, ${body.meetingType ?? null}, ${
-                body.meetingDetail ?? null
-              }, ${body.applicableModel ?? null}, ${tsUtc}, ${teUtc}, ${
-                body.interpreterEmpCode ?? null
-              }, ${body.bookingStatus || BookingStatus.waiting}, ${bookingId},
+                  ${body.ownerEmpCode.trim()}, ${body.ownerGroup}, ${
+                room.id
+              }, ${body.meetingType ?? null}, ${body.meetingDetail ?? null}, ${
+                body.applicableModel ?? null
+              }, ${tsUtc}, ${teUtc}, ${body.interpreterEmpCode ?? null}, ${
+                body.bookingStatus || BookingStatus.waiting
+              }, ${bookingId},
                   ${body.drType ?? null}, ${body.otherType ?? null}, ${
                 body.otherTypeScope ?? null
               },
@@ -935,7 +965,7 @@ export async function POST(request: NextRequest) {
               message: "Booking created successfully",
               data: {
                 bookingId,
-                meetingRoom: body.meetingRoom.trim(),
+                meetingRoom: room.name,
                 timeStart: timeStartUtc,
                 timeEnd: timeEndUtc,
                 bookingStatus: body.bookingStatus || BookingStatus.waiting,
@@ -958,23 +988,25 @@ export async function POST(request: NextRequest) {
     let autoAssignmentResult: RunResult | null = null;
     if (
       result.body.success &&
-      result.body.data.bookingId &&
+      result.body.data?.bookingId &&
       !body.interpreterEmpCode
     ) {
       try {
         console.log(
-          `🚀 Starting auto-assignment for booking ${result.body.data.bookingId} (after transaction)`
+          `🚀 Starting auto-assignment for booking ${result.body.data?.bookingId} (after transaction)`
         );
         const { run } = await import("@/lib/assignment/core/run");
 
         // If this is a recurring booking, assign parent and all children individually
         if (body.isRecurring) {
           console.log(
-            `🔄 Processing recurring booking with ${result.body.data.recurringChildrenInserted} children`
+            `🔄 Processing recurring booking with ${result.body.data?.recurringChildrenInserted} children`
           );
 
           // 1. Run auto-assignment for parent booking
-          autoAssignmentResult = await run(result.body.data.bookingId);
+          if (result.body.data?.bookingId) {
+            autoAssignmentResult = await run(result.body.data.bookingId);
+          }
           console.log(
             `📊 Parent auto-assignment result:`,
             autoAssignmentResult
@@ -982,8 +1014,13 @@ export async function POST(request: NextRequest) {
 
           // 2. Get all child bookings for this parent
           const childBookings = await prisma.bookingPlan.findMany({
-            where: { parentBookingId: result.body.data.bookingId },
-            select: { bookingId: true, timeStart: true, timeEnd: true },
+            where: { parentBookingId: result.body.data?.bookingId },
+            select: {
+              bookingId: true,
+              timeStart: true,
+              timeEnd: true,
+              bookingStatus: true,
+            },
           });
           console.log(
             `📋 Found ${childBookings.length} child bookings to assign individually`
@@ -1030,27 +1067,35 @@ export async function POST(request: NextRequest) {
           }
 
           // 4. Update the result to show all assignments
-          autoAssignmentResult = {
-            ...autoAssignmentResult,
-            childAssignments: successfulChildAssignments,
-            totalChildren: childBookings.length,
-            childResults: childResults,
-            message: `Parent: ${autoAssignmentResult.status}, Children: ${successfulChildAssignments}/${childBookings.length} assigned`,
-          };
+          if (autoAssignmentResult) {
+            autoAssignmentResult = {
+              ...autoAssignmentResult,
+              childAssignments: successfulChildAssignments,
+              totalChildren: childBookings.length,
+              childResults: childResults,
+              message: `Parent: ${autoAssignmentResult.status}, Children: ${successfulChildAssignments}/${childBookings.length} assigned`,
+            };
+          }
         } else {
           // Non-recurring booking - normal flow
-          autoAssignmentResult = await run(result.body.data.bookingId);
-          console.log(`📊 Auto-assignment result:`, autoAssignmentResult);
+          if (result.body.data?.bookingId) {
+            autoAssignmentResult = await run(result.body.data.bookingId);
+            console.log(`📊 Auto-assignment result:`, autoAssignmentResult);
+          }
         }
 
         // Update the response with auto-assignment result
-        result.body.data.autoAssignment = autoAssignmentResult;
+        if (result.body.data) {
+          result.body.data.autoAssignment = autoAssignmentResult;
+        }
       } catch (error) {
         console.error("❌ Auto-assignment failed:", error);
-        result.body.data.autoAssignment = {
-          status: "escalated",
-          reason: "auto-assignment error",
-        };
+        if (result.body.data) {
+          result.body.data.autoAssignment = {
+            status: "escalated",
+            reason: "auto-assignment error",
+          };
+        }
       }
     }
 
@@ -1079,7 +1124,27 @@ export async function GET(request: NextRequest) {
     const meetingRoom = searchParams.get("meetingRoom");
 
     const where: Record<string, unknown> = {};
-    if (meetingRoom) where.meetingRoom = meetingRoom;
+    if (meetingRoom) {
+      // Find room by name and filter by roomId
+      const room = await prisma.room.findFirst({
+        where: { name: meetingRoom },
+        select: { id: true },
+      });
+      if (room) {
+        where.roomId = room.id;
+      } else {
+        // If room not found, return empty results
+        return NextResponse.json({
+          success: true,
+          data: [],
+          pagination: {
+            limit,
+            offset,
+            total: 0,
+          },
+        });
+      }
+    }
 
     const bookings = await prisma.bookingPlan.findMany({
       where,

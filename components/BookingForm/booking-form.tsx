@@ -562,7 +562,8 @@ export function BookingForm({
 
   // Email management functions
   // --- Helpers (regex) ---
-  const DOT_ATOM_LOCAL = /^[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+(\.[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+)*$/;
+  const DOT_ATOM_LOCAL =
+    /^[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+(\.[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+)*$/;
   const DOMAIN_LABEL = /^(?!-)[A-Za-z0-9-]{1,63}(?<!-)$/;
   const TLD_RX = /^[A-Za-z]{2,63}$/;
 
@@ -596,7 +597,8 @@ export function BookingForm({
       if (rawLocal.startsWith(".") || rawLocal.endsWith(".")) {
         reasons.push("local part starts/ends with dot");
       }
-      if (rawLocal.includes("..")) reasons.push("local part has consecutive dots");
+      if (rawLocal.includes(".."))
+        reasons.push("local part has consecutive dots");
       if (!DOT_ATOM_LOCAL.test(rawLocal)) {
         reasons.push("invalid characters in local part (dot-atom only)");
       }
@@ -604,23 +606,30 @@ export function BookingForm({
 
     // Domain checks
     if (rawDomain) {
-      const domain = rawDomain.endsWith(".") ? rawDomain.slice(0, -1) : rawDomain;
+      const domain = rawDomain.endsWith(".")
+        ? rawDomain.slice(0, -1)
+        : rawDomain;
       if (!domain) {
         reasons.push("empty domain");
       } else {
         if (domain.length > 253) reasons.push("domain too long (>253)");
         const labels = domain.split(".");
-        if (labels.some((l) => l.length === 0)) reasons.push("empty domain label");
-        if (labels.some((l) => !DOMAIN_LABEL.test(l))) reasons.push("bad domain label");
+        if (labels.some((l) => l.length === 0))
+          reasons.push("empty domain label");
+        if (labels.some((l) => !DOMAIN_LABEL.test(l)))
+          reasons.push("bad domain label");
         const tld = labels[labels.length - 1];
-        if (!TLD_RX.test(tld)) reasons.push("bad TLD (letters only, length ≥ 2)");
+        if (!TLD_RX.test(tld))
+          reasons.push("bad TLD (letters only, length ≥ 2)");
       }
     }
 
     return { email: e, valid: reasons.length === 0, reasons };
   };
 
-  const splitAndValidateEmails = (raw: string): { valid: string[]; invalid: EmailCheck[] } => {
+  const splitAndValidateEmails = (
+    raw: string
+  ): { valid: string[]; invalid: EmailCheck[] } => {
     const tokens = raw
       .split(/[\,\s]+/)
       .map((t) => t.trim())
@@ -860,11 +869,11 @@ export function BookingForm({
       if (meetingType === "DR") {
         // Map Prisma enum values to database enum values for raw SQL
         const drTypeMap: Record<DRType, string> = {
-          'PR_PR': 'PR-PR',
-          'DR_k': 'DR-k', 
-          'DR_II': 'DR-II',
-          'DR_I': 'DR-I',
-          'Other': 'Other'
+          PR_PR: "PR-PR",
+          DR_k: "DR-k",
+          DR_II: "DR-II",
+          DR_I: "DR-I",
+          Other: "Other",
         };
         typeExtras.drType = drType ? drTypeMap[drType] : null;
         if (drType === "Other") {
@@ -938,6 +947,40 @@ export function BookingForm({
 
       // First attempt without force
       let { response, result } = await submitOnce(false);
+
+      // If room conflict, show error and don't allow force submit
+      if (response.status === 409 && result?.code === "ROOM_CONFLICT") {
+        toast.custom(
+          (t) => (
+            <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm w-[420px]">
+              <Alert className="border-none p-0">
+                <AlertTitle className="text-gray-900">
+                  <span className="text-red-600 font-semibold">
+                    Room conflict
+                  </span>
+                  <span className="ml-1">
+                    {result?.message ||
+                      "This room is already booked during this time."}
+                  </span>
+                </AlertTitle>
+                <AlertDescription className="text-gray-700">
+                  Please choose a different room or time.
+                </AlertDescription>
+              </Alert>
+              <div className="flex justify-end mt-4">
+                <button
+                  onClick={() => toast.dismiss(t)}
+                  className="bg-gray-900 text-white px-3 py-1 rounded text-xs"
+                >
+                  OK
+                </button>
+              </div>
+            </div>
+          ),
+          { duration: 10000 }
+        );
+        return; // Don't allow force submit for room conflicts
+      }
 
       // If overlap warning, show themed confirm toast and then force submit on OK
       if (response.status === 409 && result?.code === "OVERLAP_WARNING") {
