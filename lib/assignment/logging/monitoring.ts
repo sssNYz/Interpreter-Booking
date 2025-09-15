@@ -144,9 +144,8 @@ export class AssignmentMonitor {
     processingBacklog: number;
   }> {
     try {
-      // Get pool status from the pool module
-      const { getPoolStatus } = await import('../pool/pool');
-      const poolStatus = await getPoolStatus();
+      // Pool removed; return empty defaults
+      const poolStatus = { entries: [] as Array<{ bookingId: number; poolEntryTime: Date; mode: string; deadlineTime: Date; thresholdDays: number }> };
       
       // Calculate additional monitoring metrics
       const now = new Date();
@@ -167,9 +166,6 @@ export class AssignmentMonitor {
         : undefined;
       
       const entriesByMode: Record<string, number> = {};
-      poolStatus.entries.forEach(entry => {
-        entriesByMode[entry.mode] = (entriesByMode[entry.mode] || 0) + 1;
-      });
       
       return {
         totalPoolEntries: poolStatus.entries.length,
@@ -436,8 +432,8 @@ export class AssignmentMonitor {
    * Generate health recommendations
    */
   private generateHealthRecommendations(
-    metrics: any,
-    trends: any
+    metrics: { successRate: number; escalationRate: number; averageProcessingTime: number; conflictRate: number; drOverrideRate: number },
+    trends: { processingTimesTrend: 'IMPROVING' | 'STABLE' | 'DEGRADING'; conflictsTrend: 'IMPROVING' | 'STABLE' | 'DEGRADING'; successRateTrend: 'IMPROVING' | 'STABLE' | 'DEGRADING' }
   ): string[] {
     const recommendations: string[] = [];
     
@@ -471,7 +467,7 @@ export class AssignmentMonitor {
   /**
    * Generate health alerts
    */
-  private generateHealthAlerts(metrics: any): Array<{
+  private generateHealthAlerts(metrics: { successRate: number; averageProcessingTime: number }): Array<{
     type: string;
     severity: 'LOW' | 'MEDIUM' | 'HIGH';
     message: string;
@@ -518,7 +514,7 @@ export class AssignmentMonitor {
   /**
    * Trigger system alert
    */
-  private triggerAlert(type: string, data: any): void {
+  private triggerAlert(type: string, data: Record<string, unknown>): void {
     const timestamp = new Date();
     console.warn(`🚨 ALERT [${type}] at ${timestamp.toISOString()}:`, data);
     
@@ -546,7 +542,7 @@ export async function logSystemError(
     operation: string;
     bookingId?: number;
     interpreterId?: string;
-    additionalData?: any;
+    additionalData?: Record<string, unknown>;
   }
 ): Promise<void> {
   try {
@@ -576,14 +572,18 @@ export async function logSystemError(
     // Store error log in database
     await prisma.systemErrorLog.create({
       data: {
+        timestamp: new Date(),
         operation: context.operation,
         bookingId: context.bookingId,
-        interpreterId: context.interpreterId,
+        // interpreterId field not present in schema; include in additionalData instead
         errorName: error.name,
         errorMessage: error.message,
         errorStack: error.stack,
-        systemState: errorLog.systemState as any,
-        additionalData: context.additionalData as any
+        context: JSON.parse(JSON.stringify({
+          ...(context.additionalData || {}),
+          interpreterId: context.interpreterId
+        })),
+        systemState: JSON.parse(JSON.stringify(errorLog.systemState))
       }
     }).catch(dbError => {
       console.error("❌ Failed to store error log in database:", dbError);
