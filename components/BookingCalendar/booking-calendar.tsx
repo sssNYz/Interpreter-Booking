@@ -1,9 +1,22 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { Calendar, ChevronLeft, ChevronRight, Clock, RefreshCw, Disc } from "lucide-react";
+import {
+  Calendar,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  RefreshCw,
+  Disc,
+} from "lucide-react";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { BookingForm } from "@/components/BookingForm/booking-form";
 
@@ -12,13 +25,13 @@ import DayRow from "./day-row";
 import { generateTimeSlots, getDaysInMonth } from "@/utils/calendar";
 import { useBookings } from "@/hooks/use-booking";
 import { useSlotDataForBars } from "@/hooks/use-bar-slot-data";
-import { ROW_HEIGHT, DAY_LABEL_WIDTH, CELL_WIDTH } from "@/utils/constants";
-import { getStatusStyle } from "@/utils/status";
+import { ROW_HEIGHT } from "@/utils/constants";
 import type { DayInfo } from "@/types/booking";
 import { Button } from "@/components/ui/button";
 import BookingRules from "@/components/BookingRules/booking-rules";
-import { Skeleton } from "@/components/ui/skeleton";
-
+import LoadingThreeDotsJumping from "@/components/ui/loading-three-dots";
+import { useMobile } from "@/hooks/use-mobile";
+import { getInterpreterColor } from "@/utils/interpreter-color";
 
 const BookingCalendar: React.FC = () => {
   // State for current month/year being displayed
@@ -26,7 +39,6 @@ const BookingCalendar: React.FC = () => {
   // Debounced date for fetching to avoid multiple API calls during rapid navigation
   const [debouncedDate, setDebouncedDate] = useState(currentDate);
 
-  
   // Controls whether the booking form modal is open
   const [isFormOpen, setIsFormOpen] = useState(false);
   
@@ -36,6 +48,9 @@ const BookingCalendar: React.FC = () => {
     { day: number; slot: string } | undefined
   >(undefined);
 
+  // Get responsive sizes
+  const { getResponsiveSizes } = useMobile();
+  const { cellWidth, dayLabelWidth } = getResponsiveSizes();
 
   // IMPORTANT: keep ScrollArea viewport ref together with virtualizer
   // This ref is used by the virtualizer to know the scrollable container
@@ -43,13 +58,49 @@ const BookingCalendar: React.FC = () => {
 
   // Generate time slots for the day (e.g., ["08:00", "08:30", "09:00", ...])
   const timeSlots = useMemo(() => generateTimeSlots(), []);
-  
 
   // Get all days in the current month with their date info
   const daysInMonth: DayInfo[] = useMemo(
     () => getDaysInMonth(currentDate),
     [currentDate]
   );
+
+  // In booking-calendar.tsx
+const [interpreterCount, setInterpreterCount] = useState(2); // default
+
+// State for interpreter legend
+const [activeInterpreters, setActiveInterpreters] = useState<Array<{id: string, name: string}>>([]);
+const [interpreterColors, setInterpreterColors] = useState<Record<string, string>>({});
+
+useEffect(() => {
+  fetch('/api/employees/get-interpreter-number')
+    .then(res => res.json())
+    .then(data => setInterpreterCount(data.count));
+}, []);
+
+// Fetch interpreters and colors for legend
+useEffect(() => {
+  const fetchInterpretersAndColors = async () => {
+    try {
+      const [interpretersRes, colorsRes] = await Promise.all([
+        fetch('/api/admin/interpreters'),
+        fetch('/api/admin/interpreter-colors')
+      ]);
+      
+      if (interpretersRes.ok && colorsRes.ok) {
+        const interpretersData = await interpretersRes.json();
+        const colorsData = await colorsRes.json();
+        
+        setActiveInterpreters(interpretersData.data);
+        setInterpreterColors(colorsData.data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch interpreters:', error);
+    }
+  };
+  
+  fetchInterpretersAndColors();
+}, []);
 
   // Debounce currentDate → debouncedDate by 1s
   useEffect(() => {
@@ -95,12 +146,13 @@ const BookingCalendar: React.FC = () => {
   );
 
   // Process booking data to create visual bars and occupancy data
-  // barsByDay: Map of day index → array of booking bars for that day
-  // occupancyByDay: Map of day index → array showing how many bookings per time slot
+  // barsByDay: Map of day index → array of booking bars for that day example output  : {0: [BarItem, BarItem, BarItem], 1: [BarItem, BarItem, BarItem], 2: [BarItem, BarItem, BarItem]}
+  // occupancyByDay: Map of day index → array showing how many bookings per time slot example output  : {0: [1, 2, 3], 1: [1, 2, 3], 2: [1, 2, 3]}
   const { barsByDay, occupancyByDay } = useSlotDataForBars({
     bookings,
     daysInMonth,
     timeSlots,
+    maxLanes: interpreterCount,
   });
 
   // Virtualization setup for rendering only visible day rows
@@ -133,11 +185,71 @@ const BookingCalendar: React.FC = () => {
   // Track whether we've already auto-scrolled for a given month to avoid jumping on data refreshes
   const autoScrolledMonthRef = useRef<string | null>(null);
   const forceScrollToTodayRef = useRef<boolean>(false);
+  const [highlightToday, setHighlightToday] = useState(false);
+  const highlightTimerRef = useRef<number | null>(null);
+  // Add this ref near the other refs
+  const horizontalScrollRef = useRef<number>(0);
+  const userScrollRef = useRef<number>(0);
 
-  const goToToday = useCallback(() => {
-    // Force a scroll-to-today on next layout cycle
-    forceScrollToTodayRef.current = true;
-    setCurrentDate(new Date());
+// Track horizontal scroll position when user scrolls manually
+useEffect(() => {
+  if (!scrollAreaViewportRef.current) return;
+  
+  const handleScroll = () => {
+    userScrollRef.current = scrollAreaViewportRef.current!.scrollLeft;
+  };
+
+  const scrollElement = scrollAreaViewportRef.current;
+  scrollElement.addEventListener('scroll', handleScroll);
+  
+  return () => {
+    scrollElement.removeEventListener('scroll', handleScroll);
+  };
+}, [loading]); // Re-run when loading changes
+
+const goToToday = useCallback(() => {
+  forceScrollToTodayRef.current = true;
+  // Clear any existing highlight timer before starting a new blink
+  if (highlightTimerRef.current !== null) {
+    window.clearTimeout(highlightTimerRef.current);
+    highlightTimerRef.current = null;
+  }
+  setHighlightToday(true);
+  setCurrentDate(new Date());
+
+  // Scroll to current time horizontally
+  const now = new Date();
+  const currentHour = now.getHours();
+  const currentMinute = now.getMinutes();
+  
+
+  const slotIndex = (currentHour - 8) * 2 + Math.floor(currentMinute / 30);
+  const scrollLeft = Math.max(0, slotIndex * cellWidth);
+
+  // Store the scroll position and update user scroll
+  horizontalScrollRef.current = scrollLeft;
+  userScrollRef.current = scrollLeft; // Update user scroll when using TODAY
+
+  // Scroll horizontally
+  if (scrollAreaViewportRef.current) {
+    scrollAreaViewportRef.current.scrollLeft = scrollLeft;
+  }
+
+  // Short, crisp blink that completes before data refresh debounce
+  highlightTimerRef.current = window.setTimeout(() => {
+    setHighlightToday(false);
+    highlightTimerRef.current = null;
+  }, 500);
+}, [cellWidth]);
+
+  // Cleanup on unmount to avoid dangling timers
+  useEffect(() => {
+    return () => {
+      if (highlightTimerRef.current !== null) {
+        window.clearTimeout(highlightTimerRef.current);
+        highlightTimerRef.current = null;
+      }
+    };
   }, []);
 
   // When viewing the current month, scroll to today's row
@@ -151,11 +263,28 @@ const BookingCalendar: React.FC = () => {
     const shouldForce = forceScrollToTodayRef.current;
     const notYetScrolledThisMonth = autoScrolledMonthRef.current !== monthKey;
     if (shouldForce || notYetScrolledThisMonth) {
-      rowVirtualizer.scrollToIndex(Math.max(0, today.getDate() - 1), { align: "center" });
+      rowVirtualizer.scrollToIndex(Math.max(0, today.getDate() - 1), {
+        align: "center",
+      });
       autoScrolledMonthRef.current = monthKey;
       forceScrollToTodayRef.current = false;
     }
   }, [currentDate, rowVirtualizer]);
+  
+  // Add this effect after the existing effects
+// Replace the existing restore effect (lines 203-210) with this:
+// Replace the existing restore effect (lines 203-210) with this:
+useEffect(() => {
+  if (loading || !scrollAreaViewportRef.current) return;
+  
+  // Restore horizontal scroll position after data loads
+  // Always use user's scroll position to preserve where they were
+  const scrollPosition = userScrollRef.current;
+  
+  if (scrollPosition >= 0) {
+    scrollAreaViewportRef.current.scrollLeft = scrollPosition;
+  }
+}, [loading]);
 
   // Ensure scroll happens after loading completes (since the grid isn't mounted during skeleton)
   useEffect(() => {
@@ -169,7 +298,9 @@ const BookingCalendar: React.FC = () => {
     const shouldForce = forceScrollToTodayRef.current;
     const notYetScrolledThisMonth = autoScrolledMonthRef.current !== monthKey;
     if (shouldForce || notYetScrolledThisMonth) {
-      rowVirtualizer.scrollToIndex(Math.max(0, today.getDate() - 1), { align: "center" });
+      rowVirtualizer.scrollToIndex(Math.max(0, today.getDate() - 1), {
+        align: "center",
+      });
       autoScrolledMonthRef.current = monthKey;
       forceScrollToTodayRef.current = false;
     }
@@ -228,35 +359,32 @@ const BookingCalendar: React.FC = () => {
       refetch();
     };
     window.addEventListener("booking:updated", onUpdated as EventListener);
-    return () => window.removeEventListener("booking:updated", onUpdated as EventListener);
+    return () =>
+      window.removeEventListener("booking:updated", onUpdated as EventListener);
   }, [refetch]);
 
   return (
-    <div className="max-w-[1500px]">
+    <div className="w-full">
       {/* Header section with title and month navigation */}
-      <div
-        className="flex items-center justify-between py-3"
-        style={{ maxWidth: "1500px" }}
-      >
+      <div className="flex flex-col sm:flex-row items-center justify-between py-3 gap-4">
         {/* Left side: Title with calendar icon */}
-
-        <div className="flex items-center gap-2 justify-center min-w-[370px] rounded-t-4xl bg-neutral-700 px-4 py-2">
-
-          <Calendar className="w-8 h-8 text-primary-foreground" />
-          <h1 className="text-[20px] font-medium text-primary-foreground">Book Appointment</h1>
+        <div className="flex items-center gap-2 justify-center min-w-[280px] sm:min-w-[370px] rounded-t-4xl bg-neutral-700 px-4 py-2">
+          <Calendar className="w-6 h-6 sm:w-8 sm:h-8 text-primary-foreground" />
+          <h1 className="text-[16px] sm:text-[20px] font-medium text-primary-foreground">
+            Book Appointment
+          </h1>
         </div>
-        
 
         {/* Right side: Month navigation buttons */}
-        <div className="mt-auto mr-3.5 flex items-center justify-center ml-auto max-w-[280px]">
+        <div className="flex items-center justify-center max-w-[280px]">
           <div className="flex items-center gap-2">
             <button
               onClick={() => shiftMonth(-1)}
-              className="p-2 border border-border rounded-[10px] hover:bg-accent hover:border-primary transition-colors"
+              className="p-2 border border-border rounded-[10px] hover:bg-accent hover:border-primary shadow-md hover:shadow-lg active:shadow-md transition"
             >
               <ChevronLeft className="text-foreground" />
             </button>
-            <span className="min-w-[150px] text-center font-medium text-foreground">
+            <span className="min-w-[120px] sm:min-w-[150px] text-center font-medium text-foreground text-sm sm:text-base">
               {currentDate.toLocaleDateString("en-US", {
                 month: "long",
                 year: "numeric",
@@ -264,7 +392,7 @@ const BookingCalendar: React.FC = () => {
             </span>
             <button
               onClick={() => shiftMonth(1)}
-              className="p-2 border border-border rounded-[10px] hover:bg-accent hover:border-primary transition-colors"
+              className="p-2 border border-border rounded-[10px] hover:bg-accent hover:border-primary shadow-md hover:shadow-lg active:shadow-md transition"
             >
               <ChevronRight className="text-foreground" />
             </button>
@@ -272,164 +400,151 @@ const BookingCalendar: React.FC = () => {
         </div>
       </div>
 
-
       {/* Main calendar grid */}
-      <div className="border border-border rounded-3xl overflow-hidden bg-background">
+      <div className="border border-border rounded-3xl overflow-hidden bg-background shadow-lg">
         {/* KEEPING ScrollArea + virtualizer viewport TOGETHER */}
-        {loading ? (
-          <div className="h-[500px]">
-            {/* Header skeleton (time labels row) */}
-            <div
-              className="sticky top-0 z-30 bg-secondary border-b border-border"
-              style={{
-                display: "grid",
-                gridTemplateColumns: `${DAY_LABEL_WIDTH}px repeat(${timeSlots.length}, ${CELL_WIDTH}px)`,
-                height: `${ROW_HEIGHT}px`,
-              }}
-            >
-              {/* Left header cell (clock) */}
-              <div className="sticky left-0 z-30 flex items-center justify-center border-r border-border bg-secondary">
-                <Skeleton className="h-4 w-4 rounded-full" />
-              </div>
-              {/* Time slot header cells */}
-              {timeSlots.map((slot) => (
-                <div
-                  key={`skh-${slot}`}
-                  className="border-r border-border flex items-center justify-center bg-secondary"
-                >
-                  <Skeleton className="h-3 w-14" />
-                </div>
-              ))}
+        <ScrollArea
+          className="h-[clamp(500px,calc(100dvh-360px),550px)]"
+          viewportRef={scrollAreaViewportRef}
+        >
+          {/* Fixed header row with time labels */}
+          <div
+            className="sticky top-0 z-30 bg-secondary border-b border-border min-w-[800px] shadow-sm"
+            style={{
+              display: "grid",
+              gridTemplateColumns: `${dayLabelWidth}px repeat(${timeSlots.length}, ${cellWidth}px)`,
+              height: `${ROW_HEIGHT}px`,
+            }}
+          >
+            {/* Left column: Clock icon */}
+            <div className="sticky left-0 z-30 flex items-center justify-center border-r border-border bg-secondary">
+              <Clock className="w-4 h-4 text-secondary-foreground" />
             </div>
 
-            {/* Body skeleton rows */}
-            {Array.from({ length: 8 }).map((_, rowIdx) => (
+            {/* Time slot headers (08:00, 08:30, 09:00, etc.) */}
+            {timeSlots.map((slot) => (
               <div
-                key={`skr-${rowIdx}`}
-                className="border-b border-border"
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: `${DAY_LABEL_WIDTH}px repeat(${timeSlots.length}, ${CELL_WIDTH}px)`,
-                  height: `${ROW_HEIGHT}px`,
-                }}
+                key={slot}
+                className="border-r border-border text-center text-sm font-medium flex items-center justify-center bg-secondary text-secondary-foreground"
               >
-                {/* Day label cell */}
-                <div className="sticky left-0 z-10 bg-background border-r border-border flex items-center justify-center">
-                  <Skeleton className="h-4 w-10" />
-                </div>
-                {/* Time slot cells */}
-                {timeSlots.map((slot, colIdx) => (
-                  <div
-                    key={`skc-${rowIdx}-${colIdx}`}
-                    className="border-r border-border flex items-center justify-center"
-                  >
-                    <Skeleton className="h-2 w-10" />
-                  </div>
-                ))}
+                {slot}
               </div>
             ))}
           </div>
-        ) : (
-          <ScrollArea className="h-[500px]" viewportRef={scrollAreaViewportRef}>
-            {/* Fixed header row with time labels */}
-            <div
-              className="sticky top-0 z-30 bg-secondary border-b border-border"
-              style={{
-                display: "grid",
-                gridTemplateColumns: `${DAY_LABEL_WIDTH}px repeat(${timeSlots.length}, ${CELL_WIDTH}px)`,
-                height: `${ROW_HEIGHT}px`,
-              }}
-            >
-              {/* Left column: Clock icon */}
-              <div className="sticky left-0 z-30 flex items-center justify-center border-r border-border bg-secondary">
-                <Clock className="w-4 h-4 text-secondary-foreground" />
-              </div>
 
-              {/* Time slot headers (08:00, 08:30, 09:00, etc.) */}
-              {timeSlots.map((slot) => (
-                <div
-                  key={slot}
-                  className="border-r border-border text-center text-sm font-medium flex items-center justify-center bg-secondary text-secondary-foreground"
-                >
-                  {slot}
-                </div>
-              ))}
+          {/* Loading overlay */}
+          {loading && (
+            <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+              <LoadingThreeDotsJumping />
             </div>
+          )}
 
-            {/* Virtualized day rows - only renders visible rows for performance */}
-            <div
-              ref={scrollAreaViewportRef}
-              style={{
-                height: `${rowVirtualizer.getTotalSize()}px`,
-                position: "relative",
-              }}
-            >
-              {/* Render only the day rows that are currently visible */}
-              {rowVirtualizer.getVirtualItems().map((vr) => (
-                <DayRow
-                  key={vr.index}
-                  day={daysInMonth[vr.index]}
-                  currentDate={currentDate}
-                  timeSlots={timeSlots}
-                  bars={barsByDay.get(vr.index) ?? []}
-                  occupancy={occupancyByDay.get(vr.index) ?? Array(timeSlots.length).fill(0)}
-                  isTimeSlotPast={isTimeSlotPast}
-                  onSlotClick={handleSlotClick}
-                  style={{
-                    position: "absolute",
-                    top: `${vr.start}px`,
-                    left: 0,
-                    width: "100%",
-                    height: `${vr.size}px`,
-                  }}
-                />
-              ))}
-            </div>
+          {/* Virtualized day rows - only renders visible rows for performance */}
+          <div
+            style={{
+              height: `${rowVirtualizer.getTotalSize()}px`,
+              position: "relative",
+            }}
+          >
+            {/* Render only the day rows that are currently visible */}
+            {/**sand to day-row.tsx */}
+            {rowVirtualizer.getVirtualItems().map((vr) => (
+              <DayRow
+                key={vr.index}
+                day={daysInMonth[vr.index]}
+                currentDate={currentDate}
+                timeSlots={timeSlots}
+                bars={barsByDay.get(vr.index) ?? []}
+                occupancy={
+                  occupancyByDay.get(vr.index) ??
+                  Array(timeSlots.length).fill(0)
+                }
+                isTimeSlotPast={isTimeSlotPast}
+                onSlotClick={handleSlotClick}
+                cellWidth={cellWidth}
+                dayLabelWidth={dayLabelWidth}
+                maxLanes={interpreterCount}  // ← Add this
+    
+                isHighlighted={
+                  highlightToday &&
+                  daysInMonth[vr.index].fullDate.toDateString() ===
+                    new Date().toDateString()
+                }
+                style={{
+                  position: "absolute",
+                  top: `${vr.start}px`,
+                  left: 0,
+                  width: "100%",
+                  height: `${vr.size}px`,
+                }}
+              />
+            ))}
+          </div>
 
-            {/* Horizontal scrollbar */}
-            <ScrollBar orientation="horizontal" className="z-[10]"/>
-          </ScrollArea>
-        )}
+          {/* Horizontal scrollbar */}
+          <ScrollBar orientation="horizontal" className="z-[10]" />
+        </ScrollArea>
       </div>
 
       {/* Bottom controls and legend */}
-      <div className="flex items-center justify-between mt-3 gap-3">
+      <div className="flex flex-col sm:flex-row items-center justify-between mt-3 gap-3">
         {/* Left: controls */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Today button */}
           <Button
             onClick={goToToday}
-            className="bg-neutral-700 text-white rounded-full hover:bg-black/90 w-28 h-10"
+            className="bg-neutral-700 text-white rounded-full hover:bg-black/90 w-24 sm:w-28 h-10 text-sm sm:text-base shadow-md hover:shadow-lg active:shadow-md transition"
           >
-            <Disc className="w-10 h-10 " />
+            <Disc className="w-8 h-8 sm:w-10 sm:h-10" />
             Today
           </Button>
           <Button
             onClick={() => refetch()}
-            className="bg-neutral-700 text-white rounded-full hover:bg-black/90 h-10 w-28"
+            className="bg-neutral-700 text-white rounded-full hover:bg-black/90 h-10 w-24 sm:w-28 text-sm sm:text-base shadow-md hover:shadow-lg active:shadow-md transition"
             disabled={loading}
           >
-            <RefreshCw className={`w-10 h-10  ${loading ? "animate-spin" : ""}`} />
+            <RefreshCw
+              className={`w-8 h-8 sm:w-10 sm:h-10 ${
+                loading ? "animate-spin" : ""
+              }`}
+            />
             {loading ? "Refreshing..." : "Refresh"}
           </Button>
           <BookingRules />
         </div>
 
-
-        {/* Right: legend */}
-        <div className="bg-neutral-700 flex items-center justify-center gap-6 ml-auto text-sm max-w-[320px] min-h-[40px] rounded-br-4xl rounded-bl-4xl px-4 py-2">
-          <div className="flex items-center gap-2">
-            <span className={`inline-block h-2.5 w-2.5 rounded-full border border-primary-foreground ${getStatusStyle("approve").bg}`} />
-            <span className="text-primary-foreground">Approved</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className={`inline-block h-2.5 w-2.5 rounded-full border border-primary-foreground ${getStatusStyle("waiting").bg}`} />
-            <span className="text-primary-foreground">Waiting</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className={`inline-block h-2.5 w-2.5 rounded-full border border-primary-foreground ${getStatusStyle("cancel").bg}`} />
-            <span className="text-primary-foreground">Cancelled</span>
-          </div>
-
+        {/* Right: interpreter legend */}
+        <div 
+          className="bg-neutral-700 flex items-center justify-center gap-2 sm:gap-3 text-sm rounded-br-4xl rounded-bl-4xl px-2 sm:px-3 py-2"
+          style={{
+            minWidth: activeInterpreters.length > 0 ? '200px' : '150px',
+            width: 'fit-content',
+            maxWidth: '90vw', // Use viewport width to prevent overflow
+            minHeight: '40px'
+          }}
+        >
+          {activeInterpreters.length > 0 ? (
+            activeInterpreters.map((interpreter) => {
+              const color = interpreterColors[interpreter.id] || getInterpreterColor(interpreter.id, interpreter.name)?.bg || '#6b7280';
+              return (
+                <div key={interpreter.id} className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+                  <span
+                    className="inline-block h-2.5 w-2.5 rounded-full border border-primary-foreground"
+                    style={{ backgroundColor: color }}
+                  />
+                  <span className="text-primary-foreground text-xs sm:text-sm whitespace-nowrap">
+                    {interpreter.name}
+                  </span>
+                </div>
+              );
+            })
+          ) : (
+            <div className="flex items-center gap-1 sm:gap-2">
+              <span className="text-primary-foreground text-xs sm:text-sm">
+                No interpreters found
+              </span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -439,12 +554,17 @@ const BookingCalendar: React.FC = () => {
         onOpenChange={setIsFormOpen}
         selectedSlot={selectedSlot}
         daysInMonth={daysInMonth}
+        dayOccupancy={
+          selectedSlot
+            ? occupancyByDay.get(selectedSlot.day - 1) ??
+              Array(timeSlots.length).fill(0)
+            : undefined
+        
+        }
+        maxLanes={interpreterCount}
       />
-
-      
     </div>
   );
 };
 
 export default BookingCalendar;
-

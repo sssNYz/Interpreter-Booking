@@ -15,7 +15,6 @@ export type AdminBookingRow = {
   startTime: string;
   endTime: string;
   requestedTime: string;
-  isDR: boolean;
 };
 
 // Types used in admin manage and detail views
@@ -33,7 +32,6 @@ export type BookingManage = {
   startTime: string;
   endTime: string;
   requestedTime: string;
-  isDR: boolean;
 };
 
 export interface Stats {
