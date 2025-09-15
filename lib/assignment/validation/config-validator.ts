@@ -668,7 +668,7 @@ export class ConfigurationValidator {
         oldConfig: logEntry.oldConfig,
         newConfig: logEntry.newConfig,
         validationResult: logEntry.validationResult,
-        impactAssessment: logEntry.impactAssessment
+        impactAssessment: JSON.parse(JSON.stringify(logEntry.impactAssessment)) as Record<string, unknown>
       });
 
       console.log(`📝 Configuration change logged: ${logEntry.changeType}`);

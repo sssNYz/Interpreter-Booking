@@ -113,7 +113,30 @@ export async function GET(request: NextRequest) {
     const currentPolicy = await loadPolicy();
     const currentMode = currentPolicy.mode;
 
-    const response: any = {
+    const response: {
+      success: boolean;
+      data: {
+        currentMode: string;
+        availableModes: string[];
+        modeDescriptions: Record<string, string>;
+      };
+      timestamp: string;
+      impact?: {
+        poolImpact: {
+          totalBookings: number;
+          expectedImmediateAssignments: number;
+          expectedDeadlineUpdates: number;
+          expectedStatusChanges: number;
+        };
+        systemImpact: {
+          processingLoad: 'LOW' | 'MEDIUM' | 'HIGH';
+          fairnessImpact: 'POSITIVE' | 'NEUTRAL' | 'NEGATIVE';
+          urgencyImpact: 'POSITIVE' | 'NEUTRAL' | 'NEGATIVE';
+        };
+        recommendations: string[];
+        warnings: string[];
+      }; // This gets added later
+    } = {
       success: true,
       data: {
         currentMode,
