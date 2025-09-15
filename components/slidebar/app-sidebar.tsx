@@ -1,7 +1,7 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import {BarChart2, Calendar, Home, Inbox, Settings, ChevronRight, LayoutDashboard, Star, LogOut } from "lucide-react"
+import { BarChart2, Calendar, Home, Inbox, Settings, ChevronRight, LayoutDashboard, Star, LogOut, Cog } from "lucide-react"
 
 import {
   Sidebar,
@@ -28,6 +28,7 @@ const adminItems = [
   { title: "Bookings management", url: "/AdminPage/booking-manage-page", icon: Inbox },
   { title: "Interpreters management", url: "#", icon: Calendar },
   { title: "User management", url: "/AdminPage/user-manage-page", icon: Settings },
+  { title: "Auto-Assignment Config", url: "/AdminPage/auto-assign-config", icon: Cog },
 ]
 
 export function AppSidebar() {

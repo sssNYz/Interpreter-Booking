@@ -1,11 +1,12 @@
-
 "use client";
 
 import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { CalendarDays, CheckCircle } from "lucide-react";
 
 import BookingCalendar from "@/components/BookingCalendar/booking-calendar";
 import BookingHistory from "@/components/BookingHistory/booking-history";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 type TabKey = "calendar" | "bookings";
 
@@ -15,7 +16,9 @@ function BookingPage() {
   const searchParams = useSearchParams();
   const initialTab = (searchParams.get("tab") as TabKey) || "calendar";
   const [active, setActive] = useState<TabKey>(initialTab);
-  const [bookingsLoaded, setBookingsLoaded] = useState<boolean>(initialTab === "bookings");
+  const [bookingsLoaded, setBookingsLoaded] = useState<boolean>(
+    initialTab === "bookings"
+  );
 
   useEffect(() => {
     const sp = new URLSearchParams(searchParams.toString());
@@ -34,7 +37,10 @@ function BookingPage() {
     else hisRef.current?.focus();
   };
 
-  const onKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>, self: TabKey) => {
+  const onKeyDown = (
+    e: React.KeyboardEvent<HTMLButtonElement>,
+    self: TabKey
+  ) => {
     if (e.key === "ArrowRight") {
       e.preventDefault();
       focusNext(self, 1);
@@ -48,43 +54,64 @@ function BookingPage() {
   };
 
   return (
-
-    <div className="flex flex-col gap-8 px-4 mx-auto w-full max-w-full lg:max-w-[1500px]">
+    <div className="flex flex-col gap-8 px-4 mx-auto w-[min(100vw-100px,1700px)]">
       <div className="flex items-center justify-between py-2">
         <h1 className="text-2xl font-semibold">Appointments</h1>
-      </div>
-
-      <div role="tablist" aria-label="Appointment sections" className="flex gap-2 border-b">
-        <button
-          ref={calRef}
-          role="tab"
-          id="tab-calendar"
-          aria-controls="panel-calendar"
-          aria-selected={active === "calendar"}
-          tabIndex={active === "calendar" ? 0 : -1}
-          onClick={() => setActive("calendar")}
-          onKeyDown={(e) => onKeyDown(e, "calendar")}
-          className={`min-h-[44px] px-3 py-2 border-b-2 transition-colors ${
-            active === "calendar" ? "font-semibold border-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
+        
+        <div
+          role="tablist"
+          aria-label="Appointment sections"
+          className="flex bg-muted rounded-full p-0.5"
         >
-          Calendar
-        </button>
-        <button
-          ref={hisRef}
-          role="tab"
-          id="tab-bookings"
-          aria-controls="panel-bookings"
-          aria-selected={active === "bookings"}
-          tabIndex={active === "bookings" ? 0 : -1}
-          onClick={() => setActive("bookings")}
-          onKeyDown={(e) => onKeyDown(e, "bookings")}
-          className={`min-h-[44px] px-3 py-2 border-b-2 transition-colors ${
-            active === "bookings" ? "font-semibold border-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          My bookings
-        </button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              ref={calRef}
+              role="tab"
+              id="tab-calendar"
+              aria-controls="panel-calendar"
+              aria-selected={active === "calendar"}
+              tabIndex={active === "calendar" ? 0 : -1}
+              onClick={() => setActive("calendar")}
+              onKeyDown={(e) => onKeyDown(e, "calendar")}
+              className={`min-h-[44px] px-3 py-2 border-b-2 transition-colors ${
+                active === "calendar"
+                  ? "font-semibold border-foreground"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <CalendarDays className="w-5 h-5" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>Calendar</p>
+          </TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              ref={hisRef}
+              role="tab"
+              id="tab-bookings"
+              aria-controls="panel-bookings"
+              aria-selected={active === "bookings"}
+              tabIndex={active === "bookings" ? 0 : -1}
+              onClick={() => setActive("bookings")}
+              onKeyDown={(e) => onKeyDown(e, "bookings")}
+              className={`min-h-[44px] px-3 py-2 border-b-2 transition-colors ${
+                active === "bookings"
+                  ? "font-semibold border-foreground"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <CheckCircle className="w-5 h-5" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>My bookings</p>
+          </TooltipContent>
+        </Tooltip>
+        </div>
       </div>
 
       {active === "calendar" ? (
@@ -94,11 +121,15 @@ function BookingPage() {
       ) : null}
 
       {active === "bookings" ? (
-        <div role="tabpanel" id="panel-bookings" aria-labelledby="tab-bookings" className="w-full">
+        <div
+          role="tabpanel"
+          id="panel-bookings"
+          aria-labelledby="tab-bookings"
+          className="w-full"
+        >
           <BookingHistory />
         </div>
       ) : bookingsLoaded ? null : null}
-
     </div>
   );
 }
