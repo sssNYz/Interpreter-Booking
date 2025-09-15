@@ -22,13 +22,6 @@ import type {
   MonthlyDataRowWithDR,
   MonthlyTableRow,
 } from "@/types/admin-dashboard";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { 
@@ -283,7 +276,6 @@ interface TypesTabProps {
 export function TypesTab({ year, data: externalData }: TypesTabProps) {
   // ---- hooks ----
   const [data, setData] = React.useState<TypesApiResponse | null>(null);
-  const [selectedMonth, setSelectedMonth] = React.useState<MonthName | "">("");
   const [showAllMonths, setShowAllMonths] = React.useState<boolean>(false);
 
   // Use external data if provided, otherwise fetch internally
@@ -303,15 +295,12 @@ export function TypesTab({ year, data: externalData }: TypesTabProps) {
           const j = (await r.json()) as TypesApiResponse;
           if (!alive) return;
           setData(j);
-          setSelectedMonth((prev) => (prev ? prev : getCurrentCalendarMonth(j.months)));
         })
         .catch((e) => {
           if (alive) console.error("Error fetching types data:", e);
         });
 
       return () => { alive = false; };
-    } else if (externalData) {
-      setSelectedMonth((prev) => (prev ? prev : getCurrentCalendarMonth(externalData.months)));
     }
   }, [year, externalData]);
 
@@ -413,8 +402,8 @@ export function TypesTab({ year, data: externalData }: TypesTabProps) {
 
   // ===== Table #2: Month × Type × Interpreter =====
   const monthsToRender: MonthName[] = React.useMemo(
-    () => showAllMonths ? months : (selectedMonth ? [selectedMonth] : []),
-    [showAllMonths, months, selectedMonth]
+    () => showAllMonths ? months : (months.length > 0 ? [months[0]] : []),
+    [showAllMonths, months]
   );
 
   const dynamicFooter = React.useMemo<FooterByInterpreter>(() => {
@@ -524,26 +513,9 @@ export function TypesTab({ year, data: externalData }: TypesTabProps) {
       {/* ===== Chart: Stacked by months ===== */}
       <Card className="h-[380px] mb-8 overflow-visible">
         <CardHeader className="pb-0">
-          <div className="flex items-center justify-between gap-3">
-            <CardTitle className="text-base">
-              Meeting Types — All Months (Year {activeYear})
-            </CardTitle>
-            <Select
-              value={selectedMonth || ""}
-              onValueChange={(v) => setSelectedMonth(v as MonthName)}
-            >
-              <SelectTrigger className="h-9 w-[120px]">
-                <SelectValue placeholder="Month" />
-              </SelectTrigger>
-              <SelectContent>
-                {months.map((m) => (
-                  <SelectItem key={m} value={m}>
-                    {m}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          <CardTitle className="text-base">
+            Meeting Types — All Months (Year {activeYear})
+          </CardTitle>
         </CardHeader>
         <CardContent className="h-[320px]">
           <div className="allow-label-overflow relative h-full" style={{ overflow: "visible" }}>
