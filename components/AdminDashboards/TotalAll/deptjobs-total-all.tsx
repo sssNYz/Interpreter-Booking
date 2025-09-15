@@ -20,13 +20,6 @@ import type {
   DepartmentsApiResponse,
 } from "@/types/admin-dashboard";
 import { OwnerGroupLabel as OGLabel } from "@/types/admin-dashboard";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 
 import { 
@@ -216,7 +209,6 @@ interface DeptTabProps {
 
 export function DeptTab({ year, data: externalData }: DeptTabProps) {
   const [data, setData] = React.useState<DepartmentsApiResponse | null>(null);
-  const [selectedMonth, setSelectedMonth] = React.useState<MonthName | "">("");
   const [showAllMonths, setShowAllMonths] = React.useState<boolean>(false);
 
   // Use external data if provided, otherwise fetch internally
@@ -234,7 +226,6 @@ export function DeptTab({ year, data: externalData }: DeptTabProps) {
           const j = (await r.json()) as DepartmentsApiResponse;
           if (alive) {
             setData(j);
-            setSelectedMonth((prev) => (prev ? prev : getCurrentCalendarMonth(j.months)));
           }
         })
         .catch((e) => {
@@ -242,8 +233,6 @@ export function DeptTab({ year, data: externalData }: DeptTabProps) {
         });
 
       return () => { alive = false; };
-    } else if (externalData) {
-      setSelectedMonth((prev) => (prev ? prev : getCurrentCalendarMonth(externalData.months)));
     }
   }, [year, externalData]);
 
@@ -310,8 +299,8 @@ export function DeptTab({ year, data: externalData }: DeptTabProps) {
   }, [months, yearData, interpreters]);
 
   const monthsToRender: MonthName[] = React.useMemo(
-    () => showAllMonths ? months : (selectedMonth ? [selectedMonth] : []),
-    [showAllMonths, months, selectedMonth]
+    () => showAllMonths ? months : (months.length > 0 ? [months[0]] : []),
+    [showAllMonths, months]
   );
 
   const dynamicFooter = React.useMemo<FooterByInterpreter>(() => {
@@ -336,24 +325,9 @@ export function DeptTab({ year, data: externalData }: DeptTabProps) {
       {/* Chart select month */}
       <Card className="h-[380px] mb-4">
         <CardHeader className="pb-0">
-          <div className="flex items-center justify-between gap-3">
-            <CardTitle className="text-base">
-              Tech Categories — All Months (Year {activeYear})
-            </CardTitle>
-            <Select
-              value={selectedMonth || ""}
-              onValueChange={(v) => setSelectedMonth(v as MonthName)}
-            >
-              <SelectTrigger className="h-9 w-[120px]">
-                <SelectValue placeholder="Month" />
-              </SelectTrigger>
-              <SelectContent>
-                {months.map((m) => (
-                  <SelectItem key={m} value={m}>{m}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          <CardTitle className="text-base">
+            Tech Categories — All Months (Year {activeYear})
+          </CardTitle>
         </CardHeader>
         <CardContent className="h-[320px]">
           <div className="w-full h-full" style={{ overflow: "visible" }}>
