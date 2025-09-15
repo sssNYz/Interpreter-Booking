@@ -19,7 +19,6 @@ import type {
   DRType,
   TypesApiResponse,
   MonthlyDataRowWithDR,
-  // TypeChartRow,
   MonthlyTableRow,
 } from "@/types/admin-dashboard";
 import {
@@ -36,33 +35,20 @@ import {
   diffRange 
 } from "@/utils/admin-dashboard";
 
-/* =================== Labels & mapping =================== */
+/* =================== Constants =================== */
 type PriorityLabel =
   | "DR1"
   | "DR2"
   | "DRK"
+  | "DR_OTHER"
   | "VIP"
   | "PDR"
   | "WEEKLY"
   | "GENERAL"
   | "URGENT"
-  | "OTHER"
-  | "DR_OTHER";
+  | "OTHER";
 
-const TYPE_PRIORITY: readonly PriorityLabel[] = [
-  "DR1",
-  "DR2",
-  "DRK",
-  "DR_OTHER",
-  "VIP",
-  "PDR",
-  "WEEKLY",
-  "GENERAL",
-  "URGENT",
-  "OTHER",
-];
 
-// Fixed color palette for PriorityLabel types
 const TYPE_COLORS: Record<PriorityLabel, string> = {
   DR1: "#ef4444",        // red
   DR2: "#f97316",        // orange
@@ -75,6 +61,7 @@ const TYPE_COLORS: Record<PriorityLabel, string> = {
   URGENT: "#059669",     // green
   OTHER: "#3b82f6",      // blue
 };
+
 
 const DR_LABEL_TO_KEY: Record<
   Extract<PriorityLabel, "DR1" | "DR2" | "DRK" | "PDR" | "DR_OTHER">,
@@ -99,8 +86,6 @@ const MT_LABEL_TO_KEY: Record<
 };
 
 /* =================== Helpers =================== */
-// type SingleMonthBar = TypeChartRow & { type: PriorityLabel } & Record<string, number>;
-
 function getDRValue(
   mrow: MonthlyDataRowWithDR | undefined,
   itp: InterpreterName,
@@ -119,8 +104,164 @@ function getMTValue(
   return mrow?.typeByInterpreter?.[itp]?.[key] ?? 0;
 }
 
-/* =================== Component =================== */
+/* =================== Custom Components =================== */
+const TYPE_PRIORITY = [
+  "DR1","DR2","DRK","DR_OTHER","VIP","PDR","WEEKLY","GENERAL","URGENT","OTHER"
+] as const;
+const typeOrder = (k: string) => TYPE_PRIORITY.indexOf(k as PriorityLabel);
 
+export const GroupedTooltip = React.memo(function GroupedTooltip({
+  active, payload, label,
+}: {
+  active?: boolean;
+  payload?: Array<{ value: number; color: string; dataKey: string }>;
+  label?: string;
+}) {
+  if (!active || !payload || payload.length === 0) return null;
+
+  // dedupe by dataKey first
+  const unique = new Map<string, typeof payload[number]>();
+  for (const e of payload) {
+    const dk = String(e.dataKey ?? "");
+    if (!dk.includes("_")) continue;           // only keys like "<itp>_<type>"
+    if (!unique.has(dk)) unique.set(dk, e);
+  }
+
+  // group by interpreter
+  const groups = new Map<
+    string,
+    { total: number; items: Array<{ label: string; value: number; color: string }> }
+  >();
+
+  unique.forEach((e, dk) => {
+    const [itp, ...rest] = dk.split("_");
+    const tlabel = rest.join("_");
+    const val = Number(e.value ?? 0);
+    if (val <= 0) return;
+
+    const g = groups.get(itp) ?? { total: 0, items: [] };
+    g.items.push({ label: tlabel, value: val, color: String(e.color || "#888") });
+    g.total += val;
+    groups.set(itp, g);
+  });
+
+  if (groups.size === 0) return null;
+
+  // sort interpreters by total desc
+  const sorted = Array.from(groups.entries()).sort((a, b) => b[1].total - a[1].total);
+
+  // sort items in each interpreter by TYPE_PRIORITY
+  sorted.forEach(([, g]) => {
+    g.items.sort((a, b) => typeOrder(a.label) - typeOrder(b.label));
+  });
+
+  return (
+    <div style={{
+      background: "#fff",
+      border: "1px solid #ddd",
+      padding: 10,
+      fontSize: 12,
+      borderRadius: 8,
+      boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+      maxWidth: 280,
+      zIndex: 9999,
+      position: "relative"
+    }}>
+      <div style={{ 
+        fontWeight: 700, 
+        marginBottom: 8,
+        fontVariantNumeric: "tabular-nums"
+      }}>
+        {label}
+      </div>
+
+      {sorted.map(([itp, g]) => (
+        <div key={itp} style={{ marginBottom: 8 }}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr auto",
+              alignItems: "center",
+              columnGap: 8,
+              fontWeight: 600,
+              margin: "6px 0 2px",
+              fontVariantNumeric: "tabular-nums",
+            }}
+          >
+            <span>{itp}</span>
+            <span style={{ opacity: 0.75 }}>{g.total.toLocaleString()}</span>
+          </div>
+          <ul style={{ margin: 0, padding: 0, listStyle: "none" }}>
+            {g.items.map((it, idx) => (
+              <li
+                key={idx}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "12px 1fr auto",
+                  alignItems: "center",
+                  columnGap: 10,
+                  padding: "2px 0",
+                  lineHeight: 1.4,
+                  fontVariantNumeric: "tabular-nums",
+                }}
+              >
+                <span
+                  style={{
+                    width: 10,
+                    height: 10,
+                    background: it.color,
+                    borderRadius: 2,
+                    display: "inline-block",
+                  }}
+                />
+                <span style={{ 
+                  overflow: "hidden", 
+                  textOverflow: "ellipsis", 
+                  whiteSpace: "nowrap" 
+                }}>
+                  {it.label}
+                </span>
+                <span style={{ 
+                  textAlign: "right", 
+                  paddingLeft: 8 
+                }}>
+                  {Number(it.value).toLocaleString()}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </div>
+  );
+});
+
+const CustomLegend = () => (
+  <div style={{ 
+    display: "flex", 
+    flexWrap: "wrap", 
+    gap: "16px", 
+    justifyContent: "center", 
+    marginTop: "16px",
+    padding: "8px"
+  }}>
+    {TYPE_PRIORITY.map((label) => (
+      <div key={label} style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+        <div
+          style={{
+            width: "12px",
+            height: "12px",
+            backgroundColor: TYPE_COLORS[label],
+            borderRadius: "2px",
+          }}
+        />
+        <span style={{ fontSize: "12px", fontWeight: "500" }}>{label}</span>
+      </div>
+    ))}
+  </div>
+);
+
+/* =================== Main Component =================== */
 interface TypesTabProps {
   year: number;
   data?: TypesApiResponse | null;
@@ -130,7 +271,6 @@ export function TypesTab({ year, data: externalData }: TypesTabProps) {
   // ---- hooks ----
   const [data, setData] = React.useState<TypesApiResponse | null>(null);
   const [selectedMonth, setSelectedMonth] = React.useState<MonthName | "">("");
-  const [showAllMonths, setShowAllMonths] = React.useState<boolean>(false);
 
   // Use external data if provided, otherwise fetch internally
   const currentData = externalData !== undefined ? externalData : data;
@@ -166,8 +306,8 @@ export function TypesTab({ year, data: externalData }: TypesTabProps) {
   const months: MonthName[] = React.useMemo(() => currentData?.months ?? [], [currentData?.months]);
   const interpreters: InterpreterName[] = React.useMemo(() => currentData?.interpreters ?? [], [currentData?.interpreters]);
   const yearData: MonthlyDataRowWithDR[] = React.useMemo(() => currentData?.yearData ?? [], [currentData?.yearData]);
-  const typesMGIFooter: FooterByInterpreter = React.useMemo(() => 
-    currentData?.typesMGIFooter ?? { perInterpreter: [], grand: 0, diff: 0 }, [currentData?.typesMGIFooter]);
+  // const typesMGIFooter: FooterByInterpreter = React.useMemo(() => 
+  //   currentData?.typesMGIFooter ?? { perInterpreter: [], grand: 0, diff: 0 }, [currentData?.typesMGIFooter]);
 
   // current month for highlight
   const currentMonth = React.useMemo<MonthName | "">(
@@ -175,32 +315,8 @@ export function TypesTab({ year, data: externalData }: TypesTabProps) {
     [months]
   );
 
-  // color palette (kept for potential future use)
-  // const interpreterColors = React.useMemo<Record<InterpreterName, string>>(() => {
-  //   return createInterpreterColorPalette(interpreters);
-  // }, [interpreters]);
-
-  // ===== Chart dataset (legacy - kept for reference) =====
-  // const monthBarData: SingleMonthBar[] = React.useMemo(() => {
-  //   if (!selectedMonth) return [];
-  //   const mrow = yearData.find((d) => d.month === selectedMonth);
-  //   return TYPE_PRIORITY.map((label) => {
-  //     const rec = { type: label } as SingleMonthBar;
-  //     interpreters.forEach((itp) => {
-  //       let v = 0;
-  //       if (label === "DR1" || label === "DR2" || label === "DRK" || label === "PDR" || label === "DR_OTHER") {
-  //         v = getDRValue(mrow, itp, label);
-  //       } else {
-  //         v = getMTValue(mrow, itp, label);
-  //       }
-  //       rec[itp] = v;
-  //     });
-  //     return rec;
-  //   });
-  // }, [yearData, selectedMonth, interpreters]);
-
-  // ===== Stacked Chart dataset  =====
-  const stackedMonthData: Record<string, string | number>[] = React.useMemo(() => {
+  // ===== Chart dataset =====
+  const chartData: Record<string, string | number>[] = React.useMemo(() => {
     return months.map((month) => {
       const mrow = yearData.find((d) => d.month === month);
       const rec: Record<string, string | number> = { month };
@@ -221,44 +337,6 @@ export function TypesTab({ year, data: externalData }: TypesTabProps) {
     });
   }, [months, yearData, interpreters]);
 
-  // const yMax = React.useMemo(() => {
-  //   let max = 0;
-  //   for (const row of monthBarData) {
-  //     for (const itp of interpreters) {
-  //       const v = Number((row as Record<string, number>)[itp] ?? 0);
-  //       if (v > max) max = v;
-  //     }
-  //   }
-  //   return max;
-  // }, [monthBarData, interpreters]);
-
-  // const yTicks = React.useMemo(() => {
-  //   const top = Math.ceil(yMax / 2) * 2;
-  //   const arr: number[] = [];
-  //   for (let v = 0; v <= top; v += 2) arr.push(v);
-  //   return arr.length ? arr : [0, 2];
-  // }, [yMax]);
-
-  // ===== Stacked Chart Y-axis calculations =====
-  const yMaxStacked = React.useMemo(() => {
-    let max = 0;
-    for (const row of stackedMonthData) {
-      interpreters.forEach((interpreter) => {
-        const total = TYPE_PRIORITY.reduce((sum, label) => {
-          return sum + (Number(row[`${interpreter}_${label}`]) ?? 0);
-        }, 0);
-        if (total > max) max = total;
-      });
-    }
-    return max;
-  }, [stackedMonthData, interpreters]);
-
-  const yTicksStacked = React.useMemo(() => {
-    const top = Math.ceil(yMaxStacked / 2) * 2;
-    const arr: number[] = [];
-    for (let v = 0; v <= top; v += 2) arr.push(v);
-    return arr.length ? arr : [0, 2];
-  }, [yMaxStacked]);
 
   // ===== Table #1: Types × Months =====
   type TypesTableRowStrict = MonthlyTableRow & {
@@ -293,15 +371,12 @@ export function TypesTab({ year, data: externalData }: TypesTabProps) {
 
   // ===== Table #2: Month × Type × Interpreter =====
   const groupSize = TYPE_PRIORITY.length;
-  const monthsToRender: MonthName[] = showAllMonths
-    ? months
-    : (selectedMonth ? [selectedMonth] as MonthName[] : []);
+  const monthsToRender: MonthName[] = months;
 
   const dynamicFooter = React.useMemo<FooterByInterpreter>(() => {
-    if (showAllMonths) return typesMGIFooter;
-    const mrow = yearData.find((d) => d.month === selectedMonth);
     const perInterpreter = interpreters.map((itp) =>
       TYPE_PRIORITY.reduce((sum, label) => {
+        const mrow = yearData.find((d) => d.month === selectedMonth);
         if (label === "DR1" || label === "DR2" || label === "DRK" || label === "PDR" || label === "DR_OTHER") {
           return sum + getDRValue(mrow, itp, label);
         }
@@ -311,11 +386,11 @@ export function TypesTab({ year, data: externalData }: TypesTabProps) {
     const grand = perInterpreter.reduce((a, b) => a + b, 0);
     const diff = diffRange(perInterpreter);
     return { perInterpreter, grand, diff };
-  }, [showAllMonths, typesMGIFooter, yearData, selectedMonth, interpreters]);
+  }, [yearData, selectedMonth, interpreters]);
 
   return (
     <>
-      {/* ===== Chart: stacked by months ===== */}
+      {/* ===== Chart: Stacked by months ===== */}
       <Card className="h-[380px] mb-4">
         <CardHeader className="pb-0">
           <div className="flex items-center justify-between gap-3">
@@ -340,33 +415,20 @@ export function TypesTab({ year, data: externalData }: TypesTabProps) {
           </div>
         </CardHeader>
         <CardContent className="h-[320px]">
-          <div className="w-full h-full">
+          <div className="w-full h-full" style={{ overflow: "visible" }}>
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={stackedMonthData} margin={{ top: 8, right: 12, left: 8, bottom: 0 }}>
+              <BarChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
-                <YAxis
-                  allowDecimals={false}
-                  domain={[0, yTicksStacked[yTicksStacked.length - 1] ?? 0]}
-                  ticks={yTicksStacked}
-                  tickFormatter={(v) => v.toString()}
+                <YAxis />
+                <Tooltip
+                  content={<GroupedTooltip />}
+                  offset={12}
+                  allowEscapeViewBox={{ x: true, y: true }}
+                  wrapperStyle={{ zIndex: 9999, pointerEvents: "none" }}
+                  filterNull
                 />
-                <Tooltip />
-                <Legend 
-                  content={() => (
-                    <div className="flex flex-wrap gap-4 justify-center mt-4">
-                      {TYPE_PRIORITY.map((label) => (
-                        <div key={label} className="flex items-center gap-2">
-                          <div 
-                            className="w-3 h-3 rounded-sm" 
-                            style={{ backgroundColor: TYPE_COLORS[label] }}
-                          />
-                          <span className="text-sm">{label}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                />
+                <Legend content={<CustomLegend />} />
                 {interpreters.map((interpreter) =>
                   TYPE_PRIORITY.map((label) => (
                     <Bar
@@ -374,8 +436,10 @@ export function TypesTab({ year, data: externalData }: TypesTabProps) {
                       dataKey={`${interpreter}_${label}`}
                       stackId={interpreter}
                       fill={TYPE_COLORS[label]}
-                      name={`${interpreter} — ${label}`}
                       legendType="none"
+                      name={`${interpreter} — ${label}`}
+                      isAnimationActive={false}
+                      animationDuration={0}
                     />
                   ))
                 )}
@@ -449,7 +513,7 @@ export function TypesTab({ year, data: externalData }: TypesTabProps) {
         </CardContent>
       </Card>
 
-      {/* ===== Table 2: Month × Type × Interpreter (unchanged) ===== */}
+      {/* ===== Table 2: Month × Type × Interpreter ===== */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between gap-3">
@@ -457,10 +521,10 @@ export function TypesTab({ year, data: externalData }: TypesTabProps) {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setShowAllMonths((v) => !v)}
+              onClick={() => setSelectedMonth((prev) => prev ? "" : getCurrentCalendarMonth(months))}
               className="whitespace-nowrap"
             >
-              {showAllMonths ? "Show current month only" : "Show all months"}
+              {selectedMonth ? "Show all months" : "Show current month only"}
             </Button>
           </div>
         </CardHeader>

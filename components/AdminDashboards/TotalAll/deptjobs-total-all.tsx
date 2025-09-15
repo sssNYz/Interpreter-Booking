@@ -18,7 +18,6 @@ import type {
   InterpreterName,
   OwnerGroup,
   DepartmentsApiResponse,
-  CategoryChartRow,
 } from "@/types/admin-dashboard";
 import { OwnerGroupLabel as OGLabel } from "@/types/admin-dashboard";
 import {
@@ -33,16 +32,180 @@ import { Button } from "@/components/ui/button";
 import { 
   getCurrentCalendarMonth, 
   diffRange, 
-  diffClass,
-  createInterpreterColorPalette 
+  diffClass
 } from "@/utils/admin-dashboard";
 
-/* =================== Constants =================== */
-const BAR_SIZE = 12;
-const BAR_GAP = 4;
 
-/* ========= Types ========= */
-type SingleMonthDeptBar = CategoryChartRow & Record<InterpreterName, number>;
+
+/* =================== Constants =================== */
+type TechCategory = "IoT" | "Hardware" | "Software" | "Other";
+
+const TECH_CATEGORIES: readonly TechCategory[] = [
+  "IoT",
+  "Hardware", 
+  "Software",
+  "Other"
+];
+
+const TECH_COLORS: Record<TechCategory, string> = {
+  IoT: "#ef4444",        // red
+  Hardware: "#f97316",   // orange
+  Software: "#10b981",   // emerald
+  Other: "#3b82f6",      // blue
+};
+
+/* =================== Custom Components =================== */
+const TechTooltip = React.memo(function TechTooltip({
+  active, payload, label,
+}: {
+  active?: boolean;
+  payload?: Array<{ value: number; color: string; dataKey: string }>;
+  label?: string;
+}) {
+  if (!active || !payload || payload.length === 0) return null;
+
+  // dedupe by dataKey first
+  const unique = new Map<string, typeof payload[number]>();
+  for (const e of payload) {
+    const dk = String(e.dataKey ?? "");
+    if (!dk.includes("_")) continue;           // only keys like "<itp>_<category>"
+    if (!unique.has(dk)) unique.set(dk, e);
+  }
+
+  // group by interpreter
+  const groups = new Map<
+    string,
+    { total: number; items: Array<{ label: string; value: number; color: string }> }
+  >();
+
+  unique.forEach((e, dk) => {
+    const [itp, ...rest] = dk.split("_");
+    const tlabel = rest.join("_");
+    const val = Number(e.value ?? 0);
+    if (val <= 0) return;
+
+    const g = groups.get(itp) ?? { total: 0, items: [] };
+    g.items.push({ label: tlabel, value: val, color: String(e.color || "#888") });
+    g.total += val;
+    groups.set(itp, g);
+  });
+
+  if (groups.size === 0) return null;
+
+  // sort interpreters by total desc
+  const sorted = Array.from(groups.entries()).sort((a, b) => b[1].total - a[1].total);
+
+  // sort items in each interpreter by TECH_CATEGORIES
+  const categoryOrder = (k: string) => TECH_CATEGORIES.indexOf(k as TechCategory);
+  sorted.forEach(([, g]) => {
+    g.items.sort((a, b) => categoryOrder(a.label) - categoryOrder(b.label));
+  });
+
+  return (
+    <div style={{
+      background: "#fff",
+      border: "1px solid #ddd",
+      padding: 10,
+      fontSize: 12,
+      borderRadius: 8,
+      boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+      maxWidth: 280,
+      zIndex: 9999,
+      position: "relative"
+    }}>
+      <div style={{ 
+        fontWeight: 700, 
+        marginBottom: 8,
+        fontVariantNumeric: "tabular-nums"
+      }}>
+        {label}
+      </div>
+
+      {sorted.map(([itp, g]) => (
+        <div key={itp} style={{ marginBottom: 8 }}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr auto",
+              alignItems: "center",
+              columnGap: 8,
+              fontWeight: 600,
+              margin: "6px 0 2px",
+              fontVariantNumeric: "tabular-nums",
+            }}
+          >
+            <span>{itp}</span>
+            <span style={{ opacity: 0.75 }}>{g.total.toLocaleString()}</span>
+          </div>
+          <ul style={{ margin: 0, padding: 0, listStyle: "none" }}>
+            {g.items.map((it, idx) => (
+              <li
+                key={idx}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "12px 1fr auto",
+                  alignItems: "center",
+                  columnGap: 10,
+                  padding: "2px 0",
+                  lineHeight: 1.4,
+                  fontVariantNumeric: "tabular-nums",
+                }}
+              >
+                <span
+                  style={{
+                    width: 10,
+                    height: 10,
+                    background: it.color,
+                    borderRadius: 2,
+                    display: "inline-block",
+                  }}
+                />
+                <span style={{ 
+                  overflow: "hidden", 
+                  textOverflow: "ellipsis", 
+                  whiteSpace: "nowrap" 
+                }}>
+                  {it.label}
+                </span>
+                <span style={{ 
+                  textAlign: "right", 
+                  paddingLeft: 8 
+                }}>
+                  {Number(it.value).toLocaleString()}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </div>
+  );
+});
+
+const TechLegend = () => (
+  <div style={{ 
+    display: "flex", 
+    flexWrap: "wrap", 
+    gap: "16px", 
+    justifyContent: "center", 
+    marginTop: "16px",
+    padding: "8px"
+  }}>
+    {TECH_CATEGORIES.map((label) => (
+      <div key={label} style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+        <div
+          style={{
+            width: "12px",
+            height: "12px",
+            backgroundColor: TECH_COLORS[label],
+            borderRadius: "2px",
+          }}
+        />
+        <span style={{ fontSize: "12px", fontWeight: "500" }}>{label}</span>
+      </div>
+    ))}
+  </div>
+);
 
 /* ========= Component ========= */
 
@@ -101,21 +264,50 @@ export function DeptTab({ year, data: externalData }: DeptTabProps) {
     [months]
   );
 
-  const interpreterColors = React.useMemo<Record<InterpreterName, string>>(() => {
-    return createInterpreterColorPalette(interpreters);
-  }, [interpreters]);
-
-  const monthDeptData: SingleMonthDeptBar[] = React.useMemo(() => {
-    if (!selectedMonth) return [];
-    const mrow = yearData.find((d) => d.month === selectedMonth);
-    return departments.map((dept) => {
-      const rec: SingleMonthDeptBar = { group: OGLabel[dept] } as SingleMonthDeptBar;
-      interpreters.forEach((itp) => {
-        rec[itp] = mrow?.deptByInterpreter?.[itp]?.[dept] ?? 0;
+  // Create tech category data using real department data
+  const chartData: Record<string, string | number>[] = React.useMemo(() => {
+    return months.map((month) => {
+      const mrow = yearData.find((d) => d.month === month);
+      const rec: Record<string, string | number> = { month };
+      
+      interpreters.forEach((interpreter) => {
+        TECH_CATEGORIES.forEach((category) => {
+          // Map tech categories to actual department data
+          // Since we don't have tech categories in the database yet, 
+          // we'll use the existing department data as a proxy
+          let value = 0;
+          
+          if (mrow?.deptByInterpreter?.[interpreter]) {
+            const deptData = mrow.deptByInterpreter[interpreter];
+            
+            // Map tech categories to existing departments
+            switch (category) {
+              case "IoT":
+                // Use "iot" department data for IoT
+                value = deptData["iot"] || 0;
+                break;
+              case "Hardware":
+                // Use "hardware" department data for Hardware  
+                value = deptData["hardware"] || 0;
+                break;
+              case "Software":
+                // Use "software" department data for Software
+                value = deptData["software"] || 0;
+                break;
+              case "Other":
+                // Use "other" department data for Other
+                value = deptData["other"] || 0;
+                break;
+            }
+          }
+          
+          rec[`${interpreter}_${category}`] = value;
+        });
       });
+      
       return rec;
     });
-  }, [yearData, selectedMonth, departments, interpreters]);
+  }, [months, yearData, interpreters]);
 
   const monthsToRender: MonthName[] = React.useMemo(
     () => showAllMonths ? months : (selectedMonth ? [selectedMonth] : []),
@@ -142,11 +334,11 @@ export function DeptTab({ year, data: externalData }: DeptTabProps) {
   return (
     <>
       {/* Chart select month */}
-      <Card className="h-[400px] mb-4">
+      <Card className="h-[380px] mb-4">
         <CardHeader className="pb-0">
           <div className="flex items-center justify-between gap-3">
             <CardTitle className="text-base">
-              Meetings by Department — Month {selectedMonth || "-"} (Year {activeYear})
+              Tech Categories — All Months (Year {activeYear})
             </CardTitle>
             <Select
               value={selectedMonth || ""}
@@ -163,45 +355,38 @@ export function DeptTab({ year, data: externalData }: DeptTabProps) {
             </Select>
           </div>
         </CardHeader>
-        <CardContent className="h-[340px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart 
-              data={monthDeptData} 
-              margin={{ 
-                top: 40, 
-                right: 20, 
-                left: 20, 
-                bottom: 80 
-              }}
-              barCategoryGap={BAR_GAP}
-              maxBarSize={BAR_SIZE}
-              barGap={BAR_GAP}
-            >
-              <CartesianGrid 
-                strokeDasharray="3 3" 
-                horizontal={true}
-                vertical={false}
-                stroke="#e5e7eb"
+        <CardContent className="h-[320px]">
+          <div className="w-full h-full" style={{ overflow: "visible" }}>
+            <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="month" />
+              <YAxis />
+              <Tooltip
+                content={<TechTooltip />}
+                offset={12}
+                allowEscapeViewBox={{ x: true, y: true }}
+                wrapperStyle={{ zIndex: 9999, pointerEvents: "none" }}
+                filterNull
               />
-              <XAxis 
-                dataKey="group"
-                axisLine={true}
-                tickLine={false}
-                tick={{ fontSize: 12, fill: '#374151' }}
-              />
-              <YAxis
-                allowDecimals={false}
-                axisLine={false}
-                tickLine={false}
-                tick={{ fontSize: 11, fill: '#6b7280' }}
-              />
-              <Tooltip />
-              <Legend />
-              {interpreters.map((p) => (
-                <Bar key={p} dataKey={p} name={p} fill={interpreterColors[p]} />
-              ))}
+              <Legend content={<TechLegend />} />
+              {interpreters.map((interpreter) =>
+                TECH_CATEGORIES.map((category) => (
+                  <Bar
+                    key={`${interpreter}_${category}`}
+                    dataKey={`${interpreter}_${category}`}
+                    stackId={interpreter}
+                    fill={TECH_COLORS[category]}
+                    legendType="none"
+                    name={`${interpreter} — ${category}`}
+                    isAnimationActive={false}
+                    animationDuration={0}
+                  />
+                ))
+              )}
             </BarChart>
-          </ResponsiveContainer>
+            </ResponsiveContainer>
+          </div>
         </CardContent>
       </Card>
 
