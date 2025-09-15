@@ -2,7 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
+import {
+  SidebarProvider,
+  SidebarInset,
+  SidebarTrigger,
+} from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/slidebar/app-sidebar";
 import { Toaster } from "@/components/ui/sonner";
 
@@ -31,18 +35,16 @@ export default function ClientShell({ children }: { children: React.ReactNode })
 			});
 	}, [pathname, publicPaths, router]);
 
-	return (
-		<SidebarProvider>
-			{!hideSidebar && <AppSidebar />}
-			<SidebarInset>
-				<main className="min-h-screen p-4">
-					{!hideSidebar && <SidebarTrigger className="mb-4" />}
-					{ready ? children : null}
-				</main>
-			</SidebarInset>
-			<Toaster position="top-center" offset={50} />
-		</SidebarProvider>
-	);
+  return (
+    <SidebarProvider>
+      {!hideSidebar && <AppSidebar />}
+      <SidebarInset>
+        <main className="min-h-screen p-4">
+          {!hideSidebar && <SidebarTrigger className="mb-4" />}
+          {ready ? children : null}
+        </main>
+      </SidebarInset>
+      <Toaster position="top-center" offset={50} />
+    </SidebarProvider>
+  );
 }
-
-
