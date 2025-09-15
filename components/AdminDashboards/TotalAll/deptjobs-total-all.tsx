@@ -21,6 +21,7 @@ import type {
 } from "@/types/admin-dashboard";
 import { OwnerGroupLabel as OGLabel } from "@/types/admin-dashboard";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 
 import { 
   getCurrentCalendarMonth, 
@@ -320,6 +321,68 @@ export function DeptTab({ year, data: externalData }: DeptTabProps) {
     return { perInterpreter, grand, diff };
   }, [showAllMonths, deptMGIFooter, interpreters, monthsToRender, yearData, departments]);
 
+  // Early return if no basic data structure
+  if (!months?.length || !interpreters?.length) {
+    return (
+      <>
+        {/* Skeleton Chart */}
+        <Card className="h-[380px] mb-4">
+          <CardHeader className="pb-0">
+            <Skeleton className="h-6 w-64" />
+          </CardHeader>
+          <CardContent className="h-[320px]">
+            <div className="w-full h-full flex items-center justify-center">
+              <div className="w-full space-y-4">
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-3/4" />
+                <Skeleton className="h-4 w-1/2" />
+                <Skeleton className="h-4 w-5/6" />
+                <Skeleton className="h-4 w-2/3" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Skeleton Table 1 */}
+        <Card className="mb-4">
+          <CardHeader>
+            <Skeleton className="h-6 w-48" />
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-8 w-full" />
+              <Skeleton className="h-8 w-full" />
+              <Skeleton className="h-8 w-full" />
+              <Skeleton className="h-8 w-full" />
+              <Skeleton className="h-8 w-full" />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Skeleton Table 2 */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between gap-3">
+              <Skeleton className="h-6 w-64" />
+              <Skeleton className="h-8 w-32" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-8 w-full" />
+              <Skeleton className="h-8 w-full" />
+              <Skeleton className="h-8 w-full" />
+              <Skeleton className="h-8 w-full" />
+              <Skeleton className="h-8 w-full" />
+            </div>
+          </CardContent>
+        </Card>
+      </>
+    );
+  }
+
   return (
     <>
       {/* Chart select month */}
@@ -332,33 +395,39 @@ export function DeptTab({ year, data: externalData }: DeptTabProps) {
         <CardContent className="h-[320px]">
           <div className="w-full h-full" style={{ overflow: "visible" }}>
             <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="month" />
-              <YAxis />
-              <Tooltip
-                content={<TechTooltip />}
-                offset={12}
-                allowEscapeViewBox={{ x: true, y: true }}
-                wrapperStyle={{ zIndex: 9999, pointerEvents: "none" }}
-                filterNull
-              />
-              <Legend content={<TechLegend />} />
-              {interpreters.map((interpreter) =>
-                TECH_CATEGORIES.map((category) => (
-                  <Bar
-                    key={`${interpreter}_${category}`}
-                    dataKey={`${interpreter}_${category}`}
-                    stackId={interpreter}
-                    fill={TECH_COLORS[category]}
-                    legendType="none"
-                    name={`${interpreter} — ${category}`}
-                    isAnimationActive={false}
-                    animationDuration={0}
-                  />
-                ))
-              )}
-            </BarChart>
+              <BarChart 
+                data={chartData}
+                margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="month" />
+                <YAxis 
+                  allowDecimals={false}
+                  domain={[0, (dataMax: number) => dataMax + 1]}
+                />
+                <Tooltip
+                  content={<TechTooltip />}
+                  offset={12}
+                  allowEscapeViewBox={{ x: true, y: true }}
+                  wrapperStyle={{ zIndex: 9999, pointerEvents: "none" }}
+                  filterNull
+                />
+                <Legend content={<TechLegend />} />
+                {interpreters.map((interpreter) =>
+                  TECH_CATEGORIES.map((category) => (
+                    <Bar
+                      key={`${interpreter}_${category}`}
+                      dataKey={`${interpreter}_${category}`}
+                      stackId={interpreter}
+                      fill={TECH_COLORS[category]}
+                      legendType="none"
+                      name={`${interpreter} — ${category}`}
+                      isAnimationActive={false}
+                      animationDuration={0}
+                    />
+                  ))
+                )}
+              </BarChart>
             </ResponsiveContainer>
           </div>
         </CardContent>
