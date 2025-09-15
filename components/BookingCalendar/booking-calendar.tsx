@@ -454,7 +454,6 @@ useEffect(() => {
 
             {/* Virtualized day rows - only renders visible rows for performance */}
             <div
-              ref={scrollAreaViewportRef}
               style={{
                 height: `${rowVirtualizer.getTotalSize()}px`,
                 position: "relative",
