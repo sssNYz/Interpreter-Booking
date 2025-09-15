@@ -1,7 +1,7 @@
 import prisma from "@/prisma/prisma";
-import type { AssignmentPolicy, MeetingTypePriority } from "@/types/assignment";
+import type { AssignmentPolicy, MeetingTypePriority, DRPolicy } from "@/types/assignment";
 import { loadPolicy, getDRPolicy, validateDRPolicyConfig, getDRPolicyRecommendations } from "../config/policy";
-import { bookingPool } from "../pool/pool";
+// Pool removed; no bookingPool imports
 import { getAssignmentLogger } from "../logging/logging";
 
 /**
@@ -24,7 +24,6 @@ export interface ConfigImpactAssessment {
   affectedBookings: number;
   modeChangeImpact?: ModeChangeImpact;
   fairnessImpact?: FairnessImpact;
-  poolProcessingImpact?: PoolProcessingImpact;
   drPolicyImpact?: DRPolicyImpact;
 }
 
@@ -110,7 +109,7 @@ export interface PoolConfigParameters {
 }
 
 /**
- * Configuration Validator - validates pool-related configuration parameters
+ * Configuration Validator - validates assignment configuration parameters
  */
 export class ConfigurationValidator {
   private logger = getAssignmentLogger();
@@ -410,13 +409,7 @@ export class ConfigurationValidator {
     const recommendations: string[] = [];
 
     // Check for problematic transitions
-    if (fromMode === 'BALANCE' && toMode === 'URGENT') {
-      const poolStats = await bookingPool.getPoolStats();
-      if (poolStats.totalInPool > 10) {
-        warnings.push(`Switching from Balance to Urgent with ${poolStats.totalInPool} pooled bookings may cause immediate processing surge`);
-        recommendations.push("Consider processing pool entries gradually or during low-activity periods");
-      }
-    }
+    // Pool removed: no pooled booking surge concerns
 
     if (fromMode === 'URGENT' && toMode === 'BALANCE') {
       warnings.push("Switching from Urgent to Balance may delay future assignments for fairness optimization");
@@ -445,19 +438,16 @@ export class ConfigurationValidator {
     newConfig: Partial<AssignmentPolicy>,
     currentConfig: AssignmentPolicy
   ): Promise<ConfigImpactAssessment> {
-    const poolStats = await bookingPool.getPoolStats();
-    const existingPooledBookings = poolStats.totalInPool;
+    const existingPooledBookings = 0;
 
-    let affectedBookings = 0;
     let modeChangeImpact: ModeChangeImpact | undefined;
     let fairnessImpact: FairnessImpact | undefined;
-    let poolProcessingImpact: PoolProcessingImpact | undefined;
     let drPolicyImpact: DRPolicyImpact | undefined;
 
     // Assess mode change impact
     if (newConfig.mode && newConfig.mode !== currentConfig.mode) {
       modeChangeImpact = await this.assessModeChangeImpact(currentConfig.mode, newConfig.mode);
-      affectedBookings += modeChangeImpact.poolEntriesAffected;
+      // Mode change impact assessment
     }
 
     // Assess fairness impact
@@ -466,24 +456,19 @@ export class ConfigurationValidator {
     }
 
     // Assess pool processing impact
-    if (this.hasPoolProcessingChanges(newConfig)) {
-      poolProcessingImpact = await this.assessPoolProcessingImpact(newConfig, currentConfig);
-    }
+    // Pool processing impact not applicable
 
     // Assess DR policy impact
     if (newConfig.drConsecutivePenalty !== undefined || newConfig.mode !== undefined) {
       drPolicyImpact = await this.assessDRPolicyImpact(newConfig, currentConfig);
-      if (drPolicyImpact.affectedDRBookings > 0) {
-        affectedBookings += drPolicyImpact.affectedDRBookings;
-      }
+      // DR policy impact assessment
     }
 
     return {
       existingPooledBookings,
-      affectedBookings: Math.min(affectedBookings, existingPooledBookings), // Cap at total pooled
+      affectedBookings: 0,
       modeChangeImpact,
       fairnessImpact,
-      poolProcessingImpact,
       drPolicyImpact
     };
   }
@@ -495,7 +480,7 @@ export class ConfigurationValidator {
     fromMode: AssignmentPolicy['mode'],
     toMode: AssignmentPolicy['mode']
   ): Promise<ModeChangeImpact> {
-    const poolEntries = await bookingPool.getAllPoolEntries();
+    const poolEntries: Array<{ startTime: Date }> = [];
     const meetingTypePriorities = await this.getMeetingTypePriorities();
 
     const thresholdChanges = meetingTypePriorities.map(priority => {
@@ -574,7 +559,7 @@ export class ConfigurationValidator {
     newConfig: Partial<AssignmentPolicy>,
     currentConfig: AssignmentPolicy
   ): Promise<PoolProcessingImpact> {
-    const poolStats = await bookingPool.getPoolStats();
+    const poolStats = { totalInPool: 0 } as const;
     
     let thresholdAdjustments = 0;
     let deadlineAdjustments = 0;
@@ -619,10 +604,7 @@ export class ConfigurationValidator {
       currentDRPolicy.overrideAvailable !== newDRPolicy.overrideAvailable : undefined;
 
     // Count DR bookings in pool
-    const poolEntries = await bookingPool.getAllPoolEntries();
-    const affectedDRBookings = poolEntries.filter(entry => 
-      entry.meetingType === 'DR'
-    ).length;
+    const affectedDRBookings = 0;
 
     const fairnessDistributionChange = this.describeDRFairnessChange(currentDRPolicy, newDRPolicy);
 
@@ -645,21 +627,22 @@ export class ConfigurationValidator {
       warnings.push(`${impact.existingPooledBookings} bookings currently in pool may be affected by configuration changes`);
     }
 
-    if (impact.modeChangeImpact?.immediateProcessingRequired > 0) {
-      warnings.push(`${impact.modeChangeImpact.immediateProcessingRequired} pooled bookings may require immediate processing after mode change`);
+    const immediateProcessingRequired = impact.modeChangeImpact?.immediateProcessingRequired || 0;
+    if (immediateProcessingRequired > 0) {
+      warnings.push(`${immediateProcessingRequired} pooled bookings may require immediate processing after mode change`);
     }
 
-    if (impact.fairnessImpact?.gapChange > 2) {
-      warnings.push(`Configuration may increase fairness gap by ${impact.fairnessImpact.gapChange.toFixed(1)} hours`);
+    const gapChange = impact.fairnessImpact?.gapChange;
+    if (gapChange !== undefined && gapChange > 2) {
+      warnings.push(`Configuration may increase fairness gap by ${gapChange.toFixed(1)} hours`);
     }
 
-    if (impact.drPolicyImpact?.affectedDRBookings > 0) {
-      warnings.push(`${impact.drPolicyImpact.affectedDRBookings} DR bookings in pool may be affected by policy changes`);
+    const affectedDR = impact.drPolicyImpact?.affectedDRBookings || 0;
+    if (affectedDR > 0) {
+      warnings.push(`${affectedDR} DR bookings in pool may be affected by policy changes`);
     }
 
-    if (impact.poolProcessingImpact?.thresholdAdjustments > 10) {
-      warnings.push(`${impact.poolProcessingImpact.thresholdAdjustments} pool entries may need threshold recalculation`);
-    }
+    // Pool processing impact removed
 
     return warnings;
   }
@@ -701,7 +684,7 @@ export class ConfigurationValidator {
    */
   private async getActiveInterpreterCount(): Promise<number> {
     try {
-      const count = await prisma.interpreter.count({
+      const count = await prisma.employee.count({
         where: { isActive: true }
       });
       return count;
@@ -835,8 +818,8 @@ export class ConfigurationValidator {
   }
 
   private describeDRFairnessChange(
-    currentPolicy: any,
-    newPolicy: any
+    currentPolicy: DRPolicy,
+    newPolicy: DRPolicy
   ): string {
     if (currentPolicy.forbidConsecutive && !newPolicy.forbidConsecutive) {
       return "DR fairness distribution will become more flexible with penalty-based system";
@@ -850,9 +833,8 @@ export class ConfigurationValidator {
   }
 
   private async createMinimalImpactAssessment(): Promise<ConfigImpactAssessment> {
-    const poolStats = await bookingPool.getPoolStats();
     return {
-      existingPooledBookings: poolStats.totalInPool,
+      existingPooledBookings: 0,
       affectedBookings: 0
     };
   }

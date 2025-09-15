@@ -74,7 +74,7 @@ export class MonitoringDashboard {
   private buildOverview(
     realTimeStatus: any,
     assignmentPatterns: any,
-    poolStatus: any
+    poolStatus: { totalPoolEntries: number }
   ): DashboardOverview {
     return {
       systemStatus: {
