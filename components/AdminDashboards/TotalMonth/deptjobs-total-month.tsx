@@ -29,6 +29,79 @@ import {
   createInterpreterColorPalette 
 } from "@/utils/admin-dashboard";
 
+/* =================== Custom Components =================== */
+const DeptTooltip = React.memo(function DeptTooltip({
+  active, payload, label,
+}: {
+  active?: boolean;
+  payload?: Array<{ value: number; color: string; dataKey: string; name: string }>;
+  label?: string;
+}) {
+  if (!active || !payload || payload.length === 0) return null;
+
+  return (
+    <div style={{
+      background: "#fff",
+      border: "1px solid #ddd",
+      padding: 10,
+      fontSize: 12,
+      borderRadius: 8,
+      boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+      maxWidth: 280,
+      zIndex: 9999,
+      position: "relative"
+    }}>
+      <div style={{ 
+        fontWeight: 700, 
+        marginBottom: 8,
+        fontVariantNumeric: "tabular-nums"
+      }}>
+        {label}
+      </div>
+
+      <ul style={{ margin: 0, padding: 0, listStyle: "none" }}>
+        {payload.map((item, idx) => (
+          <li
+            key={idx}
+            style={{
+              display: "grid",
+              gridTemplateColumns: "12px 1fr auto",
+              alignItems: "center",
+              columnGap: 10,
+              padding: "2px 0",
+              lineHeight: 1.4,
+              fontVariantNumeric: "tabular-nums",
+            }}
+          >
+            <span
+              style={{
+                width: 10,
+                height: 10,
+                background: item.color,
+                borderRadius: 2,
+                display: "inline-block",
+              }}
+            />
+            <span style={{ 
+              overflow: "hidden", 
+              textOverflow: "ellipsis", 
+              whiteSpace: "nowrap" 
+            }}>
+              {item.name}
+            </span>
+            <span style={{ 
+              textAlign: "right", 
+              paddingLeft: 8 
+            }}>
+              {Number(item.value).toLocaleString()}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+});
+
 /* (no chart sizing constants in the original version) */
 
 /* ========= Types ========= */
@@ -141,7 +214,13 @@ export function DeptTab({ year, data: externalData, selectedMonth: propSelectedM
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="group" />
               <YAxis />
-              <Tooltip />
+              <Tooltip
+                content={<DeptTooltip />}
+                offset={12}
+                allowEscapeViewBox={{ x: true, y: true }}
+                wrapperStyle={{ zIndex: 9999, pointerEvents: "none" }}
+                filterNull
+              />
               <Legend />
               {interpreters.map((p) => (
                 <Bar key={p} dataKey={p} name={p} fill={interpreterColors[p]} />
