@@ -10,6 +10,7 @@ import {
   CartesianGrid,
   Legend,
   Tooltip,
+  LabelList,
 } from "recharts";
 import type {
   MonthName,
@@ -385,16 +386,34 @@ export function DeptTab({ year, data: externalData }: DeptTabProps) {
 
   return (
     <>
+      {/* CSS override for label overflow */}
+      <style dangerouslySetInnerHTML={{
+        __html: `
+          .allow-label-overflow svg,
+          .allow-label-overflow .recharts-wrapper { 
+            overflow: visible; 
+          }
+
+          /* Aggressive but scoped: remove any clip-path inside our wrapper */
+          .allow-label-overflow .recharts-wrapper [clip-path] { 
+            clip-path: none !important; 
+          }
+          .allow-label-overflow .recharts-wrapper g.recharts-bar { 
+            clip-path: none !important; 
+          }
+        `
+      }} />
+      
       {/* Chart select month */}
-      <Card className="h-[380px] mb-4">
+      <Card className="h-[380px] mb-8 overflow-visible">
         <CardHeader className="pb-0">
           <CardTitle className="text-base">
             Tech Categories — All Months (Year {activeYear})
           </CardTitle>
         </CardHeader>
         <CardContent className="h-[320px]">
-          <div className="w-full h-full" style={{ overflow: "visible" }}>
-            <ResponsiveContainer width="100%" height="100%">
+          <div className="allow-label-overflow relative h-full" style={{ overflow: "visible" }}>
+            <ResponsiveContainer width="100%" height="100%" style={{ overflow: "visible" }}>
               <BarChart 
                 data={chartData}
                 margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
@@ -424,7 +443,48 @@ export function DeptTab({ year, data: externalData }: DeptTabProps) {
                       name={`${interpreter} — ${category}`}
                       isAnimationActive={false}
                       animationDuration={0}
-                    />
+                    >
+                      <LabelList
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        content={(props: any) => {
+                          const { index, x = 0, y = 0, width = 0, value } = props ?? {};
+                          const v = Number(value ?? 0);
+                          if (!Array.isArray(chartData) || index == null || v <= 0) return null;
+
+                          const pIdx = TECH_CATEGORIES.indexOf(category as TechCategory);
+                          if (pIdx < 0) return null;
+
+                          // render ONLY if no higher segment exists for this interpreter
+                          const higher = TECH_CATEGORIES
+                            .slice(pIdx + 1)
+                            .some(next => Number(chartData[index as number][`${interpreter}_${next}`] ?? 0) > 0);
+                          if (higher) return null;
+
+                          const cx = (x as number) + (Number(width) || 0) / 2;
+
+                          // place ABOVE bar head and clamp so it never hits the top edge
+                          const LABEL_LIFT = 30;   // tweak 28–35 if you want more gap
+                          const cyRaw = (y as number) - LABEL_LIFT;
+                          const cy = Math.max(cyRaw, 8); // clamp to keep it visible
+
+                          return (
+                            <text
+                              x={cx}
+                              y={cy}
+                              textAnchor="middle"
+                              dominantBaseline="central"
+                              transform={`rotate(-90, ${cx}, ${cy})`} // keep vertical
+                              fontSize={10}
+                              fontWeight={600}
+                              fill="#111"
+                              style={{ pointerEvents: "none", paintOrder: "stroke", stroke: "#fff", strokeWidth: 2 }}
+                            >
+                              {interpreter}
+                            </text>
+                          );
+                        }}
+                      />
+                    </Bar>
                   ))
                 )}
               </BarChart>
