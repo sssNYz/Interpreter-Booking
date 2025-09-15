@@ -32,7 +32,11 @@ function extractHHMM(dateTimeStr: string) {
   return extractHHMMFromUtil(dateTimeStr);
 }
 
-export default function BookingHistory() {
+type BookingHistoryProps = {
+  renderEmpty?: () => React.ReactNode;
+};
+
+export default function BookingHistory({ renderEmpty }: BookingHistoryProps) {
   const [userEmpCode, setUserEmpCode] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   // Removed date picker per requirement
@@ -214,7 +218,11 @@ export default function BookingHistory() {
               {!loading && !error && pageItems.length === 0 && (
                 <TableRow className="h-32">
                   <TableCell colSpan={5} className="py-10 text-center text-sm text-muted-foreground">
-                    No bookings yet.
+                    {renderEmpty ? (
+                      renderEmpty()
+                    ) : (
+                      <span>No bookings yet.</span>
+                    )}
                   </TableCell>
                 </TableRow>
               )}
