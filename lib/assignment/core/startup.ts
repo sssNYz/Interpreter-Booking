@@ -1,6 +1,4 @@
-import { initializePoolScheduler } from "../pool/pool-scheduler";
 import { validateSchemaOnStartup } from "../validation/schema-validator";
-import { initializeDailyPoolProcessor } from "../pool/daily-pool-processor";
 
 /**
  * Initialize all assignment system components on application startup
@@ -19,15 +17,7 @@ export async function initializeAssignmentSystem(): Promise<void> {
       console.log("✅ Database schema validation passed");
     }
 
-    // 2. Initialize pool processing scheduler (legacy - for backward compatibility)
-    console.log("⏰ Initializing pool processing scheduler...");
-    await initializePoolScheduler();
-    console.log("✅ Pool processing scheduler initialized");
-
-    // 3. Initialize daily pool processor (new implementation)
-    console.log("📅 Initializing daily pool processor...");
-    await initializeDailyPoolProcessor();
-    console.log("✅ Daily pool processor initialized");
+    // Pool system removed: no schedulers or daily processors to initialize
 
     console.log("🎉 Assignment system initialization complete");
 
@@ -47,15 +37,7 @@ export async function shutdownAssignmentSystem(): Promise<void> {
   console.log("🛑 Shutting down assignment system...");
 
   try {
-    // Stop daily pool processor
-    const { stopDailyPoolProcessor } = await import("../pool/daily-pool-processor");
-    stopDailyPoolProcessor();
-    console.log("✅ Daily pool processor stopped");
-
-    // Stop legacy pool scheduler
-    const { stopPoolScheduler } = await import("../pool/pool-scheduler");
-    stopPoolScheduler();
-    console.log("✅ Pool scheduler stopped");
+    // No pool components to stop
 
     // Flush any remaining logs
     const { getAssignmentLogger } = await import("../logging/logging");
@@ -77,7 +59,7 @@ export async function checkAssignmentSystemHealth(): Promise<{
   overall: 'healthy' | 'degraded' | 'unhealthy';
   components: {
     database: 'healthy' | 'unhealthy';
-    scheduler: 'healthy' | 'stopped' | 'error';
+    scheduler: 'stopped';
     logging: 'healthy' | 'degraded';
   };
   details: {
@@ -86,10 +68,10 @@ export async function checkAssignmentSystemHealth(): Promise<{
     logging?: string;
   };
 }> {
-  const components = {
-    database: 'unhealthy' as const,
-    scheduler: 'stopped' as const,
-    logging: 'degraded' as const
+  const components: { database: 'healthy' | 'unhealthy'; scheduler: 'stopped'; logging: 'healthy' | 'degraded' } = {
+    database: 'unhealthy',
+    scheduler: 'stopped',
+    logging: 'degraded'
   };
   
   const details: Record<string, string> = {};
@@ -103,27 +85,9 @@ export async function checkAssignmentSystemHealth(): Promise<{
       details.database = 'Schema validation failed or database connectivity issues';
     }
 
-    // Check scheduler status
-    const { getPoolScheduler } = await import("../pool/pool-scheduler");
-    const scheduler = getPoolScheduler();
-    
-    if (!scheduler) {
-      components.scheduler = 'stopped';
-      details.scheduler = 'Scheduler not initialized';
-    } else {
-      const status = scheduler.getStatus();
-      if (status.isRunning) {
-        if (status.recentErrors.length > 0) {
-          components.scheduler = 'error';
-          details.scheduler = `Running with ${status.recentErrors.length} recent errors`;
-        } else {
-          components.scheduler = 'healthy';
-        }
-      } else {
-        components.scheduler = 'stopped';
-        details.scheduler = 'Scheduler is not running';
-      }
-    }
+    // Scheduler removed
+    components.scheduler = 'stopped';
+    details.scheduler = 'Scheduler removed';
 
     // Check logging system
     components.logging = 'healthy'; // Assume healthy unless we detect issues
@@ -131,7 +95,7 @@ export async function checkAssignmentSystemHealth(): Promise<{
     // Determine overall health
     let overall: 'healthy' | 'degraded' | 'unhealthy';
     
-    if (components.database === 'healthy' && components.scheduler === 'healthy' && components.logging === 'healthy') {
+    if (components.database === 'healthy' && components.logging === 'healthy') {
       overall = 'healthy';
     } else if (components.database === 'unhealthy') {
       overall = 'unhealthy';
@@ -151,10 +115,7 @@ export async function checkAssignmentSystemHealth(): Promise<{
     return {
       overall: 'unhealthy',
       components,
-      details: {
-        ...details,
-        system: `Health check failed: ${error instanceof Error ? error.message : 'Unknown error'}`
-      }
+      details
     };
   }
 }
