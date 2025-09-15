@@ -25,7 +25,6 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 
 import { 
-  getCurrentCalendarMonth, 
   diffRange, 
   diffClass
 } from "@/utils/admin-dashboard";
@@ -249,11 +248,6 @@ export function DeptTab({ year, data: externalData }: DeptTabProps) {
     [currentData?.deptMGIFooter]
   );
 
-  // present month
-  const currentMonth = React.useMemo<MonthName | "">(
-    () => (months.length ? getCurrentCalendarMonth(months) : ""),
-    [months]
-  );
 
   // Create tech category data using real department data
   const chartData: Record<string, string | number>[] = React.useMemo(() => {
@@ -507,11 +501,7 @@ export function DeptTab({ year, data: externalData }: DeptTabProps) {
                   {months.map((m) => (
                     <th
                       key={m}
-                      className={[
-                        "p-2 text-right",
-                        // highlight current month column in thead
-                        m === currentMonth ? "bg-blue-100 dark:bg-blue-900/40" : "",
-                      ].join(" ")}
+                      className="p-2 text-right"
                     >
                       {m}
                     </th>
@@ -540,11 +530,7 @@ export function DeptTab({ year, data: externalData }: DeptTabProps) {
                       {months.map((m) => (
                         <td
                           key={m}
-                          className={[
-                            "p-2 text-right",
-                            // highlight current month column in tbody
-                            m === currentMonth ? "bg-blue-50 dark:bg-blue-900/20 font-semibold" : "",
-                          ].join(" ")}
+                          className="p-2 text-right"
                         >
                           {row[m]}
                         </td>
@@ -563,11 +549,7 @@ export function DeptTab({ year, data: externalData }: DeptTabProps) {
                     return (
                       <td
                         key={m}
-                        className={[
-                          "p-2 text-right",
-                          // highlight current month column in tfoot
-                          m === currentMonth ? "bg-blue-50 dark:bg-blue-900/20 font-semibold" : "",
-                        ].join(" ")}
+                        className="p-2 text-right"
                       >
                         {col}
                       </td>

@@ -26,7 +26,6 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { 
   diffClass,
-  getCurrentCalendarMonth,
   diffRange 
 } from "@/utils/admin-dashboard";
 
@@ -314,11 +313,6 @@ export function TypesTab({ year, data: externalData }: TypesTabProps) {
   const memoizedInterpreters = React.useMemo(() => interpreters, [interpreters]);
   const memoizedTypePriority = React.useMemo(() => TYPE_PRIORITY, []);
 
-  // current month for highlight
-  const currentMonth = React.useMemo<MonthName | "">(
-    () => (months.length ? getCurrentCalendarMonth(months) : ""),
-    [months]
-  );
 
   // ===== Chart dataset =====
   const chartData: Record<string, string | number>[] = React.useMemo(() => {
@@ -626,10 +620,7 @@ export function TypesTab({ year, data: externalData }: TypesTabProps) {
                   {months.map((m) => (
                     <th
                       key={m}
-                      className={[
-                        "p-2 text-right",
-                        m === currentMonth ? "bg-blue-100 dark:bg-blue-900/40" : "",
-                      ].join(" ")}
+                      className="p-2 text-right"
                     >
                       {m}
                     </th>
@@ -644,10 +635,7 @@ export function TypesTab({ year, data: externalData }: TypesTabProps) {
                     {months.map((m) => (
                       <td
                         key={m}
-                        className={[
-                          "p-2 text-right",
-                          m === currentMonth ? "bg-blue-50 dark:bg-blue-900/20 font-semibold" : "",
-                        ].join(" ")}
+                        className="p-2 text-right"
                       >
                         {row[m]}
                       </td>
@@ -660,10 +648,7 @@ export function TypesTab({ year, data: externalData }: TypesTabProps) {
                   {months.map((m, idx) => (
                     <td
                       key={m}
-                      className={[
-                        "p-2 text-right",
-                        m === currentMonth ? "bg-blue-50 dark:bg-blue-900/20 font-semibold" : "",
-                      ].join(" ")}
+                      className="p-2 text-right"
                     >
                       {tableAllMonthsFooter.perMonth[idx]}
                     </td>
