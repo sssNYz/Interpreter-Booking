@@ -12,8 +12,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
-import { FilterIcon, UserSearchIcon, XIcon, User, Mail, Users, ListCollapse, MapPin, Clock } from "lucide-react";
+import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious, PaginationEllipsis } from "@/components/ui/pagination";
+import { FilterIcon, UserSearchIcon, XIcon, User, Mail, Users, ListCollapse, MapPin, Clock, ArrowUpDown } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 type StatusFilter = "all" | "approve" | "waiting" | "cancel";
@@ -46,7 +46,7 @@ export default function BookingHistory() {
   const [selectedBooking, setSelectedBooking] = useState<BookingData | null>(null);
 
   const [page, setPage] = useState(1);
-  const pageSize = 5; // fixed 5 records per page
+  const pageSize = 7; // show up to 7 cards per page
 
   useEffect(() => {
     try {
@@ -112,27 +112,17 @@ export default function BookingHistory() {
   };
 
   return (
-    <div className="w-full h-full border rounded-3xl p-2 bg-background flex flex-col">
+    <div className="w-full h-full border rounded-3xl p-2 flex flex-col">
       <div className="flex items-center justify-between gap-2 pb-1 border-b">
         <div className="flex items-center gap-2">
           <FilterIcon className="w-5 h-5" />
           <span className="font-medium">My Booking History</span>
         </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setSortOrder((s) => (s === "desc" ? "asc" : "desc"))}
-            className="text-xs"
-            title="Toggle sort order"
-          >
-            {sortOrder === "desc" ? "Newest" : "Oldest"}
-          </Button>
-        </div>
+        <div className="flex items-center gap-2" />
       </div>
 
       <div className="flex flex-col gap-1 pt-1 flex-1 min-h-0">
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex h-10 flex-wrap items-center gap-2">
           <div className="flex items-center gap-2">
             <span className="text-sm text-muted-foreground">Status</span>
             <Select value={statusFilter} onValueChange={(v: StatusFilter) => setStatusFilter(v)}>
@@ -172,37 +162,42 @@ export default function BookingHistory() {
           </Popover>
         </div>
 
-        <div className="border rounded-xl overflow-hidden h-64 flex flex-col min-h-0">
-          <Table className="h-full">
+        <div className="border rounded-xl overflow-hidden flex flex-col h-full">
+          <Table>
             <TableHeader>
               <TableRow>
                 <TableHead className="w-[110px]">Status</TableHead>
-                <TableHead className="min-w-[160px]">Date</TableHead>
+                <TableHead className="min-w-[160px]">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="gap-1 px-2"
+                    onClick={() => setSortOrder((s) => (s === "desc" ? "asc" : "desc"))}
+                    aria-label="Sort by date"
+                  >
+                    Date
+                    <ArrowUpDown className="w-3.5 h-3.5" />
+                  </Button>
+                </TableHead>
                 <TableHead className="min-w-[140px]">Duration</TableHead>
                 <TableHead className="min-w-[140px]">Interpreter</TableHead>
                 <TableHead className="text-right w-[90px]">Action</TableHead>
               </TableRow>
             </TableHeader>
-            <TableBody className="flex-1">
+            <TableBody>
               {loading && (
                 <>
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <TableRow key={`loading-${i}`} className="h-full">
-                      <TableCell className="h-full py-1">
-                        <Skeleton className="h-5 w-20 rounded-full" />
-                      </TableCell>
-                      <TableCell className="h-full py-1">
-                        <Skeleton className="h-4 w-28" />
-                      </TableCell>
-                      <TableCell className="h-full py-1">
-                        <Skeleton className="h-4 w-24" />
-                      </TableCell>
-                      <TableCell className="h-full py-1">
-                        <Skeleton className="h-4 w-36" />
-                      </TableCell>
-                      <TableCell className="text-right h-full py-1">
-                        <div className="flex justify-end">
-                          <Skeleton className="h-8 w-16" />
+                  {Array.from({ length: 7 }).map((_, i) => (
+                    <TableRow key={`loading-${i}`} className="border-0">
+                      <TableCell colSpan={5} className="p-0">
+                        <div className="rounded-lg border my-1 px-6 py-6 bg-transparent">
+                          <div className="grid items-center gap-3 grid-cols-[110px_minmax(160px,1fr)_minmax(140px,1fr)_minmax(140px,1fr)_90px]">
+                            <div><Skeleton className="h-5 w-20 rounded-full" /></div>
+                            <div><Skeleton className="h-4 w-28" /></div>
+                            <div><Skeleton className="h-4 w-24" /></div>
+                            <div><Skeleton className="h-4 w-36" /></div>
+                            <div className="justify-self-end"><Skeleton className="h-8 w-16" /></div>
+                          </div>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -217,8 +212,8 @@ export default function BookingHistory() {
                 </TableRow>
               )}
               {!loading && !error && pageItems.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={5} className="py-8 text-center text-sm text-muted-foreground">
+                <TableRow className="h-32">
+                  <TableCell colSpan={5} className="py-10 text-center text-sm text-muted-foreground">
                     No bookings yet.
                   </TableCell>
                 </TableRow>
@@ -226,63 +221,196 @@ export default function BookingHistory() {
               {!loading && !error && pageItems.map((b) => {
                 const ss = getStatusStyle(b.bookingStatus);
                 return (
-                  <TableRow key={b.bookingId} className="h-full">
-                    <TableCell className="h-full py-1">
-                      <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] ${ss.bg} ${ss.text}`}>
-                        {ss.icon}
-                        {b.bookingStatus}
-                      </span>
-                    </TableCell>
-                    <TableCell className="h-full py-1">{formatDateDDMMMYYYY(b.timeStart as unknown as string)}</TableCell>
-                    <TableCell className="h-full py-1">
-                      {extractHHMM(b.timeStart as unknown as string)} - {extractHHMM(b.timeEnd as unknown as string)}
-                    </TableCell>
-                    <TableCell className="h-full py-1">{(b.interpreterName && b.interpreterName.trim()) || b.interpreterId || "-"}</TableCell>
-                    <TableCell className="text-right h-full py-1">
-                      <Button size="sm" variant="outline" onClick={() => handleOpenDetail(b)}>
-                        Detail
-                      </Button>
+                  <TableRow key={b.bookingId} className="border-0">
+                    <TableCell colSpan={5} className="p-0">
+                      <div className="rounded-lg border my-1 px-6 py-6 bg-transparent">
+                        <div className="grid items-center gap-3 grid-cols-[110px_minmax(160px,1fr)_minmax(140px,1fr)_minmax(140px,1fr)_90px]">
+                          <div>
+                            <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] ${ss.bg} ${ss.text}`}>
+                              {ss.icon}
+                              {b.bookingStatus}
+                            </span>
+                          </div>
+                          <div>{formatDateDDMMMYYYY(b.timeStart as unknown as string)}</div>
+                          <div>{extractHHMM(b.timeStart as unknown as string)} - {extractHHMM(b.timeEnd as unknown as string)}</div>
+                          <div>{(b.interpreterName && b.interpreterName.trim()) || b.interpreterId || "-"}</div>
+                          <div className="justify-self-end">
+                            <Button size="sm" variant="outline" onClick={() => handleOpenDetail(b)}>
+                              Detail
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
                     </TableCell>
                   </TableRow>
                 );
               })}
-              {/* pad rows to keep 5 fixed rows */}
-              {!loading && !error && Array.from({ length: Math.max(0, pageSize - pageItems.length) }).map((_, idx) => (
-                <TableRow key={`pad-${idx}`} className="h-full">
-                  <TableCell colSpan={5} className="py-1 h-full" />
-                </TableRow>
-              ))}
+              {/* no padding rows; show actual items only */}
             </TableBody>
             <TableCaption className="text-xs">Showing your own bookings only</TableCaption>
           </Table>
         </div>
 
+        {(total > pageSize) && (
         <div className="pt-1" onClick={(e) => e.preventDefault()}>
           <Pagination>
             <PaginationContent>
               <PaginationItem>
                 <PaginationPrevious onClick={handlePrev} href="#" />
               </PaginationItem>
-              {Array.from({ length: totalPages }).map((_, i) => (
-                <PaginationItem key={i}>
-                  <PaginationLink
-                    href="#"
-                    isActive={currentPage === i + 1}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      goToPage(i + 1);
-                    }}
-                  >
-                    {i + 1}
-                  </PaginationLink>
-                </PaginationItem>
-              ))}
+              
+              {/* Smart pagination: show first few, last few, and current page */}
+{(() => {
+  const pages: React.ReactNode[] = [];
+  const maxVisiblePages = 5;
+
+  if (totalPages <= maxVisiblePages) {
+    for (let i = 1; i <= totalPages; i++) {
+      pages.push(
+        <PaginationItem key={i}>
+          <PaginationLink
+            href="#"
+            isActive={currentPage === i}
+            onClick={(e) => { e.preventDefault(); goToPage(i); }}
+          >
+            {i}
+          </PaginationLink>
+        </PaginationItem>
+      );
+    }
+  } else {
+                  // Smart pagination for many pages
+                  
+                  // Always show first page
+                  pages.push(
+                    <PaginationItem key={1}>
+                      <PaginationLink
+                        href="#"
+                        isActive={currentPage === 1}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          goToPage(1);
+                        }}
+                      >
+                        1
+                      </PaginationLink>
+                    </PaginationItem>
+                  );
+                  
+                  if (currentPage <= 3) {
+                    // Show 1, 2, 3, ..., last
+                    for (let i = 2; i <= 3; i++) {
+                      pages.push(
+                        <PaginationItem key={i}>
+                          <PaginationLink
+                            href="#"
+                            isActive={currentPage === i}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              goToPage(i);
+                            }}
+                          >
+                            {i}
+                          </PaginationLink>
+                        </PaginationItem>
+                      );
+                    }
+                    pages.push(
+                      <PaginationItem key="ellipsis1">
+                        <PaginationEllipsis />
+                      </PaginationItem>
+                    );
+                    pages.push(
+                      <PaginationItem key={totalPages}>
+                        <PaginationLink
+                          href="#"
+                          isActive={currentPage === totalPages}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            goToPage(totalPages);
+                          }}
+                        >
+                          {totalPages}
+                        </PaginationLink>
+                      </PaginationItem>
+                    );
+                  } else if (currentPage >= totalPages - 2) {
+                    // Show 1, ..., last-2, last-1, last
+                    pages.push(
+                      <PaginationItem key="ellipsis2">
+                        <PaginationEllipsis />
+                      </PaginationItem>
+                    );
+                    for (let i = totalPages - 2; i <= totalPages; i++) {
+                      pages.push(
+                        <PaginationItem key={i}>
+                          <PaginationLink
+                            href="#"
+                            isActive={currentPage === i}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              goToPage(i);
+                            }}
+                          >
+                            {i}
+                          </PaginationLink>
+                        </PaginationItem>
+                      );
+                    }
+                  } else {
+                    // Show 1, ..., current-1, current, current+1, ..., last
+                    pages.push(
+                      <PaginationItem key="ellipsis3">
+                        <PaginationEllipsis />
+                      </PaginationItem>
+                    );
+                    for (let i = currentPage - 1; i <= currentPage + 1; i++) {
+                      pages.push(
+                        <PaginationItem key={i}>
+                          <PaginationLink
+                            href="#"
+                            isActive={currentPage === i}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              goToPage(i);
+                            }}
+                          >
+                            {i}
+                          </PaginationLink>
+                        </PaginationItem>
+                      );
+                    }
+                    pages.push(
+                      <PaginationItem key="ellipsis4">
+                        <PaginationEllipsis />
+                      </PaginationItem>
+                    );
+                    pages.push(
+                      <PaginationItem key={totalPages}>
+                        <PaginationLink
+                          href="#"
+                          isActive={currentPage === totalPages}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            goToPage(totalPages);
+                          }}
+                        >
+                          {totalPages}
+                        </PaginationLink>
+                      </PaginationItem>
+                    );
+                  }}
+                  
+                  return pages;
+})()}
+              
               <PaginationItem>
                 <PaginationNext onClick={handleNext} href="#" />
               </PaginationItem>
             </PaginationContent>
           </Pagination>
         </div>
+        )}
       </div>
 
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
