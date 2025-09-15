@@ -861,7 +861,7 @@ import type { RunResult } from "@/types/assignment";
           }
           
           // Update the response with auto-assignment result
-          result.body.data.autoAssignment = autoAssignmentResult;
+          result.body.data.autoAssignment = autoAssignmentResult as RunResult | null;
         } catch (error) {
           console.error("❌ Auto-assignment failed:", error);
           result.body.data.autoAssignment = { status: "escalated", reason: "auto-assignment error" };
