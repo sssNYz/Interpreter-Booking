@@ -249,6 +249,30 @@ const GroupedTooltip = React.memo(function GroupedTooltip({
   );
 });
 
+const CustomLegend = () => (
+  <div style={{ 
+    display: "flex", 
+    flexWrap: "wrap", 
+    gap: "16px", 
+    justifyContent: "center", 
+    marginTop: "16px",
+    padding: "8px"
+  }}>
+    {TYPE_PRIORITY.map((label) => (
+      <div key={label} style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+        <div
+          style={{
+            width: "12px",
+            height: "12px",
+            backgroundColor: TYPE_COLORS[label],
+            borderRadius: "2px",
+          }}
+        />
+        <span style={{ fontSize: "12px", fontWeight: "500" }}>{label}</span>
+      </div>
+    ))}
+  </div>
+);
 
 /* =================== Main Component =================== */
 interface TypesTabProps {
@@ -554,7 +578,7 @@ export function TypesTab({ year, data: externalData }: TypesTabProps) {
                   wrapperStyle={{ zIndex: 9999, pointerEvents: "none" }}
                   filterNull
                 />
-                <Legend />
+                <Legend content={<CustomLegend />} />
                 {memoizedInterpreters.map((interpreter) =>
                   memoizedTypePriority.map((label) => (
                     <Bar
