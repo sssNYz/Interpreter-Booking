@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useRef, useState, useCallback } from "react"
 import { motion } from "framer-motion"
 import {
   Calendar,
@@ -66,27 +66,24 @@ export function AppNavbar() {
   }, [pathname])
 
   // Compute the pill position/size to match the active button
-  const updatePill = () => {
+  const updatePill = useCallback(() => {
     const c = containerRef.current
     const el = btnRefs.current[active]
     if (!c || !el) return
     const cRect = c.getBoundingClientRect()
     const bRect = el.getBoundingClientRect()
     setPill({ left: bRect.left - cRect.left, width: bRect.width, ready: true })
-  }
+  }, [active])
 
   useEffect(() => {
     updatePill()
-    // Reposition on resize
-    const ro = new ResizeObserver(() => updatePill())
-    if (containerRef.current) ro.observe(containerRef.current)
+    // Only reposition on window resize, not on content changes
     const handle = () => updatePill()
     window.addEventListener("resize", handle)
     return () => {
-      ro.disconnect()
       window.removeEventListener("resize", handle)
     }
-  }, [active])
+  }, [active, updatePill])
 
   const handleLogout = async () => {
     try {

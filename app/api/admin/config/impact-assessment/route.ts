@@ -56,13 +56,6 @@ export async function POST(request: NextRequest) {
         affectedInterpreters: impact.fairnessImpact.affectedInterpreters,
         windowDaysChange: impact.fairnessImpact.windowDaysChange
       } : null,
-      poolProcessing: impact.poolProcessingImpact ? {
-        currentPoolSize: impact.poolProcessingImpact.currentPoolSize,
-        thresholdAdjustments: impact.poolProcessingImpact.thresholdAdjustments,
-        deadlineAdjustments: impact.poolProcessingImpact.deadlineAdjustments,
-        processingFrequencyChange: impact.poolProcessingImpact.processingFrequencyChange,
-        batchProcessingChange: impact.poolProcessingImpact.batchProcessingChange
-      } : null,
       drPolicy: impact.drPolicyImpact ? {
         blockingBehaviorChange: impact.drPolicyImpact.blockingBehaviorChange,
         penaltyChange: impact.drPolicyImpact.penaltyChange,
