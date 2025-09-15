@@ -37,6 +37,10 @@ import {
   createInterpreterColorPalette 
 } from "@/utils/admin-dashboard";
 
+/* =================== Constants =================== */
+const BAR_SIZE = 12;
+const BAR_GAP = 4;
+
 /* ========= Types ========= */
 type SingleMonthDeptBar = CategoryChartRow & Record<InterpreterName, number>;
 
@@ -138,7 +142,7 @@ export function DeptTab({ year, data: externalData }: DeptTabProps) {
   return (
     <>
       {/* Chart select month */}
-      <Card className="h-[380px] mb-4">
+      <Card className="h-[400px] mb-4">
         <CardHeader className="pb-0">
           <div className="flex items-center justify-between gap-3">
             <CardTitle className="text-base">
@@ -159,12 +163,38 @@ export function DeptTab({ year, data: externalData }: DeptTabProps) {
             </Select>
           </div>
         </CardHeader>
-        <CardContent className="h-[320px]">
+        <CardContent className="h-[340px]">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={monthDeptData} margin={{ top: 8, right: 12, left: 8, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="group" />
-              <YAxis />
+            <BarChart 
+              data={monthDeptData} 
+              margin={{ 
+                top: 40, 
+                right: 20, 
+                left: 20, 
+                bottom: 80 
+              }}
+              barCategoryGap={BAR_GAP}
+              maxBarSize={BAR_SIZE}
+              barGap={BAR_GAP}
+            >
+              <CartesianGrid 
+                strokeDasharray="3 3" 
+                horizontal={true}
+                vertical={false}
+                stroke="#e5e7eb"
+              />
+              <XAxis 
+                dataKey="group"
+                axisLine={true}
+                tickLine={false}
+                tick={{ fontSize: 12, fill: '#374151' }}
+              />
+              <YAxis
+                allowDecimals={false}
+                axisLine={false}
+                tickLine={false}
+                tick={{ fontSize: 11, fill: '#6b7280' }}
+              />
               <Tooltip />
               <Legend />
               {interpreters.map((p) => (

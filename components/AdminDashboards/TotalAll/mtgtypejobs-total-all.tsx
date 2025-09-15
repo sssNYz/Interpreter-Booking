@@ -19,22 +19,13 @@ import type {
   DRType,
   TypesApiResponse,
   MonthlyDataRowWithDR,
-  TypeChartRow,
   MonthlyTableRow,
 } from "@/types/admin-dashboard";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { 
   diffClass,
-  createInterpreterColorPalette,
   getCurrentCalendarMonth,
-  diffRange 
+  diffRange
 } from "@/utils/admin-dashboard";
 
 /* =================== Labels & mapping =================== */
@@ -85,8 +76,21 @@ const MT_LABEL_TO_KEY: Record<
   OTHER: "Other",
 };
 
+/* =================== Constants =================== */
+const TYPE_COLORS = {
+  dr1: "#ef4444",
+  dr2: "#f97316",
+  drk: "#eab308",
+  pdr: "#84cc16",
+  dr_other: "#22c55e",
+  vip: "#3b82f6",
+  weekly: "#6366f1",
+  general: "#8b5cf6",
+  urgent: "#a855f7",
+  other: "#d946ef",
+} as const;
+
 /* =================== Helpers =================== */
-type SingleMonthBar = TypeChartRow & { type: PriorityLabel } & Record<string, number>;
 
 function getDRValue(
   mrow: MonthlyDataRowWithDR | undefined,
@@ -156,53 +160,54 @@ export function TypesTab({ year, data: externalData }: TypesTabProps) {
   const typesMGIFooter: FooterByInterpreter = React.useMemo(() => 
     currentData?.typesMGIFooter ?? { perInterpreter: [], grand: 0, diff: 0 }, [currentData?.typesMGIFooter]);
 
+
   // current month for highlight
   const currentMonth = React.useMemo<MonthName | "">(
     () => (months.length ? getCurrentCalendarMonth(months) : ""),
     [months]
   );
 
-  // color palette
-  const interpreterColors = React.useMemo<Record<InterpreterName, string>>(() => {
-    return createInterpreterColorPalette(interpreters);
-  }, [interpreters]);
 
-  // ===== Chart dataset  =====
-  const monthBarData: SingleMonthBar[] = React.useMemo(() => {
-    if (!selectedMonth) return [];
-    const mrow = yearData.find((d) => d.month === selectedMonth);
-    return TYPE_PRIORITY.map((label) => {
-      const rec = { type: label } as SingleMonthBar;
-      interpreters.forEach((itp) => {
-        let v = 0;
-        if (label === "DR1" || label === "DR2" || label === "DRK" || label === "PDR" || label === "DR_OTHER") {
-          v = getDRValue(mrow, itp, label);
-        } else {
-          v = getMTValue(mrow, itp, label);
-        }
-        rec[itp] = v;
+  // ===== Chart dataset for interpreters with stacked meeting types =====
+  const interpreterBarData = React.useMemo(() => {
+    const data: Record<string, string | number>[] = [];
+    
+    months.forEach((month) => {
+      const mrow = yearData.find((d) => d.month === month);
+      
+      // Create one data point per month with all interpreters
+      const monthData: Record<string, string | number> = { month };
+      
+      interpreters.forEach((interpreter) => {
+        const dr1 = getDRValue(mrow, interpreter, "DR1");
+        const dr2 = getDRValue(mrow, interpreter, "DR2");
+        const drk = getDRValue(mrow, interpreter, "DRK");
+        const pdr = getDRValue(mrow, interpreter, "PDR");
+        const dr_other = getDRValue(mrow, interpreter, "DR_OTHER");
+        const vip = getMTValue(mrow, interpreter, "VIP");
+        const weekly = getMTValue(mrow, interpreter, "WEEKLY");
+        const general = getMTValue(mrow, interpreter, "GENERAL");
+        const urgent = getMTValue(mrow, interpreter, "URGENT");
+        const other = getMTValue(mrow, interpreter, "OTHER");
+        
+        // Add each interpreter's data with unique keys
+        monthData[`${interpreter}_dr1`] = dr1;
+        monthData[`${interpreter}_dr2`] = dr2;
+        monthData[`${interpreter}_drk`] = drk;
+        monthData[`${interpreter}_pdr`] = pdr;
+        monthData[`${interpreter}_dr_other`] = dr_other;
+        monthData[`${interpreter}_vip`] = vip;
+        monthData[`${interpreter}_weekly`] = weekly;
+        monthData[`${interpreter}_general`] = general;
+        monthData[`${interpreter}_urgent`] = urgent;
+        monthData[`${interpreter}_other`] = other;
       });
-      return rec;
+      
+      data.push(monthData);
     });
-  }, [yearData, selectedMonth, interpreters]);
-
-  const yMax = React.useMemo(() => {
-    let max = 0;
-    for (const row of monthBarData) {
-      for (const itp of interpreters) {
-        const v = Number((row as Record<string, number>)[itp] ?? 0);
-        if (v > max) max = v;
-      }
-    }
-    return max;
-  }, [monthBarData, interpreters]);
-
-  const yTicks = React.useMemo(() => {
-    const top = Math.ceil(yMax / 2) * 2;
-    const arr: number[] = [];
-    for (let v = 0; v <= top; v += 2) arr.push(v);
-    return arr.length ? arr : [0, 2];
-  }, [yMax]);
+    
+    return data;
+  }, [yearData, months, interpreters]);
 
   // ===== Table #1: Types × Months =====
   type TypesTableRowStrict = MonthlyTableRow & {
@@ -257,52 +262,153 @@ export function TypesTab({ year, data: externalData }: TypesTabProps) {
     return { perInterpreter, grand, diff };
   }, [showAllMonths, typesMGIFooter, yearData, selectedMonth, interpreters]);
 
+
   return (
     <>
-      {/* ===== Chart: one month with dropdown ===== */}
+      {/* ===== Chart: Meeting Types by Month ===== */}
       <Card className="h-[380px] mb-4">
         <CardHeader className="pb-0">
-          <div className="flex items-center justify-between gap-3">
-            <CardTitle className="text-base">
-              Meeting Types — Month {selectedMonth || "-"} (Year {activeYear})
-            </CardTitle>
-            <Select
-              value={selectedMonth || ""}
-              onValueChange={(v) => setSelectedMonth(v as MonthName)}
-            >
-              <SelectTrigger className="h-9 w-[120px]">
-                <SelectValue placeholder="Month" />
-              </SelectTrigger>
-              <SelectContent>
-                {months.map((m) => (
-                  <SelectItem key={m} value={m}>
-                    {m}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          <CardTitle className="text-base">
+            Meeting Types — All Months (Year {activeYear})
+          </CardTitle>
         </CardHeader>
         <CardContent className="h-[320px]">
-          <div className="w-full h-full">
+          {interpreterBarData.length > 0 ? (
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={monthBarData} margin={{ top: 8, right: 12, left: 8, bottom: 0 }}>
+              <BarChart data={interpreterBarData}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="type" />
-                <YAxis
-                  allowDecimals={false}
-                  domain={[0, yTicks[yTicks.length - 1] ?? 0]}
-                  ticks={yTicks}
-                  tickFormatter={(v) => v.toString()}
-                />
+                <XAxis dataKey="month" />
+                <YAxis />
                 <Tooltip />
                 <Legend />
-                {interpreters.map((p) => (
-                  <Bar key={p} dataKey={p} name={p} fill={interpreterColors[p]} />
+                {interpreters.map((interpreter) => (
+                  <React.Fragment key={interpreter}>
+                    <Bar 
+                      dataKey={`${interpreter}_dr1`} 
+                      stackId={interpreter} 
+                      name="DR1" 
+                      fill={TYPE_COLORS.dr1}
+                      hide={true}
+                    />
+                    <Bar 
+                      dataKey={`${interpreter}_dr2`} 
+                      stackId={interpreter} 
+                      name="DR2" 
+                      fill={TYPE_COLORS.dr2}
+                      hide={true}
+                    />
+                    <Bar 
+                      dataKey={`${interpreter}_drk`} 
+                      stackId={interpreter} 
+                      name="DRK" 
+                      fill={TYPE_COLORS.drk}
+                      hide={true}
+                    />
+                    <Bar 
+                      dataKey={`${interpreter}_pdr`} 
+                      stackId={interpreter} 
+                      name="PDR" 
+                      fill={TYPE_COLORS.pdr}
+                      hide={true}
+                    />
+                    <Bar 
+                      dataKey={`${interpreter}_dr_other`} 
+                      stackId={interpreter} 
+                      name="DR Other" 
+                      fill={TYPE_COLORS.dr_other}
+                      hide={true}
+                    />
+                    <Bar 
+                      dataKey={`${interpreter}_vip`} 
+                      stackId={interpreter} 
+                      name="VIP" 
+                      fill={TYPE_COLORS.vip}
+                      hide={true}
+                    />
+                    <Bar 
+                      dataKey={`${interpreter}_weekly`} 
+                      stackId={interpreter} 
+                      name="Weekly" 
+                      fill={TYPE_COLORS.weekly}
+                      hide={true}
+                    />
+                    <Bar 
+                      dataKey={`${interpreter}_general`} 
+                      stackId={interpreter} 
+                      name="General" 
+                      fill={TYPE_COLORS.general}
+                      hide={true}
+                    />
+                    <Bar 
+                      dataKey={`${interpreter}_urgent`} 
+                      stackId={interpreter} 
+                      name="Urgent" 
+                      fill={TYPE_COLORS.urgent}
+                      hide={true}
+                    />
+                    <Bar 
+                      dataKey={`${interpreter}_other`} 
+                      stackId={interpreter} 
+                      name="Other" 
+                      fill={TYPE_COLORS.other}
+                      hide={true}
+                    />
+                    {/* Visible bars for actual rendering */}
+                    <Bar 
+                      dataKey={`${interpreter}_dr1`} 
+                      stackId={interpreter} 
+                      fill={TYPE_COLORS.dr1}
+                    />
+                    <Bar 
+                      dataKey={`${interpreter}_dr2`} 
+                      stackId={interpreter} 
+                      fill={TYPE_COLORS.dr2}
+                    />
+                    <Bar 
+                      dataKey={`${interpreter}_drk`} 
+                      stackId={interpreter} 
+                      fill={TYPE_COLORS.drk}
+                    />
+                    <Bar 
+                      dataKey={`${interpreter}_pdr`} 
+                      stackId={interpreter} 
+                      fill={TYPE_COLORS.pdr}
+                    />
+                    <Bar 
+                      dataKey={`${interpreter}_dr_other`} 
+                      stackId={interpreter} 
+                      fill={TYPE_COLORS.dr_other}
+                    />
+                    <Bar 
+                      dataKey={`${interpreter}_vip`} 
+                      stackId={interpreter} 
+                      fill={TYPE_COLORS.vip}
+                    />
+                    <Bar 
+                      dataKey={`${interpreter}_weekly`} 
+                      stackId={interpreter} 
+                      fill={TYPE_COLORS.weekly}
+                    />
+                    <Bar 
+                      dataKey={`${interpreter}_general`} 
+                      stackId={interpreter} 
+                      fill={TYPE_COLORS.general}
+                    />
+                    <Bar 
+                      dataKey={`${interpreter}_urgent`} 
+                      stackId={interpreter} 
+                      fill={TYPE_COLORS.urgent}
+                    />
+                    <Bar 
+                      dataKey={`${interpreter}_other`} 
+                      stackId={interpreter} 
+                      fill={TYPE_COLORS.other}
+                    />
+                  </React.Fragment>
                 ))}
               </BarChart>
             </ResponsiveContainer>
-          </div>
+          ) : null}
         </CardContent>
       </Card>
 
