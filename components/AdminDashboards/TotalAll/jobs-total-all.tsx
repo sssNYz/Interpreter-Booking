@@ -19,8 +19,7 @@ import {
 
 import { 
   diffClass, 
-  createInterpreterColorPalette,
-  getCurrentCalendarMonthStrict 
+  createInterpreterColorPalette
 } from "@/utils/admin-dashboard";
 
 
@@ -64,7 +63,6 @@ export function JobsTab({ year, data: externalData }: JobsTabProps) {
     totalJobsStack: [],
     jobsFooter: { perInterpreter: [], grand: 0, diff: 0 }
   };
-  const currentMonth = getCurrentCalendarMonthStrict(currentData?.months || []);
 
   return (
     <>
@@ -122,19 +120,12 @@ export function JobsTab({ year, data: externalData }: JobsTabProps) {
                       (p) => Number(r[p as InterpreterName] ?? 0)
                     );
                     const d = Math.max(...vals) - Math.min(...vals);
-                    const isCurrent = r.month === currentMonth;
 
                     return (
                       <tr
                         key={r.month}
-                        className={[
-                          "border-b",
-                          isCurrent
-                            ? "bg-blue-100 dark:bg-blue-900/40 font-semibold hover:bg-blue-100 dark:hover:bg-blue-900/40"
-                            : "odd:bg-white even:bg-muted/30 hover:bg-muted/40",
-                        ].join(" ").trim()}
+                        className="border-b odd:bg-white even:bg-muted/30 hover:bg-muted/40"
                       >
-                        {/* sticky cell inherits row bg to keep highlight color */}
                         <td className="p-2 sticky left-0 z-10 bg-inherit">
                           {r.month}
                         </td>

@@ -24,8 +24,7 @@ import {
   diffClass,
   formatHoursDecimal,
   buildTwoHourTicks,
-  getInterpreterColorPaletteAsMap,
-  getCurrentCalendarMonthStrict
+  getInterpreterColorPaletteAsMap
 } from "@/utils/admin-dashboard";
 
 
@@ -74,10 +73,6 @@ export function HoursTab({ year, data: externalData }: HoursTabProps) {
   const footer: FooterByInterpreter | null = React.useMemo(() => currentData?.hoursFooter ?? null, [currentData?.hoursFooter]);
   const theYear = React.useMemo(() => currentData?.year ?? year, [currentData?.year, year]);
 
-  // current month for highlight
-  const currentMonth = React.useMemo<MonthName | "">(() => {
-    return getCurrentCalendarMonthStrict(currentData?.months || []);
-  }, [currentData]);
 
   const interpreterColors = React.useMemo<Map<InterpreterName, string>>(() => {
     return getInterpreterColorPaletteAsMap(interpreters);
@@ -168,17 +163,11 @@ export function HoursTab({ year, data: externalData }: HoursTabProps) {
                   const maxV = vals.length ? Math.max(...vals) : 0;
                   const minV = vals.length ? Math.min(...vals) : 0;
                   const d = maxV - minV;
-                  const isCurrent = r.month === currentMonth;
 
                   return (
                     <tr
                       key={r.month}
-                      className={[
-                        "border-b",
-                        isCurrent
-                          ? "bg-blue-100 dark:bg-blue-900/40 font-semibold hover:bg-blue-100 dark:hover:bg-blue-900/40"
-                          : "odd:bg-white even:bg-muted/30 hover:bg-muted/40",
-                      ].join(" ").trim()}
+                      className="border-b odd:bg-white even:bg-muted/30 hover:bg-muted/40"
                     >
                       <td className="p-2 sticky left-0 z-10 bg-inherit">{r.month}</td>
 

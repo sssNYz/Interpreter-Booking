@@ -21,21 +21,15 @@ import type {
   CategoryChartRow,
 } from "@/types/admin-dashboard";
 import { OwnerGroupLabel as OGLabel } from "@/types/admin-dashboard";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 
 import { 
-  getCurrentCalendarMonth, 
   diffRange, 
   diffClass,
   createInterpreterColorPalette 
 } from "@/utils/admin-dashboard";
+
+/* (no chart sizing constants in the original version) */
 
 /* ========= Types ========= */
 type SingleMonthDeptBar = CategoryChartRow & Record<InterpreterName, number>;
@@ -50,8 +44,10 @@ interface DeptTabProps {
 
 export function DeptTab({ year, data: externalData, selectedMonth: propSelectedMonth }: DeptTabProps) {
   const [data, setData] = React.useState<DepartmentsApiResponse | null>(null);
-  const [selectedMonth, setSelectedMonth] = React.useState<MonthName | "">(propSelectedMonth || "");
   const [showAllMonths, setShowAllMonths] = React.useState<boolean>(false);
+  
+  // Use propSelectedMonth if provided, otherwise fallback to current month
+  const selectedMonth = propSelectedMonth || "";
 
   // Use external data if provided, otherwise fetch internally
   const currentData = externalData !== undefined ? externalData : data;
@@ -68,7 +64,6 @@ export function DeptTab({ year, data: externalData, selectedMonth: propSelectedM
           const j = (await r.json()) as DepartmentsApiResponse;
           if (alive) {
             setData(j);
-            setSelectedMonth((prev) => (prev ? prev : getCurrentCalendarMonth(j.months)));
           }
         })
         .catch((e) => {
@@ -76,8 +71,6 @@ export function DeptTab({ year, data: externalData, selectedMonth: propSelectedM
         });
 
       return () => { alive = false; };
-    } else if (externalData) {
-      setSelectedMonth((prev) => (prev ? prev : getCurrentCalendarMonth(externalData.months)));
     }
   }, [year, externalData]);
 
@@ -92,11 +85,8 @@ export function DeptTab({ year, data: externalData, selectedMonth: propSelectedM
     [currentData?.deptMGIFooter]
   );
 
-  // present month
-  const currentMonth = React.useMemo<MonthName | "">(
-    () => (months.length ? getCurrentCalendarMonth(months) : ""),
-    [months]
-  );
+  // Use selectedMonth from props for highlighting
+  const currentMonth = selectedMonth;
 
   const interpreterColors = React.useMemo<Record<InterpreterName, string>>(() => {
     return createInterpreterColorPalette(interpreters);
@@ -141,24 +131,9 @@ export function DeptTab({ year, data: externalData, selectedMonth: propSelectedM
       {/* Chart select month */}
       <Card className="h-[380px] mb-4">
         <CardHeader className="pb-0">
-          <div className="flex items-center justify-between gap-3">
-            <CardTitle className="text-base">
-              Meetings by Department — Month {selectedMonth || "-"} (Year {activeYear})
-            </CardTitle>
-            <Select
-              value={selectedMonth || ""}
-              onValueChange={(v) => setSelectedMonth(v as MonthName)}
-            >
-              <SelectTrigger className="h-9 w-[120px]">
-                <SelectValue placeholder="Month" />
-              </SelectTrigger>
-              <SelectContent>
-                {months.map((m) => (
-                  <SelectItem key={m} value={m}>{m}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          <CardTitle className="text-base">
+            Meetings by Department — Month {selectedMonth || "-"} (Year {activeYear})
+          </CardTitle>
         </CardHeader>
         <CardContent className="h-[320px]">
           <ResponsiveContainer width="100%" height="100%">
