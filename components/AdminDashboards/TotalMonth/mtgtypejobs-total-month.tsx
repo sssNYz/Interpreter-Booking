@@ -22,13 +22,6 @@ import type {
   TypeChartRow,
   MonthlyTableRow,
 } from "@/types/admin-dashboard";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { 
   diffClass,
@@ -190,7 +183,6 @@ interface TypesTabProps {
 export function TypesTab({ year, data: externalData, selectedMonth: propSelectedMonth }: TypesTabProps) {
   // ---- hooks ----
   const [data, setData] = React.useState<TypesApiResponse | null>(null);
-  const [selectedMonth, setSelectedMonth] = React.useState<MonthName | "">(propSelectedMonth || "");
   const [showAllMonths, setShowAllMonths] = React.useState<boolean>(false);
 
   // Use external data if provided, otherwise fetch internally
@@ -210,15 +202,12 @@ export function TypesTab({ year, data: externalData, selectedMonth: propSelected
           const j = (await r.json()) as TypesApiResponse;
           if (!alive) return;
           setData(j);
-          setSelectedMonth((prev) => (prev ? prev : getCurrentCalendarMonth(j.months)));
         })
         .catch((e) => {
           if (alive) console.error("Error fetching types data:", e);
         });
 
       return () => { alive = false; };
-    } else if (externalData) {
-      setSelectedMonth((prev) => (prev ? prev : getCurrentCalendarMonth(externalData.months)));
     }
   }, [year, externalData]);
 
@@ -243,6 +232,7 @@ export function TypesTab({ year, data: externalData, selectedMonth: propSelected
 
   // ===== Chart dataset  =====
   const monthBarData: SingleMonthBar[] = React.useMemo(() => {
+    const selectedMonth = propSelectedMonth || (months.length > 0 ? months[0] : "");
     if (!selectedMonth) return [];
     const mrow = yearData.find((d) => d.month === selectedMonth);
     return TYPE_PRIORITY.map((label) => {
@@ -258,7 +248,7 @@ export function TypesTab({ year, data: externalData, selectedMonth: propSelected
       });
       return rec;
     });
-  }, [yearData, selectedMonth, interpreters]);
+  }, [yearData, propSelectedMonth, months, interpreters]);
 
   const yMax = React.useMemo(() => {
     let max = 0;
@@ -311,6 +301,7 @@ export function TypesTab({ year, data: externalData, selectedMonth: propSelected
 
   // ===== Table #2: Month × Type × Interpreter =====
   const groupSize = TYPE_PRIORITY.length;
+  const selectedMonth = propSelectedMonth || (months.length > 0 ? months[0] : "");
   const monthsToRender: MonthName[] = showAllMonths
     ? months
     : (selectedMonth ? [selectedMonth] as MonthName[] : []);
@@ -329,33 +320,16 @@ export function TypesTab({ year, data: externalData, selectedMonth: propSelected
     const grand = perInterpreter.reduce((a, b) => a + b, 0);
     const diff = diffRange(perInterpreter);
     return { perInterpreter, grand, diff };
-  }, [showAllMonths, typesMGIFooter, yearData, selectedMonth, interpreters]);
+  }, [showAllMonths, typesMGIFooter, yearData, propSelectedMonth, months, interpreters]);
 
   return (
     <>
       {/* ===== Chart: one month with dropdown ===== */}
       <Card className="h-[380px] mb-4">
         <CardHeader className="pb-0">
-          <div className="flex items-center justify-between gap-3">
-            <CardTitle className="text-base">
-              Meeting Types — Month {selectedMonth || "-"} (Year {activeYear})
-            </CardTitle>
-            <Select
-              value={selectedMonth || ""}
-              onValueChange={(v) => setSelectedMonth(v as MonthName)}
-            >
-              <SelectTrigger className="h-9 w-[120px]">
-                <SelectValue placeholder="Month" />
-              </SelectTrigger>
-              <SelectContent>
-                {months.map((m) => (
-                  <SelectItem key={m} value={m}>
-                    {m}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          <CardTitle className="text-base">
+            Meeting Types — Month {selectedMonth || "-"} (Year {activeYear})
+          </CardTitle>
         </CardHeader>
         <CardContent className="h-[320px]">
           <div className="w-full h-full">
