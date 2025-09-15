@@ -25,18 +25,14 @@ import DayRow from "./day-row";
 import { generateTimeSlots, getDaysInMonth } from "@/utils/calendar";
 import { useBookings } from "@/hooks/use-booking";
 import { useSlotDataForBars } from "@/hooks/use-bar-slot-data";
-import {
-  ROW_HEIGHT,
-  BAR_HEIGHT,
-  LANE_TOP_OFFSET,
-  BAR_STACK_GAP,
-} from "@/utils/constants";
+import { ROW_HEIGHT } from "@/utils/constants";
 import { getStatusStyle } from "@/utils/status";
 import type { DayInfo } from "@/types/booking";
 import { Button } from "@/components/ui/button";
 import BookingRules from "@/components/BookingRules/booking-rules";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useMobile } from "@/hooks/use-mobile";
+import { getInterpreterColor } from "@/utils/interpreter-color";
 
 const BookingCalendar: React.FC = () => {
   // State for current month/year being displayed
@@ -46,6 +42,7 @@ const BookingCalendar: React.FC = () => {
 
   // Controls whether the booking form modal is open
   const [isFormOpen, setIsFormOpen] = useState(false);
+  
 
   // Stores which time slot was clicked (day + time) to pass to booking form
   const [selectedSlot, setSelectedSlot] = useState<
@@ -68,6 +65,43 @@ const BookingCalendar: React.FC = () => {
     () => getDaysInMonth(currentDate),
     [currentDate]
   );
+
+  // In booking-calendar.tsx
+const [interpreterCount, setInterpreterCount] = useState(2); // default
+
+// State for interpreter legend
+const [activeInterpreters, setActiveInterpreters] = useState<Array<{id: string, name: string}>>([]);
+const [interpreterColors, setInterpreterColors] = useState<Record<string, string>>({});
+
+useEffect(() => {
+  fetch('/api/employees/get-interpreter-number')
+    .then(res => res.json())
+    .then(data => setInterpreterCount(data.count));
+}, []);
+
+// Fetch interpreters and colors for legend
+useEffect(() => {
+  const fetchInterpretersAndColors = async () => {
+    try {
+      const [interpretersRes, colorsRes] = await Promise.all([
+        fetch('/api/admin/interpreters'),
+        fetch('/api/admin/interpreter-colors')
+      ]);
+      
+      if (interpretersRes.ok && colorsRes.ok) {
+        const interpretersData = await interpretersRes.json();
+        const colorsData = await colorsRes.json();
+        
+        setActiveInterpreters(interpretersData.data);
+        setInterpreterColors(colorsData.data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch interpreters:', error);
+    }
+  };
+  
+  fetchInterpretersAndColors();
+}, []);
 
   // Debounce currentDate → debouncedDate by 1s
   useEffect(() => {
@@ -113,12 +147,13 @@ const BookingCalendar: React.FC = () => {
   );
 
   // Process booking data to create visual bars and occupancy data
-  // barsByDay: Map of day index → array of booking bars for that day
-  // occupancyByDay: Map of day index → array showing how many bookings per time slot
+  // barsByDay: Map of day index → array of booking bars for that day example output  : {0: [BarItem, BarItem, BarItem], 1: [BarItem, BarItem, BarItem], 2: [BarItem, BarItem, BarItem]}
+  // occupancyByDay: Map of day index → array showing how many bookings per time slot example output  : {0: [1, 2, 3], 1: [1, 2, 3], 2: [1, 2, 3]}
   const { barsByDay, occupancyByDay } = useSlotDataForBars({
     bookings,
     daysInMonth,
     timeSlots,
+    maxLanes: interpreterCount,
   });
 
   // Virtualization setup for rendering only visible day rows
@@ -346,7 +381,7 @@ useEffect(() => {
           <div className="flex items-center gap-2">
             <button
               onClick={() => shiftMonth(-1)}
-              className="p-2 border border-border rounded-[10px] hover:bg-accent hover:border-primary transition-colors"
+              className="p-2 border border-border rounded-[10px] hover:bg-accent hover:border-primary shadow-md hover:shadow-lg active:shadow-md transition"
             >
               <ChevronLeft className="text-foreground" />
             </button>
@@ -358,7 +393,7 @@ useEffect(() => {
             </span>
             <button
               onClick={() => shiftMonth(1)}
-              className="p-2 border border-border rounded-[10px] hover:bg-accent hover:border-primary transition-colors"
+              className="p-2 border border-border rounded-[10px] hover:bg-accent hover:border-primary shadow-md hover:shadow-lg active:shadow-md transition"
             >
               <ChevronRight className="text-foreground" />
             </button>
@@ -367,13 +402,13 @@ useEffect(() => {
       </div>
 
       {/* Main calendar grid */}
-      <div className="border border-border rounded-3xl overflow-hidden bg-background">
+      <div className="border border-border rounded-3xl overflow-hidden bg-background shadow-lg">
         {/* KEEPING ScrollArea + virtualizer viewport TOGETHER */}
         {loading ? (
           <div className="h-[clamp(600px,calc(100dvh-300px),78vh)] overflow-x-auto overflow-y-auto">
             {/* Header skeleton (time labels row) */}
             <div
-              className="sticky top-0 z-30 bg-secondary border-b border-border min-w-[800px]"
+              className="sticky top-0 z-30 bg-secondary border-b border-border min-w-[800px] shadow-sm"
               style={{
                 display: "grid",
                 gridTemplateColumns: `${dayLabelWidth}px repeat(${timeSlots.length}, ${cellWidth}px)`,
@@ -429,7 +464,7 @@ useEffect(() => {
           >
             {/* Fixed header row with time labels */}
             <div
-              className="sticky top-0 z-30 bg-secondary border-b border-border min-w-[800px]"
+              className="sticky top-0 z-30 bg-secondary border-b border-border min-w-[800px] shadow-sm"
               style={{
                 display: "grid",
                 gridTemplateColumns: `${dayLabelWidth}px repeat(${timeSlots.length}, ${cellWidth}px)`,
@@ -460,6 +495,7 @@ useEffect(() => {
               }}
             >
               {/* Render only the day rows that are currently visible */}
+              {/**sand to day-row.tsx */}
               {rowVirtualizer.getVirtualItems().map((vr) => (
                 <DayRow
                   key={vr.index}
@@ -475,6 +511,8 @@ useEffect(() => {
                   onSlotClick={handleSlotClick}
                   cellWidth={cellWidth}
                   dayLabelWidth={dayLabelWidth}
+                  maxLanes={interpreterCount}  // ← Add this
+    
                   isHighlighted={
                     highlightToday &&
                     daysInMonth[vr.index].fullDate.toDateString() ===
@@ -504,14 +542,14 @@ useEffect(() => {
           {/* Today button */}
           <Button
             onClick={goToToday}
-            className="bg-neutral-700 text-white rounded-full hover:bg-black/90 w-24 sm:w-28 h-10 text-sm sm:text-base"
+            className="bg-neutral-700 text-white rounded-full hover:bg-black/90 w-24 sm:w-28 h-10 text-sm sm:text-base shadow-md hover:shadow-lg active:shadow-md transition"
           >
             <Disc className="w-8 h-8 sm:w-10 sm:h-10" />
             Today
           </Button>
           <Button
             onClick={() => refetch()}
-            className="bg-neutral-700 text-white rounded-full hover:bg-black/90 h-10 w-24 sm:w-28 text-sm sm:text-base"
+            className="bg-neutral-700 text-white rounded-full hover:bg-black/90 h-10 w-24 sm:w-28 text-sm sm:text-base shadow-md hover:shadow-lg active:shadow-md transition"
             disabled={loading}
           >
             <RefreshCw
@@ -524,38 +562,38 @@ useEffect(() => {
           <BookingRules />
         </div>
 
-        {/* Right: legend */}
-        <div className="bg-neutral-700 flex items-center justify-center gap-3 sm:gap-6 text-sm max-w-[280px] sm:max-w-[320px] min-h-[40px] rounded-br-4xl rounded-bl-4xl px-3 sm:px-4 py-2">
-          <div className="flex items-center gap-1 sm:gap-2">
-            <span
-              className={`inline-block h-2.5 w-2.5 rounded-full border border-primary-foreground ${
-                getStatusStyle("approve").bg
-              }`}
-            />
-            <span className="text-primary-foreground text-xs sm:text-sm">
-              Approved
-            </span>
-          </div>
-          <div className="flex items-center gap-1 sm:gap-2">
-            <span
-              className={`inline-block h-2.5 w-2.5 rounded-full border border-primary-foreground ${
-                getStatusStyle("waiting").bg
-              }`}
-            />
-            <span className="text-primary-foreground text-xs sm:text-sm">
-              Waiting
-            </span>
-          </div>
-          <div className="flex items-center gap-1 sm:gap-2">
-            <span
-              className={`inline-block h-2.5 w-2.5 rounded-full border border-primary-foreground ${
-                getStatusStyle("cancel").bg
-              }`}
-            />
-            <span className="text-primary-foreground text-xs sm:text-sm">
-              Cancelled
-            </span>
-          </div>
+        {/* Right: interpreter legend */}
+        <div 
+          className="bg-neutral-700 flex items-center justify-center gap-2 sm:gap-3 text-sm rounded-br-4xl rounded-bl-4xl px-2 sm:px-3 py-2"
+          style={{
+            minWidth: activeInterpreters.length > 0 ? '200px' : '150px',
+            width: 'fit-content',
+            maxWidth: '90vw', // Use viewport width to prevent overflow
+            minHeight: '40px'
+          }}
+        >
+          {activeInterpreters.length > 0 ? (
+            activeInterpreters.map((interpreter) => {
+              const color = interpreterColors[interpreter.id] || getInterpreterColor(interpreter.id, interpreter.name)?.bg || '#6b7280';
+              return (
+                <div key={interpreter.id} className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+                  <span
+                    className="inline-block h-2.5 w-2.5 rounded-full border border-primary-foreground"
+                    style={{ backgroundColor: color }}
+                  />
+                  <span className="text-primary-foreground text-xs sm:text-sm whitespace-nowrap">
+                    {interpreter.name}
+                  </span>
+                </div>
+              );
+            })
+          ) : (
+            <div className="flex items-center gap-1 sm:gap-2">
+              <span className="text-primary-foreground text-xs sm:text-sm">
+                No interpreters found
+              </span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -570,7 +608,9 @@ useEffect(() => {
             ? occupancyByDay.get(selectedSlot.day - 1) ??
               Array(timeSlots.length).fill(0)
             : undefined
+        
         }
+        maxLanes={interpreterCount}
       />
     </div>
   );

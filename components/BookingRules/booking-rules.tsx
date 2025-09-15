@@ -11,7 +11,7 @@ export default function BookingRules() {
     <Dialog>
       <DialogTrigger asChild>
 
-        <Button className="ml-0 bg-neutral-700 text-white rounded-full hover:bg-black/90 w-28 h-10">
+        <Button className="ml-0 bg-neutral-700 text-white rounded-full hover:bg-black/90 w-28 h-10 shadow-md hover:shadow-lg active:shadow-md transition">
           <Scale className="w-20 h-20" />
           Rules
         </Button>
