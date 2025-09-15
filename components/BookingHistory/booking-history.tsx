@@ -112,8 +112,8 @@ export default function BookingHistory() {
   };
 
   return (
-    <div className="w-full border rounded-3xl p-4 bg-background">
-      <div className="flex items-center justify-between gap-2 pb-3 border-b">
+    <div className="w-full h-full border rounded-3xl p-2 bg-background flex flex-col">
+      <div className="flex items-center justify-between gap-2 pb-1 border-b">
         <div className="flex items-center gap-2">
           <FilterIcon className="w-5 h-5" />
           <span className="font-medium">My Booking History</span>
@@ -131,7 +131,7 @@ export default function BookingHistory() {
         </div>
       </div>
 
-      <div className="flex flex-col gap-3 pt-3">
+      <div className="flex flex-col gap-1 pt-1 flex-1 min-h-0">
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-2">
             <span className="text-sm text-muted-foreground">Status</span>
@@ -172,8 +172,8 @@ export default function BookingHistory() {
           </Popover>
         </div>
 
-        <div className="border rounded-xl overflow-hidden">
-          <Table>
+        <div className="border rounded-xl overflow-hidden h-64 flex flex-col min-h-0">
+          <Table className="h-full">
             <TableHeader>
               <TableRow>
                 <TableHead className="w-[110px]">Status</TableHead>
@@ -183,24 +183,24 @@ export default function BookingHistory() {
                 <TableHead className="text-right w-[90px]">Action</TableHead>
               </TableRow>
             </TableHeader>
-            <TableBody>
+            <TableBody className="flex-1">
               {loading && (
                 <>
                   {Array.from({ length: 5 }).map((_, i) => (
-                    <TableRow key={`loading-${i}`}>
-                      <TableCell>
+                    <TableRow key={`loading-${i}`} className="h-full">
+                      <TableCell className="h-full py-1">
                         <Skeleton className="h-5 w-20 rounded-full" />
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="h-full py-1">
                         <Skeleton className="h-4 w-28" />
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="h-full py-1">
                         <Skeleton className="h-4 w-24" />
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="h-full py-1">
                         <Skeleton className="h-4 w-36" />
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-right h-full py-1">
                         <div className="flex justify-end">
                           <Skeleton className="h-8 w-16" />
                         </div>
@@ -226,19 +226,19 @@ export default function BookingHistory() {
               {!loading && !error && pageItems.map((b) => {
                 const ss = getStatusStyle(b.bookingStatus);
                 return (
-                  <TableRow key={b.bookingId}>
-                    <TableCell>
+                  <TableRow key={b.bookingId} className="h-full">
+                    <TableCell className="h-full py-1">
                       <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] ${ss.bg} ${ss.text}`}>
                         {ss.icon}
                         {b.bookingStatus}
                       </span>
                     </TableCell>
-                    <TableCell>{formatDateDDMMMYYYY(b.timeStart as unknown as string)}</TableCell>
-                    <TableCell>
+                    <TableCell className="h-full py-1">{formatDateDDMMMYYYY(b.timeStart as unknown as string)}</TableCell>
+                    <TableCell className="h-full py-1">
                       {extractHHMM(b.timeStart as unknown as string)} - {extractHHMM(b.timeEnd as unknown as string)}
                     </TableCell>
-                    <TableCell>{(b.interpreterName && b.interpreterName.trim()) || b.interpreterId || "-"}</TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="h-full py-1">{(b.interpreterName && b.interpreterName.trim()) || b.interpreterId || "-"}</TableCell>
+                    <TableCell className="text-right h-full py-1">
                       <Button size="sm" variant="outline" onClick={() => handleOpenDetail(b)}>
                         Detail
                       </Button>
@@ -248,8 +248,8 @@ export default function BookingHistory() {
               })}
               {/* pad rows to keep 5 fixed rows */}
               {!loading && !error && Array.from({ length: Math.max(0, pageSize - pageItems.length) }).map((_, idx) => (
-                <TableRow key={`pad-${idx}`}>
-                  <TableCell colSpan={5} className="py-3" />
+                <TableRow key={`pad-${idx}`} className="h-full">
+                  <TableCell colSpan={5} className="py-1 h-full" />
                 </TableRow>
               ))}
             </TableBody>
@@ -257,7 +257,7 @@ export default function BookingHistory() {
           </Table>
         </div>
 
-        <div className="pt-2" onClick={(e) => e.preventDefault()}>
+        <div className="pt-1" onClick={(e) => e.preventDefault()}>
           <Pagination>
             <PaginationContent>
               <PaginationItem>

@@ -4,13 +4,18 @@ import { MAX_LANES } from "@/utils/constants";
 
 function toIndices(startStrIn: string, endStrIn: string, timeSlots: string[]) {
   // Accepts either 'YYYY-MM-DD HH:mm:ss' or ISO 'YYYY-MM-DDTHH:mm:ss'
-  const s = startStrIn.includes('T') ? startStrIn.split('T')[1] : startStrIn.split(' ')[1];
-  const e = endStrIn.includes('T') ? endStrIn.split('T')[1] : endStrIn.split(' ')[1];
+  const s = startStrIn.includes("T")
+    ? startStrIn.split("T")[1]
+    : startStrIn.split(" ")[1];
+  const e = endStrIn.includes("T")
+    ? endStrIn.split("T")[1]
+    : endStrIn.split(" ")[1];
   const startStr = s.slice(0, 5);
   const endStr = e.slice(0, 5);
   const startIndex = timeSlots.indexOf(startStr);
   // If end is 17:00, render bar to the final cell (after 16:30)
-  const endIndex = endStr === "17:00" ? timeSlots.length : timeSlots.indexOf(endStr);
+  const endIndex =
+    endStr === "17:00" ? timeSlots.length : timeSlots.indexOf(endStr);
   return { startIndex, endIndex };
 }
 
@@ -18,11 +23,16 @@ export function useSlotDataForBars({
   bookings,
   daysInMonth,
   timeSlots,
+  maxLanes = MAX_LANES,
 }: {
   bookings: BookingData[];
   daysInMonth: DayInfo[];
   timeSlots: string[];
-}): { barsByDay: Map<number, BarItem[]>; occupancyByDay: Map<number, number[]> } {
+  maxLanes?: number;
+}): {
+  barsByDay: Map<number, BarItem[]>;
+  occupancyByDay: Map<number, number[]>;
+} {
   return useMemo(() => {
     const barsByDay = new Map<number, BarItem[]>();
     const occupancyByDay = new Map<number, number[]>();
@@ -36,7 +46,9 @@ export function useSlotDataForBars({
 
       const dayBookings = bookings.filter((b) => {
         const src = b.timeStart;
-        const startDateISO = src.includes("T") ? src.split("T")[0] : src.split(" ")[0];
+        const startDateISO = src.includes("T")
+          ? src.split("T")[0]
+          : src.split(" ")[0];
         return startDateISO === dayLocalStr;
       });
 
@@ -55,16 +67,23 @@ export function useSlotDataForBars({
             status: b.bookingStatus,
             startIndex,
             endIndex,
-            interpreterName: b.interpreterId ? `Interpreter ID: ${b.interpreterId}` : "No interpreter assigned",
+            interpreterId: b.interpreterId,
+            interpreterName:
+              (b.interpreterName && b.interpreterName.trim() !== "")
+              ? b.interpreterName
+              : "no assign now",
             meetingDetail: b.meetingDetail,
             ownerEmail: b.ownerEmail,
             ownerTel: b.ownerTel,
             ownerGroup: b.ownerGroup,
-          } as Omit<BarItem, "lane"> & { lane?: 0 | 1 };
+            meetingType: b.meetingType,
+          } as Omit<BarItem, "lane"> & { lane?: number };
         })
         .filter(
           (iv) =>
-            iv.startIndex !== -1 && iv.endIndex !== -1 && iv.endIndex > iv.startIndex
+            iv.startIndex !== -1 &&
+            iv.endIndex !== -1 &&
+            iv.endIndex > iv.startIndex
         );
 
       // Sort by startIndex then endIndex
@@ -72,28 +91,32 @@ export function useSlotDataForBars({
         (a, b) => a.startIndex - b.startIndex || a.endIndex - b.endIndex
       );
 
-      // 3) Assign lanes greedily
-      const lanesEnd: number[] = Array(MAX_LANES).fill(-Infinity);
+      // 3) Assign lanes greedily with UNLIMITED placement
+      //    We dynamically grow lanes so all bars are placed for display.
+      const lanesEnd: number[] = [];
       const placed: BarItem[] = [];
       for (const iv of intervals) {
         let laneUsed = -1;
-        for (let l = 0; l < MAX_LANES; l++) {
+        for (let l = 0; l < lanesEnd.length; l++) {
           if (iv.startIndex >= lanesEnd[l]) {
             laneUsed = l;
             break;
           }
         }
-        if (laneUsed >= 0) {
-            placed.push({ ...iv, lane: laneUsed as 0 | 1 });
-            lanesEnd[laneUsed] = iv.endIndex;
-          }
+        if (laneUsed === -1) {
+          // create a new lane
+          lanesEnd.push(-Infinity);
+          laneUsed = lanesEnd.length - 1;
+        }
+        placed.push({ ...iv, lane: laneUsed });
+        lanesEnd[laneUsed] = iv.endIndex;
       }
 
-      // 4) Build occupancy
+      // 4) Build occupancy (capped by maxLanes for click blocking)
       const occ = Array(timeSlots.length).fill(0);
       for (const bar of placed) {
         for (let i = bar.startIndex; i < bar.endIndex; i++) {
-          occ[i] = Math.min(MAX_LANES, occ[i] + 1);
+          occ[i] = Math.min(maxLanes, occ[i] + 1);
         }
       }
 
@@ -102,5 +125,5 @@ export function useSlotDataForBars({
     });
 
     return { barsByDay, occupancyByDay };
-  }, [bookings, daysInMonth, timeSlots]);
+  }, [bookings, daysInMonth, timeSlots, maxLanes]);
 }
