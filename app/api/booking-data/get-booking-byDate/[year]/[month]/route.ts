@@ -40,7 +40,10 @@ export async function GET(
         select: { firstNameEn: true, lastNameEn: true, email: true, telExt: true },
       },
       interpreterEmployee: {
-        select: { empCode: true },
+        select: { empCode: true,
+                firstNameEn: true,
+                lastNameEn: true,
+         },
       },
     },
   } as Parameters<typeof prisma.bookingPlan.findMany>[0]);
@@ -62,6 +65,7 @@ export async function GET(
     ownerEmpCode: string;
     ownerGroup: string;
     meetingRoom: string;
+    meetingType: string;
     meetingDetail: string | null;
     timeStart: Date;
     timeEnd: Date;
@@ -69,7 +73,8 @@ export async function GET(
     createdAt: Date;
     updatedAt: Date;
     employee?: { firstNameEn: string | null; lastNameEn: string | null; email: string | null; telExt: string | null } | null;
-    interpreterEmployee?: { empCode: string | null } | null;
+    interpreterEmployee?: { empCode: string | null; firstNameEn: string | null; lastNameEn: string | null } | null;
+    
   }>).map((b) => ({
     bookingId: b.bookingId,
     ownerEmpCode: b.ownerEmpCode,
@@ -80,10 +85,14 @@ export async function GET(
     ownerGroup: asOwnerGroup(b.ownerGroup),
     meetingRoom: b.meetingRoom,
     meetingDetail: b.meetingDetail ?? "",
+    meetingType: b.meetingType,
     // highPriority removed from API response
     timeStart: formatDateTime(b.timeStart),
     timeEnd: formatDateTime(b.timeEnd),
     interpreterId: b.interpreterEmployee?.empCode ?? null,
+    interpreterName: b.interpreterEmployee
+    ?`${b.interpreterEmployee.firstNameEn ?? ""} ${b.interpreterEmployee.lastNameEn ?? ""}`.trim()  
+    : "",
     bookingStatus: b.bookingStatus,
     createdAt: formatDateTime(b.createdAt),
     updatedAt: formatDateTime(b.updatedAt),

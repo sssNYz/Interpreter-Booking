@@ -15,6 +15,7 @@ export type BookingFormProps = {
     interpreterSurname: string;
   }[];
   rooms?: string[];
+  maxLanes?: number;
 };
 
 
