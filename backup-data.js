@@ -12,11 +12,6 @@ async function backupData() {
     fs.writeFileSync('enhanced_assignment_config_backup.json', JSON.stringify(enhancedConfig, null, 2));
     console.log(`Backed up ${enhancedConfig.length} records from ENHANCED_ASSIGNMENT_CONFIG`);
     
-    // Backup ASSIGNMENT_POOL
-    const assignmentPool = await prisma.$queryRaw`SELECT * FROM ASSIGNMENT_POOL`;
-    fs.writeFileSync('assignment_pool_backup.json', JSON.stringify(assignmentPool, null, 2));
-    console.log(`Backed up ${assignmentPool.length} records from ASSIGNMENT_POOL`);
-    
     // Backup CONFIGURATION_CHANGE
     const configChange = await prisma.$queryRaw`SELECT * FROM CONFIGURATION_CHANGE`;
     fs.writeFileSync('configuration_change_backup.json', JSON.stringify(configChange, null, 2));

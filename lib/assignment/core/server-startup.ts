@@ -1,6 +1,4 @@
-import { initializeDailyPoolProcessor } from "../pool/daily-pool-processor";
 import { initializeAssignmentSystem } from "./startup";
-import { initializePoolSystem } from "../pool/pool-startup";
 
 /**
  * Server startup service that initializes all assignment system components
@@ -50,24 +48,10 @@ export class ServerStartupService {
       await initializeAssignmentSystem();
       console.log("✅ Core assignment system initialized");
 
-      // Step 2: Initialize database-persistent pool system
-      console.log("🗄️ Step 2: Initializing pool system...");
-      await initializePoolSystem();
-      console.log("✅ Pool system initialized");
+      // Pool system and auto-approval removed
 
-      // Step 3: Initialize daily pool processing scheduler
-      console.log("⏰ Step 3: Initializing daily pool processor...");
-      await initializeDailyPoolProcessor();
-      console.log("✅ Daily pool processor initialized");
-
-      // Step 4: Initialize auto-approval engine
-      console.log("🤖 Step 4: Initializing auto-approval engine...");
-      const { initializeAutoApprovalOnStartup } = await import("../config/auto-approval-init");
-      await initializeAutoApprovalOnStartup();
-      console.log("✅ Auto-approval engine initialized");
-
-      // Step 5: Perform health check
-      console.log("🔍 Step 4: Performing system health check...");
+      // Perform health check
+      console.log("🔍 Performing system health check...");
       const healthStatus = await this.performHealthCheck();
       
       if (healthStatus.overall === 'healthy') {
@@ -93,17 +77,17 @@ export class ServerStartupService {
     components: {
       database: 'healthy' | 'unhealthy';
       poolSystem: 'healthy' | 'degraded' | 'unhealthy';
-      dailyProcessor: 'healthy' | 'stopped' | 'error';
+      dailyProcessor: 'stopped';
       logging: 'healthy' | 'degraded';
     };
     issues: string[];
   }> {
     const issues: string[] = [];
-    const components = {
-      database: 'unhealthy' as const,
-      poolSystem: 'unhealthy' as const,
-      dailyProcessor: 'stopped' as const,
-      logging: 'degraded' as const
+    const components: { database: 'healthy' | 'unhealthy'; poolSystem: 'healthy' | 'degraded' | 'unhealthy'; dailyProcessor: 'stopped'; logging: 'healthy' | 'degraded' } = {
+      database: 'unhealthy',
+      poolSystem: 'unhealthy',
+      dailyProcessor: 'stopped',
+      logging: 'degraded'
     };
 
     try {
@@ -115,69 +99,24 @@ export class ServerStartupService {
         issues.push('Database schema validation failed');
       }
 
-      // Check pool system
-      const { getPoolSystemStatus } = await import("../pool/pool-startup");
-      const poolStatus = await getPoolSystemStatus();
-      
-      if (poolStatus.systemHealth === 'healthy') {
-        components.poolSystem = 'healthy';
-      } else if (poolStatus.systemHealth === 'warning') {
-        components.poolSystem = 'degraded';
-        issues.push(...poolStatus.issues);
-      } else {
-        components.poolSystem = 'unhealthy';
-        issues.push(...poolStatus.issues);
-      }
+      // Pool system removed
+      components.poolSystem = 'healthy';
 
-      // Check daily processor
-      const { getDailyPoolProcessor } = await import("../pool/daily-pool-processor");
-      const dailyProcessor = getDailyPoolProcessor();
-      
-      if (!dailyProcessor) {
-        components.dailyProcessor = 'stopped';
-        issues.push('Daily pool processor not initialized');
-      } else {
-        const processorStatus = dailyProcessor.getStatus();
-        if (processorStatus.isRunning) {
-          if (processorStatus.recentErrors.length > 0) {
-            components.dailyProcessor = 'error';
-            issues.push(`Daily processor has ${processorStatus.recentErrors.length} recent errors`);
-          } else {
-            components.dailyProcessor = 'healthy';
-          }
-        } else {
-          components.dailyProcessor = 'stopped';
-          issues.push('Daily processor is not running');
-        }
-      }
+      // Daily processor removed
+      components.dailyProcessor = 'stopped';
 
       // Check logging system
       components.logging = 'healthy'; // Assume healthy unless we detect issues
 
-      // Check auto-approval system
-      try {
-        const { getAutoApprovalEngine } = await import("../config/auto-approval");
-        const autoApprovalEngine = getAutoApprovalEngine();
-        const autoApprovalStatus = await autoApprovalEngine.getAutoApprovalStatus();
-        
-        // Auto-approval health is informational only, doesn't affect overall health
-        console.log(`ℹ️ Auto-approval status: ${autoApprovalStatus.enabled ? 'Enabled' : 'Disabled'}`);
-        if (autoApprovalStatus.manualOverride.active) {
-          console.log(`ℹ️ Manual override active: ${autoApprovalStatus.manualOverride.reason}`);
-        }
-      } catch (error) {
-        console.warn("⚠️ Could not check auto-approval status:", error instanceof Error ? error.message : 'Unknown error');
-      }
+      // Auto-approval removed
 
       // Determine overall health
       let overall: 'healthy' | 'degraded' | 'unhealthy';
       
-      if (components.database === 'unhealthy' || components.poolSystem === 'unhealthy') {
+      if (components.database === 'unhealthy') {
         overall = 'unhealthy';
       } else if (
         components.database === 'healthy' && 
-        components.poolSystem === 'healthy' && 
-        components.dailyProcessor === 'healthy' && 
         components.logging === 'healthy'
       ) {
         overall = 'healthy';
@@ -215,15 +154,7 @@ export class ServerStartupService {
     console.log("🛑 Starting graceful shutdown of assignment system...");
 
     try {
-      // Stop daily processor
-      const { stopDailyPoolProcessor } = await import("../pool/daily-pool-processor");
-      stopDailyPoolProcessor();
-      console.log("✅ Daily pool processor stopped");
-
-      // Shutdown auto-approval engine
-      const { shutdownAutoApproval } = await import("../config/auto-approval-init");
-      await shutdownAutoApproval();
-      console.log("✅ Auto-approval engine stopped");
+      // No daily processor or auto-approval to stop
 
       // Shutdown core assignment system
       const { shutdownAssignmentSystem } = await import("./startup");
@@ -265,11 +196,11 @@ export class ServerStartupService {
    */
   static async getSystemStatus(): Promise<{
     initialized: boolean;
-    health: any;
+    health: { overall: 'healthy' | 'degraded' | 'unhealthy'; components: Record<string, unknown>; issues: string[] } | null;
     uptime: number;
     components: {
-      dailyProcessor: any;
-      poolSystem: any;
+      dailyProcessor: null;
+      poolSystem: null;
     };
   }> {
     const startTime = Date.now();
@@ -278,29 +209,11 @@ export class ServerStartupService {
       const health = this.initialized ? await this.performHealthCheck() : null;
       
       // Get component statuses
-      let dailyProcessorStatus = null;
-      let poolSystemStatus = null;
+      const dailyProcessorStatus = null;
+      const poolSystemStatus = null;
       
       if (this.initialized) {
-        try {
-          const { getDailyPoolProcessor, getDailyProcessingStatistics } = await import("../pool/daily-pool-processor");
-          const processor = getDailyPoolProcessor();
-          if (processor) {
-            dailyProcessorStatus = {
-              ...processor.getStatus(),
-              statistics: await getDailyProcessingStatistics()
-            };
-          }
-        } catch (error) {
-          console.error("Error getting daily processor status:", error);
-        }
-
-        try {
-          const { getPoolSystemStatus } = await import("../pool/pool-startup");
-          poolSystemStatus = await getPoolSystemStatus();
-        } catch (error) {
-          console.error("Error getting pool system status:", error);
-        }
+        // Pool and daily processor removed
       }
 
       return {
@@ -313,12 +226,12 @@ export class ServerStartupService {
         }
       };
 
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("❌ Error getting system status:", error);
       
       return {
         initialized: this.initialized,
-        health: { overall: 'unhealthy', issues: [error instanceof Error ? error.message : 'Unknown error'] },
+        health: { overall: 'unhealthy', components: {}, issues: [error instanceof Error ? error.message : 'Unknown error'] },
         uptime: Date.now() - startTime,
         components: {
           dailyProcessor: null,
@@ -346,7 +259,12 @@ export async function shutdownServer(): Promise<void> {
 /**
  * Convenience function to get server status
  */
-export async function getServerStatus(): Promise<any> {
+export async function getServerStatus(): Promise<{
+  initialized: boolean;
+  health: { overall: 'healthy' | 'degraded' | 'unhealthy'; components: Record<string, unknown>; issues: string[] } | null;
+  uptime: number;
+  components: { dailyProcessor: null; poolSystem: null };
+}> {
   return ServerStartupService.getSystemStatus();
 }
 

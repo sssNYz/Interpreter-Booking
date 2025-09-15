@@ -51,7 +51,7 @@ export class SchemaValidator {
     'AssignmentLog',
     'ConflictDetectionLog',
     'DRPolicyLog',
-    'PoolProcessingLog',
+    // PoolProcessingLog removed with pool subsystem
     'SystemErrorLog',
     'AutoAssignmentConfig',
     'MeetingTypePriority'
@@ -163,9 +163,6 @@ export class SchemaValidator {
       case 'DRPolicyLog':
         await prisma.dRPolicyLog.findFirst({ take: 1 });
         break;
-      case 'PoolProcessingLog':
-        await prisma.poolProcessingLog.findFirst({ take: 1 });
-        break;
       case 'SystemErrorLog':
         await prisma.systemErrorLog.findFirst({ take: 1 });
         break;
@@ -260,7 +257,6 @@ export class SchemaValidator {
           conflictDetection: true,
           drPolicyDecision: true,
           performance: true,
-          poolProcessing: true,
           systemState: true,
           createdAt: true
         },
@@ -354,27 +350,7 @@ export class SchemaValidator {
    */
   private static async validatePoolProcessingLogStructure(result: StructureValidation): Promise<void> {
     try {
-      await prisma.poolProcessingLog.findFirst({
-        select: {
-          id: true,
-          batchId: true,
-          mode: true,
-          processingStartTime: true,
-          processingEndTime: true,
-          totalEntries: true,
-          processedEntries: true,
-          assignedEntries: true,
-          escalatedEntries: true,
-          failedEntries: true,
-          fairnessImprovement: true,
-          averageProcessingTimeMs: true,
-          systemLoad: true,
-          errors: true,
-          performance: true,
-          createdAt: true
-        },
-        take: 1
-      });
+      // PoolProcessingLog model removed
       
       console.log("✅ PoolProcessingLog structure validation passed");
     } catch (error) {
@@ -430,10 +406,6 @@ export class SchemaValidator {
           timeStart: true,
           timeEnd: true,
           bookingStatus: true,
-          poolStatus: true,
-          poolEntryTime: true,
-          poolDeadlineTime: true,
-          poolProcessingAttempts: true,
           createdAt: true,
           updatedAt: true
         },
