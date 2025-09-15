@@ -50,17 +50,6 @@ export interface EnhancedAssignmentLogData extends AssignmentLogData {
     policyDecisionReason: string;
   };
 
-  // Pool processing details
-  poolProcessing?: {
-    wasPooled: boolean;
-    poolMode: string;
-    thresholdDays?: number;
-    deadlineTime?: Date;
-    batchId?: string;
-    batchSize?: number;
-    processingPriority?: number;
-    fairnessImprovement?: number;
-  };
 
   // Performance metrics
   performance?: {
@@ -469,55 +458,17 @@ export class AssignmentLogger {
    * Log auto-approval events
    */
   async logAutoApprovalEvent(logData: AutoApprovalLogData): Promise<void> {
-    const context: LoggingContext = {
-      operation: 'logAutoApprovalEvent',
-      correlationId: `auto_approval_${Date.now()}_${logData.eventType}`
-    };
-
-    try {
-      // Log to database immediately for auto-approval events
-      await this.resilientLogger.logWithFallback(
-        async () => {
-          await prisma.autoApprovalLog.create({
-            data: {
-              timestamp: logData.timestamp,
-              eventType: logData.eventType,
-              reason: logData.reason,
-              oldMode: logData.oldMode,
-              newMode: logData.newMode,
-              currentMode: logData.currentMode,
-              loadAssessment: logData.loadAssessment ? JSON.stringify(logData.loadAssessment) : null,
-              confidence: logData.confidence,
-              overrideApplied: logData.overrideApplied || false,
-              expiresAt: logData.expiresAt,
-              modeTransition: logData.modeTransition ? JSON.stringify(logData.modeTransition) : null
-            }
-          });
-        },
-        async (error: Error) => {
-          console.error(`❌ Failed to log auto-approval event to database: ${error.message}`);
-          console.log(`📝 Auto-approval event (fallback): ${logData.eventType} - ${logData.reason}`);
-        }
-      );
-
-      // Console logging
-      console.log(`🤖 Auto-Approval Event: ${logData.eventType}`);
-      console.log(`   Reason: ${logData.reason}`);
-      if (logData.oldMode && logData.newMode) {
-        console.log(`   Mode Change: ${logData.oldMode} → ${logData.newMode}`);
-      }
-      if (logData.loadAssessment) {
-        console.log(`   Load Level: ${logData.loadAssessment.loadLevel} (confidence: ${(logData.loadAssessment.confidence * 100).toFixed(1)}%)`);
-      }
-      if (logData.overrideApplied) {
-        console.log(`   Manual Override: Active`);
-      }
-
-    } catch (error) {
-      await this.resilientLogger.handleLoggingError(
-        error instanceof Error ? error : new Error('Unknown auto-approval logging error'),
-        context
-      );
+    // Auto-approval subsystem removed: only log to console for any legacy calls
+    console.log(`🤖 Auto-Approval Event: ${logData.eventType}`);
+    console.log(`   Reason: ${logData.reason}`);
+    if (logData.oldMode && logData.newMode) {
+      console.log(`   Mode Change: ${logData.oldMode} → ${logData.newMode}`);
+    }
+    if (logData.loadAssessment) {
+      console.log(`   Load Level: ${logData.loadAssessment.loadLevel} (confidence: ${(logData.loadAssessment.confidence * 100).toFixed(1)}%)`);
+    }
+    if (logData.overrideApplied) {
+      console.log(`   Manual Override: Active`);
     }
   }
 
@@ -622,7 +573,6 @@ export class AssignmentLogger {
           // Enhanced fields as JSON - safely convert to InputJsonValue
           conflictDetection: logData.conflictDetection ? JSON.parse(JSON.stringify(logData.conflictDetection)) as Prisma.InputJsonValue : undefined,
           drPolicyDecision: logData.drPolicyDecision ? JSON.parse(JSON.stringify(logData.drPolicyDecision)) as Prisma.InputJsonValue : undefined,
-          poolProcessing: logData.poolProcessing ? JSON.parse(JSON.stringify(logData.poolProcessing)) as Prisma.InputJsonValue : undefined,
           performance: logData.performance ? JSON.parse(JSON.stringify(logData.performance)) as Prisma.InputJsonValue : undefined,
           systemState: logData.systemState ? JSON.parse(JSON.stringify(logData.systemState)) as Prisma.InputJsonValue : undefined
         }
@@ -779,68 +729,10 @@ export class AssignmentLogger {
    */
   private async flushPoolLogs(): Promise<void> {
     if (this.poolLogBuffer.length === 0) return;
-
-    const logsToFlush = [...this.poolLogBuffer];
+    // Pool tables removed. Discard buffered pool logs and warn once.
+    const discarded = this.poolLogBuffer.length;
     this.poolLogBuffer = [];
-
-    let successCount = 0;
-    const failedLogs: PoolProcessingLogData[] = [];
-
-    for (const logData of logsToFlush) {
-      const context: LoggingContext = {
-        operation: 'flushPoolLog',
-        batchId: logData.batchId
-      };
-
-      const writeOperation = async () => {
-        return await prisma.poolProcessingLog.create({
-          data: {
-            batchId: logData.batchId,
-            processingType: logData.processingType || 'POOL_PROCESSING',
-            mode: logData.mode,
-            processingStartTime: logData.processingStartTime,
-            processingEndTime: logData.processingEndTime,
-            totalEntries: logData.totalEntries,
-            processedEntries: logData.processedEntries,
-            assignedEntries: logData.assignedEntries,
-            escalatedEntries: logData.escalatedEntries,
-            failedEntries: logData.failedEntries,
-            fairnessImprovement: logData.fairnessImprovement,
-            averageProcessingTimeMs: logData.averageProcessingTimeMs,
-            systemLoad: logData.systemLoad,
-            errors: JSON.parse(JSON.stringify(logData.errors)) as Prisma.InputJsonValue,
-            performance: JSON.parse(JSON.stringify(logData.performance)) as Prisma.InputJsonValue
-          }
-        });
-      };
-
-      const fallbackLog = async (error: Error) => {
-        console.error(`❌ Pool processing log fallback for batch ${logData.batchId}:`, {
-          batchId: logData.batchId,
-          mode: logData.mode,
-          totalEntries: logData.totalEntries,
-          assignedEntries: logData.assignedEntries,
-          error: error.message
-        });
-      };
-
-      const result = await this.resilientLogger.logWithFallback(writeOperation, fallbackLog, context);
-      if (result) {
-        successCount++;
-      } else {
-        failedLogs.push(logData);
-      }
-    }
-
-    // Re-add failed logs to buffer for retry
-    if (failedLogs.length > 0 && this.poolLogBuffer.length < 1000) {
-      this.poolLogBuffer.unshift(...failedLogs);
-      console.warn(`⚠️ ${failedLogs.length} pool logs failed to flush, re-queued for retry`);
-    }
-
-    if (successCount > 0) {
-      console.log(`✅ Flushed ${successCount} pool logs successfully`);
-    }
+    console.warn(`ℹ️ Pool logging disabled (no tables). Discarded ${discarded} pool logs.`);
   }
 
   /**
@@ -955,11 +847,6 @@ export class AssignmentLogger {
       }
     }
 
-    // Pool processing summary
-    if (logData.poolProcessing?.wasPooled) {
-      const pp = logData.poolProcessing;
-      console.log(`   📊 Pool: ${pp.poolMode} mode, priority:${pp.processingPriority}, batch:${pp.batchId}`);
-    }
 
     // Performance summary
     if (logData.performance) {
@@ -981,10 +868,10 @@ export class AssignmentLogger {
     changeType: 'MODE_CHANGE' | 'POLICY_UPDATE' | 'THRESHOLD_CHANGE' | 'VALIDATION_UPDATE';
     userId?: string;
     reason?: string;
-    oldConfig: any;
-    newConfig: any;
-    validationResult: any;
-    impactAssessment: any;
+    oldConfig: Record<string, unknown>;
+    newConfig: Record<string, unknown>;
+    validationResult: { isValid: boolean; errors?: unknown[]; warnings?: unknown[]; recommendations?: unknown[] };
+    impactAssessment: Record<string, unknown>;
   }): Promise<void> {
     try {
       await this.resilientLogger.logWithFallback(
@@ -995,12 +882,11 @@ export class AssignmentLogger {
               interpreterEmpCode: null,
               status: 'escalated', // Using escalated for system events
               reason: `Configuration change (${data.changeType}): ${data.reason || 'No reason provided'}`,
-              preHoursSnapshot: {},
-              postHoursSnapshot: {},
+              preHoursSnapshot: {} as unknown as Prisma.InputJsonValue,
+              postHoursSnapshot: {} as unknown as Prisma.InputJsonValue,
               maxGapHours: 0,
               fairnessWindowDays: 0,
-              timestamp: data.timestamp,
-              systemState: {
+              systemState: JSON.parse(JSON.stringify({
                 changeType: data.changeType,
                 userId: data.userId,
                 oldConfig: data.oldConfig,
@@ -1011,39 +897,16 @@ export class AssignmentLogger {
                   warningCount: data.validationResult.warnings?.length || 0,
                   recommendationCount: data.validationResult.recommendations?.length || 0
                 },
-                impactAssessment: {
-                  existingPooledBookings: data.impactAssessment.existingPooledBookings,
-                  affectedBookings: data.impactAssessment.affectedBookings,
-                  modeChangeImpact: data.impactAssessment.modeChangeImpact ? {
-                    fromMode: data.impactAssessment.modeChangeImpact.fromMode,
-                    toMode: data.impactAssessment.modeChangeImpact.toMode,
-                    poolEntriesAffected: data.impactAssessment.modeChangeImpact.poolEntriesAffected,
-                    immediateProcessingRequired: data.impactAssessment.modeChangeImpact.immediateProcessingRequired
-                  } : null,
-                  fairnessImpact: data.impactAssessment.fairnessImpact ? {
-                    currentGap: data.impactAssessment.fairnessImpact.currentGap,
-                    projectedGap: data.impactAssessment.fairnessImpact.projectedGap,
-                    gapChange: data.impactAssessment.fairnessImpact.gapChange,
-                    fairnessImprovement: data.impactAssessment.fairnessImpact.fairnessImprovement
-                  } : null
-                }
-              },
-              metadata: {
-                configurationChange: true,
-                changeType: data.changeType,
-                userId: data.userId,
-                validationPassed: data.validationResult.isValid,
-                impactLevel: data.impactAssessment.affectedBookings === 0 ? 'NONE' :
-                  data.impactAssessment.affectedBookings < 5 ? 'LOW' :
-                    data.impactAssessment.affectedBookings < 15 ? 'MEDIUM' : 'HIGH'
-              }
+                impactAssessment: data.impactAssessment
+              })) as Prisma.InputJsonValue
             }
           });
         },
-        async (error) => {
+        async (error: Error) => {
           console.error("❌ Failed to log configuration change to database:", error);
           console.log(`📝 Configuration change: ${data.changeType} - ${data.reason || 'No reason'}`);
-        }
+        },
+        { operation: 'logConfigurationChange' }
       );
     } catch (error) {
       console.error("❌ Error in configuration change logging:", error);
@@ -1094,7 +957,6 @@ export class LogAnalyzer {
           performance: true,
           conflictDetection: true,
           drPolicyDecision: true,
-          poolProcessing: true
         }
       });
 
@@ -1128,11 +990,7 @@ export class LogAnalyzer {
 
       // Mode distribution
       const modeDistribution: Record<string, number> = {};
-      logs.forEach((log: Record<string, unknown>) => {
-        const poolProcessing = log.poolProcessing as Record<string, unknown> | undefined;
-        const mode = String(poolProcessing?.poolMode) || 'UNKNOWN';
-        modeDistribution[mode] = (modeDistribution[mode] || 0) + 1;
-      });
+      // Pool processing removed - no mode distribution tracking
 
       // Interpreter workload
       const interpreterWorkload: Record<string, number> = {};

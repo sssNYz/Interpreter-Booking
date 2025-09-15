@@ -526,6 +526,31 @@ import type { RunResult } from "@/types/assignment";
         );
       }
 
+      // Ensure owner employee exists to satisfy FK constraint before raw insert
+      const ownerEmpCode = body.ownerEmpCode?.trim();
+      if (!ownerEmpCode) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "ownerEmpCode is required",
+            code: "OWNER_EMP_CODE_REQUIRED",
+          },
+          { status: 400 }
+        );
+      }
+
+      const ownerExists = await prisma.employee.findUnique({ where: { empCode: ownerEmpCode } });
+      if (!ownerExists) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Owner employee not found: ${ownerEmpCode}`,
+            code: "OWNER_NOT_FOUND",
+          },
+          { status: 400 }
+        );
+      }
+
       const { timeStart, timeEnd } = parseBookingDates(
         body.timeStart,
         body.timeEnd
@@ -620,27 +645,21 @@ import type { RunResult } from "@/types/assignment";
             // 3) Insert parent booking (capacity still enforced by the global lock + check)
             await tx.$executeRaw`
             INSERT INTO BOOKING_PLAN (
-              \`OWNER_EMP_CODE\`, \`OWNER_GROUP\`, \`MEETING_ROOM\`, \`MEETING_TYPE\`, \`MEETING_DETAIL\`, \`APPLICABLE_MODEL\`, \`TIME_START\`, \`TIME_END\`, \`INTERPRETER_EMP_CODE\`, \`BOOKING_STATUS\`,
-              \`DR_TYPE\`, \`OTHER_TYPE\`, \`OTHER_TYPE_SCOPE\`,
-              \`IS_RECURRING\`, \`RECURRENCE_TYPE\`, \`RECURRENCE_INTERVAL\`, \`RECURRENCE_END_TYPE\`, \`RECURRENCE_END_DATE\`, \`RECURRENCE_END_OCCURRENCES\`, \`RECURRENCE_WEEKDAYS\`, \`RECURRENCE_MONTHDAY\`, \`RECURRENCE_WEEK_ORDER\`,
-              \`created_at\`, \`updated_at\`
+              \`OWNER_GROUP\`, \`MEETING_ROOM\`, \`MEETING_DETAIL\`, \`TIME_START\`, \`TIME_END\`, \`BOOKING_STATUS\`, \`created_at\`, \`updated_at\`,
+              \`DR_TYPE\`, \`OTHER_TYPE\`, \`OTHER_TYPE_SCOPE\`, \`APPLICABLE_MODEL\`, \`INTERPRETER_EMP_CODE\`, \`IS_RECURRING\`, \`MEETING_TYPE\`, \`OWNER_EMP_CODE\`,
+              \`RECURRENCE_END_DATE\`, \`RECURRENCE_END_OCCURRENCES\`, \`RECURRENCE_END_TYPE\`, \`RECURRENCE_INTERVAL\`, \`RECURRENCE_MONTHDAY\`, \`RECURRENCE_TYPE\`, \`RECURRENCE_WEEKDAYS\`, \`RECURRENCE_WEEK_ORDER\`
             ) VALUES (
-              ${body.ownerEmpCode.trim()}, ${body.ownerGroup}, ${body.meetingRoom.trim()}, ${
-              body.meetingType ?? null
-            }, ${body.meetingDetail ?? null}, ${body.applicableModel ?? null}, ${timeStart}, ${timeEnd}, ${body.interpreterEmpCode ?? null}, ${
+              ${body.ownerGroup}, ${body.meetingRoom.trim()}, ${body.meetingDetail ?? null}, ${timeStart}, ${timeEnd}, ${
               body.bookingStatus || BookingStatus.waiting
-            },
-              ${body.drType ?? null}, ${body.otherType ?? null}, ${body.otherTypeScope ?? null},
-              ${body.isRecurring ? 1 : 0}, ${body.recurrenceType ?? null}, ${
+            }, NOW(), NOW(),
+              ${body.drType ?? null}, ${body.otherType ?? null}, ${body.otherTypeScope ?? null}, ${body.applicableModel ?? null}, ${body.interpreterEmpCode ?? null}, ${body.isRecurring ? 1 : 0}, ${
+              body.meetingType ?? null
+            }, ${ownerEmpCode},
+              ${body.recurrenceEndDate ?? null}, ${body.recurrenceEndOccurrences ?? null}, ${body.recurrenceEndType ?? null}, ${
               body.recurrenceInterval ?? null
-            }, ${body.recurrenceEndType ?? null}, ${
-              body.recurrenceEndDate ?? null
-            }, ${body.recurrenceEndOccurrences ?? null}, ${
+            }, ${body.recurrenceMonthday ?? null}, ${body.recurrenceType ?? null}, ${
               body.recurrenceWeekdays ?? null
-            }, ${body.recurrenceMonthday ?? null}, ${
-              body.recurrenceWeekOrder ?? null
-            },
-              NOW(), NOW()
+            }, ${body.recurrenceWeekOrder ?? null}
             )
           `;
             const inserted = await tx.$queryRaw<
@@ -707,19 +726,17 @@ import type { RunResult } from "@/types/assignment";
 
                 await tx.$executeRaw`
                 INSERT INTO BOOKING_PLAN (
-                  \`OWNER_EMP_CODE\`, \`OWNER_GROUP\`, \`MEETING_ROOM\`, \`MEETING_TYPE\`, \`MEETING_DETAIL\`, \`APPLICABLE_MODEL\`, \`TIME_START\`, \`TIME_END\`, \`INTERPRETER_EMP_CODE\`, \`BOOKING_STATUS\`, \`PARENT_BOOKING_ID\`,
-                  \`DR_TYPE\`, \`OTHER_TYPE\`, \`OTHER_TYPE_SCOPE\`,
-                  \`created_at\`, \`updated_at\`
+                  \`OWNER_GROUP\`, \`MEETING_ROOM\`, \`MEETING_DETAIL\`, \`TIME_START\`, \`TIME_END\`, \`BOOKING_STATUS\`, \`created_at\`, \`updated_at\`,
+                  \`DR_TYPE\`, \`OTHER_TYPE\`, \`OTHER_TYPE_SCOPE\`, \`APPLICABLE_MODEL\`, \`INTERPRETER_EMP_CODE\`, \`IS_RECURRING\`, \`MEETING_TYPE\`, \`OWNER_EMP_CODE\`, \`PARENT_BOOKING_ID\`
                 ) VALUES (
-                  ${body.ownerEmpCode.trim()}, ${body.ownerGroup}, ${body.meetingRoom.trim()}, ${
-                  body.meetingType ?? null
-                }, ${body.meetingDetail ?? null}, ${body.applicableModel ?? null}, ${
+                  ${body.ownerGroup}, ${body.meetingRoom.trim()}, ${body.meetingDetail ?? null}, ${
                   o.timeStart
-                }, ${o.timeEnd}, ${body.interpreterEmpCode ?? null}, ${
+                }, ${o.timeEnd}, ${
                   body.bookingStatus || BookingStatus.waiting
-                }, ${bookingId},
-                  ${body.drType ?? null}, ${body.otherType ?? null}, ${body.otherTypeScope ?? null},
-                  NOW(), NOW()
+                }, NOW(), NOW(),
+                  ${body.drType ?? null}, ${body.otherType ?? null}, ${body.otherTypeScope ?? null}, ${body.applicableModel ?? null}, ${body.interpreterEmpCode ?? null}, ${body.isRecurring ? 1 : 0}, ${
+                  body.meetingType ?? null
+                }, ${body.ownerEmpCode.trim()}, ${bookingId}
                 )
               `;
                 // copy invite emails if any
