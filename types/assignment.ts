@@ -1,0 +1,201 @@
+// Types for the interpreter auto-assignment system
+
+export interface AssignmentPolicy {
+  autoAssignEnabled: boolean;
+  mode: 'BALANCE' | 'URGENT' | 'NORMAL' | 'CUSTOM';
+  fairnessWindowDays: number;
+  maxGapHours: number;
+  w_fair: number;
+  w_urgency: number;
+  w_lrs: number;
+  drConsecutivePenalty: number; // New parameter for DR consecutive assignment penalty
+}
+
+// New DR policy configuration for consecutive-aware logic
+export interface DRPolicy {
+  scope: "GLOBAL" | "BY_TYPE";     // GLOBAL = one pool; BY_TYPE = rotate per drType
+  forbidConsecutive: boolean;      // true = hard block; false = soft penalty
+  consecutivePenalty: number;      // negative number applied to total score if not blocked
+  includePendingInGlobal: boolean; // whether pending bookings count as "last"
+}
+
+export interface MeetingTypePriority {
+  id: number;
+  meetingType: string;
+  priorityValue: number;
+  urgentThresholdDays: number;
+  generalThresholdDays: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface MeetingTypeModeThreshold {
+  id: number;
+  meetingType: string;
+  assignmentMode: 'BALANCE' | 'URGENT' | 'NORMAL' | 'CUSTOM';
+  urgentThresholdDays: number;
+  generalThresholdDays: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// Pool removed: BookingPoolEntry no longer used
+
+export interface ScoreBreakdown {
+  fairness: number;
+  urgency: number;
+  lrs: number;
+  total: number;
+  drPenalty?: number;
+}
+
+export interface CandidateResult {
+  interpreterId: string;
+  empCode: string;
+  currentHours: number;
+  daysSinceLastAssignment: number;
+  scores: ScoreBreakdown;
+  eligible: boolean;
+  reason?: string;
+  drHistory?: DRAssignmentHistory; // DR assignment history for DR meetings
+}
+
+export interface RunResult {
+  status: "assigned" | "escalated";
+  interpreterId?: string;
+  reason?: string;
+  breakdown?: CandidateResult[];
+  note?: string;
+  // Enhanced fields for recurring booking auto-assignment
+  childAssignments?: number;
+  totalChildren?: number;
+  childResults?: Array<{
+    bookingId: number;
+    result: RunResult;
+  }>;
+  message?: string;
+}
+
+export interface HoursSnapshot {
+  [interpreterId: string]: number;
+}
+
+export interface AssignmentLogData {
+  bookingId: number;
+  interpreterEmpCode?: string;
+  status: "assigned" | "escalated";
+  reason?: string;
+  preHoursSnapshot: HoursSnapshot;
+  postHoursSnapshot?: HoursSnapshot;
+  scoreBreakdown?: ScoreBreakdown;
+  maxGapHours: number;
+  fairnessWindowDays: number;
+  mode?: string;
+}
+
+export interface InterpreterAvailability {
+  empCode: string;
+  isActive: boolean;
+  canWorkAt: (startTime: Date, endTime: Date) => Promise<boolean>;
+}
+
+export interface DRAssignmentHistory {
+  interpreterId: string;
+  consecutiveDRCount: number;
+  lastDRAssignments: Array<{
+    bookingId: number;
+    timeStart: Date;
+    drType: string;
+  }>;
+  isBlocked: boolean;
+  penaltyApplied: boolean;
+}
+
+// New interface for last global DR assignment
+export interface LastGlobalDRAssignment {
+  interpreterEmpCode: string | null;
+  bookingId?: number;
+  timeStart?: Date;
+  drType?: string;
+}
+
+// Extended DRAssignmentHistory for consecutive-aware logic
+export interface ConsecutiveDRAssignmentHistory {
+  interpreterId: string;
+  consecutiveDRCount: number;    // 1 if the last global DR is the same interpreter, else 0
+  lastDRAssignments: Array<{ bookingId: number, timeStart: Date, drType: string }>;
+  isBlocked: boolean;            // true if policy forbids consecutive; else false
+  penaltyApplied: boolean;       // true if policy penalizes "last DR person"; else false
+  isConsecutiveGlobal: boolean;  // true if this interpreter did the last global DR
+  lastGlobalDR?: LastGlobalDRAssignment; // reference to the last global DR assignment
+  policyResult?: DRPolicyResult; // detailed policy application result
+}
+
+// Enhanced DR policy result with detailed information
+export interface DRPolicyResult {
+  isBlocked: boolean;
+  penaltyApplied: boolean;
+  penaltyAmount: number;
+  overrideApplied: boolean;
+  reason: string;
+  policyDescription: string;
+  canOverride: boolean;
+  policyDecision?: {
+    blockingBehavior: string;
+    overrideType?: string;
+    systemFactors: string[];
+  };
+}
+
+// Enhanced DR policy with additional metadata
+export interface EnhancedDRPolicy extends DRPolicy {
+  description: string;
+  overrideAvailable: boolean;
+  emergencyOverride: boolean;
+  modeSpecificRules: {
+    blockingBehavior: 'HARD_BLOCK' | 'SOFT_PENALTY' | 'MINIMAL_PENALTY';
+    fairnessWeight: 'HIGH' | 'MEDIUM' | 'LOW';
+    urgencyPriority: 'HIGH' | 'MEDIUM' | 'LOW';
+    overrideThreshold: 'NEVER' | 'CRITICAL_ONLY' | 'NO_ALTERNATIVES' | 'ALWAYS';
+  };
+  validationRules: {
+    minPenalty: number;
+    maxPenalty: number;
+    recommendedRange: [number, number];
+  };
+}
+
+// DR policy validation result
+export interface DRPolicyValidation {
+  isValid: boolean;
+  warnings: string[];
+  errors: string[];
+  recommendations: string[];
+}
+
+// DR policy recommendations
+export interface DRPolicyRecommendations {
+  description: string;
+  recommendedPenalty: number;
+  keyFeatures: string[];
+  bestUseCases: string[];
+  potentialIssues: string[];
+}
+
+// Conflict detection types
+export interface TimeConflict {
+  interpreterId: string;
+  conflictingBookingId: number;
+  conflictStart: Date;
+  conflictEnd: Date;
+  conflictType: 'OVERLAP' | 'ADJACENT' | 'CONTAINED';
+  conflictingMeetingType: string;
+}
+
+export interface AvailabilityCheck {
+  interpreterId: string;
+  requestedStart: Date;
+  requestedEnd: Date;
+  isAvailable: boolean;
+  conflicts: TimeConflict[];
+}

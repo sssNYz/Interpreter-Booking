@@ -76,7 +76,21 @@ export async function GET(
     return "other";
   };
 
-  const items: BookingData[] = rows.map((b) => ({
+  const items: BookingData[] = (rows as Array<{
+    bookingId: number;
+    ownerEmpCode: string;
+    ownerGroup: string;
+    meetingRoom: string;
+    meetingDetail: string | null;
+    timeStart: Date;
+    timeEnd: Date;
+    bookingStatus: string;
+    createdAt: Date;
+    updatedAt: Date;
+    employee?: { prefixEn: string | null; firstNameEn: string | null; lastNameEn: string | null; email: string | null; telExt: string | null } | null;
+    interpreterEmployee?: { empCode: string | null; firstNameEn: string | null; lastNameEn: string | null } | null;
+    inviteEmails?: Array<{ email: string }> | null;
+  }>).map((b) => ({
     bookingId: b.bookingId,
     ownerEmpCode: b.ownerEmpCode,
     ownerPrefix: b.employee?.prefixEn ?? "",
@@ -87,7 +101,6 @@ export async function GET(
     ownerGroup: asOwnerGroup(b.ownerGroup),
     meetingRoom: b.meetingRoom,
     meetingDetail: b.meetingDetail ?? "",
-    highPriority: false, // Field doesn't exist in schema, default to false
     timeStart: formatDateTime(b.timeStart),
     timeEnd: formatDateTime(b.timeEnd),
     interpreterId: b.interpreterEmployee?.empCode ?? null,
