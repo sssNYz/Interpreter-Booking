@@ -197,22 +197,23 @@ export class ResilientLogger {
     try {
       await prisma.systemErrorLog.create({
         data: {
+          timestamp: new Date(),
           operation: context.operation,
           bookingId: context.bookingId,
-          interpreterId: context.interpreterId,
           errorName: error.name,
           errorMessage: error.message,
           errorStack: error.stack,
+          context: {
+            interpreterId: context.interpreterId,
+            batchId: context.batchId,
+            correlationId: context.correlationId
+          } as Prisma.InputJsonValue,
           systemState: {
             timestamp: new Date().toISOString(),
             isHealthy: this.isHealthy,
             lastHealthCheck: this.lastHealthCheck.toISOString(),
-            correlationId: context.correlationId
+            operation: context.operation
           } as Prisma.InputJsonValue,
-          additionalData: {
-            batchId: context.batchId,
-            retryAttempt: true
-          } as Prisma.InputJsonValue
         }
       });
     } catch (dbError) {

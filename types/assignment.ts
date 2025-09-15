@@ -39,17 +39,7 @@ export interface MeetingTypeModeThreshold {
   updatedAt: Date;
 }
 
-export interface BookingPoolEntry {
-  bookingId: number;
-  meetingType: string;
-  startTime: Date;
-  endTime: Date;
-  priorityValue: number;
-  urgentThresholdDays: number;
-  generalThresholdDays: number;
-  poolEntryTime: Date;
-  decisionWindowTime: Date;
-}
+// Pool removed: BookingPoolEntry no longer used
 
 export interface ScoreBreakdown {
   fairness: number;
@@ -71,12 +61,11 @@ export interface CandidateResult {
 }
 
 export interface RunResult {
-  status: "assigned" | "escalated" | "pooled";
+  status: "assigned" | "escalated";
   interpreterId?: string;
   reason?: string;
   breakdown?: CandidateResult[];
   note?: string;
-  poolEntry?: BookingPoolEntry;
   // Enhanced fields for recurring booking auto-assignment
   childAssignments?: number;
   totalChildren?: number;
@@ -94,7 +83,7 @@ export interface HoursSnapshot {
 export interface AssignmentLogData {
   bookingId: number;
   interpreterEmpCode?: string;
-  status: "assigned" | "escalated" | "pooled";
+  status: "assigned" | "escalated";
   reason?: string;
   preHoursSnapshot: HoursSnapshot;
   postHoursSnapshot?: HoursSnapshot;
