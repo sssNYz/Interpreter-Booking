@@ -35,7 +35,17 @@ export async function GET(
       },
     },
     orderBy: { timeStart: "asc" },
-    include: {
+    select: {
+      bookingId: true,
+      ownerEmpCode: true,
+      ownerGroup: true,
+      meetingRoom: true,
+      meetingDetail: true,
+      timeStart: true,
+      timeEnd: true,
+      bookingStatus: true,
+      createdAt: true,
+      updatedAt: true,
       employee: {
         select: { firstNameEn: true, lastNameEn: true, email: true, telExt: true },
       },
@@ -46,7 +56,7 @@ export async function GET(
          },
       },
     },
-  } as Parameters<typeof prisma.bookingPlan.findMany>[0]);
+  });
 
   // Map to the BookingData shape expected by the frontend
   const toIso = (d: Date) => d.toISOString();

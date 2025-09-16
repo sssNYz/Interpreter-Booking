@@ -41,16 +41,28 @@ export async function GET(
       orderBy: { timeStart: sort },
       skip: (page - 1) * pageSize,
       take: pageSize,
-      include: {
+      select: {
+        bookingId: true,
+        ownerEmpCode: true,
+        ownerGroup: true,
+        meetingRoom: true,
+        meetingDetail: true,
+        timeStart: true,
+        timeEnd: true,
+        bookingStatus: true,
+        createdAt: true,
+        updatedAt: true,
         employee: {
           select: { prefixEn: true, firstNameEn: true, lastNameEn: true, email: true, telExt: true },
         },
         interpreterEmployee: {
           select: { empCode: true, firstNameEn: true, lastNameEn: true },
         },
-        inviteEmails: true,
+        inviteEmails: {
+          select: { email: true },
+        },
       },
-    } as Parameters<typeof prisma.bookingPlan.findMany>[0]),
+    }),
   ]);
 
   const toIso = (d: Date) => d.toISOString();

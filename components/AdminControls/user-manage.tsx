@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { UserRoleDialog } from "@/components/AdminForm/user-set-role";
+import { UserRoleDialog } from "@/components/AdminForm/user-set-role-form";
 import type { Role, PageSize, ApiStats, ApiResponse, RoleFilter, AnyFilter, UserRow, FilterTree } from "@/types/user";
 
 // Constants for styling
@@ -27,7 +27,7 @@ const query = (params: Record<string, string | number | boolean>) =>
     .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
     .join("&");
 
-  // Users Management Component
+// Users Management Component
 export default function UsersManagement() {
   // Data from API (list)
   const [users, setUsers] = useState<UserRow[]>([]);
@@ -363,7 +363,8 @@ export default function UsersManagement() {
                       <div className="flex items-center">
                         <Avatar className="mr-4 h-10 w-10">
                           <AvatarFallback className="bg-gray-200 text-gray-700 font-semibold">
-                            {u.empCode?.slice(0, 2).toUpperCase()}
+                            {(u.firstNameEn?.slice(0, 1).toUpperCase() ?? "") +
+                              (u.lastNameEn?.slice(0, 1).toUpperCase() ?? "")}
                           </AvatarFallback>
                         </Avatar>
                         <div className="font-medium text-gray-900">
@@ -385,8 +386,8 @@ export default function UsersManagement() {
                             <Badge
                               key={r}
                               className={`${THEME.badgeBase} ${r === "ADMIN"
-                                  ? "bg-green-100 text-green-700 border border-green-200"
-                                  : "bg-yellow-100 text-yellow-700 border border-yellow-200"
+                                ? "bg-green-100 text-green-700 border border-green-200"
+                                : "bg-yellow-100 text-yellow-700 border border-yellow-200"
                                 }`}
                             >
                               {r}

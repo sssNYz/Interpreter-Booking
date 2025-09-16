@@ -1,12 +1,10 @@
 generator client {
   provider = "prisma-client-js"
 }
-
 datasource db {
   provider = "mysql"
   url      = env("DATABASE_URL")
 }
-
 model BookingPlan {
   bookingId                Int               @id @default(autoincrement()) @map("BOOKING_ID")
   ownerGroup               OwnerGroup        @map("OWNER_GROUP")
@@ -48,14 +46,12 @@ model BookingPlan {
   @@index([otherTypeScope])
   @@map("BOOKING_PLAN")
 }
-
 model InviteEmailList {
   emailListId Int         @id @default(autoincrement()) @map("EMAIL_LIST_ID")
   bookingId   Int         @map("BOOKING_ID")
   email       String      @map("EMAIL") @db.VarChar(255)
   invitedAt   DateTime    @default(now()) @map("invited_at") @db.Timestamp(0)
   bookingPlan BookingPlan @relation(fields: [bookingId], references: [bookingId], onDelete: Cascade)
-
   @@unique([bookingId, email], name: "unique_booking_email")
   @@map("INVITE_EMAIL_LIST")
 }
@@ -248,7 +244,6 @@ enum OwnerGroup {
   hardware
   software
   other
-
   @@map("owner_group")
 }
 
