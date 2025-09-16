@@ -10,7 +10,7 @@ import {
 import {
   ChevronLeft, ChevronRight, Star, HelpCircle, Info, CheckCircle, XCircle, Hourglass,
   Calendar, ChevronUp, ChevronDown, SquarePen, Users, Circle, AlertTriangle, Clock,
-  RotateCcw, CircleDot,
+  RotateCcw, CircleDot, Filter, X, ChevronDown as ChevronDownIcon,
 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import type { BookingManage, Stats } from "@/types/admin";
@@ -28,7 +28,6 @@ import {
   formatRequestedTime, 
   getFullDate, 
   sortBookings, 
-  getCurrentMonthBookings, 
   getStatusColor, 
   getStatusIcon 
 } from "@/utils/booking";
@@ -58,6 +57,8 @@ export default function BookingManagement(): React.JSX.Element {
     dateRequest: "",
     time: "all",
   });
+  const [dateRangeType, setDateRangeType] = useState<"meeting" | "request">("meeting");
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [pagination, setPagination] = useState<PaginationState>({ 
     currentPage: 1, 
     rowsPerPage: 10, 
@@ -204,6 +205,19 @@ export default function BookingManagement(): React.JSX.Element {
     setPagination((p) => ({ ...p, currentPage: 1 }));
   };
 
+  const clearAllFilters = () => {
+    setFilters({
+      search: "",
+      status: "all",
+      date: "",
+      dateRequest: "",
+      time: "all",
+    });
+    setDateRangeType("meeting");
+    setShowPast(false);
+    setPagination((p) => ({ ...p, currentPage: 1 }));
+  };
+
   return (
     <div className={PAGE_WRAPPER}>
 
@@ -220,6 +234,7 @@ export default function BookingManagement(): React.JSX.Element {
               </div>
             </div>
             <div className="hidden md:flex items-center gap-3">
+              <span className="text-sm text-gray-600">Data Year:</span>
               <Select value={(currentYear ?? new Date().getFullYear()).toString()} onValueChange={(v) => setCurrentYear(parseInt(v))}>
                 <SelectTrigger className="w-[140px]">
                   <SelectValue placeholder="Year" />
@@ -232,10 +247,6 @@ export default function BookingManagement(): React.JSX.Element {
                   ))}
                 </SelectContent>
               </Select>
-              <div className="flex gap-1">
-                <Button size="sm" variant={agg === "month" ? "default" : "outline"} onClick={() => setAgg("month")}>Month</Button>
-                <Button size="sm" variant={agg === "year" ? "default" : "outline"} onClick={() => setAgg("year")}>Year</Button>
-              </div>
             </div>
           </div>
         </div>
@@ -279,52 +290,108 @@ export default function BookingManagement(): React.JSX.Element {
         </div>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-6">
-          {([
-            { key: "wait", label: "Wait", color: "amber", icon: Hourglass, description: "Bookings awaiting approval" },
-            { key: "approve", label: "Approve", color: "emerald", icon: CheckCircle, description: "Confirmed bookings" },
-            { key: "cancel", label: "Cancel", color: "red", icon: XCircle, description: "Cancel bookings" },
-            { key: "total", label: "Total", color: "blue", icon: Calendar, description: "Total bookings this month" },
-          ] as SummaryCardConfig[]).map(({ key, label, color, icon: Icon, description }) => (
-            <Card key={key} className="bg-white border-gray-200 hover:shadow-lg transition-shadow">
-              <CardHeader className="pb-3">
-                <CardTitle className={`text-base font-semibold text-${color}-800 flex items-center gap-2`}>
-                  <Icon className="h-4 w-4" />
-                  {label} {isClient && (agg === "year" ? `- Year ${currentYear}` : `- ${currentMonth} ${currentYear}`)}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className={`text-3xl font-bold ${key === 'total' ? 'text-blue-700' : `text-${color}-700`}`}>{stats[key as keyof Stats]}</div>
-                <p className={`text-sm text-${color}-600 mt-1`}>{description}</p>
-              </CardContent>
-            </Card>
-          ))}
+        {/* Summary Cards with View Toggle */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-lg font-semibold text-gray-900">Summary Overview</h2>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-600">View:</span>
+              <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
+                <Button 
+                  size="sm" 
+                  variant={agg === "month" ? "default" : "ghost"} 
+                  onClick={() => setAgg("month")}
+                  className="h-8 px-3"
+                >
+                  Month
+                </Button>
+                <Button 
+                  size="sm" 
+                  variant={agg === "year" ? "default" : "ghost"} 
+                  onClick={() => setAgg("year")}
+                  className="h-8 px-3"
+                >
+                  Year
+                </Button>
+              </div>
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+            {([
+              { key: "wait", label: "Wait", color: "amber", icon: Hourglass, description: "Bookings awaiting approval" },
+              { key: "approve", label: "Approve", color: "emerald", icon: CheckCircle, description: "Confirmed bookings" },
+              { key: "cancel", label: "Cancel", color: "red", icon: XCircle, description: "Cancel bookings" },
+              { key: "total", label: "Total", color: "blue", icon: Calendar, description: `Total bookings this ${agg}` },
+            ] as SummaryCardConfig[]).map(({ key, label, color, icon: Icon, description }) => (
+              <Card key={key} className="bg-white border-gray-200 hover:shadow-lg transition-shadow rounded-xl">
+                <CardHeader className="pb-3">
+                  <CardTitle className={`text-base font-semibold text-${color}-800 flex items-center gap-2`}>
+                    <Icon className="h-4 w-4" />
+                    {label} {isClient && (agg === "year" ? `- Year ${currentYear}` : `- ${currentMonth} ${currentYear}`)}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className={`text-3xl font-bold ${key === 'total' ? 'text-blue-700' : `text-${color}-700`}`}>{stats[key as keyof Stats]}</div>
+                  <p className={`text-sm text-${color}-600 mt-1`}>{description}</p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
         </div>
 
-        <Card className="mb-6 bg-white">
-          <CardContent className="pt-6">
-            <div className="flex flex-nowrap items-end gap-4 overflow-x-auto pb-2">
-              <div className="shrink-0 w-[260px] flex flex-col gap-2">
-                <Label className="text-sm font-semibold text-gray-800 leading-tight h-5 flex items-center">
-                  Search User / Interpreter
-                </Label>
+        {/* Filters Section */}
+        <Card className="mb-6 bg-white rounded-xl shadow-sm">
+          <CardHeader className="pb-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <Filter className="h-5 w-5 text-gray-600" />
+                <h2 className="text-lg font-semibold text-gray-900">Filters</h2>
+              </div>
+              <div className="flex items-center gap-2 ml-auto">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={clearAllFilters}
+                  className="flex items-center gap-2 text-gray-600 hover:text-gray-800 h-10"
+                >
+                  <X className="h-4 w-4" />
+                  Clear Filters
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                  className="flex items-center gap-2 h-10"
+                >
+                  Advanced Filters
+                  <ChevronDownIcon className={`h-4 w-4 transition-transform ${showAdvancedFilters ? 'rotate-180' : ''}`} />
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Main Filters Row */}
+            <div className="flex flex-col lg:flex-row gap-4">
+              {/* Search */}
+              <div className="space-y-2 flex-1 sm:min-w-[200px]">
+                <Label className="text-sm font-semibold text-gray-800">Search User / Interpreter</Label>
                 <Input
-                  placeholder="Search..."
+                  placeholder="Search by name..."
                   value={filters.search}
                   onChange={(e) => updateFilter("search", e.target.value)}
-                  className="h-10"
+                  className="h-10 w-full"
                 />
               </div>
 
-              <div className="shrink-0 w-[160px] flex flex-col gap-2">
-                <Label className="text-sm font-semibold text-gray-800 leading-tight h-5 flex items-center">
-                  Status
-                </Label>
+              {/* Status */}
+              <div className="space-y-2 sm:min-w-[140px]">
+                <Label className="text-sm font-semibold text-gray-800">Status</Label>
                 <Select value={filters.status} onValueChange={(v) => updateFilter("status", v)}>
-                  <SelectTrigger className="h-10 min-h-[40px]">
+                  <SelectTrigger className="h-10 w-full">
                     <SelectValue placeholder="All Status" />
                   </SelectTrigger>
-                  <SelectContent className="max-h-60 overflow-y-auto">
+                  <SelectContent>
                     {STATUS_OPTIONS.map((o) => (
                       <SelectItem key={o.value} value={o.value}>
                         {o.label}
@@ -334,65 +401,131 @@ export default function BookingManagement(): React.JSX.Element {
                 </Select>
               </div>
 
-              <div className="shrink-0 w-[170px] flex flex-col gap-2">
-                <Label className="text-sm font-semibold text-gray-800 leading-tight h-5 flex items-center">
-                  Date Meeting
-                </Label>
-                <Input
-                  type="date"
-                  value={filters.date}
-                  onChange={(e) => updateFilter("date", e.target.value)}
-                  className="h-10"
-                />
-              </div>
-
-              <div className="shrink-0 w-[170px] flex flex-col gap-2">
-                <Label className="text-sm font-semibold text-gray-800 leading-tight h-5 flex items-center">
-                  Date Request
-                </Label>
-                <Input
-                  type="date"
-                  value={filters.dateRequest}
-                  onChange={(e) => updateFilter("dateRequest", e.target.value)}
-                  className="h-10"
-                />
-              </div>
-
-              <div className="shrink-0 w-[150px] flex flex-col gap-2">
-                <Label className="text-sm font-semibold text-gray-800 leading-tight h-5 flex items-center">
-                  Meeting Time
-                </Label>
-                <Select value={filters.time} onValueChange={(v) => updateFilter("time", v)}>
-                  <SelectTrigger className="h-10 min-h-[40px]">
-                    <SelectValue placeholder="All Times" />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-60 overflow-y-auto">
-                    <SelectItem value="all">All Times</SelectItem>
-                    {TIME_SLOTS.map((t) => (
-                      <SelectItem key={t} value={t}>
-                        {t}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="shrink-0 w-[100px] flex flex-col gap-2">
-                <Label className="text-sm font-semibold text-gray-800 leading-tight h-5 flex items-center">
-                  Past Records
-                </Label>
-                <Button
-                  variant={showPast ? "default" : "outline"}
-                  className="h-10 w-full"
-                  onClick={() => {
-                    setShowPast((v) => !v);
-                    setPagination((p) => ({ ...p, currentPage: 1 }));
-                  }}
-                >
-                  {showPast ? "Show" : "Hide"}
-                </Button>
+              {/* Date Range */}
+              <div className="space-y-2 flex-1 sm:min-w-[300px]">
+                <Label className="text-sm font-semibold text-gray-800">Date Range</Label>
+                <div className="flex flex-col sm:flex-row gap-2 items-center">
+                  <Select value={dateRangeType} onValueChange={(v: "meeting" | "request") => setDateRangeType(v)}>
+                    <SelectTrigger className="h-10 w-full sm:w-[180px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="meeting">By Meeting Date</SelectItem>
+                      <SelectItem value="request">By Request Date</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    type="date"
+                    value={dateRangeType === "meeting" ? filters.date : filters.dateRequest}
+                    onChange={(e) => {
+                      if (dateRangeType === "meeting") {
+                        updateFilter("date", e.target.value);
+                      } else {
+                        updateFilter("dateRequest", e.target.value);
+                      }
+                    }}
+                    className="h-10 w-full sm:flex-1 sm:max-w-[260px] px-3 py-2"
+                  />
+                </div>
               </div>
             </div>
+
+            {/* Advanced Filters - Collapsible */}
+            {showAdvancedFilters && (
+              <div className="border-t pt-4 space-y-4">
+                <div className="max-w-[720px]">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold text-gray-800">Meeting Time</Label>
+                      <Select value={filters.time} onValueChange={(v) => updateFilter("time", v)}>
+                        <SelectTrigger className="h-10 w-[180px]">
+                          <SelectValue placeholder="All Times" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Times</SelectItem>
+                          {TIME_SLOTS.map((t) => (
+                            <SelectItem key={t} value={t}>
+                              {t}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold text-gray-800">Past Records</Label>
+                      <Button
+                        variant={showPast ? "default" : "outline"}
+                        className="h-10 w-auto px-3 max-w-[220px]"
+                        onClick={() => {
+                          setShowPast((v) => !v);
+                          setPagination((p) => ({ ...p, currentPage: 1 }));
+                        }}
+                      >
+                        {showPast ? "Hide Past Records" : "Show Past Records"}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Active Filters Tags */}
+            {(filters.search || filters.status !== "all" || filters.date || filters.dateRequest || filters.time !== "all" || showPast) && (
+              <div className="border-t pt-4">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-sm text-gray-600">Active filters:</span>
+                  {filters.search && (
+                    <span className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
+                      Search: {filters.search}
+                      <button onClick={() => updateFilter("search", "")} className="ml-1 hover:bg-blue-200 rounded-full p-0.5">
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  )}
+                  {filters.status !== "all" && (
+                    <span className="inline-flex items-center gap-1 px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm">
+                      Status: {filters.status}
+                      <button onClick={() => updateFilter("status", "all")} className="ml-1 hover:bg-green-200 rounded-full p-0.5">
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  )}
+                  {filters.date && (
+                    <span className="inline-flex items-center gap-1 px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-sm">
+                      Meeting Date: {filters.date}
+                      <button onClick={() => updateFilter("date", "")} className="ml-1 hover:bg-purple-200 rounded-full p-0.5">
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  )}
+                  {filters.dateRequest && (
+                    <span className="inline-flex items-center gap-1 px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-sm">
+                      Request Date: {filters.dateRequest}
+                      <button onClick={() => updateFilter("dateRequest", "")} className="ml-1 hover:bg-purple-200 rounded-full p-0.5">
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  )}
+                  {filters.time !== "all" && (
+                    <span className="inline-flex items-center gap-1 px-3 py-1 bg-orange-100 text-orange-800 rounded-full text-sm">
+                      Time: {filters.time}
+                      <button onClick={() => updateFilter("time", "all")} className="ml-1 hover:bg-orange-200 rounded-full p-0.5">
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  )}
+                  {showPast && (
+                    <span className="inline-flex items-center gap-1 px-3 py-1 bg-gray-100 text-gray-800 rounded-full text-sm">
+                      Past Records: Show
+                      <button onClick={() => setShowPast(false)} className="ml-1 hover:bg-gray-200 rounded-full p-0.5">
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -402,7 +535,7 @@ export default function BookingManagement(): React.JSX.Element {
           </div>
         )}
 
-        <Card className="mb-6 bg-white">
+        <Card className="mb-6 bg-white rounded-xl shadow-sm">
           <CardContent className="p-0">
             <table className="w-full text-sm table-fixed">
                   <thead className="bg-white">
@@ -529,7 +662,7 @@ export default function BookingManagement(): React.JSX.Element {
           onActionComplete={fetchBookings}
         />
 
-        <Card className="bg-white">
+        <Card className="bg-white rounded-xl shadow-sm">
           <CardContent className="flex items-center justify-between pt-6">
             <div className="flex items-center space-x-2">
               <span className="text-base text-gray-800">Rows per page:</span>
