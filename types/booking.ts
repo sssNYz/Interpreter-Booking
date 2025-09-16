@@ -20,6 +20,8 @@ export type BookingData = {
   ownerGroup: OwnerGroup;
   meetingRoom: string;
   meetingDetail: string;
+  meetingType: string;
+  applicableModel?: string;
   timeStart: string;
   timeEnd: string;
   interpreterId: string | null;
@@ -65,7 +67,9 @@ export type BarItem = {
   endIndex: number; // exclusive
   lane: number; // stacked level
   interpreterName?: string; // interpreter name if assigned
+  interpreterId?: string | null; // interpreter id if assigned
   meetingDetail?: string; // meeting details
+  meetingType?: string; // meeting type
   ownerEmail?: string; // owner email
   ownerTel?: string; // owner phone
   ownerGroup?: OwnerGroup; // owner group/department
