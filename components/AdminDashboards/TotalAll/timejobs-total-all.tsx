@@ -13,7 +13,6 @@ import {
 } from "recharts";
 
 import {
-  MonthName,
   HoursRow,
   FooterByInterpreter,
   InterpreterName,
@@ -222,7 +221,7 @@ export function HoursTab({ year, data: externalData }: HoursTabProps) {
               <thead>
                 <tr className="bg-slate-100 dark:bg-slate-800">
                   <th className="p-2 text-left sticky left-0 z-10 bg-slate-100 dark:bg-slate-800">
-                    Month
+                    ALL
                   </th>
 
                   {interpreters.map((p) => (
@@ -245,7 +244,7 @@ export function HoursTab({ year, data: externalData }: HoursTabProps) {
                       key={r.month}
                       className="border-b odd:bg-white even:bg-muted/30 hover:bg-muted/40"
                     >
-                      <td className="p-2 sticky left-0 z-10 bg-inherit">{r.month}</td>
+                      <td className="p-2 sticky left-0 z-10 bg-inherit">Month</td>
 
                       {interpreters.map((p) => (
                         <td key={p} className="p-2 text-right">

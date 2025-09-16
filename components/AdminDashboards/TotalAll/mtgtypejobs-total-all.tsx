@@ -672,7 +672,7 @@ export function TypesTab({ year, data: externalData }: TypesTabProps) {
               <thead>
                 <tr className="bg-slate-100 dark:bg-slate-800">
                   <th className="p-2 text-left sticky left-0 z-10 bg-white dark:bg-slate-950">
-                    Total All
+                    ALL
                   </th>
                   <th className="p-2 text-left">Type</th>
                   {interpreters.map((p) => (
@@ -703,7 +703,7 @@ export function TypesTab({ year, data: externalData }: TypesTabProps) {
                     <tr key={label} className="border-b odd:bg-white even:bg-muted/30 hover:bg-muted/40">
                       {idx === 0 && (
                         <td className="p-2 align-top font-medium" rowSpan={TYPE_PRIORITY.length}>
-                          Total All
+                          Month
                         </td>
                       )}
                       <td className="p-2">{label}</td>

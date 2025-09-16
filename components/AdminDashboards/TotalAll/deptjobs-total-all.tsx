@@ -580,7 +580,7 @@ export function DeptTab({ year, data: externalData }: DeptTabProps) {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-slate-100 dark:bg-slate-800">
-                  <th className="p-2 text-left">Total All</th>
+                  <th className="p-2 text-left">All</th>
                   <th className="p-2 text-left">Group</th>
                   {interpreters.map((p) => (
                     <th key={p} className="p-2 text-right">{p}</th>
@@ -605,7 +605,7 @@ export function DeptTab({ year, data: externalData }: DeptTabProps) {
                     <tr key={dept} className="border-b odd:bg-white even:bg-muted/30 hover:bg-muted/40">
                       {idx === 0 && (
                         <td className="p-2 align-top font-medium" rowSpan={departments.length}>
-                          Total All
+                          Month
                         </td>
                       )}
                       <td className="p-2">{OGLabel[dept]}</td>
