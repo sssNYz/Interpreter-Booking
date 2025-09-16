@@ -11,22 +11,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious, PaginationEllipsis } from "@/components/ui/pagination";
-import { FilterIcon, UserSearchIcon, XIcon, User, Mail, Users, ListCollapse, MapPin, Clock, ArrowUpDown } from "lucide-react";
+import { FilterIcon, UserSearchIcon, XIcon, ArrowUpDown } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 type StatusFilter = "all" | "approve" | "waiting" | "cancel";
 
 // monthSpan no longer needed
 
-function formatDateDDMMMYYYY(dateStr: string) {
-  // dateStr can be 'YYYY-MM-DD HH:mm:ss' or ISO
-  const date = (dateStr.includes('T') ? dateStr.split('T')[0] : dateStr.split(' ')[0]);
-  const [y, m, d] = date.split('-').map(Number);
-  const months = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
-  return `${String(d).padStart(2, '0')} ${months[m - 1]} ${y}`;
-}
+// format helper kept for future but not used in the new card layout
 
 function extractHHMM(dateTimeStr: string) {
   return extractHHMMFromUtil(dateTimeStr);
@@ -34,9 +27,11 @@ function extractHHMM(dateTimeStr: string) {
 
 type BookingHistoryProps = {
   renderEmpty?: () => React.ReactNode;
+  startDate?: string; // YYYY-MM-DD
+  endDate?: string;   // YYYY-MM-DD
 };
 
-export default function BookingHistory({ renderEmpty }: BookingHistoryProps) {
+export default function BookingHistory({ renderEmpty, startDate, endDate }: BookingHistoryProps) {
   const [userEmpCode, setUserEmpCode] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   // Removed date picker per requirement
@@ -46,11 +41,10 @@ export default function BookingHistory({ renderEmpty }: BookingHistoryProps) {
   const [total, setTotal] = useState<number>(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [detailOpen, setDetailOpen] = useState(false);
-  const [selectedBooking, setSelectedBooking] = useState<BookingData | null>(null);
+  // dialog state removed in simplified design
 
   const [page, setPage] = useState(1);
-  const pageSize = 7; // show up to 7 cards per page
+  const pageSize = 4; // show up to 4 cards per page
 
   useEffect(() => {
     try {
@@ -60,6 +54,11 @@ export default function BookingHistory({ renderEmpty }: BookingHistoryProps) {
       setUserEmpCode(parsed.empCode || null);
     } catch {}
   }, []);
+
+  // Reset to page 1 when date filter changes
+  useEffect(() => {
+    setPage(1);
+  }, [startDate, endDate]);
 
   useEffect(() => {
     if (!userEmpCode) return;
@@ -72,6 +71,8 @@ export default function BookingHistory({ renderEmpty }: BookingHistoryProps) {
       status: statusFilter,
       sort: sortOrder,
     });
+    if (startDate) params.set("startDate", startDate);
+    if (endDate) params.set("endDate", endDate);
     fetch(`/api/booking-data/get-booking-by-owner/${userEmpCode}?${params.toString()}`, {
       signal: controller.signal,
     })
@@ -88,7 +89,7 @@ export default function BookingHistory({ renderEmpty }: BookingHistoryProps) {
       })
       .finally(() => setLoading(false));
     return () => controller.abort();
-  }, [userEmpCode, page, pageSize, statusFilter, sortOrder]);
+  }, [userEmpCode, page, pageSize, statusFilter, sortOrder, startDate, endDate]);
 
   // Data returned is already paginated/sorted by API
   const pageItems = bookings;
@@ -110,41 +111,40 @@ export default function BookingHistory({ renderEmpty }: BookingHistoryProps) {
     goToPage(page + 1);
   };
 
-  const handleOpenDetail = (b: BookingData) => {
-    setSelectedBooking(b);
-    setDetailOpen(true);
-  };
+  // Detail dialog handlers not needed in simplified card but retained for future use
 
   return (
-    <div className="w-full h-full border rounded-3xl p-2 flex flex-col">
-      <div className="flex items-center justify-between gap-2 pb-1 border-b">
-        <div className="flex items-center gap-2">
-          <FilterIcon className="w-5 h-5" />
-          <span className="font-medium">My Booking History</span>
+    <div className="w-full h-full border rounded-3xl p-4 flex flex-col bg-card shadow-sm">
+      <div className="flex items-center justify-between gap-2 pb-4 border-b">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-primary/10">
+            <FilterIcon className="w-5 h-5 text-primary" />
+          </div>
+          <span className="font-semibold text-lg">My Booking History</span>
         </div>
         <div className="flex items-center gap-2" />
       </div>
 
-      <div className="flex flex-col gap-1 pt-1 flex-1 min-h-0">
-        <div className="flex h-10 flex-wrap items-center gap-2">
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">Status</span>
+      <div className="flex flex-col gap-4 pt-4 flex-1 min-h-0">
+        <div className="flex h-12 flex-wrap items-center gap-3 p-3 bg-muted/30 rounded-lg">
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-medium text-foreground">Filter by:</span>
             <Select value={statusFilter} onValueChange={(v: StatusFilter) => setStatusFilter(v)}>
-              <SelectTrigger className="h-8 px-2">
+              <SelectTrigger className="h-9 px-3 min-w-[100px]">
                 <SelectValue placeholder="All" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All</SelectItem>
-                <SelectItem value="approve">Approve</SelectItem>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="approve">Approved</SelectItem>
                 <SelectItem value="waiting">Waiting</SelectItem>
-                <SelectItem value="cancel">Cancel</SelectItem>
+                <SelectItem value="cancel">Cancelled</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
           <Popover open={interpreterFilterOpen} onOpenChange={setInterpreterFilterOpen}>
             <PopoverTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-2">
+              <Button variant="outline" size="sm" className="gap-2 h-9">
                 <UserSearchIcon className="w-4 h-4" />
                 Interpreter
               </Button>
@@ -153,11 +153,11 @@ export default function BookingHistory({ renderEmpty }: BookingHistoryProps) {
               <Command>
                 <CommandInput placeholder="Search interpreter..." disabled />
                 <CommandList>
-                  <CommandEmpty>No get interpreter role now</CommandEmpty>
+                  <CommandEmpty>No interpreter available</CommandEmpty>
                   <CommandGroup heading="Interpreters">
                     <CommandItem disabled>
                       <XIcon className="w-4 h-4" />
-                      No get interpreter role now
+                      No interpreter available
                     </CommandItem>
                   </CommandGroup>
                 </CommandList>
@@ -166,41 +166,65 @@ export default function BookingHistory({ renderEmpty }: BookingHistoryProps) {
           </Popover>
         </div>
 
-        <div className="border rounded-xl overflow-hidden flex flex-col h-full">
+        <div className="bg-background rounded-xl overflow-hidden flex flex-col h-full shadow-sm">
+          <div className="flex items-center justify-between p-4 border-b bg-muted/20">
+            <div className="flex items-center gap-4">
+              <span className="text-sm font-medium text-muted-foreground">
+                Showing {total > 0 ? ((page - 1) * pageSize + 1) : 0}-{Math.min(page * pageSize, total)} of {total} bookings
+              </span>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="gap-2"
+              onClick={() => setSortOrder((s) => (s === "desc" ? "asc" : "desc"))}
+              aria-label="Sort by date"
+            >
+              Sort by Date
+              <ArrowUpDown className="w-4 h-4" />
+            </Button>
+          </div>
+          
           <Table>
-            <TableHeader>
+            <TableHeader className="sr-only">
               <TableRow>
-                <TableHead className="w-[110px]">Status</TableHead>
-                <TableHead className="min-w-[160px]">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="gap-1 px-2"
-                    onClick={() => setSortOrder((s) => (s === "desc" ? "asc" : "desc"))}
-                    aria-label="Sort by date"
-                  >
-                    Date
-                    <ArrowUpDown className="w-3.5 h-3.5" />
-                  </Button>
-                </TableHead>
-                <TableHead className="min-w-[140px]">Duration</TableHead>
-                <TableHead className="min-w-[140px]">Interpreter</TableHead>
-                <TableHead className="text-right w-[90px]">Action</TableHead>
+                <TableHead>Booking Information</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading && (
                 <>
-                  {Array.from({ length: 7 }).map((_, i) => (
+                  {Array.from({ length: 4 }).map((_, i) => (
                     <TableRow key={`loading-${i}`} className="border-0">
                       <TableCell colSpan={5} className="p-0">
-                        <div className="rounded-lg border my-1 px-6 py-6 bg-transparent">
-                          <div className="grid items-center gap-3 grid-cols-[110px_minmax(160px,1fr)_minmax(140px,1fr)_minmax(140px,1fr)_90px]">
-                            <div><Skeleton className="h-5 w-20 rounded-full" /></div>
-                            <div><Skeleton className="h-4 w-28" /></div>
-                            <div><Skeleton className="h-4 w-24" /></div>
-                            <div><Skeleton className="h-4 w-36" /></div>
-                            <div className="justify-self-end"><Skeleton className="h-8 w-16" /></div>
+                        <div className="rounded-xl border my-2 p-4 bg-card shadow-lg">
+                          <div className="flex items-center justify-between gap-4">
+                            {/* Left: Date skeleton */}
+                            <div className="flex flex-col items-center text-center gap-1">
+                              <Skeleton className="h-8 w-8 rounded" />
+                              <Skeleton className="h-4 w-12 rounded" />
+                            </div>
+                            
+                            {/* Left: Status skeleton */}
+                            <div className="flex justify-start ml-8">
+                              <Skeleton className="h-7 w-20 rounded-full" />
+                            </div>
+                            
+                            {/* Center: Time and room skeleton */}
+                            <div className="flex flex-col items-center gap-2 flex-1">
+                              <Skeleton className="h-10 w-32 rounded" />
+                              <Skeleton className="h-4 w-24 rounded" />
+                            </div>
+                            
+                            {/* Right: Interpreter and buttons skeleton */}
+                            <div className="flex flex-col gap-2 items-end">
+                              <Skeleton className="h-3 w-16 rounded" />
+                              <Skeleton className="h-5 w-32 rounded" />
+                              <div className="flex gap-2">
+                                <Skeleton className="h-7 w-16 rounded" />
+                                <Skeleton className="h-7 w-16 rounded" />
+                              </div>
+                            </div>
                           </div>
                         </div>
                       </TableCell>
@@ -228,24 +252,53 @@ export default function BookingHistory({ renderEmpty }: BookingHistoryProps) {
               )}
               {!loading && !error && pageItems.map((b) => {
                 const ss = getStatusStyle(b.bookingStatus);
+                const dateObj = new Date(b.timeStart as unknown as string);
+                const dayNumber = dateObj.getDate();
+                const monthName = dateObj.toLocaleDateString('en', { month: 'short' }).toUpperCase();
+                
                 return (
                   <TableRow key={b.bookingId} className="border-0">
                     <TableCell colSpan={5} className="p-0">
-                      <div className="rounded-lg border my-1 px-6 py-6 bg-transparent">
-                        <div className="grid items-center gap-3 grid-cols-[110px_minmax(160px,1fr)_minmax(140px,1fr)_minmax(140px,1fr)_90px]">
-                          <div>
-                            <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] ${ss.bg} ${ss.text}`}>
+                      <div className="rounded-xl border my-2 p-4 bg-card hover:bg-accent/50 transition-all duration-200 shadow-lg hover:shadow-xl hover:-translate-y-1 cursor-pointer">
+                        <div className="flex items-center justify-between gap-4">
+                          {/* Left: Date */}
+                          <div className="flex flex-col items-center text-center">
+                            <span className="text-2xl font-bold text-foreground">{dayNumber}</span>
+                            <span className="text-sm text-muted-foreground font-medium">{monthName}</span>
+                          </div>
+                          
+                          {/* Left: Status */}
+                          <div className="flex justify-start ml-8">
+                            <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium ${ss.bg} ${ss.text} shadow-sm`}>
                               {ss.icon}
-                              {b.bookingStatus}
+                              {b.bookingStatus.toUpperCase()}
                             </span>
                           </div>
-                          <div>{formatDateDDMMMYYYY(b.timeStart as unknown as string)}</div>
-                          <div>{extractHHMM(b.timeStart as unknown as string)} - {extractHHMM(b.timeEnd as unknown as string)}</div>
-                          <div>{(b.interpreterName && b.interpreterName.trim()) || b.interpreterId || "-"}</div>
-                          <div className="justify-self-end">
-                            <Button size="sm" variant="outline" onClick={() => handleOpenDetail(b)}>
-                              Detail
-                            </Button>
+                          
+                          {/* Center: Time duration with room below */}
+                          <div className="flex flex-col items-center flex-1">
+                            <span className="font-medium text-3xl md:text-4xl text-foreground leading-tight">
+                              {extractHHMM(b.timeStart as unknown as string)} - {extractHHMM(b.timeEnd as unknown as string)}
+                            </span>
+                            <span className="text-sm text-muted-foreground mt-1 text-center">
+                              Room : {b.meetingRoom || "No room"}
+                            </span>
+                          </div>
+                          
+                          {/* Right: Interpreter name with buttons below */}
+                          <div className="flex flex-col gap-2 items-end">
+                            <span className="text-xs text-muted-foreground text-right">interpreter</span>
+                            <span className="font-medium text-foreground text-right">
+                              {(b.interpreterName && b.interpreterName.trim()) || b.interpreterId || "Not assigned"}
+                            </span>
+                            <div className="flex gap-2">
+                              <Button size="sm" variant="outline" className="px-3 py-1 text-xs">
+                                button1
+                              </Button>
+                              <Button size="sm" variant="outline" className="px-3 py-1 text-xs">
+                                button2
+                              </Button>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -257,11 +310,10 @@ export default function BookingHistory({ renderEmpty }: BookingHistoryProps) {
             </TableBody>
             <TableCaption className="text-xs">Showing your own bookings only</TableCaption>
           </Table>
-        </div>
-
-        {(total > pageSize) && (
-        <div className="pt-1" onClick={(e) => e.preventDefault()}>
-          <Pagination>
+          
+          {(total > pageSize) && (
+          <div className="pt-4 border-t bg-muted/20" onClick={(e) => e.preventDefault()}>
+            <Pagination>
             <PaginationContent>
               <PaginationItem>
                 <PaginationPrevious onClick={handlePrev} href="#" />
@@ -416,89 +468,13 @@ export default function BookingHistory({ renderEmpty }: BookingHistoryProps) {
                 <PaginationNext onClick={handleNext} href="#" />
               </PaginationItem>
             </PaginationContent>
-          </Pagination>
+            </Pagination>
+          </div>
+          )}
         </div>
-        )}
       </div>
 
-      <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
-        <DialogContent className="sm:max-w-[520px]" showCloseButton={false}>
-          <DialogHeader>
-            <DialogTitle className="flex items-center justify-between">
-              <span>Booking Detail</span>
-              {selectedBooking && (
-                <span className={`ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] ${getStatusStyle(selectedBooking.bookingStatus).bg} ${getStatusStyle(selectedBooking.bookingStatus).text}`}>
-                  {getStatusStyle(selectedBooking.bookingStatus).icon}
-                  {selectedBooking.bookingStatus}
-                </span>
-              )}
-            </DialogTitle>
-          </DialogHeader>
-          {selectedBooking && (
-            <div className="space-y-4">
-              <div className="flex items-center gap-2 text-sm">
-                <User className="h-4 w-4 text-muted-foreground" />
-                <span className="font-medium">Booking By</span>
-              </div>
-              <div className="rounded-lg border p-3 bg-muted/30">
-                <div className="text-sm">
-                  {(selectedBooking.ownerPrefix ? selectedBooking.ownerPrefix + " " : "")}
-                  {selectedBooking.ownerName} {selectedBooking.ownerSurname}
-                  <span className="text-muted-foreground"> ({selectedBooking.ownerEmpCode})</span>
-                </div>
-              </div>
-
-              <div className="grid gap-1">
-                <div className="flex items-center gap-2 text-sm">
-                  <Users className="h-4 w-4 text-muted-foreground" />
-                  <span className="font-medium">Interpreter</span>
-                </div>
-                <div className="rounded-lg border p-3 text-sm">
-                  {(selectedBooking.interpreterName && selectedBooking.interpreterName.trim()) || selectedBooking.interpreterId || "Not assigned"}
-                </div>
-              </div>
-
-              <div className="grid gap-1">
-                <div className="flex items-center gap-2 text-sm">
-                  <ListCollapse className="h-4 w-4 text-muted-foreground" />
-                  <span className="font-medium">Meeting detail</span>
-                </div>
-                <div className="rounded-lg border p-3 text-sm">
-                  <>
-                    <div className="font-medium flex items-center gap-2">
-                      <MapPin className="h-4 w-4 text-muted-foreground" />
-                      {selectedBooking.meetingRoom}
-                      <Clock className="h-4 w-4 text-muted-foreground ml-2" />
-                      {extractHHMM(selectedBooking.timeStart as unknown as string)} - {extractHHMM(selectedBooking.timeEnd as unknown as string)}
-                    </div>
-                    <div className="mt-1 whitespace-pre-wrap">{selectedBooking.meetingDetail || "-"}</div>
-                  </>
-                </div>
-              </div>
-
-              <div className="grid gap-1">
-                <div className="flex items-center gap-2 text-sm">
-                  <Mail className="h-4 w-4 text-muted-foreground" />
-                  <span className="font-medium">Email invite</span>
-                </div>
-                <div className="rounded-lg border p-3 text-sm">
-                  {selectedBooking.inviteEmails && selectedBooking.inviteEmails.length > 0 ? (
-                    <div className="flex flex-wrap gap-2">
-                      {selectedBooking.inviteEmails.map((email) => (
-                        <span key={email} className="px-2 py-0.5 rounded-full bg-muted text-foreground text-xs border">
-                          {email}
-                        </span>
-                      ))}
-                    </div>
-                  ) : (
-                    <span className="text-muted-foreground">-</span>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+     
     </div>
   );
 }
