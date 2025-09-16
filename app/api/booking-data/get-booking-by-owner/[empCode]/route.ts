@@ -18,12 +18,24 @@ export async function GET(
     });
   }
 
-  // Query params: page, pageSize, status, sort
+  // Query params: page, pageSize, status, sort, startDate, endDate (YYYY-MM-DD)
   const url = new URL(_request.url);
   const page = Math.max(1, parseInt(url.searchParams.get("page") || "1", 10));
   const pageSize = Math.min(100, Math.max(1, parseInt(url.searchParams.get("pageSize") || "5", 10)));
   const status = (url.searchParams.get("status") || "all").toLowerCase();
   const sort = (url.searchParams.get("sort") || "desc").toLowerCase() === "asc" ? "asc" : "desc";
+  const startDateStr = url.searchParams.get("startDate");
+  const endDateStr = url.searchParams.get("endDate");
+
+  let timeRange: Prisma.BookingPlanWhereInput["timeStart"] | undefined = undefined;
+  if (startDateStr || endDateStr) {
+    const start = startDateStr ? new Date(`${startDateStr}T00:00:00.000Z`) : undefined;
+    const end = endDateStr ? new Date(`${endDateStr}T23:59:59.999Z`) : undefined;
+    timeRange = {
+      ...(start ? { gte: start } : {}),
+      ...(end ? { lte: end } : {}),
+    } as Prisma.DateTimeFilter;
+  }
 
   const where: Prisma.BookingPlanWhereInput = {
     ownerEmpCode: empCode,
@@ -32,6 +44,7 @@ export async function GET(
           bookingStatus: status as BookingStatusEnum,
         }
       : {}),
+    ...(timeRange ? { timeStart: timeRange } : {}),
   };
 
   const [total, rows] = await Promise.all([
@@ -70,6 +83,7 @@ export async function GET(
     ownerGroup: string;
     meetingRoom: string;
     meetingDetail: string | null;
+    meetingType?: string | null;
     timeStart: Date;
     timeEnd: Date;
     bookingStatus: string;
@@ -89,6 +103,7 @@ export async function GET(
     ownerGroup: asOwnerGroup(b.ownerGroup),
     meetingRoom: b.meetingRoom,
     meetingDetail: b.meetingDetail ?? "",
+    meetingType: (b as any).meetingType ?? "",
     timeStart: formatDateTime(b.timeStart),
     timeEnd: formatDateTime(b.timeEnd),
     interpreterId: b.interpreterEmployee?.empCode ?? null,
