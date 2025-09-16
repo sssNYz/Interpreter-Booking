@@ -47,7 +47,7 @@
         topic: b.meetingDetail ?? "",
 
         bookedBy,                                 // ชื่อผู้จอง
-        status: mapStatus(b.bookingStatus as "approve" | "cancel" | "waiting"),       // 'Approve' | 'Wait' | 'Cancel'
+        status: mapStatus(b.bookingStatus),          // 'Approve' | 'Wait' | 'Cancel'
         startTime: extractHHMM(b.timeStart.toISOString()),          // "HH:mm"
         endTime: extractHHMM(b.timeEnd.toISOString()),              // "HH:mm"
         requestedTime: `${extractYMD(b.createdAt.toISOString())} ${extractHHMM(b.createdAt.toISOString())}:00`,
