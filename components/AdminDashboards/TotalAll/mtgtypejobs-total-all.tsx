@@ -275,7 +275,6 @@ interface TypesTabProps {
 export function TypesTab({ year, data: externalData }: TypesTabProps) {
   // ---- hooks ----
   const [data, setData] = React.useState<TypesApiResponse | null>(null);
-  const [showAllMonths, setShowAllMonths] = React.useState<boolean>(false);
 
   // Use external data if provided, otherwise fetch internally
   const currentData = externalData !== undefined ? externalData : data;
@@ -394,13 +393,15 @@ export function TypesTab({ year, data: externalData }: TypesTabProps) {
     return { perMonth, grand };
   }, [months, tableAllMonthsRows]);
 
-  // ===== Table #2: Month × Type × Interpreter =====
+  // ===== Table #2: Total All × Type × Interpreter =====
+  // For Total All view, always show all months aggregated
   const monthsToRender: MonthName[] = React.useMemo(
-    () => showAllMonths ? months : (months.length > 0 ? [months[0]] : []),
-    [showAllMonths, months]
+    () => months,
+    [months]
   );
 
   const dynamicFooter = React.useMemo<FooterByInterpreter>(() => {
+    // For Total All view, always use the full year data
     const perInterpreter = interpreters.map((itp) =>
       monthsToRender.reduce((acc, m) => {
         const r = yearData.find((d) => d.month === m);
@@ -508,7 +509,7 @@ export function TypesTab({ year, data: externalData }: TypesTabProps) {
       <Card className="h-[380px] mb-8 overflow-visible">
         <CardHeader className="pb-0">
           <CardTitle className="text-base">
-            Meeting Types — All Months (Year {activeYear})
+            Meeting Types — Total All (Year {activeYear})
           </CardTitle>
         </CardHeader>
         <CardContent className="h-[320px]">
@@ -664,17 +665,7 @@ export function TypesTab({ year, data: externalData }: TypesTabProps) {
       {/* ===== Table 2: Month × Type × Interpreter ===== */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between gap-3">
-            <CardTitle className="text-base">Month × Type × Interpreter (Year {activeYear})</CardTitle>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowAllMonths((v) => !v)}
-              className="whitespace-nowrap"
-            >
-              {showAllMonths ? "Show current month only" : "Show all months"}
-            </Button>
-          </div>
+          <CardTitle className="text-base">Total All × Type × Interpreter (Year {activeYear})</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
@@ -682,7 +673,7 @@ export function TypesTab({ year, data: externalData }: TypesTabProps) {
               <thead>
                 <tr className="bg-slate-100 dark:bg-slate-800">
                   <th className="p-2 text-left sticky left-0 z-10 bg-white dark:bg-slate-950">
-                    Month
+                    Total All
                   </th>
                   <th className="p-2 text-left">Type</th>
                   {interpreters.map((p) => (
@@ -695,36 +686,36 @@ export function TypesTab({ year, data: externalData }: TypesTabProps) {
                 </tr>
               </thead>
               <tbody>
-                {monthsToRender.map((m) => (
-                  <React.Fragment key={m}>
-                    {TYPE_PRIORITY.map((label, idx) => {
+                {TYPE_PRIORITY.map((label, idx) => {
+                  // Aggregate data across all months for this type
+                  const perItp = interpreters.map((itp) => 
+                    monthsToRender.reduce((acc, m) => {
                       const mrow = yearData.find((d) => d.month === m);
-                      const perItp = interpreters.map((itp) =>
-                        label === "DR1" || label === "DR2" || label === "DRK" || label === "PDR" || label === "DR_OTHER"
-                          ? getDRValue(mrow, itp, label)
-                          : getMTValue(mrow, itp, label)
-                      );
-                      const total = perItp.reduce((a, b) => a + b, 0);
-                      const diff = diffRange(perItp);
+                      if (label === "DR1" || label === "DR2" || label === "DRK" || label === "PDR" || label === "DR_OTHER") {
+                        return acc + getDRValue(mrow, itp, label);
+                      }
+                      return acc + getMTValue(mrow, itp, label);
+                    }, 0)
+                  );
+                  const total = perItp.reduce((a, b) => a + b, 0);
+                  const diff = diffRange(perItp);
 
-                      return (
-                        <tr key={`${m}-${label}`} className="border-b odd:bg-white even:bg-muted/30 hover:bg-muted/40">
-                          {idx === 0 && (
-                            <td className="p-2 align-top font-medium" rowSpan={TYPE_PRIORITY.length}>
-                              {m}
-                            </td>
-                          )}
-                          <td className="p-2">{label}</td>
-                          {interpreters.map((p, i) => (
-                            <td key={p} className="p-2 text-right">{perItp[i]}</td>
-                          ))}
-                          <td className={`p-2 text-right font-medium ${diffClass(diff)}`}>{diff}</td>
-                          <td className="p-2 text-right font-semibold">{total}</td>
-                        </tr>
-                      );
-                    })}
-                  </React.Fragment>
-                ))}
+                  return (
+                    <tr key={label} className="border-b odd:bg-white even:bg-muted/30 hover:bg-muted/40">
+                      {idx === 0 && (
+                        <td className="p-2 align-top font-medium" rowSpan={TYPE_PRIORITY.length}>
+                          Total All
+                        </td>
+                      )}
+                      <td className="p-2">{label}</td>
+                      {interpreters.map((p, i) => (
+                        <td key={p} className="p-2 text-right">{perItp[i]}</td>
+                      ))}
+                      <td className={`p-2 text-right font-medium ${diffClass(diff)}`}>{diff}</td>
+                      <td className="p-2 text-right font-semibold">{total}</td>
+                    </tr>
+                  );
+                })}
                 <tr className="bg-emerald-50 text-emerald-900 font-semibold">
                   <td className="p-2" colSpan={2}>
                     TOTAL
