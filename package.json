@@ -2,6 +2,14 @@
   "name": "interpreter-booking",
   "version": "0.1.0",
   "private": true,
+  "description": "Setup notes",
+  "license": "ISC",
+  "author": "",
+  "type": "commonjs",
+  "main": "index.js",
+  "directories": {
+    "lib": "lib"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",

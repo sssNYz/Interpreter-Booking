@@ -22,13 +22,6 @@ import type {
   TypeChartRow,
   MonthlyTableRow,
 } from "@/types/admin-dashboard";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { 
   diffClass,
@@ -36,6 +29,79 @@ import {
   getCurrentCalendarMonth,
   diffRange 
 } from "@/utils/admin-dashboard";
+
+/* =================== Custom Components =================== */
+const TypesTooltip = React.memo(function TypesTooltip({
+  active, payload, label,
+}: {
+  active?: boolean;
+  payload?: Array<{ value: number; color: string; dataKey: string; name: string }>;
+  label?: string;
+}) {
+  if (!active || !payload || payload.length === 0) return null;
+
+  return (
+    <div style={{
+      background: "#fff",
+      border: "1px solid #ddd",
+      padding: 10,
+      fontSize: 12,
+      borderRadius: 8,
+      boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+      maxWidth: 280,
+      zIndex: 9999,
+      position: "relative"
+    }}>
+      <div style={{ 
+        fontWeight: 700, 
+        marginBottom: 8,
+        fontVariantNumeric: "tabular-nums"
+      }}>
+        {label}
+      </div>
+
+      <ul style={{ margin: 0, padding: 0, listStyle: "none" }}>
+        {payload.map((item, idx) => (
+          <li
+            key={idx}
+            style={{
+              display: "grid",
+              gridTemplateColumns: "12px 1fr auto",
+              alignItems: "center",
+              columnGap: 10,
+              padding: "2px 0",
+              lineHeight: 1.4,
+              fontVariantNumeric: "tabular-nums",
+            }}
+          >
+            <span
+              style={{
+                width: 10,
+                height: 10,
+                background: item.color,
+                borderRadius: 2,
+                display: "inline-block",
+              }}
+            />
+            <span style={{ 
+              overflow: "hidden", 
+              textOverflow: "ellipsis", 
+              whiteSpace: "nowrap" 
+            }}>
+              {item.name}
+            </span>
+            <span style={{ 
+              textAlign: "right", 
+              paddingLeft: 8 
+            }}>
+              {Number(item.value).toLocaleString()}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+});
 
 /* =================== Labels & mapping =================== */
 type PriorityLabel =
@@ -111,12 +177,12 @@ function getMTValue(
 interface TypesTabProps {
   year: number;
   data?: TypesApiResponse | null;
+  selectedMonth?: string;
 }
 
-export function TypesTab({ year, data: externalData }: TypesTabProps) {
+export function TypesTab({ year, data: externalData, selectedMonth: propSelectedMonth }: TypesTabProps) {
   // ---- hooks ----
   const [data, setData] = React.useState<TypesApiResponse | null>(null);
-  const [selectedMonth, setSelectedMonth] = React.useState<MonthName | "">("");
   const [showAllMonths, setShowAllMonths] = React.useState<boolean>(false);
 
   // Use external data if provided, otherwise fetch internally
@@ -136,15 +202,12 @@ export function TypesTab({ year, data: externalData }: TypesTabProps) {
           const j = (await r.json()) as TypesApiResponse;
           if (!alive) return;
           setData(j);
-          setSelectedMonth((prev) => (prev ? prev : getCurrentCalendarMonth(j.months)));
         })
         .catch((e) => {
           if (alive) console.error("Error fetching types data:", e);
         });
 
       return () => { alive = false; };
-    } else if (externalData) {
-      setSelectedMonth((prev) => (prev ? prev : getCurrentCalendarMonth(externalData.months)));
     }
   }, [year, externalData]);
 
@@ -169,6 +232,7 @@ export function TypesTab({ year, data: externalData }: TypesTabProps) {
 
   // ===== Chart dataset  =====
   const monthBarData: SingleMonthBar[] = React.useMemo(() => {
+    const selectedMonth = propSelectedMonth || (months.length > 0 ? months[0] : "");
     if (!selectedMonth) return [];
     const mrow = yearData.find((d) => d.month === selectedMonth);
     return TYPE_PRIORITY.map((label) => {
@@ -184,7 +248,7 @@ export function TypesTab({ year, data: externalData }: TypesTabProps) {
       });
       return rec;
     });
-  }, [yearData, selectedMonth, interpreters]);
+  }, [yearData, propSelectedMonth, months, interpreters]);
 
   const yMax = React.useMemo(() => {
     let max = 0;
@@ -237,6 +301,7 @@ export function TypesTab({ year, data: externalData }: TypesTabProps) {
 
   // ===== Table #2: Month × Type × Interpreter =====
   const groupSize = TYPE_PRIORITY.length;
+  const selectedMonth = propSelectedMonth || (months.length > 0 ? months[0] : "");
   const monthsToRender: MonthName[] = showAllMonths
     ? months
     : (selectedMonth ? [selectedMonth] as MonthName[] : []);
@@ -255,33 +320,16 @@ export function TypesTab({ year, data: externalData }: TypesTabProps) {
     const grand = perInterpreter.reduce((a, b) => a + b, 0);
     const diff = diffRange(perInterpreter);
     return { perInterpreter, grand, diff };
-  }, [showAllMonths, typesMGIFooter, yearData, selectedMonth, interpreters]);
+  }, [showAllMonths, typesMGIFooter, yearData, propSelectedMonth, months, interpreters]);
 
   return (
     <>
       {/* ===== Chart: one month with dropdown ===== */}
       <Card className="h-[380px] mb-4">
         <CardHeader className="pb-0">
-          <div className="flex items-center justify-between gap-3">
-            <CardTitle className="text-base">
-              Meeting Types — Month {selectedMonth || "-"} (Year {activeYear})
-            </CardTitle>
-            <Select
-              value={selectedMonth || ""}
-              onValueChange={(v) => setSelectedMonth(v as MonthName)}
-            >
-              <SelectTrigger className="h-9 w-[120px]">
-                <SelectValue placeholder="Month" />
-              </SelectTrigger>
-              <SelectContent>
-                {months.map((m) => (
-                  <SelectItem key={m} value={m}>
-                    {m}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          <CardTitle className="text-base">
+            Meeting Types — Month {selectedMonth || "-"} (Year {activeYear})
+          </CardTitle>
         </CardHeader>
         <CardContent className="h-[320px]">
           <div className="w-full h-full">
@@ -295,7 +343,13 @@ export function TypesTab({ year, data: externalData }: TypesTabProps) {
                   ticks={yTicks}
                   tickFormatter={(v) => v.toString()}
                 />
-                <Tooltip />
+                <Tooltip
+                  content={<TypesTooltip />}
+                  offset={12}
+                  allowEscapeViewBox={{ x: true, y: true }}
+                  wrapperStyle={{ zIndex: 9999, pointerEvents: "none" }}
+                  filterNull
+                />
                 <Legend />
                 {interpreters.map((p) => (
                   <Bar key={p} dataKey={p} name={p} fill={interpreterColors[p]} />

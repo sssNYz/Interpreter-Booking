@@ -21,21 +21,88 @@ import type {
   CategoryChartRow,
 } from "@/types/admin-dashboard";
 import { OwnerGroupLabel as OGLabel } from "@/types/admin-dashboard";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 
 import { 
-  getCurrentCalendarMonth, 
   diffRange, 
   diffClass,
   createInterpreterColorPalette 
 } from "@/utils/admin-dashboard";
+
+/* =================== Custom Components =================== */
+const DeptTooltip = React.memo(function DeptTooltip({
+  active, payload, label,
+}: {
+  active?: boolean;
+  payload?: Array<{ value: number; color: string; dataKey: string; name: string }>;
+  label?: string;
+}) {
+  if (!active || !payload || payload.length === 0) return null;
+
+  return (
+    <div style={{
+      background: "#fff",
+      border: "1px solid #ddd",
+      padding: 10,
+      fontSize: 12,
+      borderRadius: 8,
+      boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+      maxWidth: 280,
+      zIndex: 9999,
+      position: "relative"
+    }}>
+      <div style={{ 
+        fontWeight: 700, 
+        marginBottom: 8,
+        fontVariantNumeric: "tabular-nums"
+      }}>
+        {label}
+      </div>
+
+      <ul style={{ margin: 0, padding: 0, listStyle: "none" }}>
+        {payload.map((item, idx) => (
+          <li
+            key={idx}
+            style={{
+              display: "grid",
+              gridTemplateColumns: "12px 1fr auto",
+              alignItems: "center",
+              columnGap: 10,
+              padding: "2px 0",
+              lineHeight: 1.4,
+              fontVariantNumeric: "tabular-nums",
+            }}
+          >
+            <span
+              style={{
+                width: 10,
+                height: 10,
+                background: item.color,
+                borderRadius: 2,
+                display: "inline-block",
+              }}
+            />
+            <span style={{ 
+              overflow: "hidden", 
+              textOverflow: "ellipsis", 
+              whiteSpace: "nowrap" 
+            }}>
+              {item.name}
+            </span>
+            <span style={{ 
+              textAlign: "right", 
+              paddingLeft: 8 
+            }}>
+              {Number(item.value).toLocaleString()}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+});
+
+/* (no chart sizing constants in the original version) */
 
 /* ========= Types ========= */
 type SingleMonthDeptBar = CategoryChartRow & Record<InterpreterName, number>;
@@ -45,12 +112,15 @@ type SingleMonthDeptBar = CategoryChartRow & Record<InterpreterName, number>;
 interface DeptTabProps {
   year: number;
   data?: DepartmentsApiResponse | null;
+  selectedMonth?: string;
 }
 
-export function DeptTab({ year, data: externalData }: DeptTabProps) {
+export function DeptTab({ year, data: externalData, selectedMonth: propSelectedMonth }: DeptTabProps) {
   const [data, setData] = React.useState<DepartmentsApiResponse | null>(null);
-  const [selectedMonth, setSelectedMonth] = React.useState<MonthName | "">("");
   const [showAllMonths, setShowAllMonths] = React.useState<boolean>(false);
+  
+  // Use propSelectedMonth if provided, otherwise fallback to current month
+  const selectedMonth = propSelectedMonth || "";
 
   // Use external data if provided, otherwise fetch internally
   const currentData = externalData !== undefined ? externalData : data;
@@ -67,7 +137,6 @@ export function DeptTab({ year, data: externalData }: DeptTabProps) {
           const j = (await r.json()) as DepartmentsApiResponse;
           if (alive) {
             setData(j);
-            setSelectedMonth((prev) => (prev ? prev : getCurrentCalendarMonth(j.months)));
           }
         })
         .catch((e) => {
@@ -75,8 +144,6 @@ export function DeptTab({ year, data: externalData }: DeptTabProps) {
         });
 
       return () => { alive = false; };
-    } else if (externalData) {
-      setSelectedMonth((prev) => (prev ? prev : getCurrentCalendarMonth(externalData.months)));
     }
   }, [year, externalData]);
 
@@ -91,11 +158,8 @@ export function DeptTab({ year, data: externalData }: DeptTabProps) {
     [currentData?.deptMGIFooter]
   );
 
-  // present month
-  const currentMonth = React.useMemo<MonthName | "">(
-    () => (months.length ? getCurrentCalendarMonth(months) : ""),
-    [months]
-  );
+  // Use selectedMonth from props for highlighting
+  const currentMonth = selectedMonth;
 
   const interpreterColors = React.useMemo<Record<InterpreterName, string>>(() => {
     return createInterpreterColorPalette(interpreters);
@@ -140,24 +204,9 @@ export function DeptTab({ year, data: externalData }: DeptTabProps) {
       {/* Chart select month */}
       <Card className="h-[380px] mb-4">
         <CardHeader className="pb-0">
-          <div className="flex items-center justify-between gap-3">
-            <CardTitle className="text-base">
-              Meetings by Department — Month {selectedMonth || "-"} (Year {activeYear})
-            </CardTitle>
-            <Select
-              value={selectedMonth || ""}
-              onValueChange={(v) => setSelectedMonth(v as MonthName)}
-            >
-              <SelectTrigger className="h-9 w-[120px]">
-                <SelectValue placeholder="Month" />
-              </SelectTrigger>
-              <SelectContent>
-                {months.map((m) => (
-                  <SelectItem key={m} value={m}>{m}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          <CardTitle className="text-base">
+            Meetings by Department — Month {selectedMonth || "-"} (Year {activeYear})
+          </CardTitle>
         </CardHeader>
         <CardContent className="h-[320px]">
           <ResponsiveContainer width="100%" height="100%">
@@ -165,7 +214,13 @@ export function DeptTab({ year, data: externalData }: DeptTabProps) {
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="group" />
               <YAxis />
-              <Tooltip />
+              <Tooltip
+                content={<DeptTooltip />}
+                offset={12}
+                allowEscapeViewBox={{ x: true, y: true }}
+                wrapperStyle={{ zIndex: 9999, pointerEvents: "none" }}
+                filterNull
+              />
               <Legend />
               {interpreters.map((p) => (
                 <Bar key={p} dataKey={p} name={p} fill={interpreterColors[p]} />
