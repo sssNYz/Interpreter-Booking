@@ -1,70 +1,57 @@
 generator client {
   provider = "prisma-client-js"
 }
-
 datasource db {
   provider = "mysql"
   url      = env("DATABASE_URL")
 }
-
 model BookingPlan {
   bookingId                Int               @id @default(autoincrement()) @map("BOOKING_ID")
-  ownerEmpCode             String            @map("OWNER_EMP_CODE") @db.VarChar(64)
   ownerGroup               OwnerGroup        @map("OWNER_GROUP")
   meetingRoom              String            @map("MEETING_ROOM") @db.VarChar(50)
-  meetingType              MeetingType       @map("MEETING_TYPE")
   meetingDetail            String?           @map("MEETING_DETAIL") @db.Text
-  applicableModel          String?           @map("APPLICABLE_MODEL") @db.VarChar(255)
   timeStart                DateTime          @map("TIME_START") @db.DateTime(0)
   timeEnd                  DateTime          @map("TIME_END") @db.DateTime(0)
-  interpreterEmpCode       String?           @map("INTERPRETER_EMP_CODE") @db.VarChar(64)
   bookingStatus            BookingStatus     @default(waiting) @map("BOOKING_STATUS")
   createdAt                DateTime          @default(now()) @map("created_at") @db.Timestamp(0)
   updatedAt                DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamp(0)
   drType                   DRType?           @map("DR_TYPE")
   otherType                String?           @map("OTHER_TYPE") @db.VarChar(255)
   otherTypeScope           OtherTypeScope?   @map("OTHER_TYPE_SCOPE")
+  applicableModel          String?           @map("APPLICABLE_MODEL") @db.VarChar(255)
+  interpreterEmpCode       String?           @map("INTERPRETER_EMP_CODE") @db.VarChar(64)
   isRecurring              Boolean           @default(false) @map("IS_RECURRING")
-  recurrenceType           RecurrenceType?   @map("RECURRENCE_TYPE")
-  recurrenceInterval       Int?              @map("RECURRENCE_INTERVAL")
-  recurrenceEndType        EndType?          @map("RECURRENCE_END_TYPE")
+  meetingType              MeetingType       @map("MEETING_TYPE")
+  ownerEmpCode             String            @map("OWNER_EMP_CODE") @db.VarChar(64)
+  parentBookingId          Int?              @map("PARENT_BOOKING_ID")
   recurrenceEndDate        DateTime?         @map("RECURRENCE_END_DATE") @db.DateTime(0)
   recurrenceEndOccurrences Int?              @map("RECURRENCE_END_OCCURRENCES")
-  recurrenceWeekdays       String?           @map("RECURRENCE_WEEKDAYS") @db.VarChar(32)
+  recurrenceEndType        EndType?          @map("RECURRENCE_END_TYPE")
+  recurrenceInterval       Int?              @map("RECURRENCE_INTERVAL")
   recurrenceMonthday       Int?              @map("RECURRENCE_MONTHDAY")
+  recurrenceType           RecurrenceType?   @map("RECURRENCE_TYPE")
+  recurrenceWeekdays       String?           @map("RECURRENCE_WEEKDAYS") @db.VarChar(32)
   recurrenceWeekOrder      WeekOrder?        @map("RECURRENCE_WEEK_ORDER")
-  parentBookingId          Int?              @map("PARENT_BOOKING_ID")
-  poolStatus               PoolStatus?       @map("POOL_STATUS")
-  poolEntryTime            DateTime?         @map("POOL_ENTRY_TIME") @db.DateTime(0)
-  poolDeadlineTime         DateTime?         @map("POOL_DEADLINE_TIME") @db.DateTime(0)
-  poolProcessingAttempts   Int?              @default(0) @map("POOL_PROCESSING_ATTEMPTS")
   assignmentLogs           AssignmentLog[]
-  interpreterEmployee      Employee?                @relation("InterpreterEmployee", fields: [interpreterEmpCode], references: [empCode])
-  employee                 Employee                 @relation("OwnerEmployee", fields: [ownerEmpCode], references: [empCode])
-  parentBooking            BookingPlan?             @relation("RecurringBookings", fields: [parentBookingId], references: [bookingId])
-  recurringBookings        BookingPlan[]            @relation("RecurringBookings")
+  interpreterEmployee      Employee?         @relation("InterpreterEmployee", fields: [interpreterEmpCode], references: [empCode])
+  employee                 Employee          @relation("OwnerEmployee", fields: [ownerEmpCode], references: [empCode])
+  parentBooking            BookingPlan?      @relation("RecurringBookings", fields: [parentBookingId], references: [bookingId])
+  recurringBookings        BookingPlan[]     @relation("RecurringBookings")
   inviteEmails             InviteEmailList[]
-  poolProcessingLogEntries PoolProcessingLogEntry[]
-  poolEntryHistory         PoolEntryHistory[]
 
   @@index([ownerEmpCode])
   @@index([interpreterEmpCode])
   @@index([parentBookingId])
   @@index([drType])
   @@index([otherTypeScope])
-  @@index([poolStatus])
-  @@index([poolDeadlineTime])
-  @@index([poolStatus, poolDeadlineTime])
   @@map("BOOKING_PLAN")
 }
-
 model InviteEmailList {
   emailListId Int         @id @default(autoincrement()) @map("EMAIL_LIST_ID")
   bookingId   Int         @map("BOOKING_ID")
   email       String      @map("EMAIL") @db.VarChar(255)
   invitedAt   DateTime    @default(now()) @map("invited_at") @db.Timestamp(0)
   bookingPlan BookingPlan @relation(fields: [bookingId], references: [bookingId], onDelete: Cascade)
-
   @@unique([bookingId, email], name: "unique_booking_email")
   @@map("INVITE_EMAIL_LIST")
 }
@@ -116,7 +103,6 @@ model AutoAssignmentConfig {
   w_urgency            Float    @default(0.5) @map("W_URGENCY")
   w_lrs                Float    @default(0.3) @map("W_LRS")
   drConsecutivePenalty Float    @default(-0.7) @map("DR_CONSECUTIVE_PENALTY")
-
   createdAt            DateTime @default(now()) @map("created_at") @db.Timestamp(0)
   updatedAt            DateTime @updatedAt @map("updated_at") @db.Timestamp(0)
 
@@ -162,7 +148,6 @@ model AssignmentLog {
   conflictDetection   Json?       @map("CONFLICT_DETECTION")
   drPolicyDecision    Json?       @map("DR_POLICY_DECISION")
   performance         Json?       @map("PERFORMANCE")
-  poolProcessing      Json?       @map("POOL_PROCESSING")
   systemState         Json?       @map("SYSTEM_STATE")
   createdAt           DateTime    @default(now()) @map("created_at") @db.Timestamp(0)
   bookingPlan         BookingPlan @relation(fields: [bookingId], references: [bookingId], onDelete: Cascade)
@@ -172,6 +157,69 @@ model AssignmentLog {
   @@index([interpreterEmpCode])
   @@index([status])
   @@map("ASSIGNMENT_LOG")
+}
+
+model ConflictDetectionLog {
+  id                       Int      @id @default(autoincrement()) @map("ID")
+  timestamp                DateTime @map("TIMESTAMP") @db.DateTime(0)
+  bookingId                Int      @map("BOOKING_ID")
+  requestedTimeStart       DateTime @map("REQUESTED_TIME_START") @db.DateTime(0)
+  requestedTimeEnd         DateTime @map("REQUESTED_TIME_END") @db.DateTime(0)
+  totalInterpretersChecked Int      @map("TOTAL_INTERPRETERS_CHECKED")
+  availableInterpreters    Int      @map("AVAILABLE_INTERPRETERS")
+  conflictedInterpreters   Int      @map("CONFLICTED_INTERPRETERS")
+  conflicts                Json     @map("CONFLICTS")
+  processingTimeMs         Int      @map("PROCESSING_TIME_MS")
+  resolutionStrategy       String   @map("RESOLUTION_STRATEGY") @db.VarChar(64)
+  outcome                  String   @map("OUTCOME") @db.VarChar(32)
+  createdAt                DateTime @default(now()) @map("created_at") @db.Timestamp(0)
+
+  @@index([bookingId])
+  @@index([timestamp])
+  @@index([outcome])
+  @@map("CONFLICT_DETECTION_LOG")
+}
+
+model DRPolicyLog {
+  id                      Int      @id @default(autoincrement()) @map("ID")
+  timestamp               DateTime @map("TIMESTAMP") @db.DateTime(0)
+  bookingId               Int      @map("BOOKING_ID")
+  interpreterId           String   @map("INTERPRETER_ID") @db.VarChar(64)
+  isDRMeeting             Boolean  @map("IS_DR_MEETING")
+  drType                  String?  @map("DR_TYPE") @db.VarChar(64)
+  mode                    String   @map("MODE") @db.VarChar(32)
+  policyApplied           Json     @map("POLICY_APPLIED")
+  lastGlobalDR            Json?    @map("LAST_GLOBAL_DR")
+  drHistory               Json     @map("DR_HISTORY")
+  alternativeInterpreters Int      @map("ALTERNATIVE_INTERPRETERS")
+  finalDecision           String   @map("FINAL_DECISION") @db.VarChar(32)
+  decisionRationale       String   @map("DECISION_RATIONALE") @db.Text
+  createdAt               DateTime @default(now()) @map("created_at") @db.Timestamp(0)
+
+  @@index([bookingId])
+  @@index([interpreterId])
+  @@index([timestamp])
+  @@index([finalDecision])
+  @@map("DR_POLICY_LOG")
+}
+
+model SystemErrorLog {
+  id           Int      @id @default(autoincrement()) @map("ID")
+  timestamp    DateTime @map("TIMESTAMP") @db.DateTime(0)
+  operation    String   @map("OPERATION") @db.VarChar(128)
+  bookingId    Int?     @map("BOOKING_ID")
+  errorName    String   @map("ERROR_NAME") @db.VarChar(128)
+  errorMessage String   @map("ERROR_MESSAGE") @db.Text
+  errorStack   String?  @map("ERROR_STACK") @db.Text
+  context      Json?    @map("CONTEXT")
+  systemState  Json?    @map("SYSTEM_STATE")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamp(0)
+
+  @@index([timestamp])
+  @@index([operation])
+  @@index([bookingId])
+  @@index([errorName])
+  @@map("SYSTEM_ERROR_LOG")
 }
 
 enum DRType {
@@ -196,7 +244,6 @@ enum OwnerGroup {
   hardware
   software
   other
-
   @@map("owner_group")
 }
 
@@ -244,161 +291,3 @@ enum RoleCode {
   ADMIN
   INTERPRETER
 }
-
-enum PoolStatus {
-  waiting
-  ready
-  processing
-  failed
-}
-
-model PoolProcessingLog {
-  id                      Int                        @id @default(autoincrement()) @map("ID")
-  batchId                 String                     @unique @map("BATCH_ID") @db.VarChar(255)
-  processingType          String                     @map("PROCESSING_TYPE") @db.VarChar(32)
-  mode                    String?                    @map("MODE") @db.VarChar(32)
-  processingStartTime     DateTime                   @map("PROCESSING_START_TIME") @db.DateTime(0)
-  processingEndTime       DateTime                   @map("PROCESSING_END_TIME") @db.DateTime(0)
-  totalEntries            Int                        @map("TOTAL_ENTRIES")
-  processedEntries        Int                        @map("PROCESSED_ENTRIES")
-  assignedEntries         Int                        @map("ASSIGNED_ENTRIES")
-  escalatedEntries        Int                        @map("ESCALATED_ENTRIES")
-  failedEntries           Int                        @map("FAILED_ENTRIES")
-  averageProcessingTimeMs Int                        @map("AVERAGE_PROCESSING_TIME_MS")
-  systemLoad              String                     @map("SYSTEM_LOAD") @db.VarChar(16)
-  fairnessImprovement     Float?                     @map("FAIRNESS_IMPROVEMENT")
-  errors                  Json                       @map("ERRORS")
-  performance             Json?                      @map("PERFORMANCE")
-  createdAt               DateTime                   @default(now()) @map("created_at") @db.Timestamp(0)
-  entries                 PoolProcessingLogEntry[]
-
-  @@index([processingType])
-  @@index([processingStartTime])
-  @@index([batchId])
-  @@map("POOL_PROCESSING_LOG")
-}
-
-model PoolProcessingLogEntry {
-  id                  Int                @id @default(autoincrement()) @map("ID")
-  logId               Int                @map("LOG_ID")
-  bookingId           Int                @map("BOOKING_ID")
-  status              String             @map("STATUS") @db.VarChar(32)
-  interpreterId       String?            @map("INTERPRETER_ID") @db.VarChar(64)
-  reason              String?            @map("REASON") @db.Text
-  processingTimeMs    Int                @map("PROCESSING_TIME_MS")
-  urgencyLevel        String             @map("URGENCY_LEVEL") @db.VarChar(16)
-  errorRecovery       Json?              @map("ERROR_RECOVERY")
-  createdAt           DateTime           @default(now()) @map("created_at") @db.Timestamp(0)
-  log                 PoolProcessingLog  @relation(fields: [logId], references: [id], onDelete: Cascade)
-  bookingPlan         BookingPlan        @relation(fields: [bookingId], references: [bookingId], onDelete: Cascade)
-
-  @@index([logId])
-  @@index([bookingId])
-  @@index([status])
-  @@index([urgencyLevel])
-  @@map("POOL_PROCESSING_LOG_ENTRY")
-}
-
-model PoolEntryHistory {
-  id                  Int         @id @default(autoincrement()) @map("ID")
-  bookingId           Int         @map("BOOKING_ID")
-  action              String      @map("ACTION") @db.VarChar(64)
-  previousStatus      String?     @map("PREVIOUS_STATUS") @db.VarChar(32)
-  newStatus           String?     @map("NEW_STATUS") @db.VarChar(32)
-  processingAttempts  Int         @map("PROCESSING_ATTEMPTS")
-  errorMessage        String?     @map("ERROR_MESSAGE") @db.Text
-  systemState         Json?       @map("SYSTEM_STATE")
-  createdAt           DateTime    @default(now()) @map("created_at") @db.Timestamp(0)
-  bookingPlan         BookingPlan @relation(fields: [bookingId], references: [bookingId], onDelete: Cascade)
-
-  @@index([bookingId])
-  @@index([action])
-  @@index([createdAt])
-  @@map("POOL_ENTRY_HISTORY")
-}
-
-model AutoApprovalLog {
-  id              Int      @id @default(autoincrement()) @map("ID")
-  timestamp       DateTime @map("TIMESTAMP") @db.DateTime(0)
-  eventType       String   @map("EVENT_TYPE") @db.VarChar(64)
-  reason          String   @map("REASON") @db.Text
-  oldMode         String?  @map("OLD_MODE") @db.VarChar(32)
-  newMode         String?  @map("NEW_MODE") @db.VarChar(32)
-  currentMode     String   @map("CURRENT_MODE") @db.VarChar(32)
-  loadAssessment  Json?    @map("LOAD_ASSESSMENT")
-  confidence      Float?   @map("CONFIDENCE")
-  overrideApplied Boolean  @default(false) @map("OVERRIDE_APPLIED")
-  expiresAt       DateTime? @map("EXPIRES_AT") @db.DateTime(0)
-  modeTransition  Json?    @map("MODE_TRANSITION")
-  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(0)
-
-  @@index([timestamp])
-  @@index([eventType])
-  @@index([currentMode])
-  @@index([overrideApplied])
-  @@map("AUTO_APPROVAL_LOG")
-}
-
-model ConflictDetectionLog {
-  id                      Int      @id @default(autoincrement()) @map("ID")
-  timestamp               DateTime @map("TIMESTAMP") @db.DateTime(0)
-  bookingId               Int      @map("BOOKING_ID")
-  requestedTimeStart      DateTime @map("REQUESTED_TIME_START") @db.DateTime(0)
-  requestedTimeEnd        DateTime @map("REQUESTED_TIME_END") @db.DateTime(0)
-  totalInterpretersChecked Int     @map("TOTAL_INTERPRETERS_CHECKED")
-  availableInterpreters   Int      @map("AVAILABLE_INTERPRETERS")
-  conflictedInterpreters  Int      @map("CONFLICTED_INTERPRETERS")
-  conflicts               Json     @map("CONFLICTS")
-  processingTimeMs        Int      @map("PROCESSING_TIME_MS")
-  resolutionStrategy      String   @map("RESOLUTION_STRATEGY") @db.VarChar(64)
-  outcome                 String   @map("OUTCOME") @db.VarChar(32)
-  createdAt               DateTime @default(now()) @map("created_at") @db.Timestamp(0)
-
-  @@index([bookingId])
-  @@index([timestamp])
-  @@index([outcome])
-  @@map("CONFLICT_DETECTION_LOG")
-}
-
-model DRPolicyLog {
-  id                      Int      @id @default(autoincrement()) @map("ID")
-  timestamp               DateTime @map("TIMESTAMP") @db.DateTime(0)
-  bookingId               Int      @map("BOOKING_ID")
-  interpreterId           String   @map("INTERPRETER_ID") @db.VarChar(64)
-  isDRMeeting             Boolean  @map("IS_DR_MEETING")
-  drType                  String?  @map("DR_TYPE") @db.VarChar(64)
-  mode                    String   @map("MODE") @db.VarChar(32)
-  policyApplied           Json     @map("POLICY_APPLIED")
-  lastGlobalDR            Json?    @map("LAST_GLOBAL_DR")
-  drHistory               Json     @map("DR_HISTORY")
-  alternativeInterpreters Int      @map("ALTERNATIVE_INTERPRETERS")
-  finalDecision           String   @map("FINAL_DECISION") @db.VarChar(32)
-  decisionRationale       String   @map("DECISION_RATIONALE") @db.Text
-  createdAt               DateTime @default(now()) @map("created_at") @db.Timestamp(0)
-
-  @@index([bookingId])
-  @@index([interpreterId])
-  @@index([timestamp])
-  @@index([finalDecision])
-  @@map("DR_POLICY_LOG")
-}
-
-model SystemErrorLog {
-  id            Int      @id @default(autoincrement()) @map("ID")
-  timestamp     DateTime @map("TIMESTAMP") @db.DateTime(0)
-  operation     String   @map("OPERATION") @db.VarChar(128)
-  bookingId     Int?     @map("BOOKING_ID")
-  errorName     String   @map("ERROR_NAME") @db.VarChar(128)
-  errorMessage  String   @map("ERROR_MESSAGE") @db.Text
-  errorStack    String?  @map("ERROR_STACK") @db.Text
-  context       Json?    @map("CONTEXT")
-  systemState   Json?    @map("SYSTEM_STATE")
-  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamp(0)
-
-  @@index([timestamp])
-  @@index([operation])
-  @@index([bookingId])
-  @@index([errorName])
-  @@map("SYSTEM_ERROR_LOG")
-}
-

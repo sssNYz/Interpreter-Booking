@@ -8,124 +8,86 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
-  ChevronLeft, ChevronRight, Clock, Info, CheckCircle, XCircle, Hourglass,
-  Calendar, ChevronUp, ChevronDown, SquarePen,
+  ChevronLeft, ChevronRight, Star, HelpCircle, Info, CheckCircle, XCircle, Hourglass,
+  Calendar, ChevronUp, ChevronDown, SquarePen, Users, Circle, AlertTriangle, Clock,
+  RotateCcw, CircleDot, Filter, X, ChevronDown as ChevronDownIcon,
 } from "lucide-react";
-
-import type { BookingManage as BookingMange, Stats } from "@/types/admin";
-import type { StatusOption } from "@/types/admin";
+import { Label } from "@/components/ui/label";
+import type { BookingManage, Stats } from "@/types/admin";
+import type { 
+  BookingFilters, 
+  PaginationState, 
+  StatusOptionConfig, 
+  SummaryCardConfig,
+  PaginatedBookings 
+} from "@/types/booking-management";
 import { generateStandardTimeSlots } from "@/utils/time";
+import { 
+  isPastMeeting, 
+  formatDate, 
+  formatRequestedTime, 
+  getFullDate, 
+  sortBookings, 
+  getStatusColor, 
+  getStatusIcon 
+} from "@/utils/booking";
+import { 
+  getMeetingTypeBadge,
+  sortByPriority 
+} from "@/utils/priority";
+import BookingDetailDialog from "@/components/AdminForm/booking-manage-form";
 
-import BookingDetailDialog from "../AdminForm/booking-form";
-
-/* ========= THEME ========= */
 const PAGE_WRAPPER = "min-h-screen bg-[#f7f7f7] font-sans text-gray-900";
-
-/* ========= Constants ========= */
 const TIME_SLOTS = generateStandardTimeSlots();
 
-const STATUS_OPTIONS: Array<{ value: StatusOption; label: string }> = [
+const STATUS_OPTIONS: StatusOptionConfig[] = [
   { value: "all", label: "All Status" },
   { value: "Wait", label: "Wait" },
   { value: "Approve", label: "Approve" },
   { value: "Cancel", label: "Cancel" },
 ];
-
-/* ========= Utils ========= */
-const parseTime = (t: string) => {
-  const [h, m] = t.split(":").map(Number);
-  return h * 60 + m;
-};
-
-const formatDate = (s: string) => {
-  const d = new Date(s);
-  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
-};
-
-const formatRequestedTime = (s: string) => {
-  const d = new Date(s);
-  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  const hh = `${d.getHours()}`.padStart(2, "0");
-  const mm = `${d.getMinutes()}`.padStart(2, "0");
-  return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()} ${hh}:${mm}`;
-};
-
-const getFullDate = (s: string, isClient: boolean) => {
-  if (!isClient) return s;
-  const d = new Date(s);
-  const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-  const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-  return `${days[d.getDay()]}, ${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
-};
-
-const sortBookings = (arr: BookingMange[], asc: boolean) =>
-  [...arr].sort((a, b) => {
-    const dc = asc ? a.dateTime.localeCompare(b.dateTime) : b.dateTime.localeCompare(a.dateTime);
-    if (dc !== 0) return dc;
-    return parseTime(a.startTime) - parseTime(b.startTime);
-  });
-
-const getCurrentMonthBookings = (arr: BookingMange[]) => {
-  const now = new Date();
-  const m = now.getMonth();
-  const y = now.getFullYear();
-  return arr.filter((b) => {
-    const d = new Date(b.dateTime);
-    return d.getMonth() === m && d.getFullYear() === y;
-  });
-};
-
-const getStatusColor = (status: string) =>
-  ({
-    Approve: "text-emerald-700 bg-emerald-100",
-    Wait: "text-amber-700 bg-amber-100",
-    Cancel: "text-red-700 bg-red-100",
-  } as const)[status as "Approve" | "Wait" | "Cancel"] || "text-gray-700 bg-gray-100";
-
-const getStatusIcon = (status: string) =>
-  ({
-    Approve: <CheckCircle className="h-4 w-4" />,
-    Wait: <Hourglass className="h-4 w-4" />,
-    Cancel: <XCircle className="h-4 w-4" />,
-  } as const)[status as "Approve" | "Wait" | "Cancel"] || null;
-
-/* ========= Component ========= */
 export default function BookingManagement(): React.JSX.Element {
-  const [bookings, setBookings] = useState<BookingMange[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [bookings, setBookings] = useState<BookingManage[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  const [filters, setFilters] = useState({
+  const [filters, setFilters] = useState<BookingFilters>({
     search: "",
     status: "all",
     date: "",
     dateRequest: "",
     time: "all",
   });
-  const [pagination, setPagination] = useState({ currentPage: 1, rowsPerPage: 10 });
+  const [dateRangeType, setDateRangeType] = useState<"meeting" | "request">("meeting");
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [pagination, setPagination] = useState<PaginationState>({ 
+    currentPage: 1, 
+    rowsPerPage: 10, 
+    total: 0, 
+    totalPages: 0 
+  });
   const [isClient, setIsClient] = useState(false);
   const [currentMonth, setCurrentMonth] = useState("");
   const [currentYear, setCurrentYear] = useState<number | null>(null);
   const [sortByDateAsc, setSortByDateAsc] = useState(true);
+  const [agg, setAgg] = useState<"month" | "year">("month");
 
   const [showBookingDetailDialog, setShowBookingDetailDialog] = useState(false);
-  const [selectedBooking, setSelectedBooking] = useState<BookingMange | null>(null);
+  const [selectedBooking, setSelectedBooking] = useState<BookingManage | null>(null);
+  const [showPast, setShowPast] = useState(false);
 
-  // fetch bookings from API
+  // Data fetching
   const fetchBookings = useCallback(async () => {
     try {
-      setLoading(true);
       setError(null);
+      
       const res = await fetch("/api/booking-data/get-booking", { cache: "no-store" });
       if (!res.ok) throw new Error(`Failed to load bookings (${res.status})`);
-      const data = (await res.json()) as BookingMange[];
+      
+      const data = await res.json();
       setBookings(data);
     } catch (e) {
       setError((e as Error).message);
       setBookings([]);
-    } finally {
-      setLoading(false);
     }
   }, []);
 
@@ -138,34 +100,67 @@ export default function BookingManagement(): React.JSX.Element {
     fetchBookings();
   }, [fetchBookings]);
 
+  const yearOptions = useMemo(() => {
+    const baseYear = currentYear ?? new Date().getFullYear();
+    return [baseYear - 1, baseYear, baseYear + 1];
+  }, [currentYear]);
 
+  // ----- Helpers (pure) -----
+  const isInHeaderWindow = useCallback((dateISO: string): boolean => {
+    const d = new Date(dateISO);
+    if (agg === "year") {
+      return currentYear ? d.getFullYear() === currentYear : true;
+    }
+    const now = new Date();
+    return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+  }, [agg, currentYear]);
+
+  const passesPastToggle = useCallback((dateISO: string, endTime: string): boolean => {
+    if (filters.date) return true;               // explicit date should always be shown
+    if (agg === "year") return true;           // year view ignores past toggle
+    return showPast ? true : !isPastMeeting(dateISO, endTime, 10);
+  }, [filters.date, agg, showPast]);
+
+  const passesFieldFilters = useCallback((b: BookingManage): boolean => {
+    const searchLower = filters.search.toLowerCase();
+    const searchOk = !filters.search ||
+      b.bookedBy.toLowerCase().includes(searchLower) ||
+      b.interpreter.toLowerCase().includes(searchLower);
+    const statusOk = filters.status === "all" || b.status === filters.status;
+    const dateOk = !filters.date || b.dateTime === filters.date;
+    const reqOk = !filters.dateRequest || b.requestedTime.startsWith(filters.dateRequest);
+    const timeOk = filters.time === "all" || b.startTime === filters.time;
+    return searchOk && statusOk && dateOk && reqOk && timeOk;
+  }, [filters]);
+
+  // Filter and sort bookings
   const filteredBookings = useMemo(() => {
     const filtered = bookings.filter((b) => {
-      const searchOk =
-        !filters.search ||
-        b.bookedBy.toLowerCase().includes(filters.search.toLowerCase()) ||
-        b.interpreter.toLowerCase().includes(filters.search.toLowerCase());
-      const statusOk = filters.status === "all" || b.status === filters.status;
-      const dateOk = !filters.date || b.dateTime === filters.date;
-      const reqOk = !filters.dateRequest || b.requestedTime.startsWith(filters.dateRequest);
-      const timeOk = filters.time === "all" || b.startTime === filters.time;
-      return searchOk && statusOk && dateOk && reqOk && timeOk;
+      const fieldsOk = passesFieldFilters(b);
+      const pastOk = passesPastToggle(b.dateTime, b.endTime);
+      const headerOk = isInHeaderWindow(b.dateTime);
+      return fieldsOk && pastOk && headerOk;
     });
-    return sortBookings(filtered, sortByDateAsc);
-  }, [bookings, filters, sortByDateAsc]);
 
+    // First sort by priority, then by date
+    const prioritySorted = sortByPriority(filtered);
+    return sortBookings(prioritySorted, sortByDateAsc);
+  }, [bookings, passesFieldFilters, passesPastToggle, isInHeaderWindow, sortByDateAsc]);
+
+  // Calculate statistics
   const stats = useMemo<Stats>(() => {
-    const hasActive = Object.values(filters).some((v) => v !== "" && v !== "all");
-    const base = hasActive ? filteredBookings : getCurrentMonthBookings(bookings);
+    // KPIs depend on header (Month/Year). For Month, respect Past toggle so cards match table.
+    const base = bookings.filter((b) => isInHeaderWindow(b.dateTime) && passesPastToggle(b.dateTime, b.endTime));
     return {
       wait: base.filter((b) => b.status === "Wait").length,
       approve: base.filter((b) => b.status === "Approve").length,
       cancel: base.filter((b) => b.status === "Cancel").length,
       total: base.length,
     };
-  }, [bookings, filteredBookings, filters]);
+  }, [bookings, isInHeaderWindow, passesPastToggle]);
 
-  const paginatedBookings = useMemo(() => {
+  // Pagination logic
+  const paginatedBookings = useMemo((): PaginatedBookings => {
     const totalPages = Math.ceil(filteredBookings.length / pagination.rowsPerPage);
     const startIndex = (pagination.currentPage - 1) * pagination.rowsPerPage;
     return {
@@ -175,25 +170,57 @@ export default function BookingManagement(): React.JSX.Element {
     };
   }, [filteredBookings, pagination]);
 
+  // Event handlers
   const updateFilter = (key: keyof typeof filters, value: string) => {
     setFilters((p) => ({ ...p, [key]: value }));
     setPagination((p) => ({ ...p, currentPage: 1 }));
   };
-  const handlePageChange = (n: number) =>
+
+  const refreshData = async () => {
+    try {
+      setError(null);
+      await fetchBookings();
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  };
+  
+  const handlePageChange = (n: number) => {
     setPagination((p) => ({
       ...p,
       currentPage: Math.max(1, Math.min(n, paginatedBookings.totalPages)),
     }));
-  const handleRowsPerPageChange = (v: string) =>
-    setPagination({ currentPage: 1, rowsPerPage: parseInt(v) });
+  };
+  
+  const handleRowsPerPageChange = (v: string) => {
+    setPagination({ 
+      currentPage: 1, 
+      rowsPerPage: parseInt(v),
+      total: 0,
+      totalPages: 0
+    });
+  };
   const handleDateSortToggle = () => {
     setSortByDateAsc((p) => !p);
     setPagination((p) => ({ ...p, currentPage: 1 }));
   };
 
+  const clearAllFilters = () => {
+    setFilters({
+      search: "",
+      status: "all",
+      date: "",
+      dateRequest: "",
+      time: "all",
+    });
+    setDateRangeType("meeting");
+    setShowPast(false);
+    setPagination((p) => ({ ...p, currentPage: 1 }));
+  };
+
   return (
     <div className={PAGE_WRAPPER}>
-      {/* Header */}
+
       <div className="border-b bg-white border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
@@ -206,126 +233,318 @@ export default function BookingManagement(): React.JSX.Element {
                 <p className="text-sm text-gray-500">Manage & review meeting bookings</p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              {/* reserved for future */}
+            <div className="hidden md:flex items-center gap-3">
+              <span className="text-sm text-gray-600">Data Year:</span>
+              <Select value={(currentYear ?? new Date().getFullYear()).toString()} onValueChange={(v) => setCurrentYear(parseInt(v))}>
+                <SelectTrigger className="w-[140px]">
+                  <SelectValue placeholder="Year" />
+                </SelectTrigger>
+                <SelectContent>
+                  {yearOptions.map((y) => (
+                    <SelectItem key={y} value={y.toString()}>
+                      {y}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Body */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {/* Legend */}
         <div className="mb-6 flex items-center gap-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
           <div className="flex items-center gap-2">
             <Info className="h-5 w-5 text-blue-600" />
             <span className="font-semibold text-blue-800">Legend:</span>
           </div>
+                  <div className="flex items-center gap-4 flex-wrap">
+          <div className="flex items-center gap-2">
+            <Star className="h-4 w-4 text-red-600" />
+            <span className="text-sm text-gray-700">DR (hover for type)</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <CircleDot className="h-4 w-4 text-red-500" />
+            <span className="text-sm text-gray-700">PDR</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Users className="h-4 w-4 text-purple-600" />
+            <span className="text-sm text-gray-700">VIP</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Calendar className="h-4 w-4 text-green-600" />
+            <span className="text-sm text-gray-700">Weekly</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Circle className="h-4 w-4 text-gray-500" />
+            <span className="text-sm text-gray-700">General</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 text-orange-600" />
+            <span className="text-sm text-gray-700">Urgent</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <HelpCircle className="h-4 w-4 text-slate-600" />
+            <span className="text-sm text-gray-700">Other</span>
+          </div>
+        </div>
         </div>
 
-        {/* Summary Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-6">
-          {[
-            { key: "wait", label: "Wait", color: "amber", icon: Hourglass, description: "Bookings awaiting approval" },
-            { key: "approve", label: "Approve", color: "emerald", icon: CheckCircle, description: "Confirmed bookings" },
-            { key: "cancel", label: "Cancel", color: "red", icon: XCircle, description: "Cancel bookings" },
-            { key: "total", label: "Total", color: "blue", icon: Calendar, description: "Total bookings this month" },
-          ].map(({ key, label, color, icon: Icon, description }) => (
-            <Card key={key} className="bg-white border-gray-200 hover:shadow-lg transition-shadow">
-              <CardHeader className="pb-3">
-                <CardTitle className={`text-base font-semibold text-${color}-800 flex items-center gap-2`}>
-                  <Icon className="h-4 w-4" />
-                  {label} {!Object.values(filters).some(v => v !== "" && v !== "all") && isClient && `- ${currentMonth} ${currentYear}`}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className={`text-3xl font-bold text-${color}-700`}>{stats[key as keyof Stats]}</div>
-                <p className={`text-sm text-${color}-600 mt-1`}>{description}</p>
-              </CardContent>
-            </Card>
-          ))}
+        {/* Summary Cards with View Toggle */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-lg font-semibold text-gray-900">Summary Overview</h2>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-600">View:</span>
+              <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
+                <Button 
+                  size="sm" 
+                  variant={agg === "month" ? "default" : "ghost"} 
+                  onClick={() => setAgg("month")}
+                  className="h-8 px-3"
+                >
+                  Month
+                </Button>
+                <Button 
+                  size="sm" 
+                  variant={agg === "year" ? "default" : "ghost"} 
+                  onClick={() => setAgg("year")}
+                  className="h-8 px-3"
+                >
+                  Year
+                </Button>
+              </div>
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+            {([
+              { key: "wait", label: "Wait", color: "amber", icon: Hourglass, description: "Bookings awaiting approval" },
+              { key: "approve", label: "Approve", color: "emerald", icon: CheckCircle, description: "Confirmed bookings" },
+              { key: "cancel", label: "Cancel", color: "red", icon: XCircle, description: "Cancel bookings" },
+              { key: "total", label: "Total", color: "blue", icon: Calendar, description: `Total bookings this ${agg}` },
+            ] as SummaryCardConfig[]).map(({ key, label, color, icon: Icon, description }) => (
+              <Card key={key} className="bg-white border-gray-200 hover:shadow-lg transition-shadow rounded-xl">
+                <CardHeader className="pb-3">
+                  <CardTitle className={`text-base font-semibold text-${color}-800 flex items-center gap-2`}>
+                    <Icon className="h-4 w-4" />
+                    {label} {isClient && (agg === "year" ? `- Year ${currentYear}` : `- ${currentMonth} ${currentYear}`)}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className={`text-3xl font-bold ${key === 'total' ? 'text-blue-700' : `text-${color}-700`}`}>{stats[key as keyof Stats]}</div>
+                  <p className={`text-sm text-${color}-600 mt-1`}>{description}</p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
         </div>
 
-        {/* Filters */}
-        <Card className="mb-6 bg-white">
-          <CardContent className="pt-6">
-            <div className="flex flex-wrap gap-4 items-end">
-              <div className="flex-1 min-w-[200px]">
-                <label className="block text-base font-semibold text-gray-800 mb-2">Search User / Interpreter</label>
+        {/* Filters Section */}
+        <Card className="mb-6 bg-white rounded-xl shadow-sm">
+          <CardHeader className="pb-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <Filter className="h-5 w-5 text-gray-600" />
+                <h2 className="text-lg font-semibold text-gray-900">Filters</h2>
+              </div>
+              <div className="flex items-center gap-2 ml-auto">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={clearAllFilters}
+                  className="flex items-center gap-2 text-gray-600 hover:text-gray-800 h-10"
+                >
+                  <X className="h-4 w-4" />
+                  Clear Filters
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                  className="flex items-center gap-2 h-10"
+                >
+                  Advanced Filters
+                  <ChevronDownIcon className={`h-4 w-4 transition-transform ${showAdvancedFilters ? 'rotate-180' : ''}`} />
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Main Filters Row */}
+            <div className="flex flex-col lg:flex-row gap-4">
+              {/* Search */}
+              <div className="space-y-2 flex-1 sm:min-w-[200px]">
+                <Label className="text-sm font-semibold text-gray-800">Search User / Interpreter</Label>
                 <Input
-                  placeholder="Search..."
+                  placeholder="Search by name..."
                   value={filters.search}
                   onChange={(e) => updateFilter("search", e.target.value)}
-                  className="h-10"
+                  className="h-10 w-full"
                 />
               </div>
 
-              <div className="flex-1 min-w-[120px]">
-                <label className="block text-base font-semibold text-gray-800 mb-2">Status</label>
+              {/* Status */}
+              <div className="space-y-2 sm:min-w-[140px]">
+                <Label className="text-sm font-semibold text-gray-800">Status</Label>
                 <Select value={filters.status} onValueChange={(v) => updateFilter("status", v)}>
-                  <SelectTrigger className="h-10">
+                  <SelectTrigger className="h-10 w-full">
                     <SelectValue placeholder="All Status" />
                   </SelectTrigger>
                   <SelectContent>
                     {STATUS_OPTIONS.map((o) => (
-                      <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                      <SelectItem key={o.value} value={o.value}>
+                        {o.label}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
 
-              <div className="flex-1 min-w-[150px]">
-                <label className="block text-base font-semibold text-gray-800 mb-2">Date Meeting</label>
-                <Input type="date" value={filters.date} onChange={(e) => updateFilter("date", e.target.value)} className="h-10" />
-              </div>
-
-              <div className="flex-1 min-w-[150px]">
-                <label className="block text-base font-semibold text-gray-800 mb-2">Date Requested</label>
-                <Input type="date" value={filters.dateRequest} onChange={(e) => updateFilter("dateRequest", e.target.value)} className="h-10" />
-              </div>
-
-              <div className="flex-1 min-w-[130px]">
-                <label className="block text-base font-semibold text-gray-800 mb-2">Start Time</label>
-                <Select value={filters.time} onValueChange={(v) => updateFilter("time", v)}>
-                  <SelectTrigger className="h-10">
-                    <SelectValue placeholder="All Times" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Times</SelectItem>
-                    {TIME_SLOTS.map((t) => (
-                      <SelectItem key={t} value={t}>{t}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              {/* Date Range */}
+              <div className="space-y-2 flex-1 sm:min-w-[300px]">
+                <Label className="text-sm font-semibold text-gray-800">Date Range</Label>
+                <div className="flex flex-col sm:flex-row gap-2 items-center">
+                  <Select value={dateRangeType} onValueChange={(v: "meeting" | "request") => setDateRangeType(v)}>
+                    <SelectTrigger className="h-10 w-full sm:w-[180px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="meeting">By Meeting Date</SelectItem>
+                      <SelectItem value="request">By Request Date</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    type="date"
+                    value={dateRangeType === "meeting" ? filters.date : filters.dateRequest}
+                    onChange={(e) => {
+                      if (dateRangeType === "meeting") {
+                        updateFilter("date", e.target.value);
+                      } else {
+                        updateFilter("dateRequest", e.target.value);
+                      }
+                    }}
+                    className="h-10 w-full sm:flex-1 sm:max-w-[260px] px-3 py-2"
+                  />
+                </div>
               </div>
             </div>
+
+            {/* Advanced Filters - Collapsible */}
+            {showAdvancedFilters && (
+              <div className="border-t pt-4 space-y-4">
+                <div className="max-w-[720px]">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold text-gray-800">Meeting Time</Label>
+                      <Select value={filters.time} onValueChange={(v) => updateFilter("time", v)}>
+                        <SelectTrigger className="h-10 w-[180px]">
+                          <SelectValue placeholder="All Times" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Times</SelectItem>
+                          {TIME_SLOTS.map((t) => (
+                            <SelectItem key={t} value={t}>
+                              {t}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold text-gray-800">Past Records</Label>
+                      <Button
+                        variant={showPast ? "default" : "outline"}
+                        className="h-10 w-auto px-3 max-w-[220px]"
+                        onClick={() => {
+                          setShowPast((v) => !v);
+                          setPagination((p) => ({ ...p, currentPage: 1 }));
+                        }}
+                      >
+                        {showPast ? "Hide Past Records" : "Show Past Records"}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Active Filters Tags */}
+            {(filters.search || filters.status !== "all" || filters.date || filters.dateRequest || filters.time !== "all" || showPast) && (
+              <div className="border-t pt-4">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-sm text-gray-600">Active filters:</span>
+                  {filters.search && (
+                    <span className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
+                      Search: {filters.search}
+                      <button onClick={() => updateFilter("search", "")} className="ml-1 hover:bg-blue-200 rounded-full p-0.5">
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  )}
+                  {filters.status !== "all" && (
+                    <span className="inline-flex items-center gap-1 px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm">
+                      Status: {filters.status}
+                      <button onClick={() => updateFilter("status", "all")} className="ml-1 hover:bg-green-200 rounded-full p-0.5">
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  )}
+                  {filters.date && (
+                    <span className="inline-flex items-center gap-1 px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-sm">
+                      Meeting Date: {filters.date}
+                      <button onClick={() => updateFilter("date", "")} className="ml-1 hover:bg-purple-200 rounded-full p-0.5">
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  )}
+                  {filters.dateRequest && (
+                    <span className="inline-flex items-center gap-1 px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-sm">
+                      Request Date: {filters.dateRequest}
+                      <button onClick={() => updateFilter("dateRequest", "")} className="ml-1 hover:bg-purple-200 rounded-full p-0.5">
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  )}
+                  {filters.time !== "all" && (
+                    <span className="inline-flex items-center gap-1 px-3 py-1 bg-orange-100 text-orange-800 rounded-full text-sm">
+                      Time: {filters.time}
+                      <button onClick={() => updateFilter("time", "all")} className="ml-1 hover:bg-orange-200 rounded-full p-0.5">
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  )}
+                  {showPast && (
+                    <span className="inline-flex items-center gap-1 px-3 py-1 bg-gray-100 text-gray-800 rounded-full text-sm">
+                      Past Records: Show
+                      <button onClick={() => setShowPast(false)} className="ml-1 hover:bg-gray-200 rounded-full p-0.5">
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
-        {/* Loading / Error */}
-        {loading && (
-          <div className="mb-6 p-4 rounded-md bg-gray-50 border border-gray-200 text-gray-700">
-            กำลังโหลดข้อมูล...
-          </div>
-        )}
         {error && (
           <div className="mb-6 p-4 rounded-md bg-red-50 border border-red-200 text-red-700">
-            โหลดข้อมูลล้มเหลว: {error}
+            Failed to load data: {error}
           </div>
         )}
 
-        {/* Table */}
-        <Card className="mb-6 bg-white">
+        <Card className="mb-6 bg-white rounded-xl shadow-sm">
           <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <div className="max-h-96 overflow-y-auto">
-                <table className="w-full text-sm">
-                  <thead className="sticky top-0 bg-white z-10">
+            <table className="w-full text-sm table-fixed">
+                  <thead className="bg-white">
                     <tr className="border-b border-gray-200">
-                      <th className="px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">
+                      <th className="w-20 px-4 py-3 text-center font-semibold text-gray-900 bg-gray-50 text-sm">Meeting Type</th>
+                      <th className="w-32 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">
                         <button
                           onClick={handleDateSortToggle}
-                          className="flex items-center gap-2 hover:bg-gray-100 px-2 py-1 rounded transition-colors"
+                          className="flex items-center gap-2 hover:bg-gray-100 px-2 py-1 rounded transition-colors w-full justify-start"
                           title={`Sort by ${sortByDateAsc ? "newest" : "oldest"} first`}
                         >
                           <span>Date Meeting</span>
@@ -336,14 +555,13 @@ export default function BookingManagement(): React.JSX.Element {
                           )}
                         </button>
                       </th>
-                      {["Time", "User", "Interpreter", "Room", "Status", "Request", "Action"].map((h) => (
-                        <th
-                          key={h}
-                          className={`px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm ${h === "Action" ? "text-center" : ""}`}
-                        >
-                          {h}
-                        </th>
-                      ))}
+                      <th className="w-36 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Meeting Time</th>
+                      <th className="w-32 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">User</th>
+                      <th className="w-32 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Interpreter</th>
+                      <th className="w-24 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Room</th>
+                      <th className="w-28 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Status</th>
+                      <th className="w-48 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Date Request</th>
+                      <th className="w-32 px-6 py-3 text-center font-semibold text-gray-900 bg-gray-50 text-sm">Action</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -352,10 +570,13 @@ export default function BookingManagement(): React.JSX.Element {
                         key={booking.id}
                         className={`border-b border-gray-100 hover:bg-blue-50 transition-colors ${index % 2 === 0 ? "bg-white" : "bg-gray-50/30"}`}
                       >
+                        <td className="px-4 py-4 text-center">
+                          {getMeetingTypeBadge(booking.meetingType, booking.drType, booking.otherType)}
+                        </td>
                         <td className="px-4 py-4">
-                          <div className="flex items-center gap-2">
-                            <div className="group relative">
-                              <span className="font-semibold text-gray-900 text-sm cursor-help">
+                          <div className="flex items-start gap-2">
+                            <div className="group relative flex-1">
+                              <span className="font-semibold text-gray-900 text-sm cursor-help break-words">
                                 {formatDate(booking.dateTime)}
                               </span>
                               {isClient && (
@@ -364,34 +585,35 @@ export default function BookingManagement(): React.JSX.Element {
                                 </div>
                               )}
                             </div>
-                            {/* DR indicator removed */}
                           </div>
                         </td>
                         <td className="px-4 py-4">
                           <div className="flex items-center gap-1 text-gray-800 font-mono text-sm">
-                            <Clock className="h-4 w-4 text-gray-500" />
-                            {booking.startTime} - {booking.endTime}
+                            <Clock className="h-4 w-4 text-gray-500 flex-shrink-0" />
+                            <span className="whitespace-nowrap">{booking.startTime} - {booking.endTime}</span>
                           </div>
                         </td>
                         <td className="px-4 py-4">
-                          <span className="font-semibold text-gray-900 text-sm">{booking.bookedBy}</span>
+                          <span className="font-semibold text-gray-900 text-sm break-words">{booking.bookedBy}</span>
                         </td>
                         <td className="px-4 py-4">
-                          <span className="text-gray-800 text-sm">{booking.interpreter}</span>
+                          <span className="text-gray-800 text-sm break-words">{booking.interpreter}</span>
                         </td>
                         <td className="px-4 py-4">
-                          <span className="px-2 py-1 bg-gray-100 text-gray-800 rounded-md text-sm font-semibold">{booking.room}</span>
+                          <div className="flex items-center justify-center h-full">
+                            <span className="px-2 py-1 bg-gray-100 text-gray-800 rounded-md text-sm font-semibold break-words">{booking.room}</span>
+                          </div>
                         </td>
-                        <td className="px-4 py-4">
+                        <td className="px-6 py-4">
                           <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-semibold ${getStatusColor(booking.status)}`}>
                             {getStatusIcon(booking.status)}
-                            {booking.status}
+                            <span className="truncate">{booking.status}</span>
                           </span>
                         </td>
-                        <td className="px-4 py-4">
-                          <span className="text-sm text-gray-600 font-mono">{formatRequestedTime(booking.requestedTime)}</span>
+                        <td className="px-6 py-4">
+                          <span className="text-sm text-gray-600 whitespace-nowrap">{formatRequestedTime(booking.requestedTime)}</span>
                         </td>
-                        <td className="px-2 py-4 text-center">
+                        <td className="px-6 py-4 text-center">
                           <Button
                             variant="outline"
                             size="sm"
@@ -410,15 +632,25 @@ export default function BookingManagement(): React.JSX.Element {
                   </tbody>
                 </table>
 
-                {/* ว่างเปล่า */}
-                {!loading && !error && filteredBookings.length === 0 && (
+                {!error && filteredBookings.length === 0 && (
                   <div className="p-6 text-center text-gray-500">No bookings found</div>
                 )}
-              </div>
-            </div>
+
+                <div className="p-4 border-t border-gray-200">
+                  <div className="flex justify-end">
+                    <Button
+                      variant="outline"
+                      onClick={refreshData}
+                      className="flex items-center gap-2"
+                    >
+                      <RotateCcw className="h-4 w-4" />
+                      Refresh Data
+                    </Button>
+                  </div>
+                </div>
           </CardContent>
         </Card>
-        {/* Booking Detail Dialog */}
+
         <BookingDetailDialog
           open={showBookingDetailDialog}
           onOpenChange={(open: boolean) => {
@@ -430,8 +662,7 @@ export default function BookingManagement(): React.JSX.Element {
           onActionComplete={fetchBookings}
         />
 
-        {/* Pagination */}
-        <Card className="bg-white">
+        <Card className="bg-white rounded-xl shadow-sm">
           <CardContent className="flex items-center justify-between pt-6">
             <div className="flex items-center space-x-2">
               <span className="text-base text-gray-800">Rows per page:</span>
