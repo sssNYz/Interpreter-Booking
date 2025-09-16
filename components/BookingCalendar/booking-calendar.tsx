@@ -32,6 +32,7 @@ import BookingRules from "@/components/BookingRules/booking-rules";
 import LoadingThreeDotsJumping from "@/components/ui/loading-three-dots";
 import { useMobile } from "@/hooks/use-mobile";
 import { getInterpreterColor } from "@/utils/interpreter-color";
+import { useSearchParams } from "next/navigation";
 
 const BookingCalendar: React.FC = () => {
   // State for current month/year being displayed
@@ -190,6 +191,11 @@ useEffect(() => {
   // Add this ref near the other refs
   const horizontalScrollRef = useRef<number>(0);
   const userScrollRef = useRef<number>(0);
+  // Deep-link target management
+  const searchParams = useSearchParams();
+  const targetDateRef = useRef<Date | null>(null);
+  const targetSlotIndexRef = useRef<number | null>(null);
+  const hasAppliedDeepLinkRef = useRef<boolean>(false);
 
 // Track horizontal scroll position when user scrolls manually
 useEffect(() => {
@@ -206,6 +212,26 @@ useEffect(() => {
     scrollElement.removeEventListener('scroll', handleScroll);
   };
 }, [loading]); // Re-run when loading changes
+
+// Read deep-link params once and set up target jump
+useEffect(() => {
+  const dateStr = searchParams?.get("date"); // YYYY-MM-DD
+  const timeStr = searchParams?.get("time"); // HH:MM
+  if (!dateStr) return;
+  const parsed = new Date(dateStr + "T00:00:00");
+  if (isNaN(parsed.getTime())) return;
+  targetDateRef.current = parsed;
+  // Move calendar to that month immediately
+  setCurrentDate(new Date(parsed));
+
+  if (timeStr) {
+    const [h, m] = timeStr.split(":").map((x) => Number(x));
+    if (!Number.isNaN(h) && !Number.isNaN(m)) {
+      const slotIndex = (h - 8) * 2 + Math.floor(m / 30);
+      targetSlotIndexRef.current = Math.max(0, slotIndex);
+    }
+  }
+}, [searchParams]);
 
 const goToToday = useCallback(() => {
   forceScrollToTodayRef.current = true;
@@ -285,6 +311,50 @@ useEffect(() => {
     scrollAreaViewportRef.current.scrollLeft = scrollPosition;
   }
 }, [loading]);
+
+// After data loads or month changes, apply deep-link jump once
+useEffect(() => {
+  if (loading) return;
+  if (hasAppliedDeepLinkRef.current) return;
+  if (!targetDateRef.current) return;
+
+  const target = targetDateRef.current;
+  if (
+    target.getFullYear() !== currentDate.getFullYear() ||
+    target.getMonth() !== currentDate.getMonth()
+  ) {
+    // Wait until month matches (debounce may delay data fetch)
+    return;
+  }
+
+  // Find day index and scroll
+  const dayIdx = daysInMonth.findIndex(
+    (d) => d.fullDate.getDate() === target.getDate()
+  );
+  if (dayIdx >= 0) {
+    rowVirtualizer.scrollToIndex(Math.max(0, dayIdx), { align: "center" });
+  }
+
+  // Horizontal scroll to slot if provided
+  if (targetSlotIndexRef.current !== null && scrollAreaViewportRef.current) {
+    const scrollLeft = Math.max(0, targetSlotIndexRef.current * cellWidth);
+    scrollAreaViewportRef.current.scrollLeft = scrollLeft;
+    userScrollRef.current = scrollLeft;
+  }
+
+  // Brief highlight similar to TODAY
+  setHighlightToday(true);
+  if (highlightTimerRef.current !== null) {
+    window.clearTimeout(highlightTimerRef.current);
+    highlightTimerRef.current = null;
+  }
+  highlightTimerRef.current = window.setTimeout(() => {
+    setHighlightToday(false);
+    highlightTimerRef.current = null;
+  }, 600);
+
+  hasAppliedDeepLinkRef.current = true;
+}, [loading, currentDate, daysInMonth, rowVirtualizer, cellWidth]);
 
   // Ensure scroll happens after loading completes (since the grid isn't mounted during skeleton)
   useEffect(() => {
