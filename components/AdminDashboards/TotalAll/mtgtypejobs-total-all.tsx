@@ -22,7 +22,6 @@ import type {
   MonthlyDataRowWithDR,
   MonthlyTableRow,
 } from "@/types/admin-dashboard";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { 
   diffClass,
@@ -254,13 +253,13 @@ const CustomLegend = () => (
       <div key={label} style={{ display: "flex", alignItems: "center", gap: "6px" }}>
         <div
           style={{
-            width: "12px",
-            height: "12px",
+            width: "15px",
+            height: "15px",
             backgroundColor: TYPE_COLORS[label],
             borderRadius: "2px",
           }}
         />
-        <span style={{ fontSize: "12px", fontWeight: "500" }}>{label}</span>
+        <span style={{ fontSize: "14px", fontWeight: "500" }}>{label}</span>
       </div>
     ))}
   </div>
