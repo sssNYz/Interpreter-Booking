@@ -60,9 +60,9 @@ function MyBookingsPage() {
     setQueryRange({ startDate, endDate });
   };
   return (
-    <div className="flex flex-col h-[90dvh] px-4 mx-auto w-[min(100vw-100px,1700px)] overflow-hidden">
-      <div className="flex gap-4 w-full flex-1 min-h-0">
-        <div className="w-1/2 flex flex-col min-h-0">
+    <div className="flex flex-col min-h-[90dvh] xl:h-[90dvh] px-4 md:px-6 mx-auto w-full max-w-[1700px] xl:overflow-hidden overflow-auto">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 w-full flex-1 min-h-0">
+        <div className="flex flex-col min-h-0 min-w-0">
           <BookingHistory
             renderEmpty={() => (
               <div className="flex flex-col items-center justify-center py-6">
@@ -80,9 +80,9 @@ function MyBookingsPage() {
             endDate={queryRange.endDate}
           />
         </div>
-        <div className="w-1/2 h-full">
-          <div className="flex flex-col h-full gap-4">
-            <div className="flex-1 rounded-lg border p-4 min-h-0 flex flex-col">
+        <div className="min-w-0 min-h-0 overflow-auto">
+          <div className="flex flex-col gap-4">
+            <div className="rounded-lg border p-4 flex flex-col">
               <div className="flex items-center justify-between pb-4 border-b">
                 <div className="text-lg font-semibold">Filter by date</div>
                 <div className="flex gap-3">
@@ -104,7 +104,7 @@ function MyBookingsPage() {
                   </Button>
                 </div>
               </div>
-              <div className="flex-1 flex items-stretch justify-center pt-4 min-h-0 relative">
+              <div className="flex items-stretch justify-center pt-4 relative">
                 <Calendar05
                   value={range}
                   onChange={setRange}
@@ -119,7 +119,7 @@ function MyBookingsPage() {
                 )}
               </div>
             </div>
-            <div className="flex-1 rounded-lg border flex items-center justify-center text-muted-foreground">
+            <div className="rounded-lg border flex items-center justify-center text-muted-foreground">
               Coming soon
             </div>
           </div>
