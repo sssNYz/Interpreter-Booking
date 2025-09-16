@@ -16,9 +16,6 @@ export type AdminBookingRow = {
   endTime: string;
   requestedTime: string;
   isDR: boolean;
-  drType?: "PR_PR" | "DR_k" | "DR_II" | "DR_I" | "Other";
-  meetingType?: "DR" | "PDR" | "VIP" | "Weekly" | "General" | "Urgent" | "Other";
-  otherType?: string;
 };
 
 // Types used in admin manage and detail views
@@ -37,9 +34,6 @@ export type BookingManage = {
   endTime: string;
   requestedTime: string;
   isDR: boolean;
-  drType?: "PR_PR" | "DR_k" | "DR_II" | "DR_I" | "Other";
-  meetingType?: "DR" | "PDR" | "VIP" | "Weekly" | "General" | "Urgent" | "Other";
-  otherType?: string;
 };
 
 export interface Stats {
