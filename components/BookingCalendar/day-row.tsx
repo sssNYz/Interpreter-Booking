@@ -265,7 +265,9 @@ const DayRow: React.FC<Props> = ({
                     <div className="text-neutral-700 text-xl mt-1">
                       {day.fullDate.toLocaleString("en-US", { month: "short" })}{" "}
                       {day.date} • {timeSlots[bar.startIndex]} -{" "}
-                      {timeSlots[bar.endIndex - 1]}
+                      {bar.endIndex >= timeSlots.length
+                        ? timeSlots[timeSlots.length - 1]
+                        : timeSlots[bar.endIndex]}
                     </div>
                   </div>
 
