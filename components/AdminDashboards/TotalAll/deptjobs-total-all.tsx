@@ -21,7 +21,6 @@ import type {
   DepartmentsApiResponse,
 } from "@/types/admin-dashboard";
 import { OwnerGroupLabel as OGLabel } from "@/types/admin-dashboard";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 
 import { 
@@ -180,22 +179,22 @@ const TechLegend = () => (
   <div style={{ 
     display: "flex", 
     flexWrap: "wrap", 
-    gap: "16px", 
+    gap: "12px", 
     justifyContent: "center", 
-    marginTop: "16px",
-    padding: "8px"
+    marginTop: "8px",
+    padding: "4px"
   }}>
     {TECH_CATEGORIES.map((label) => (
-      <div key={label} style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+      <div key={label} style={{ display: "flex", alignItems: "center", gap: "4px" }}>
         <div
           style={{
-            width: "12px",
-            height: "12px",
+            width: "15px",
+            height: "15px",
             backgroundColor: TECH_COLORS[label],
             borderRadius: "2px",
           }}
         />
-        <span style={{ fontSize: "12px", fontWeight: "500" }}>{label}</span>
+        <span style={{ fontSize: "14px", fontWeight: "400" }}>{label}</span>
       </div>
     ))}
   </div>
@@ -242,10 +241,6 @@ export function DeptTab({ year, data: externalData }: DeptTabProps) {
   const interpreters: InterpreterName[] = React.useMemo(() => currentData?.interpreters ?? [], [currentData?.interpreters]);
   const departments: OwnerGroup[] = React.useMemo(() => currentData?.departments ?? [], [currentData?.departments]);
   const yearData: MonthlyDataRow[] = React.useMemo(() => currentData?.yearData ?? [], [currentData?.yearData]);
-  const deptMGIFooter: FooterByInterpreter = React.useMemo(
-    () => currentData?.deptMGIFooter ?? { perInterpreter: [], grand: 0, diff: 0 },
-    [currentData?.deptMGIFooter]
-  );
 
 
   // Create tech category data using real department data
