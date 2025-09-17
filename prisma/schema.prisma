@@ -37,10 +37,9 @@ model BookingPlan {
 
   // NEW
   isForwarded        Boolean   @default(false) @map("IS_FORWARDED")
-  forwardNote        String?   @map("FORWARD_NOTE") @db.VarChar(255)
   forwardedByEmpCode String?   @map("FORWARDED_BY_EMP_CODE") @db.VarChar(64)
-  forwardedAt        DateTime? @map("FORWARDED_AT") @db.DateTime(0)
-
+  forwardActions     Json      @default("[]") @map("FORWARD_ACTIONS")
+  //{ empCode, action: 'FORWARD'|'DISMISS'|'APPROVE'|'CANCEL', deptPath, at:, note? }
   forwardedByEmployee Employee?         @relation("ForwardedByEmployee", fields: [forwardedByEmpCode], references: [empCode])
   assignmentLogs      AssignmentLog[]
   interpreterEmployee Employee?         @relation("InterpreterEmployee", fields: [interpreterEmpCode], references: [empCode])
@@ -48,6 +47,7 @@ model BookingPlan {
   parentBooking       BookingPlan?      @relation("RecurringBookings", fields: [parentBookingId], references: [bookingId])
   recurringBookings   BookingPlan[]     @relation("RecurringBookings")
   inviteEmails        InviteEmailList[]
+  forwardTargets     BookingForwardTarget[]
 
   @@index([ownerEmpCode])
   @@index([interpreterEmpCode])
@@ -56,6 +56,20 @@ model BookingPlan {
   @@index([otherTypeScope])
   @@index([forwardedByEmpCode]) // NEW
   @@map("BOOKING_PLAN")
+}
+
+// Forward visibility targets per booking, using admin deptPath strings
+model BookingForwardTarget {
+  bookingId Int      @map("BOOKING_ID")
+  deptPath  String   @map("DEPT_PATH") @db.VarChar(512)
+  createdAt DateTime @default(now())    @map("created_at") @db.Timestamp(0)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamp(0)
+
+  booking BookingPlan @relation(fields: [bookingId], references: [bookingId], onDelete: Cascade)
+
+  @@id([bookingId, deptPath])
+  @@index([deptPath])
+  @@map("BOOKING_FORWARD_TARGET")
 }
 
 model Language {
