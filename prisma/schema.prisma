@@ -1,84 +1,153 @@
 generator client {
   provider = "prisma-client-js"
 }
+
 datasource db {
   provider = "mysql"
   url      = env("DATABASE_URL")
 }
+
 model BookingPlan {
-  bookingId                Int               @id @default(autoincrement()) @map("BOOKING_ID")
-  ownerGroup               OwnerGroup        @map("OWNER_GROUP")
-  meetingRoom              String            @map("MEETING_ROOM") @db.VarChar(50)
-  meetingDetail            String?           @map("MEETING_DETAIL") @db.Text
-  timeStart                DateTime          @map("TIME_START") @db.DateTime(0)
-  timeEnd                  DateTime          @map("TIME_END") @db.DateTime(0)
-  bookingStatus            BookingStatus     @default(waiting) @map("BOOKING_STATUS")
-  createdAt                DateTime          @default(now()) @map("created_at") @db.Timestamp(0)
-  updatedAt                DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamp(0)
-  drType                   DRType?           @map("DR_TYPE")
-  otherType                String?           @map("OTHER_TYPE") @db.VarChar(255)
-  otherTypeScope           OtherTypeScope?   @map("OTHER_TYPE_SCOPE")
-  applicableModel          String?           @map("APPLICABLE_MODEL") @db.VarChar(255)
-  interpreterEmpCode       String?           @map("INTERPRETER_EMP_CODE") @db.VarChar(64)
-  isRecurring              Boolean           @default(false) @map("IS_RECURRING")
-  meetingType              MeetingType       @map("MEETING_TYPE")
-  ownerEmpCode             String            @map("OWNER_EMP_CODE") @db.VarChar(64)
-  parentBookingId          Int?              @map("PARENT_BOOKING_ID")
-  recurrenceEndDate        DateTime?         @map("RECURRENCE_END_DATE") @db.DateTime(0)
-  recurrenceEndOccurrences Int?              @map("RECURRENCE_END_OCCURRENCES")
-  recurrenceEndType        EndType?          @map("RECURRENCE_END_TYPE")
-  recurrenceInterval       Int?              @map("RECURRENCE_INTERVAL")
-  recurrenceMonthday       Int?              @map("RECURRENCE_MONTHDAY")
-  recurrenceType           RecurrenceType?   @map("RECURRENCE_TYPE")
-  recurrenceWeekdays       String?           @map("RECURRENCE_WEEKDAYS") @db.VarChar(32)
-  recurrenceWeekOrder      WeekOrder?        @map("RECURRENCE_WEEK_ORDER")
-  assignmentLogs           AssignmentLog[]
-  interpreterEmployee      Employee?         @relation("InterpreterEmployee", fields: [interpreterEmpCode], references: [empCode])
-  employee                 Employee          @relation("OwnerEmployee", fields: [ownerEmpCode], references: [empCode])
-  parentBooking            BookingPlan?      @relation("RecurringBookings", fields: [parentBookingId], references: [bookingId])
-  recurringBookings        BookingPlan[]     @relation("RecurringBookings")
-  inviteEmails             InviteEmailList[]
+  bookingId                Int             @id @default(autoincrement()) @map("BOOKING_ID")
+  ownerGroup               OwnerGroup      @map("OWNER_GROUP")
+  meetingRoom              String          @map("MEETING_ROOM") @db.VarChar(50)
+  meetingDetail            String?         @map("MEETING_DETAIL") @db.Text
+  timeStart                DateTime        @map("TIME_START") @db.DateTime(0)
+  timeEnd                  DateTime        @map("TIME_END") @db.DateTime(0)
+  bookingStatus            BookingStatus   @default(waiting) @map("BOOKING_STATUS")
+  createdAt                DateTime        @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt                DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamp(0)
+  drType                   DRType?         @map("DR_TYPE")
+  otherType                String?         @map("OTHER_TYPE") @db.VarChar(255)
+  otherTypeScope           OtherTypeScope? @map("OTHER_TYPE_SCOPE")
+  applicableModel          String?         @map("APPLICABLE_MODEL") @db.VarChar(255)
+  interpreterEmpCode       String?         @map("INTERPRETER_EMP_CODE") @db.VarChar(64)
+  isRecurring              Boolean         @default(false) @map("IS_RECURRING")
+  meetingType              MeetingType     @map("MEETING_TYPE")
+  ownerEmpCode             String          @map("OWNER_EMP_CODE") @db.VarChar(64)
+  parentBookingId          Int?            @map("PARENT_BOOKING_ID")
+  recurrenceEndDate        DateTime?       @map("RECURRENCE_END_DATE") @db.DateTime(0)
+  recurrenceEndOccurrences Int?            @map("RECURRENCE_END_OCCURRENCES")
+  recurrenceEndType        EndType?        @map("RECURRENCE_END_TYPE")
+  recurrenceInterval       Int?            @map("RECURRENCE_INTERVAL")
+  recurrenceMonthday       Int?            @map("RECURRENCE_MONTHDAY")
+  recurrenceType           RecurrenceType? @map("RECURRENCE_TYPE")
+  recurrenceWeekdays       String?         @map("RECURRENCE_WEEKDAYS") @db.VarChar(32)
+  recurrenceWeekOrder      WeekOrder?      @map("RECURRENCE_WEEK_ORDER")
+
+  // NEW
+  isForwarded        Boolean   @default(false) @map("IS_FORWARDED")
+  forwardedByEmpCode String?   @map("FORWARDED_BY_EMP_CODE") @db.VarChar(64)
+  forwardActions     Json      @default("[]") @map("FORWARD_ACTIONS")
+  //{ empCode, action: 'FORWARD'|'DISMISS'|'APPROVE'|'CANCEL', deptPath, at:, note? }
+  forwardedByEmployee Employee?         @relation("ForwardedByEmployee", fields: [forwardedByEmpCode], references: [empCode])
+  assignmentLogs      AssignmentLog[]
+  interpreterEmployee Employee?         @relation("InterpreterEmployee", fields: [interpreterEmpCode], references: [empCode])
+  employee            Employee          @relation("OwnerEmployee", fields: [ownerEmpCode], references: [empCode])
+  parentBooking       BookingPlan?      @relation("RecurringBookings", fields: [parentBookingId], references: [bookingId])
+  recurringBookings   BookingPlan[]     @relation("RecurringBookings")
+  inviteEmails        InviteEmailList[]
+  forwardTargets     BookingForwardTarget[]
 
   @@index([ownerEmpCode])
   @@index([interpreterEmpCode])
   @@index([parentBookingId])
   @@index([drType])
   @@index([otherTypeScope])
+  @@index([forwardedByEmpCode]) // NEW
   @@map("BOOKING_PLAN")
 }
+
+// Forward visibility targets per booking, using admin deptPath strings
+model BookingForwardTarget {
+  bookingId Int      @map("BOOKING_ID")
+  deptPath  String   @map("DEPT_PATH") @db.VarChar(512)
+  createdAt DateTime @default(now())    @map("created_at") @db.Timestamp(0)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamp(0)
+
+  booking BookingPlan @relation(fields: [bookingId], references: [bookingId], onDelete: Cascade)
+
+  @@id([bookingId, deptPath])
+  @@index([deptPath])
+  @@map("BOOKING_FORWARD_TARGET")
+}
+
+model Language {
+  id        Int      @id @default(autoincrement()) @map("ID")
+  code      String   @unique @map("CODE") @db.VarChar(16) // EN, JP, TH
+  name      String   @unique @map("NAME") @db.VarChar(128) // English, Japanese, Thai
+  isActive  Boolean  @default(true) @map("IS_ACTIVE")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamp(0)
+
+  interpreters InterpreterLanguage[]
+
+  @@map("LANGUAGE")
+}
+
+model InterpreterLanguage {
+  id           Int      @id @default(autoincrement()) @map("ID")
+  empCode      String   @map("EMP_CODE") @db.VarChar(64)
+  languageCode String   @map("LANGUAGE_CODE") @db.VarChar(16)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamp(0)
+  employee     Employee @relation(fields: [empCode], references: [empCode])
+  language     Language @relation(fields: [languageCode], references: [code])
+
+  @@unique([empCode, languageCode], name: "unique_emp_language")
+  @@index([empCode])
+  @@index([languageCode])
+  @@map("INTERPRETER_LANGUAGE")
+}
+
+model AdminVision {
+  id           Int      @id @default(autoincrement()) @map("ID")
+  adminEmpCode String   @map("ADMIN_EMP_CODE") @db.VarChar(64)
+  deptPath     String   @map("DEPT_PATH") @db.VarChar(512)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamp(0)
+  admin        Employee @relation(fields: [adminEmpCode], references: [empCode])
+
+  @@unique([adminEmpCode, deptPath], name: "unique_admin_dept")
+  @@index([adminEmpCode])
+  @@map("ADMIN_VISION")
+}
+
 model InviteEmailList {
   emailListId Int         @id @default(autoincrement()) @map("EMAIL_LIST_ID")
   bookingId   Int         @map("BOOKING_ID")
   email       String      @map("EMAIL") @db.VarChar(255)
   invitedAt   DateTime    @default(now()) @map("invited_at") @db.Timestamp(0)
   bookingPlan BookingPlan @relation(fields: [bookingId], references: [bookingId], onDelete: Cascade)
+
   @@unique([bookingId, email], name: "unique_booking_email")
   @@map("INVITE_EMAIL_LIST")
 }
 
 model Employee {
-  id                    Int             @id @default(autoincrement()) @map("ID")
-  empCode               String          @unique @map("EMP_CODE") @db.VarChar(64)
-  prefixEn              String?         @map("PREFIX_EN") @db.VarChar(32)
-  firstNameEn           String?         @map("FIRST_NAME_EN") @db.VarChar(255)
-  lastNameEn            String?         @map("LAST_NAME_EN") @db.VarChar(255)
-  prefixTh              String?         @map("PREFIX_TH") @db.VarChar(32)
-  firstNameTh           String?         @map("FIRST_NAME_TH") @db.VarChar(255)
-  lastNameTh            String?         @map("LAST_NAME_TH") @db.VarChar(255)
-  fno                   String?         @map("FNO") @db.VarChar(64)
-  deptPath              String?         @map("DEPT_PATH") @db.VarChar(512)
-  positionTitle         String?         @map("POSITION_TITLE") @db.VarChar(255)
-  email                 String?         @map("EMAIL") @db.VarChar(255)
-  telExt                String?         @map("TEL_EXT") @db.VarChar(64)
-  isActive              Boolean         @default(true) @map("IS_ACTIVE")
-  lastLoginAt           DateTime?       @map("LAST_LOGIN_AT")
-  syncedAt              DateTime?       @map("SYNCED_AT")
-  createdAt             DateTime        @default(now()) @map("created_at") @db.Timestamp(0)
-  updatedAt             DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamp(0)
-  assignmentLogs        AssignmentLog[] @relation("AssignmentLogInterpreter")
-  bookingsAsInterpreter BookingPlan[]   @relation("InterpreterEmployee")
-  bookingsOwned         BookingPlan[]   @relation("OwnerEmployee")
+  id                    Int                   @id @default(autoincrement()) @map("ID")
+  empCode               String                @unique @map("EMP_CODE") @db.VarChar(64)
+  prefixEn              String?               @map("PREFIX_EN") @db.VarChar(32)
+  firstNameEn           String?               @map("FIRST_NAME_EN") @db.VarChar(255)
+  lastNameEn            String?               @map("LAST_NAME_EN") @db.VarChar(255)
+  prefixTh              String?               @map("PREFIX_TH") @db.VarChar(32)
+  firstNameTh           String?               @map("FIRST_NAME_TH") @db.VarChar(255)
+  lastNameTh            String?               @map("LAST_NAME_TH") @db.VarChar(255)
+  fno                   String?               @map("FNO") @db.VarChar(64)
+  deptPath              String?               @map("DEPT_PATH") @db.VarChar(512)
+  positionTitle         String?               @map("POSITION_TITLE") @db.VarChar(255)
+  email                 String?               @map("EMAIL") @db.VarChar(255)
+  telExt                String?               @map("TEL_EXT") @db.VarChar(64)
+  isActive              Boolean               @default(true) @map("IS_ACTIVE")
+  lastLoginAt           DateTime?             @map("LAST_LOGIN_AT")
+  syncedAt              DateTime?             @map("SYNCED_AT")
+  createdAt             DateTime              @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt             DateTime              @default(now()) @updatedAt @map("updated_at") @db.Timestamp(0)
+  assignmentLogs        AssignmentLog[]       @relation("AssignmentLogInterpreter")
+  bookingsAsInterpreter BookingPlan[]         @relation("InterpreterEmployee")
+  bookingsOwned         BookingPlan[]         @relation("OwnerEmployee")
+  bookingsForwarded     BookingPlan[]         @relation("ForwardedByEmployee")
   userRoles             UserRole[]
+  interpreterLanguages  InterpreterLanguage[]
+  adminVisions          AdminVision[]
 
   @@map("EMPLOYEE")
 }
@@ -244,6 +313,7 @@ enum OwnerGroup {
   hardware
   software
   other
+
   @@map("owner_group")
 }
 
