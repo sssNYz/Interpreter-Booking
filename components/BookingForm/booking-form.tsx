@@ -776,7 +776,7 @@ export function BookingForm({
         const choice = await new Promise<"skip" | "cancel">((resolve) => {
           toast.custom(
             (t) => (
-              <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm w-[420px]">
+              <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm w-full max-w-sm">
                 <Alert className="border-none p-0">
                   <AlertTitle className="text-gray-900">
                     <span className="text-amber-600 font-semibold">
@@ -944,7 +944,7 @@ export function BookingForm({
         const proceed = await new Promise<boolean>((resolve) => {
           toast.custom(
             (t) => (
-              <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm w-[420px]">
+              <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm w-full max-w-sm">
                 <Alert className="border-none p-0">
                   <AlertTitle className="text-gray-900">
                     <span className="text-amber-600 font-semibold">
@@ -1002,7 +1002,7 @@ export function BookingForm({
         const duration = `${startTime} - ${endTime}`;
         toast.custom(
           (t) => (
-            <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm w-[420px]">
+            <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm w-full max-w-sm">
               <Alert className="border-none p-0">
                 <AlertTitle className="text-gray-900">
                   <span className="text-green-600 font-semibold">Success</span>
@@ -1033,7 +1033,7 @@ export function BookingForm({
       } else {
         toast.custom(
           (t) => (
-            <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm w-[420px]">
+            <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm w-full max-w-sm">
               <Alert className="border-none p-0">
                 <AlertTitle className="text-gray-900">
                   <span className="text-red-600 font-semibold">Error</span>
@@ -1063,7 +1063,7 @@ export function BookingForm({
       console.error("Error creating booking:", error);
       toast.custom(
         (t) => (
-          <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm w-[420px]">
+          <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm w-full max-w-sm">
             <Alert className="border-none p-0">
               <AlertTitle className="text-gray-900">
                 <span className="text-red-600 font-semibold">Error</span>
