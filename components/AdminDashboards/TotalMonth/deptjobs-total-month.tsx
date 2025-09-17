@@ -117,7 +117,6 @@ interface DeptTabProps {
 
 export function DeptTab({ year, data: externalData, selectedMonth: propSelectedMonth }: DeptTabProps) {
   const [data, setData] = React.useState<DepartmentsApiResponse | null>(null);
-  const [showAllMonths, setShowAllMonths] = React.useState<boolean>(false);
   
   // Use propSelectedMonth if provided, otherwise fallback to current month
   const selectedMonth = propSelectedMonth || "";
@@ -178,12 +177,11 @@ export function DeptTab({ year, data: externalData, selectedMonth: propSelectedM
   }, [yearData, selectedMonth, departments, interpreters]);
 
   const monthsToRender: MonthName[] = React.useMemo(
-    () => showAllMonths ? months : (selectedMonth ? [selectedMonth] : []),
-    [showAllMonths, months, selectedMonth]
+    () => selectedMonth ? [selectedMonth] : [],
+    [selectedMonth]
   );
 
   const dynamicFooter = React.useMemo<FooterByInterpreter>(() => {
-    if (showAllMonths) return deptMGIFooter;
     const perInterpreter = interpreters.map((itp) =>
       monthsToRender.reduce((acc, m) => {
         const r = yearData.find((d) => d.month === m);
@@ -197,7 +195,7 @@ export function DeptTab({ year, data: externalData, selectedMonth: propSelectedM
     const grand = perInterpreter.reduce((a, b) => a + b, 0);
     const diff = diffRange(perInterpreter);
     return { perInterpreter, grand, diff };
-  }, [showAllMonths, deptMGIFooter, interpreters, monthsToRender, yearData, departments]);
+  }, [interpreters, monthsToRender, yearData, departments]);
 
   return (
     <>
@@ -331,19 +329,9 @@ export function DeptTab({ year, data: externalData, selectedMonth: propSelectedM
       {/* Table B: Month × Group × Interpreter */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between gap-3">
-            <CardTitle className="text-base">
-              Month × Group × Interpreter (Year {activeYear})
-            </CardTitle>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowAllMonths((v) => !v)}
-              className="whitespace-nowrap"
-            >
-              {showAllMonths ? "Show current month only" : "Show all months"}
-            </Button>
-          </div>
+          <CardTitle className="text-base">
+            Month × Group × Interpreter (Year {activeYear})
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
