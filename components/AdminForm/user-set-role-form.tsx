@@ -16,9 +16,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { Label } from "@/components/ui/label";
-import { Shield, Languages, Info, Globe } from "lucide-react";
+import { Shield, Languages, Info, Globe, Eye } from "lucide-react";
 
-import type { Role, UserSummary, Language, InterpreterLanguage } from "@/types/user";
+import type { Role, UserSummary, Language, InterpreterLanguage, AdminScope } from "@/types/user";
 
 interface UserRoleDialogProps {
   user: UserSummary;
@@ -53,6 +53,15 @@ export function UserRoleDialog({ user, onSave, trigger }: UserRoleDialogProps) {
   const [availableLanguages, setAvailableLanguages] = useState<Language[]>([]);
   const [selectedLanguages, setSelectedLanguages] = useState<string[]>([]);
   const [loadingLanguages, setLoadingLanguages] = useState(false);
+  
+  // Admin scope selection state
+  const [availableScopes, setAvailableScopes] = useState<string[]>([]);
+  const [selectedScopes, setSelectedScopes] = useState<string[]>([]);
+  const [loadingScopes, setLoadingScopes] = useState(false);
+  
+  // Server baseline state (what's currently on the server)
+  const [serverLanguages, setServerLanguages] = useState<string[]>([]);
+  const [serverScopes, setServerScopes] = useState<string[]>([]);
 
   // Fetch available languages
   const fetchLanguages = async () => {
@@ -70,6 +79,22 @@ export function UserRoleDialog({ user, onSave, trigger }: UserRoleDialogProps) {
     }
   };
 
+  // Fetch available admin scopes
+  const fetchAdminScopes = async () => {
+    try {
+      setLoadingScopes(true);
+      const res = await fetch('/api/admin-vision/options', { cache: 'no-store' });
+      if (!res.ok) throw new Error(`Failed to fetch admin scopes (${res.status})`);
+      const scopes: string[] = await res.json();
+      setAvailableScopes(scopes);
+    } catch (err) {
+      console.error('Error fetching admin scopes:', err);
+      setError('Failed to load admin scopes');
+    } finally {
+      setLoadingScopes(false);
+    }
+  };
+
   // Fetch current interpreter languages
   const fetchInterpreterLanguages = useCallback(async () => {
     try {
@@ -78,51 +103,104 @@ export function UserRoleDialog({ user, onSave, trigger }: UserRoleDialogProps) {
       });
       if (!res.ok) return;
       const languages: InterpreterLanguage[] = await res.json();
-      setSelectedLanguages(languages.map(lang => lang.languageCode));
+      const codes = languages.map(lang => lang.languageCode);
+      setSelectedLanguages(codes);
+      setServerLanguages(codes); // baseline
     } catch (err) {
       console.error('Error fetching interpreter languages:', err);
     }
   }, [user.empCode]);
 
+  // Fetch current admin scopes
+  const fetchCurrentAdminScopes = useCallback(async () => {
+    try {
+      const res = await fetch('/api/admin-vision/list', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adminEmpCode: user.empCode }),
+        cache: 'no-store'
+      });
+      if (!res.ok) return;
+      const scopes: AdminScope[] = await res.json();
+      const scopePaths = scopes.map(scope => scope.deptPath);
+      setSelectedScopes(scopePaths);
+      setServerScopes(scopePaths); // baseline
+    } catch (err) {
+      console.error('Error fetching admin scopes:', err);
+    }
+  }, [user.empCode]);
+
   // Save interpreter languages
   const saveInterpreterLanguages = async (languageCodes: string[]) => {
-    const promises = [];
-    
-    // Remove languages that are no longer selected
-    const currentLanguages = user.languages || [];
-    const toRemove = currentLanguages
-      .filter(lang => !languageCodes.includes(lang.languageCode))
-      .map(lang => lang.languageCode);
-    
-    for (const langCode of toRemove) {
-      promises.push(
-        fetch(`/api/interpreter-language?empCode=${encodeURIComponent(user.empCode)}&languageCode=${encodeURIComponent(langCode)}`, {
+    const toRemove = serverLanguages.filter(code => !languageCodes.includes(code));
+    const toAdd = languageCodes.filter(code => !serverLanguages.includes(code));
+
+    const jobs: Promise<Response>[] = [];
+
+    for (const code of toRemove) {
+      jobs.push(
+        fetch(`/api/interpreter-language?empCode=${encodeURIComponent(user.empCode)}&languageCode=${encodeURIComponent(code)}`, {
           method: 'DELETE',
           cache: 'no-store'
         })
       );
     }
     
-    // Add new languages
-    const toAdd = languageCodes.filter(langCode => 
-      !currentLanguages.some(lang => lang.languageCode === langCode)
-    );
-    
-    for (const langCode of toAdd) {
-      promises.push(
+    for (const code of toAdd) {
+      jobs.push(
         fetch('/api/interpreter-language', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ 
             empCode: user.empCode, 
-            languageCode: langCode 
+            languageCode: code 
           }),
           cache: 'no-store'
         })
       );
     }
     
-    await Promise.all(promises);
+    await Promise.all(jobs);
+    setServerLanguages(languageCodes); // update baseline
+  };
+
+  // Save admin scopes
+  const saveAdminScopes = async (scopePaths: string[]) => {
+    const toRemove = serverScopes.filter(s => !scopePaths.includes(s));
+    const toAdd = scopePaths.filter(s => !serverScopes.includes(s));
+
+    const jobs: Promise<Response>[] = [];
+
+    for (const scope of toRemove) {
+      jobs.push(
+        fetch('/api/admin-vision', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            adminEmpCode: user.empCode, 
+            deptPath: scope 
+          }),
+          cache: 'no-store'
+        })
+      );
+    }
+    
+    for (const scope of toAdd) {
+      jobs.push(
+        fetch('/api/admin-vision', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            adminEmpCode: user.empCode, 
+            deptPath: scope 
+          }),
+          cache: 'no-store'
+        })
+      );
+    }
+    
+    await Promise.all(jobs);
+    setServerScopes(scopePaths); // update baseline
   };
 
   // ยิง PUT ไป API (กัน html/404, กัน cache dev)
@@ -153,18 +231,23 @@ const saveRolesViaAPI = async (nextRoles: Role[]) => {
       setRoles(user.roles ?? []);
       // Load languages when dialog opens
       fetchLanguages();
-      // Load current interpreter languages if user is already an interpreter
-      if (user.roles?.includes('INTERPRETER')) {
-        fetchInterpreterLanguages();
-      } else {
-        setSelectedLanguages([]);
-      }
+      // Load admin scopes when dialog opens
+      fetchAdminScopes();
+      // Always load current assignments (even if user is not admin/interpreter now)
+      fetchInterpreterLanguages();
+      fetchCurrentAdminScopes();
     }
-  }, [open, user, fetchInterpreterLanguages]);
+  }, [open, user, fetchInterpreterLanguages, fetchCurrentAdminScopes]);
 
   // ใช้เปรียบเทียบก่อน/หลัง
   const initial = useMemo(() => JSON.stringify(user.roles ?? []), [user]);
-  const dirty = useMemo(() => JSON.stringify(roles) !== initial, [roles, initial]);
+  
+  const dirty = useMemo(() => {
+    const rolesChanged = JSON.stringify(roles) !== initial;
+    const languagesChanged = JSON.stringify(selectedLanguages) !== JSON.stringify(serverLanguages);
+    const scopesChanged = JSON.stringify(selectedScopes) !== JSON.stringify(serverScopes);
+    return rolesChanged || languagesChanged || scopesChanged;
+  }, [roles, initial, selectedLanguages, serverLanguages, selectedScopes, serverScopes]);
 
   const toggleRole = (role: Role) => {
     setRoles((prev) => {
@@ -172,14 +255,8 @@ const saveRolesViaAPI = async (nextRoles: Role[]) => {
         ? prev.filter((r) => r !== role) 
         : [...prev, role];
       
-      // If removing INTERPRETER role, clear selected languages
-      if (role === 'INTERPRETER' && !newRoles.includes('INTERPRETER')) {
-        setSelectedLanguages([]);
-      }
-      // If adding INTERPRETER role, load current languages
-      else if (role === 'INTERPRETER' && newRoles.includes('INTERPRETER')) {
-        fetchInterpreterLanguages();
-      }
+      // Don't clear lists when toggling roles - we need them for cleanup on save
+      // The UI will hide/show sections based on roles, but data stays for proper diff
       
       return newRoles;
     });
@@ -190,6 +267,20 @@ const saveRolesViaAPI = async (nextRoles: Role[]) => {
     try {
       setSaving(true);
       setError(null);
+
+      // Validation: Admin role must have at least one scope
+      if (roles.includes('ADMIN') && selectedScopes.length === 0) {
+        setError('Admin role must have at least one department scope selected');
+        setSaving(false);
+        return;
+      }
+
+      // Validation: Interpreter role must have at least one language
+      if (roles.includes('INTERPRETER') && selectedLanguages.length === 0) {
+        setError('Interpreter role must have at least one language selected');
+        setSaving(false);
+        return;
+      }
 
       // Save roles first
       if (onSave) {
@@ -203,6 +294,44 @@ const saveRolesViaAPI = async (nextRoles: Role[]) => {
       // Save interpreter languages if INTERPRETER role is selected
       if (roles.includes('INTERPRETER')) {
         await saveInterpreterLanguages(selectedLanguages);
+      } else {
+        // Remove all interpreter languages currently on server
+        if (serverLanguages.length) {
+          await Promise.all(
+            serverLanguages.map(code =>
+              fetch(`/api/interpreter-language?empCode=${encodeURIComponent(user.empCode)}&languageCode=${encodeURIComponent(code)}`, {
+                method: 'DELETE',
+                cache: 'no-store'
+              })
+            )
+          );
+          setServerLanguages([]);
+          setSelectedLanguages([]);
+        }
+      }
+
+      // Save admin scopes if ADMIN role is selected, or clear them if removed
+      if (roles.includes('ADMIN')) {
+        await saveAdminScopes(selectedScopes);
+      } else {
+        // If ADMIN role was removed, clear all admin scopes
+        if (serverScopes.length) {
+          await Promise.all(
+            serverScopes.map(scope =>
+              fetch('/api/admin-vision', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                  adminEmpCode: user.empCode, 
+                  deptPath: scope 
+                }),
+                cache: 'no-store'
+              })
+            )
+          );
+          setServerScopes([]);
+          setSelectedScopes([]);
+        }
       }
 
       setOpen(false);
@@ -304,9 +433,10 @@ const saveRolesViaAPI = async (nextRoles: Role[]) => {
               <div className="flex items-center gap-2">
                 <Globe className="h-4 w-4 text-muted-foreground" />
                 <Label className="text-sm font-medium">Languages</Label>
+                <span className="text-xs text-red-500">*</span>
               </div>
               <div className="text-xs text-muted-foreground mb-2">
-                Select languages this interpreter can translate
+                Select languages this interpreter can translate (required)
               </div>
               
               {loadingLanguages ? (
@@ -347,6 +477,58 @@ const saveRolesViaAPI = async (nextRoles: Role[]) => {
                       </Badge>
                     );
                   })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Admin Scope Selection for ADMIN role */}
+          {roles.includes('ADMIN') && (
+            <div className="mt-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <Eye className="h-4 w-4 text-muted-foreground" />
+                <Label className="text-sm font-medium">Admin Scope</Label>
+                <span className="text-xs text-red-500">*</span>
+              </div>
+              <div className="text-xs text-muted-foreground mb-2">
+                Select departments this admin can manage (required)
+              </div>
+              
+              {loadingScopes ? (
+                <div className="text-sm text-muted-foreground">Loading scopes...</div>
+              ) : availableScopes.length === 0 ? (
+                <div className="text-sm text-muted-foreground">No scopes available</div>
+              ) : (
+                <div className="space-y-2 max-h-32 overflow-y-auto">
+                  {availableScopes.map((scope) => (
+                    <label
+                      key={scope}
+                      className="flex items-center gap-2 p-2 rounded border hover:bg-muted/50 transition cursor-pointer"
+                    >
+                      <Checkbox
+                        checked={selectedScopes.includes(scope)}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setSelectedScopes(prev => [...prev, scope]);
+                          } else {
+                            setSelectedScopes(prev => prev.filter(s => s !== scope));
+                          }
+                        }}
+                        className="h-4 w-4"
+                      />
+                      <span className="text-sm">{scope}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+              
+              {selectedScopes.length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-2">
+                  {selectedScopes.map((scope) => (
+                    <Badge key={scope} variant="secondary" className="text-xs">
+                      {scope}
+                    </Badge>
+                  ))}
                 </div>
               )}
             </div>
