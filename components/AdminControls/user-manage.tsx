@@ -407,6 +407,7 @@ export default function UsersManagement() {
                             name: `${u.firstNameEn ?? ""} ${u.lastNameEn ?? ""}`.trim() || u.empCode,
                             email: u.email ?? "",
                             roles: (u.roles ?? []) as Role[],
+                            languages: [], // Will be fetched by the dialog
                           }}
                           onSave={(roles) => saveUserRoles(u.id, roles)}
                           trigger={

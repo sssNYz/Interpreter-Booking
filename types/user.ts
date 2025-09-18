@@ -27,6 +27,21 @@ export interface UserSummary {
   name: string;
   email?: string;
   roles: Role[];
+  languages?: InterpreterLanguage[];
+}
+
+export interface InterpreterLanguage {
+  id: number;
+  empCode: string;
+  languageCode: string;
+  languageName: string;
+}
+
+export interface Language {
+  id: number;
+  code: string;
+  name: string;
+  isActive: boolean;
 }
 
 // --- เพิ่มลงไปใน '@/types/user.ts' ---
