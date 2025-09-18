@@ -15,6 +15,7 @@ import {
   Settings,
   Cog,
   Star,
+  Languages,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -33,6 +34,7 @@ const adminItems = [
   { title: "Bookings management", url: "/AdminPage/booking-manage-page", icon: Inbox },
   { title: "Interpreters management", url: "/AdminPage/interpreter-manage-page", icon: CalendarIcon },
   { title: "User management", url: "/AdminPage/user-manage-page", icon: Settings },
+  { title: "Language management", url: "/AdminPage/language-manage-page", icon: Languages },
   { title: "Auto-Assignment Config", url: "/AdminPage/auto-assign-config", icon: Cog },
 ]
 
