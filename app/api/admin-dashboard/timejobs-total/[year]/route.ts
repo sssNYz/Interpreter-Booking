@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/prisma/prisma";
+import { cookies } from "next/headers";
+import { SESSION_COOKIE_NAME, verifySessionCookieValue } from "@/lib/auth/session";
+import { centerPart } from "@/utils/users";
 
 // Use your shared types
 import {
@@ -38,7 +41,7 @@ export async function GET(
     const dateRange = createDateRange(yearNum);
 
     // Fetch minimal fields needed for aggregation
-    const records = await prisma.bookingPlan.findMany({
+    const recordsRaw = await prisma.bookingPlan.findMany({
       where: {
         timeStart: { gte: dateRange.start, lt: dateRange.end },
         interpreterEmpCode: { not: null },
@@ -51,11 +54,36 @@ export async function GET(
         timeStart: true,
         timeEnd: true,
         interpreterEmpCode: true,
+        employee: { select: { deptPath: true } },
         interpreterEmployee: {
           select: { firstNameEn: true, lastNameEn: true, empCode: true },
         },
       },
     });
+
+    // Vision filter (admin)
+    const cookieStore = await cookies();
+    const cookieValue = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+    const parsed = verifySessionCookieValue(cookieValue);
+    let records = recordsRaw;
+    if (parsed) {
+      const me = await prisma.employee.findUnique({
+        where: { empCode: parsed.empCode },
+        include: { userRoles: true, adminVisions: true },
+      });
+      const roles = me?.userRoles?.map(r => r.roleCode) ?? [];
+      const isSuper = roles.includes("SUPER_ADMIN");
+      const isAdmin = roles.includes("ADMIN") || isSuper;
+      if (isAdmin && !isSuper) {
+        const myCenter = centerPart(me?.deptPath ?? null);
+        const adminCenters = (me?.adminVisions ?? []).map(v => centerPart(v.deptPath)).filter((x): x is string => Boolean(x));
+        const allow = new Set(adminCenters.length ? adminCenters : (myCenter ? [myCenter] : []));
+        records = recordsRaw.filter(r => {
+          const c = centerPart(r.employee?.deptPath ?? null);
+          return c && allow.has(c);
+        });
+      }
+    }
 
     // Get all active interpreters for the year using consolidated utility
     const activeInterpreters = await fetchActiveInterpreters(prisma, dateRange);
