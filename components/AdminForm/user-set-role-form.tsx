@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, useCallback, type ReactNode } from "react";
 import {
   Dialog,
   DialogTrigger,
@@ -15,9 +15,10 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
-import { Shield, Languages, Info } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import { Shield, Languages, Info, Globe } from "lucide-react";
 
-import type { Role, UserSummary } from "@/types/user";
+import type { Role, UserSummary, Language, InterpreterLanguage } from "@/types/user";
 
 interface UserRoleDialogProps {
   user: UserSummary;
@@ -47,6 +48,82 @@ export function UserRoleDialog({ user, onSave, trigger }: UserRoleDialogProps) {
   const [roles, setRoles] = useState<Role[]>(user.roles ?? []);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Language selection state
+  const [availableLanguages, setAvailableLanguages] = useState<Language[]>([]);
+  const [selectedLanguages, setSelectedLanguages] = useState<string[]>([]);
+  const [loadingLanguages, setLoadingLanguages] = useState(false);
+
+  // Fetch available languages
+  const fetchLanguages = async () => {
+    try {
+      setLoadingLanguages(true);
+      const res = await fetch('/api/language', { cache: 'no-store' });
+      if (!res.ok) throw new Error(`Failed to fetch languages (${res.status})`);
+      const languages: Language[] = await res.json();
+      setAvailableLanguages(languages.filter(lang => lang.isActive));
+    } catch (err) {
+      console.error('Error fetching languages:', err);
+      setError('Failed to load languages');
+    } finally {
+      setLoadingLanguages(false);
+    }
+  };
+
+  // Fetch current interpreter languages
+  const fetchInterpreterLanguages = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/interpreter-language?empCode=${encodeURIComponent(user.empCode)}`, { 
+        cache: 'no-store' 
+      });
+      if (!res.ok) return;
+      const languages: InterpreterLanguage[] = await res.json();
+      setSelectedLanguages(languages.map(lang => lang.languageCode));
+    } catch (err) {
+      console.error('Error fetching interpreter languages:', err);
+    }
+  }, [user.empCode]);
+
+  // Save interpreter languages
+  const saveInterpreterLanguages = async (languageCodes: string[]) => {
+    const promises = [];
+    
+    // Remove languages that are no longer selected
+    const currentLanguages = user.languages || [];
+    const toRemove = currentLanguages
+      .filter(lang => !languageCodes.includes(lang.languageCode))
+      .map(lang => lang.languageCode);
+    
+    for (const langCode of toRemove) {
+      promises.push(
+        fetch(`/api/interpreter-language?empCode=${encodeURIComponent(user.empCode)}&languageCode=${encodeURIComponent(langCode)}`, {
+          method: 'DELETE',
+          cache: 'no-store'
+        })
+      );
+    }
+    
+    // Add new languages
+    const toAdd = languageCodes.filter(langCode => 
+      !currentLanguages.some(lang => lang.languageCode === langCode)
+    );
+    
+    for (const langCode of toAdd) {
+      promises.push(
+        fetch('/api/interpreter-language', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            empCode: user.empCode, 
+            languageCode: langCode 
+          }),
+          cache: 'no-store'
+        })
+      );
+    }
+    
+    await Promise.all(promises);
+  };
 
   // ยิง PUT ไป API (กัน html/404, กัน cache dev)
 const saveRolesViaAPI = async (nextRoles: Role[]) => {
@@ -72,17 +149,40 @@ const saveRolesViaAPI = async (nextRoles: Role[]) => {
 
   // reset ค่า roles ทุกครั้งที่เปิด dialog หรือ user เปลี่ยน
   useEffect(() => {
-    if (open) setRoles(user.roles ?? []);
-  }, [open, user]);
+    if (open) {
+      setRoles(user.roles ?? []);
+      // Load languages when dialog opens
+      fetchLanguages();
+      // Load current interpreter languages if user is already an interpreter
+      if (user.roles?.includes('INTERPRETER')) {
+        fetchInterpreterLanguages();
+      } else {
+        setSelectedLanguages([]);
+      }
+    }
+  }, [open, user, fetchInterpreterLanguages]);
 
   // ใช้เปรียบเทียบก่อน/หลัง
   const initial = useMemo(() => JSON.stringify(user.roles ?? []), [user]);
   const dirty = useMemo(() => JSON.stringify(roles) !== initial, [roles, initial]);
 
   const toggleRole = (role: Role) => {
-    setRoles((prev) =>
-      prev.includes(role) ? prev.filter((r) => r !== role) : [...prev, role]
-    );
+    setRoles((prev) => {
+      const newRoles = prev.includes(role) 
+        ? prev.filter((r) => r !== role) 
+        : [...prev, role];
+      
+      // If removing INTERPRETER role, clear selected languages
+      if (role === 'INTERPRETER' && !newRoles.includes('INTERPRETER')) {
+        setSelectedLanguages([]);
+      }
+      // If adding INTERPRETER role, load current languages
+      else if (role === 'INTERPRETER' && newRoles.includes('INTERPRETER')) {
+        fetchInterpreterLanguages();
+      }
+      
+      return newRoles;
+    });
   };
 
   // กด Save -> ใช้ onSave ถ้ามี, ไม่งั้นยิง API เอง
@@ -91,12 +191,18 @@ const saveRolesViaAPI = async (nextRoles: Role[]) => {
       setSaving(true);
       setError(null);
 
+      // Save roles first
       if (onSave) {
         await onSave(roles);
       } else {
         const data = await saveRolesViaAPI(roles);
         // ถ้า API คืน roles มาก็ sync state ให้ตรง
         if (Array.isArray(data?.roles)) setRoles(data.roles as Role[]);
+      }
+
+      // Save interpreter languages if INTERPRETER role is selected
+      if (roles.includes('INTERPRETER')) {
+        await saveInterpreterLanguages(selectedLanguages);
       }
 
       setOpen(false);
@@ -191,6 +297,60 @@ const saveRolesViaAPI = async (nextRoles: Role[]) => {
               </label>
             );
           })}
+
+          {/* Language Selection for INTERPRETER role */}
+          {roles.includes('INTERPRETER') && (
+            <div className="mt-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <Globe className="h-4 w-4 text-muted-foreground" />
+                <Label className="text-sm font-medium">Languages</Label>
+              </div>
+              <div className="text-xs text-muted-foreground mb-2">
+                Select languages this interpreter can translate
+              </div>
+              
+              {loadingLanguages ? (
+                <div className="text-sm text-muted-foreground">Loading languages...</div>
+              ) : availableLanguages.length === 0 ? (
+                <div className="text-sm text-muted-foreground">No languages available</div>
+              ) : (
+                <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto">
+                  {availableLanguages.map((language) => (
+                    <label
+                      key={language.id}
+                      className="flex items-center gap-2 p-2 rounded border hover:bg-muted/50 transition cursor-pointer"
+                    >
+                      <Checkbox
+                        checked={selectedLanguages.includes(language.code)}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setSelectedLanguages(prev => [...prev, language.code]);
+                          } else {
+                            setSelectedLanguages(prev => prev.filter(code => code !== language.code));
+                          }
+                        }}
+                        className="h-4 w-4"
+                      />
+                      <span className="text-sm">{language.name}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+              
+              {selectedLanguages.length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-2">
+                  {selectedLanguages.map((langCode) => {
+                    const language = availableLanguages.find(lang => lang.code === langCode);
+                    return (
+                      <Badge key={langCode} variant="secondary" className="text-xs">
+                        {language?.name || langCode}
+                      </Badge>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
 
           {error && (
             <div className="mt-1 flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
