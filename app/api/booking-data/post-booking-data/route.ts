@@ -647,7 +647,8 @@ import type { RunResult } from "@/types/assignment";
             INSERT INTO BOOKING_PLAN (
               \`OWNER_GROUP\`, \`MEETING_ROOM\`, \`MEETING_DETAIL\`, \`TIME_START\`, \`TIME_END\`, \`BOOKING_STATUS\`, \`created_at\`, \`updated_at\`,
               \`DR_TYPE\`, \`OTHER_TYPE\`, \`OTHER_TYPE_SCOPE\`, \`APPLICABLE_MODEL\`, \`INTERPRETER_EMP_CODE\`, \`IS_RECURRING\`, \`MEETING_TYPE\`, \`OWNER_EMP_CODE\`,
-              \`RECURRENCE_END_DATE\`, \`RECURRENCE_END_OCCURRENCES\`, \`RECURRENCE_END_TYPE\`, \`RECURRENCE_INTERVAL\`, \`RECURRENCE_MONTHDAY\`, \`RECURRENCE_TYPE\`, \`RECURRENCE_WEEKDAYS\`, \`RECURRENCE_WEEK_ORDER\`
+              \`RECURRENCE_END_DATE\`, \`RECURRENCE_END_OCCURRENCES\`, \`RECURRENCE_END_TYPE\`, \`RECURRENCE_INTERVAL\`, \`RECURRENCE_MONTHDAY\`, \`RECURRENCE_TYPE\`, \`RECURRENCE_WEEKDAYS\`, \`RECURRENCE_WEEK_ORDER\`,
+              \`FORWARD_ACTIONS\`
             ) VALUES (
               ${body.ownerGroup}, ${body.meetingRoom.trim()}, ${body.meetingDetail ?? null}, ${timeStart}, ${timeEnd}, ${
               body.bookingStatus || BookingStatus.waiting
@@ -659,7 +660,8 @@ import type { RunResult } from "@/types/assignment";
               body.recurrenceInterval ?? null
             }, ${body.recurrenceMonthday ?? null}, ${body.recurrenceType ?? null}, ${
               body.recurrenceWeekdays ?? null
-            }, ${body.recurrenceWeekOrder ?? null}
+            }, ${body.recurrenceWeekOrder ?? null},
+              '[]'
             )
           `;
             const inserted = await tx.$queryRaw<
@@ -727,7 +729,8 @@ import type { RunResult } from "@/types/assignment";
                 await tx.$executeRaw`
                 INSERT INTO BOOKING_PLAN (
                   \`OWNER_GROUP\`, \`MEETING_ROOM\`, \`MEETING_DETAIL\`, \`TIME_START\`, \`TIME_END\`, \`BOOKING_STATUS\`, \`created_at\`, \`updated_at\`,
-                  \`DR_TYPE\`, \`OTHER_TYPE\`, \`OTHER_TYPE_SCOPE\`, \`APPLICABLE_MODEL\`, \`INTERPRETER_EMP_CODE\`, \`IS_RECURRING\`, \`MEETING_TYPE\`, \`OWNER_EMP_CODE\`, \`PARENT_BOOKING_ID\`
+                  \`DR_TYPE\`, \`OTHER_TYPE\`, \`OTHER_TYPE_SCOPE\`, \`APPLICABLE_MODEL\`, \`INTERPRETER_EMP_CODE\`, \`IS_RECURRING\`, \`MEETING_TYPE\`, \`OWNER_EMP_CODE\`, \`PARENT_BOOKING_ID\`,
+                  \`FORWARD_ACTIONS\`
                 ) VALUES (
                   ${body.ownerGroup}, ${body.meetingRoom.trim()}, ${body.meetingDetail ?? null}, ${
                   o.timeStart
@@ -736,7 +739,8 @@ import type { RunResult } from "@/types/assignment";
                 }, NOW(), NOW(),
                   ${body.drType ?? null}, ${body.otherType ?? null}, ${body.otherTypeScope ?? null}, ${body.applicableModel ?? null}, ${body.interpreterEmpCode ?? null}, ${body.isRecurring ? 1 : 0}, ${
                   body.meetingType ?? null
-                }, ${body.ownerEmpCode.trim()}, ${bookingId}
+                }, ${body.ownerEmpCode.trim()}, ${bookingId},
+                  '[]'
                 )
               `;
                 // copy invite emails if any
