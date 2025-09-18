@@ -1,0 +1,451 @@
+'use client';
+
+import React, { useState, useEffect } from "react";
+import { Languages, Plus, Edit3, Trash2, Search, Check, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Switch } from "@/components/ui/switch";
+import { toast } from "sonner";
+
+// Types
+interface Language {
+  id: number;
+  code: string;
+  name: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface LanguageFormData {
+  code: string;
+  name: string;
+  isActive: boolean;
+}
+
+// Constants for styling
+const THEME = {
+  page: "min-h-screen bg-[#f7f7f7] font-sans text-gray-900",
+  card: "shadow-sm rounded-xl",
+  headerCell: "bg-gray-100 text-gray-700",
+  row: "border-b",
+  badgeBase: "px-3 py-1 rounded-full text-xs font-medium",
+} as const;
+
+// Language Management Component
+export default function LanguageManagement() {
+  // Data state
+  const [languages, setLanguages] = useState<Language[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
+  
+  // Dialog state
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editingLanguage, setEditingLanguage] = useState<Language | null>(null);
+  
+  // Form state
+  const [formData, setFormData] = useState<LanguageFormData>({
+    code: "",
+    name: "",
+    isActive: true,
+  });
+
+  // Load languages on component mount
+  useEffect(() => {
+    loadLanguages();
+  }, []);
+
+  // Load languages from API
+  const loadLanguages = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch('/api/language');
+      if (!response.ok) {
+        throw new Error('Failed to load languages');
+      }
+      const data = await response.json();
+      setLanguages(data);
+    } catch (error) {
+      console.error('Error loading languages:', error);
+      toast.error('Failed to load languages');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Filter languages based on search term
+  const filteredLanguages = languages.filter(lang =>
+    lang.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    lang.code.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  // Handle form input changes
+  const handleInputChange = (field: keyof LanguageFormData, value: string | boolean) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  // Reset form
+  const resetForm = () => {
+    setFormData({
+      code: "",
+      name: "",
+      isActive: true,
+    });
+  };
+
+  // Handle add language
+  const handleAddLanguage = async () => {
+    try {
+      if (!formData.code.trim() || !formData.name.trim()) {
+        toast.error('Code and name are required');
+        return;
+      }
+
+      const response = await fetch('/api/language', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to add language');
+      }
+
+      toast.success('Language added successfully');
+      setIsAddDialogOpen(false);
+      resetForm();
+      loadLanguages();
+    } catch (error: any) {
+      console.error('Error adding language:', error);
+      toast.error(error.message || 'Failed to add language');
+    }
+  };
+
+  // Handle edit language
+  const handleEditLanguage = async () => {
+    try {
+      if (!editingLanguage || !formData.code.trim() || !formData.name.trim()) {
+        toast.error('Code and name are required');
+        return;
+      }
+
+      const response = await fetch('/api/language', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          id: editingLanguage.id,
+          ...formData,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to update language');
+      }
+
+      toast.success('Language updated successfully');
+      setIsEditDialogOpen(false);
+      setEditingLanguage(null);
+      resetForm();
+      loadLanguages();
+    } catch (error: any) {
+      console.error('Error updating language:', error);
+      toast.error(error.message || 'Failed to update language');
+    }
+  };
+
+  // Handle delete language
+  const handleDeleteLanguage = async (id: number) => {
+    if (!confirm('Are you sure you want to delete this language?')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/language?id=${id}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to delete language');
+      }
+
+      toast.success('Language deleted successfully');
+      loadLanguages();
+    } catch (error: any) {
+      console.error('Error deleting language:', error);
+      toast.error(error.message || 'Failed to delete language');
+    }
+  };
+
+  // Open edit dialog
+  const openEditDialog = (language: Language) => {
+    setEditingLanguage(language);
+    setFormData({
+      code: language.code,
+      name: language.name,
+      isActive: language.isActive,
+    });
+    setIsEditDialogOpen(true);
+  };
+
+  // Stats
+  const totalLanguages = languages.length;
+  const activeLanguages = languages.filter(lang => lang.isActive).length;
+  const inactiveLanguages = totalLanguages - activeLanguages;
+
+  return (
+    <div className={THEME.page}>
+      {/* Header */}
+      <div className="border-b bg-white border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
+            <div className="flex items-center space-x-3">
+              <div className="bg-gray-900 text-white rounded-full p-2">
+                <Languages className="h-5 w-5" />
+              </div>
+              <div>
+                <h1 className="text-xl font-semibold text-gray-900">Language Management</h1>
+                <p className="text-sm text-gray-500">Manage system languages • Add, edit, and remove languages</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <Card className={THEME.card}>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-gray-600">Total Languages</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-gray-900">{totalLanguages}</div>
+            </CardContent>
+          </Card>
+          <Card className={THEME.card}>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-gray-600">Active Languages</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-green-600">{activeLanguages}</div>
+            </CardContent>
+          </Card>
+          <Card className={THEME.card}>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-gray-600">Inactive Languages</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-red-600">{inactiveLanguages}</div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Controls */}
+        <Card className={THEME.card}>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle>Languages</CardTitle>
+              <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button onClick={resetForm} className="flex items-center gap-2">
+                    <Plus className="h-4 w-4" />
+                    Add Language
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Add New Language</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div>
+                      <Label htmlFor="code">Language Code</Label>
+                      <Input
+                        id="code"
+                        value={formData.code}
+                        onChange={(e) => handleInputChange('code', e.target.value)}
+                        placeholder="e.g., EN, JP, TH"
+                        className="uppercase"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="name">Language Name</Label>
+                      <Input
+                        id="name"
+                        value={formData.name}
+                        onChange={(e) => handleInputChange('name', e.target.value)}
+                        placeholder="e.g., English, Japanese, Thai"
+                      />
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Switch
+                        id="isActive"
+                        checked={formData.isActive}
+                        onCheckedChange={(checked) => handleInputChange('isActive', checked)}
+                      />
+                      <Label htmlFor="isActive">Active</Label>
+                    </div>
+                    <div className="flex justify-end space-x-2">
+                      <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+                        Cancel
+                      </Button>
+                      <Button onClick={handleAddLanguage}>
+                        Add Language
+                      </Button>
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {/* Search */}
+            <div className="mb-4">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                <Input
+                  placeholder="Search languages..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+            </div>
+
+            {/* Languages Table */}
+            <div className="border rounded-lg">
+              <Table>
+                <TableHeader>
+                  <TableRow className={THEME.headerCell}>
+                    <TableHead>Code</TableHead>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Created</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {loading ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center py-8">
+                        Loading languages...
+                      </TableCell>
+                    </TableRow>
+                  ) : filteredLanguages.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center py-8">
+                        No languages found
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredLanguages.map((language) => (
+                      <TableRow key={language.id} className={THEME.row}>
+                        <TableCell className="font-medium">{language.code}</TableCell>
+                        <TableCell>{language.name}</TableCell>
+                        <TableCell>
+                          <Badge
+                            className={`${THEME.badgeBase} ${
+                              language.isActive
+                                ? 'bg-green-100 text-green-800'
+                                : 'bg-red-100 text-red-800'
+                            }`}
+                          >
+                            {language.isActive ? 'Active' : 'Inactive'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {new Date(language.createdAt).toLocaleDateString()}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end space-x-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => openEditDialog(language)}
+                            >
+                              <Edit3 className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleDeleteLanguage(language.id)}
+                              className="text-red-600 hover:text-red-700"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Edit Dialog */}
+        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Edit Language</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="edit-code">Language Code</Label>
+                <Input
+                  id="edit-code"
+                  value={formData.code}
+                  onChange={(e) => handleInputChange('code', e.target.value)}
+                  placeholder="e.g., EN, JP, TH"
+                  className="uppercase"
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-name">Language Name</Label>
+                <Input
+                  id="edit-name"
+                  value={formData.name}
+                  onChange={(e) => handleInputChange('name', e.target.value)}
+                  placeholder="e.g., English, Japanese, Thai"
+                />
+              </div>
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="edit-isActive"
+                  checked={formData.isActive}
+                  onCheckedChange={(checked) => handleInputChange('isActive', checked)}
+                />
+                <Label htmlFor="edit-isActive">Active</Label>
+              </div>
+              <div className="flex justify-end space-x-2">
+                <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleEditLanguage}>
+                  Update Language
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
+    </div>
+  );
+}
