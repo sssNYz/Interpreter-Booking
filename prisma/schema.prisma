@@ -306,7 +306,7 @@ model SystemErrorLog {
 }
 
 enum DRType {
-  PR_PR @map("PR-PR")
+  DR_PR @map("DR-PR")
   DR_k  @map("DR-k")
   DR_II @map("DR-II")
   DR_I  @map("DR-I")
@@ -375,4 +375,5 @@ enum WeekOrder {
 enum RoleCode {
   ADMIN
   INTERPRETER
+  SUPER_ADMIN
 }

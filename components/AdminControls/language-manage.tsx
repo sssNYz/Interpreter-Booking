@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from "react";
-import { Languages, Plus, Edit3, Trash2, Search, Check, X } from "lucide-react";
+import { Languages, Plus, Edit3, Trash2, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -43,6 +43,7 @@ export default function LanguageManagement() {
   const [languages, setLanguages] = useState<Language[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
   
   // Dialog state
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -79,11 +80,17 @@ export default function LanguageManagement() {
     }
   };
 
-  // Filter languages based on search term
-  const filteredLanguages = languages.filter(lang =>
-    lang.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    lang.code.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Filter languages based on search term and status
+  const filteredLanguages = languages
+    .filter(lang =>
+      lang.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      lang.code.toLowerCase().includes(searchTerm.toLowerCase())
+    )
+    .filter(lang => {
+      if (statusFilter === 'all') return true;
+      if (statusFilter === 'active') return lang.isActive;
+      return !lang.isActive;
+    });
 
   // Handle form input changes
   const handleInputChange = (field: keyof LanguageFormData, value: string | boolean) => {
@@ -127,9 +134,10 @@ export default function LanguageManagement() {
       setIsAddDialogOpen(false);
       resetForm();
       loadLanguages();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error adding language:', error);
-      toast.error(error.message || 'Failed to add language');
+      const message = error instanceof Error ? error.message : 'Failed to add language';
+      toast.error(message);
     }
   };
 
@@ -162,9 +170,32 @@ export default function LanguageManagement() {
       setEditingLanguage(null);
       resetForm();
       loadLanguages();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error updating language:', error);
-      toast.error(error.message || 'Failed to update language');
+      const message = error instanceof Error ? error.message : 'Failed to update language';
+      toast.error(message);
+    }
+  };
+
+  // Quick toggle active state from the table
+  const handleToggleActive = async (language: Language) => {
+    try {
+      const response = await fetch('/api/language', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: language.id, isActive: !language.isActive }),
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to update status');
+      }
+      // Optimistic update
+      setLanguages(prev => prev.map(l => l.id === language.id ? { ...l, isActive: !l.isActive } : l));
+      toast.success(`Language ${!language.isActive ? 'activated' : 'deactivated'}`);
+    } catch (error: unknown) {
+      console.error('Error toggling language status:', error);
+      const message = error instanceof Error ? error.message : 'Failed to update status';
+      toast.error(message);
     }
   };
 
@@ -186,9 +217,10 @@ export default function LanguageManagement() {
 
       toast.success('Language deleted successfully');
       loadLanguages();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error deleting language:', error);
-      toast.error(error.message || 'Failed to delete language');
+      const message = error instanceof Error ? error.message : 'Failed to delete language';
+      toast.error(message);
     }
   };
 
@@ -317,14 +349,21 @@ export default function LanguageManagement() {
           <CardContent>
             {/* Search */}
             <div className="mb-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                <Input
-                  placeholder="Search languages..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div className="relative md:w-1/2">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                  <Input
+                    placeholder="Search languages..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button variant={statusFilter === 'all' ? 'default' : 'outline'} onClick={() => setStatusFilter('all')}>All</Button>
+                  <Button variant={statusFilter === 'active' ? 'default' : 'outline'} onClick={() => setStatusFilter('active')}>Active</Button>
+                  <Button variant={statusFilter === 'inactive' ? 'default' : 'outline'} onClick={() => setStatusFilter('inactive')}>Inactive</Button>
+                </div>
               </div>
             </div>
 
@@ -374,6 +413,11 @@ export default function LanguageManagement() {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end space-x-2">
+                            <Switch
+                              checked={language.isActive}
+                              onCheckedChange={() => handleToggleActive(language)}
+                              aria-label="Toggle active"
+                            />
                             <Button
                               variant="outline"
                               size="sm"
@@ -426,14 +470,7 @@ export default function LanguageManagement() {
                   placeholder="e.g., English, Japanese, Thai"
                 />
               </div>
-              <div className="flex items-center space-x-2">
-                <Switch
-                  id="edit-isActive"
-                  checked={formData.isActive}
-                  onCheckedChange={(checked) => handleInputChange('isActive', checked)}
-                />
-                <Label htmlFor="edit-isActive">Active</Label>
-              </div>
+
               <div className="flex justify-end space-x-2">
                 <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
                   Cancel
