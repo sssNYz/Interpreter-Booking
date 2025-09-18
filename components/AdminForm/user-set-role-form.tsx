@@ -36,6 +36,11 @@ const ROLE_META: Record<
     desc: "Full access to manage users and system settings.",
     icon: Shield,
   },
+  SUPER_ADMIN: {
+    label: "SUPER_ADMIN",
+    desc: "System-wide admin with the highest privileges.",
+    icon: Shield,
+  },
   INTERPRETER: {
     label: "INTERPRETER",
     desc: "Can view booking plans and handle interpretation tasks.",
@@ -48,6 +53,7 @@ export function UserRoleDialog({ user, onSave, trigger }: UserRoleDialogProps) {
   const [roles, setRoles] = useState<Role[]>(user.roles ?? []);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isSuper, setIsSuper] = useState(false);
   
   // Language selection state
   const [availableLanguages, setAvailableLanguages] = useState<Language[]>([]);
@@ -62,6 +68,19 @@ export function UserRoleDialog({ user, onSave, trigger }: UserRoleDialogProps) {
   // Server baseline state (what's currently on the server)
   const [serverLanguages, setServerLanguages] = useState<string[]>([]);
   const [serverScopes, setServerScopes] = useState<string[]>([]);
+
+  // Who am I
+  useEffect(() => {
+    let alive = true;
+    fetch('/api/user/me', { cache: 'no-store' })
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (!alive) return;
+        const myRoles: string[] = data?.user?.roles || [];
+        setIsSuper(myRoles.includes('SUPER_ADMIN'));
+      }).catch(() => setIsSuper(false));
+    return () => { alive = false };
+  }, []);
 
   // Fetch available languages
   const fetchLanguages = async () => {
@@ -79,8 +98,9 @@ export function UserRoleDialog({ user, onSave, trigger }: UserRoleDialogProps) {
     }
   };
 
-  // Fetch available admin scopes
+  // Fetch available admin scopes (super admin only)
   const fetchAdminScopes = async () => {
+    if (!isSuper) return; // only super admin can manage scopes
     try {
       setLoadingScopes(true);
       const res = await fetch('/api/admin-vision/options', { cache: 'no-store' });
@@ -401,7 +421,13 @@ const saveRolesViaAPI = async (nextRoles: Role[]) => {
 
         {/* Body: role options */}
         <div className="px-6 py-4 space-y-3">
-          {(Object.keys(ROLE_META) as Role[]).map((r) => {
+          {(Object.keys(ROLE_META) as Role[])
+            .filter((r) => {
+              // Admins (non-super) cannot see ADMIN/SUPER_ADMIN toggles
+              if (!isSuper && (r === 'ADMIN' || r === 'SUPER_ADMIN')) return false;
+              return true;
+            })
+            .map((r) => {
             const Meta = ROLE_META[r];
             const Icon = Meta.icon;
             const checked = roles.includes(r);
@@ -482,8 +508,8 @@ const saveRolesViaAPI = async (nextRoles: Role[]) => {
             </div>
           )}
 
-          {/* Admin Scope Selection for ADMIN role */}
-          {roles.includes('ADMIN') && (
+          {/* Admin Scope Selection for ADMIN role (super admin only) */}
+          {isSuper && roles.includes('ADMIN') && (
             <div className="mt-4 space-y-3">
               <div className="flex items-center gap-2">
                 <Eye className="h-4 w-4 text-muted-foreground" />

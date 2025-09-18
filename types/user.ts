@@ -1,4 +1,4 @@
-export type RoleCode = "ADMIN" | "INTERPRETER";
+export type RoleCode = "ADMIN" | "INTERPRETER" | "SUPER_ADMIN";
 export type RoleFilter = "ALL" | RoleCode;
 export type AnyFilter = "ALL" | string; // Department / Group / Section
 
@@ -18,7 +18,7 @@ export type UserRow = {
 
 export type FilterTree = Record<string, Record<string, string[]>>; // Department → Group → Section
 
-export type Role = "ADMIN" | "INTERPRETER";
+export type Role = "ADMIN" | "INTERPRETER" | "SUPER_ADMIN";
 
 
 export interface UserSummary {
