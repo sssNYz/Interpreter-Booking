@@ -30,7 +30,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const envId = Number(id);
   if (!Number.isFinite(envId)) return NextResponse.json({ ok: false, error: "Bad environment id" }, { status: 400 });
 
-  let body: any;
+  let body: { empCode?: unknown };
   try {
     body = await req.json();
   } catch {
@@ -69,7 +69,7 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
   const envId = Number(id);
   if (!Number.isFinite(envId)) return NextResponse.json({ ok: false, error: "Bad environment id" }, { status: 400 });
 
-  let body: any;
+  let body: { empCode?: unknown };
   try {
     body = await req.json();
   } catch {

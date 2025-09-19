@@ -48,13 +48,17 @@ export async function POST(req: NextRequest) {
   } catch {
     return NextResponse.json({ ok: false, error: "Invalid JSON" }, { status: 400 });
   }
-  const name = typeof (body as any)?.name === "string" ? (body as any).name.trim() : "";
+  let name = "";
+  if (typeof body === "object" && body !== null) {
+    const maybeName = (body as Record<string, unknown>).name;
+    if (typeof maybeName === "string") name = maybeName.trim();
+  }
   if (!name) return NextResponse.json({ ok: false, error: "Missing name" }, { status: 400 });
 
   try {
     const created = await prisma.environment.create({ data: { name } });
     return NextResponse.json({ ok: true, id: created.id, name: created.name });
-  } catch (err: any) {
+  } catch {
     // Unique constraint on name
     return NextResponse.json({ ok: false, error: "Create failed (maybe name exists)" }, { status: 409 });
   }
