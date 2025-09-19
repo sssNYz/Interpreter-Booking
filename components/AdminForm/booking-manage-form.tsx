@@ -110,18 +110,15 @@ async function patchInterpreter(bookingId: number, newInterpreterEmpCode: string
   return res.json() as Promise<PatchInterpreterResponse>;
 }
 
-async function patchStatus(bookingId: number | string, bookingStatus: ApiStatus): Promise<PatchStatusResponse> {
-  const res = await fetch(`/api/booking-data/patch-booking-by-id/${bookingId}`, {
-    method: "PATCH",
+async function adminApprove(bookingId: number, interpreterEmpCode: string, note?: string) {
+  const res = await fetch(`/api/admin/bookings/${bookingId}/approve`, {
+    method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ bookingStatus }),
+    body: JSON.stringify({ interpreterEmpCode, note }),
   });
   if (!res.ok) {
-    let msg = `Failed (${res.status})`;
-    try {
-      const p = await res.json();
-      if (p?.title || p?.detail) msg = `${p.title ?? "Error"}${p.detail ? `: ${p.detail}` : ""}`;
-    } catch {}
+    const j = await res.json().catch(() => null);
+    const msg = typeof j?.message === "string" ? j.message : `Approve failed (${res.status})`;
     throw new Error(msg);
   }
   return res.json();
@@ -296,16 +293,15 @@ const BookingDetailDialog: React.FC<Props> = ({ open, onOpenChange, editData, is
 
       if (!pendingEmpCode) throw new Error("Please select an interpreter first.");
 
-      const res = await patchInterpreter(bookingIdForApi, pendingEmpCode, serverVersion);
-      if ("updatedAt" in res) setServerVersion(res.updatedAt);
-
       if (isWait) {
-        const updated = await patchStatus(bookingIdForApi, "approve");
-        setBooking((prev) => (prev ? { ...prev, status: apiToUi(updated.bookingStatus) } : prev));
+        await adminApprove(bookingIdForApi, pendingEmpCode);
+        setBooking((prev) => (prev ? { ...prev, status: "Approve", interpreter: pendingEmpCode } : prev));
+      } else {
+        const res = await patchInterpreter(bookingIdForApi, pendingEmpCode, serverVersion);
+        if ("updatedAt" in res) setServerVersion(res.updatedAt);
+        setBooking((prev) => (prev ? { ...prev, interpreter: pendingEmpCode } : prev));
       }
 
-      setBooking((prev) => (prev ? { ...prev, interpreter: pendingEmpCode } : prev));
-
       setOpen(false);
       setTimeout(() => onActionComplete?.(), EXIT_MS);
     } catch (e) {
@@ -315,21 +311,7 @@ const BookingDetailDialog: React.FC<Props> = ({ open, onOpenChange, editData, is
     }
   };
 
-  const handleCancel = async () => {
-    if (!booking || bookingIdForApi == null) return;
-    try {
-      if (!confirm("Cancel this booking?")) return;
-      setSubmitting("cancel");
-      const updated = await patchStatus(bookingIdForApi, "cancel");
-      setBooking((prev) => (prev ? { ...prev, status: apiToUi(updated.bookingStatus) } : prev));
-      setOpen(false);
-      setTimeout(() => onActionComplete?.(), EXIT_MS);
-    } catch (e) {
-      alert((e as Error).message);
-    } finally {
-      setSubmitting(null);
-    }
-  };
+  // Note: Cancel is handled as "Reject" from the forwarded list, not here.
 
   return (
     <Dialog open={actualOpen} onOpenChange={setOpen}>
@@ -450,15 +432,7 @@ const BookingDetailDialog: React.FC<Props> = ({ open, onOpenChange, editData, is
                 ? submitting === "approve" ? "Approving..." : "Approve"
                 : submitting === "apply" ? "Applying..." : "Apply"}
             </Button>
-            <Button
-              variant="destructive"
-              className="w-full sm:w-auto sm:min-w-[140px] h-11 text-base"
-              disabled={!bookingIdForApi || submitting !== null}
-              aria-busy={submitting === "cancel"}
-              onClick={handleCancel}
-            >
-              {submitting === "cancel" ? "Cancelling..." : "Cancel Booking"}
-            </Button>
+            {/* Reject/Cancel is managed from forwarded list; no cancel here */}
           </div>
         </div>
       </DialogContent>
