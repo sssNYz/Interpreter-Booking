@@ -31,7 +31,7 @@
 
     const me = await prisma.employee.findUnique({
       where: { empCode: parsed.empCode },
-      include: { userRoles: true, adminVisions: true },
+      include: { userRoles: true },
     });
     const roles = me?.userRoles?.map(r => r.roleCode) ?? [];
     const isSuper = roles.includes("SUPER_ADMIN");
@@ -39,7 +39,24 @@
     if (!isAdmin) return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
 
     const myCenter = centerPart(me?.deptPath ?? null);
-    const adminCenters = (me?.adminVisions ?? []).map(v => centerPart(v.deptPath)).filter((x): x is string => Boolean(x));
+    // Admin env centers (union)
+    let adminEnvCenters: string[] = [];
+    if (roles.includes("ADMIN") || roles.includes("SUPER_ADMIN")) {
+      const envs = await prisma.environmentAdmin.findMany({
+        where: { adminEmpCode: me!.empCode },
+        select: { environment: { select: { centers: { select: { center: true } } } } },
+      });
+      adminEnvCenters = envs.flatMap(e => e.environment.centers.map(c => c.center));
+    }
+    // User env centers
+    let userEnvCenters: string[] = [];
+    if (myCenter) {
+      const envCenter = await prisma.environmentCenter.findUnique({ where: { center: myCenter } });
+      if (envCenter) {
+        const env = await prisma.environment.findUnique({ where: { id: envCenter.environmentId }, select: { centers: { select: { center: true } } } });
+        userEnvCenters = env?.centers.map(c => c.center) ?? [];
+      }
+    }
 
     const url = new URL(req.url);
     const viewRaw = (url.searchParams.get("view") || "").toLowerCase();
@@ -58,16 +75,16 @@
     if (isSuper && (view === "admin" || view === "all")) {
       // all
     } else if (view === "admin") {
-      const allow = new Set((adminCenters.length ? adminCenters : (myCenter ? [myCenter] : [])));
+      const allow = new Set((adminEnvCenters.length ? adminEnvCenters : (myCenter ? [myCenter] : [])));
       filtered = rows.filter(b => {
         const c = centerPart(b.employee?.deptPath ?? null);
         return c ? allow.has(c) : false;
       });
     } else {
-      const cMy = myCenter;
+      const allow = new Set((userEnvCenters.length ? userEnvCenters : (myCenter ? [myCenter] : [])));
       filtered = rows.filter(b => {
         const c = centerPart(b.employee?.deptPath ?? null);
-        return cMy && c ? c === cMy : false;
+        return c ? allow.has(c) : false;
       });
     }
 

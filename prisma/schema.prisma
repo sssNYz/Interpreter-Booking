@@ -162,6 +162,8 @@ model Employee {
   userRoles             UserRole[]
   interpreterLanguages  InterpreterLanguage[]
   adminVisions          AdminVision[]
+  environmentAdminLinks        EnvironmentAdmin[]       @relation("EmployeeEnvironmentAdmin")
+  environmentInterpreterLinks  EnvironmentInterpreter[] @relation("EmployeeEnvironmentInterpreter")
 
   @@map("EMPLOYEE")
 }
@@ -200,6 +202,10 @@ model MeetingTypePriority {
   generalThresholdDays Int         @map("GENERAL_THRESHOLD_DAYS")
   createdAt            DateTime    @default(now()) @map("created_at") @db.Timestamp(0)
   updatedAt            DateTime    @updatedAt @map("updated_at") @db.Timestamp(0)
+
+  // Optional link to Environment for future per-environment override (defaults remain global)
+  environmentId        Int?        @map("ENVIRONMENT_ID")
+  environment          Environment? @relation(fields: [environmentId], references: [id])
 
   @@map("MEETING_TYPE_PRIORITY")
 }
@@ -376,4 +382,63 @@ enum RoleCode {
   ADMIN
   INTERPRETER
   SUPER_ADMIN
+}
+
+// ================== Environment Models ==================
+
+model Environment {
+  id           Int        @id @default(autoincrement()) @map("ID")
+  name         String     @map("NAME") @db.VarChar(128)
+  isActive     Boolean    @default(true) @map("IS_ACTIVE")
+  createdAt    DateTime   @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt    DateTime   @updatedAt @map("updated_at") @db.Timestamp(0)
+
+  centers      EnvironmentCenter[]
+  admins       EnvironmentAdmin[]
+  interpreters EnvironmentInterpreter[]
+  priorities   MeetingTypePriority[]
+
+  @@unique([name])
+  @@map("ENVIRONMENT")
+}
+
+// Center = normalized middle segment (e.g., bbb from aaa/bbb/ccc)
+model EnvironmentCenter {
+  id            Int          @id @default(autoincrement()) @map("ID")
+  environmentId Int          @map("ENVIRONMENT_ID")
+  center        String       @map("CENTER") @db.VarChar(128)
+  createdAt     DateTime     @default(now()) @map("created_at") @db.Timestamp(0)
+  environment   Environment  @relation(fields: [environmentId], references: [id], onDelete: Cascade)
+
+  @@unique([center])
+  @@index([environmentId])
+  @@map("ENVIRONMENT_CENTER")
+}
+
+// Admins who manage an environment
+model EnvironmentAdmin {
+  id            Int         @id @default(autoincrement()) @map("ID")
+  environmentId Int         @map("ENVIRONMENT_ID")
+  adminEmpCode  String      @map("ADMIN_EMP_CODE") @db.VarChar(64)
+  createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamp(0)
+  environment   Environment @relation(fields: [environmentId], references: [id], onDelete: Cascade)
+  admin         Employee    @relation("EmployeeEnvironmentAdmin", fields: [adminEmpCode], references: [empCode])
+
+  @@unique([environmentId, adminEmpCode], name: "unique_env_admin")
+  @@index([adminEmpCode])
+  @@map("ENVIRONMENT_ADMIN")
+}
+
+// Interpreters belonging to an environment
+model EnvironmentInterpreter {
+  id                  Int         @id @default(autoincrement()) @map("ID")
+  environmentId       Int         @map("ENVIRONMENT_ID")
+  interpreterEmpCode  String      @map("INTERPRETER_EMP_CODE") @db.VarChar(64)
+  createdAt           DateTime    @default(now()) @map("created_at") @db.Timestamp(0)
+  environment         Environment @relation(fields: [environmentId], references: [id], onDelete: Cascade)
+  interpreter         Employee    @relation("EmployeeEnvironmentInterpreter", fields: [interpreterEmpCode], references: [empCode])
+
+  @@unique([environmentId, interpreterEmpCode], name: "unique_env_interpreter")
+  @@index([interpreterEmpCode])
+  @@map("ENVIRONMENT_INTERPRETER")
 }
