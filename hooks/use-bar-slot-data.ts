@@ -3,16 +3,19 @@ import type { BookingData, DayInfo, BarItem } from "@/types/booking";
 import { MAX_LANES } from "@/utils/constants";
 
 function toIndices(startStrIn: string, endStrIn: string, timeSlots: string[]) {
-  const start = new Date(startStrIn); // parse ISO (UTC) → Date
-  const end = new Date(endStrIn);
-
-  const hhmm = (dt: Date) =>
-    `${String(dt.getHours()).padStart(2, "0")}:${String(dt.getMinutes()).padStart(2, "0")}`;
-
-  const startStr = hhmm(start); // local time for display grid
-  const endStr = hhmm(end);
+  // Accepts either 'YYYY-MM-DD HH:mm:ss' or ISO 'YYYY-MM-DDTHH:mm:ss'
+  const s = startStrIn.includes("T")
+    ? startStrIn.split("T")[1]
+    : startStrIn.split(" ")[1];
+  const e = endStrIn.includes("T")
+    ? endStrIn.split("T")[1]
+    : endStrIn.split(" ")[1];
+  const startStr = s.slice(0, 5);
+  const endStr = e.slice(0, 5);
   const startIndex = timeSlots.indexOf(startStr);
-  const endIndex = endStr === "17:00" ? timeSlots.length : timeSlots.indexOf(endStr);
+  // If end is 17:00, render bar to the final cell (after 16:30)
+  const endIndex =
+    endStr === "17:00" ? timeSlots.length : timeSlots.indexOf(endStr);
   return { startIndex, endIndex };
 }
 
@@ -26,7 +29,10 @@ export function useSlotDataForBars({
   daysInMonth: DayInfo[];
   timeSlots: string[];
   maxLanes?: number;
-}): { barsByDay: Map<number, BarItem[]>; occupancyByDay: Map<number, number[]> } {
+}): {
+  barsByDay: Map<number, BarItem[]>;
+  occupancyByDay: Map<number, number[]>;
+} {
   return useMemo(() => {
     const barsByDay = new Map<number, BarItem[]>();
     const occupancyByDay = new Map<number, number[]>();
@@ -39,12 +45,11 @@ export function useSlotDataForBars({
       const dayLocalStr = `${year}-${month}-${date}`;
 
       const dayBookings = bookings.filter((b) => {
-        const d = new Date(b.timeStart); // parse ISO as Date
-        const y = d.getFullYear();
-        const m = String(d.getMonth() + 1).padStart(2, "0");
-        const dd = String(d.getDate()).padStart(2, "0");
-        const startLocalStr = `${y}-${m}-${dd}`;
-        return startLocalStr === dayLocalStr;
+        const src = b.timeStart;
+        const startDateISO = src.includes("T")
+          ? src.split("T")[0]
+          : src.split(" ")[0];
+        return startDateISO === dayLocalStr;
       });
 
       // 2) Map to intervals
@@ -62,16 +67,23 @@ export function useSlotDataForBars({
             status: b.bookingStatus,
             startIndex,
             endIndex,
-            interpreterName: b.interpreterId ? `Interpreter ID: ${b.interpreterId}` : "No interpreter assigned",
+            interpreterId: b.interpreterId,
+            interpreterName:
+              (b.interpreterName && b.interpreterName.trim() !== "")
+              ? b.interpreterName
+              : "no assign now",
             meetingDetail: b.meetingDetail,
             ownerEmail: b.ownerEmail,
             ownerTel: b.ownerTel,
             ownerGroup: b.ownerGroup,
+            meetingType: b.meetingType,
           } as Omit<BarItem, "lane"> & { lane?: number };
         })
         .filter(
           (iv) =>
-            iv.startIndex !== -1 && iv.endIndex !== -1 && iv.endIndex > iv.startIndex
+            iv.startIndex !== -1 &&
+            iv.endIndex !== -1 &&
+            iv.endIndex > iv.startIndex
         );
 
       // Sort by startIndex then endIndex
@@ -113,5 +125,5 @@ export function useSlotDataForBars({
     });
 
     return { barsByDay, occupancyByDay };
-  }, [bookings, daysInMonth, timeSlots]);
+  }, [bookings, daysInMonth, timeSlots, maxLanes]);
 }

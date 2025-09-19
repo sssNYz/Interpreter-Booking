@@ -15,6 +15,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { getInterpreterColor } from "@/utils/interpreter-color";
 
 type Props = {
   day: DayInfo;
@@ -56,7 +57,11 @@ const DayRow: React.FC<Props> = ({
   const trueOverlap: number[] = React.useMemo(() => {
     const arr = Array(timeSlots.length).fill(0);
     for (const b of bars) {
-      for (let i = b.startIndex; i < Math.min(b.endIndex, timeSlots.length); i++) {
+      for (
+        let i = b.startIndex;
+        i < Math.min(b.endIndex, timeSlots.length);
+        i++
+      ) {
         arr[i] += 1;
       }
     }
@@ -66,7 +71,9 @@ const DayRow: React.FC<Props> = ({
   // Decide whether to show 3 lanes or switch to "See more" based on true overlaps
   const maxTrueOverlap = trueOverlap.reduce((m, v) => (v > m ? v : m), 0);
   const showThreeLanes = maxTrueOverlap <= 3;
-  const visibleBars = bars.filter((b) => (showThreeLanes ? b.lane < 3 : b.lane < 2));
+  const visibleBars = bars.filter((b) =>
+    showThreeLanes ? b.lane < 3 : b.lane < 2
+  );
   const hiddenBars = showThreeLanes ? [] : bars.filter((b) => b.lane >= 2);
 
   // Build hidden count per slot from TRUE overlap when in overflow mode (>3)
@@ -74,7 +81,11 @@ const DayRow: React.FC<Props> = ({
     ? trueOverlap.map(() => 0)
     : trueOverlap.map((cnt) => Math.max(0, cnt - 2));
 
-  type OverflowSeg = { startIndex: number; endIndex: number; maxHidden: number };
+  type OverflowSeg = {
+    startIndex: number;
+    endIndex: number;
+    maxHidden: number;
+  };
   const overflowSegments: OverflowSeg[] = [];
   if (!showThreeLanes) {
     let i = 0;
@@ -181,17 +192,38 @@ const DayRow: React.FC<Props> = ({
           const statusStyle = getStatusStyle(bar.status);
           const width = (bar.endIndex - bar.startIndex) * cellWidth;
           const top = LANE_TOP_OFFSET + bar.lane * (BAR_HEIGHT + BAR_STACK_GAP);
+          const interpreterColor = getInterpreterColor(
+            bar.interpreterId,
+            bar.interpreterName
+          );
+          const barClassName = interpreterColor
+            ? "pointer-events-auto rounded-sm border"
+            : "pointer-events-auto rounded-sm border border-neutral-600 bg-neutral-50";
+          const statusLabel =
+            bar.status === "approve"
+              ? "Approved"
+              : bar.status === "waiting"
+              ? "Waiting"
+              : bar.status === "cancel"
+              ? "Cancelled"
+              : bar.status;
           return (
             <Popover
               key={`bar-${bar.bookingId}`}
               open={openBarId === bar.bookingId}
               onOpenChange={(isOpen) => {
-                setOpenBarId((current) => (isOpen ? bar.bookingId : current === bar.bookingId ? null : current));
+                setOpenBarId((current) =>
+                  isOpen
+                    ? bar.bookingId
+                    : current === bar.bookingId
+                    ? null
+                    : current
+                );
               }}
             >
               <PopoverTrigger asChild>
                 <motion.div
-                  className={`pointer-events-auto rounded-sm border ${statusStyle.text} ${statusStyle.bg}`}
+                  className={barClassName}
                   style={{
                     position: "absolute",
                     left,
@@ -200,12 +232,19 @@ const DayRow: React.FC<Props> = ({
                     height: BAR_HEIGHT,
                     borderRadius: 10,
                     cursor: "pointer",
+                    backgroundColor: interpreterColor?.bg,
+                    borderColor: interpreterColor?.border,
                   }}
                   initial={{ scale: 0.98, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
-                  transition={{ type: "spring", stiffness: 520, damping: 30, mass: 0.7 }}
+                  transition={{
+                    type: "spring",
+                    stiffness: 520,
+                    damping: 30,
+                    mass: 0.7,
+                  }}
                 />
               </PopoverTrigger>
               <PopoverContent asChild>
@@ -213,41 +252,132 @@ const DayRow: React.FC<Props> = ({
                   initial={{ opacity: 0, y: 6, scale: 0.96 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 6, scale: 0.98 }}
-                  transition={{ type: "spring", stiffness: 460, damping: 28, mass: 0.6 }}
-                  className="w-64 rounded-2xl border bg-popover/95 backdrop-blur-md shadow-lg ring-1 ring-black/5 p-3 text-foreground text-xs space-y-2"
+                  transition={{
+                    type: "spring",
+                    stiffness: 460,
+                    damping: 28,
+                    mass: 0.6,
+                  }}
+                  className="w-80 rounded-lg border bg-white shadow-xl ring-1 ring-gray-200 p-0 text-foreground overflow-hidden"
                 >
-                  {/* Owner Information */}
-                  <div>
-                    <div className="font-semibold text-sm mb-1 text-foreground">Owner</div>
-                    <div className="font-medium text-foreground">{bar.name}</div>
-                    <div className="text-muted-foreground">{bar.ownerGroup}</div>
-                  </div>
-
-                  {/* Meeting Details */}
-                  <div>
-                    <div className="font-semibold text-sm mb-1 text-foreground">Meeting</div>
-                    <div className="text-muted-foreground">{bar.room}</div>
-                    {bar.meetingDetail && (
-                      <div className="text-muted-foreground/70 text-xs mt-1">
-                        {bar.meetingDetail}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Status & Interpreter */}
-                  <div>
-                    <div className="font-semibold text-sm mb-1 text-foreground">Status</div>
-                    <div className="text-muted-foreground">{bar.status}</div>
-                    <div className="text-muted-foreground/70 text-xs mt-1">
-                      {bar.interpreterName}
+                  {/* Header */}
+                  <div className="text-center">
+                    <div className="text-neutral-700 text-xl mt-1">
+                      {day.fullDate.toLocaleString("en-US", { month: "short" })}{" "}
+                      {day.date} • {timeSlots[bar.startIndex]} -{" "}
+                      {bar.endIndex >= timeSlots.length
+                        ? timeSlots[timeSlots.length - 1]
+                        : timeSlots[bar.endIndex]}
                     </div>
                   </div>
 
-                  {/* Contact Info */}
-                  <div>
-                    <div className="font-semibold text-sm mb-1 text-foreground">Contact</div>
-                    <div className="text-muted-foreground text-xs">{bar.ownerEmail}</div>
-                    <div className="text-muted-foreground text-xs">{bar.ownerTel}</div>
+                  {/* Content */}
+                  <div className="p-1 space-y-3">
+                    {/* Booking By */}
+                    <div className="flex items-start space-x-3">
+                      <div className="flex-shrink-0 w-2 h-2 bg-neutral-700 rounded-full mt-2"></div>
+                      <div className="flex-1">
+                        <div className="font-semibold text-neutral-500 text-sm mb-1">
+                          Booking By
+                        </div>
+                        <div className="font-medium text-neutral-700">
+                          {bar.name}
+                        </div>
+                        <div className="text-neutral-600 text-sm capitalize">
+                          {bar.ownerGroup} Department
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Meeting Room */}
+                    <div className="flex items-start space-x-3">
+                      <div className="flex-shrink-0 w-2 h-2 bg-neutral-600 rounded-full mt-2"></div>
+                      <div className="flex-1">
+                        <div className="font-semibold text-neutral-500 text-sm mb-1">
+                          Meeting Room
+                        </div>
+                        <div className="text-neutral-700 font-medium">
+                          {bar.room}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Interpreter */}
+                    <div className="flex items-start space-x-3">
+                      <div className="flex-shrink-0 w-2 h-2 bg-neutral-500 rounded-full mt-2"></div>
+                      <div className="flex-1">
+                        <div className="font-semibold text-neutral-500 text-sm mb-1">
+                          Interpreter
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">
+                            {bar.interpreterName || "No assignment yet"}
+                          </span>
+                          {interpreterColor ? (
+                            <div
+                              className="h-3 w-3 rounded-full"
+                              style={{ backgroundColor: interpreterColor.bg }}
+                            ></div>
+                          ) : (
+                            <div className="h-3 w-3 rounded-full bg-gray-300"></div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Status */}
+                    <div className="flex items-start space-x-3">
+                      <div className="flex-shrink-0 w-2 h-2 bg-neutral-400 rounded-full mt-2"></div>
+                      <div className="flex-1">
+                        <div className="font-semibold text-neutral-500 text-sm mb-1">
+                          Status
+                        </div>
+                        <div className="flex items-center gap-2 text-neutral-700">
+                          <span className="font-medium">{statusLabel}</span>
+                          <div
+                             className={`h-3 w-3 rounded-full ${statusStyle.bg}`}
+                             ></div>
+                        </div>
+                        
+                      </div>
+                    </div>
+
+                    {/* Meeting Type */}
+                    <div className="flex items-start space-x-3">
+                      <div className="flex-shrink-0 w-2 h-2 bg-neutral-300 rounded-full mt-2"></div>
+                      <div className="flex-1">
+                        <div className="font-semibold text-neutral-500 text-sm mb-1">
+                          Meeting Type
+                        </div>
+                        <div className="font-medium text-neutral-700">
+                          {bar.meetingType }
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Contact */}
+                    <div className="border-t pt-3">
+                      <div className="flex items-start space-x-3">
+                        <div className="flex-shrink-0 w-2 h-2 bg-neutral-200 rounded-full mt-2"></div>
+                        <div className="flex-1">
+                          <div className="font-semibold text-neutral-500 text-sm mb-2">
+                            Contact Information
+                          </div>
+                          <div className="space-y-1">
+                            <div className="text-neutral-700 text-sm flex items-center">
+                              <span className="font-medium w-12">Email:</span>
+                              <span className="text-neutral-700">
+                                {bar.ownerEmail}
+                              </span>
+                            </div>
+                            <div className="text-neutral-700 text-sm flex items-center">
+                              <span className="font-medium w-12">Phone:</span>
+                              <span>{bar.ownerTel}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </motion.div>
               </PopoverContent>
@@ -268,26 +398,33 @@ const DayRow: React.FC<Props> = ({
             return (
               <Popover key={`overflow-${idx}`}>
                 <PopoverTrigger asChild>
-                  <motion.div
-                    className="pointer-events-auto rounded-sm border bg-neutral-100 text-foreground/80"
-                    style={{
-                      position: "absolute",
-                      left,
-                      width,
-                      top,
-                      height: BAR_HEIGHT,
-                      borderRadius: 10,
-                      cursor: "pointer",
-                      backgroundImage: "repeating-linear-gradient(45deg, rgba(59,130,246,.3) 0 6px, rgba(59,130,246,.45) 6px 12px)"
-                    }}
+                   <motion.div
+                     className="pointer-events-auto rounded-sm border border-neutral-600 bg-neutral-50 text-foreground/80"
+                     style={{
+                       position: "absolute",
+                       left,
+                       width,
+                       top,
+                       height: BAR_HEIGHT,
+                       borderRadius: 10,
+                       cursor: "pointer",
+                       backgroundImage: `radial-gradient(#f5f5f5 0.5px, transparent 0.5px)`,
+                       backgroundSize: "4px 4px",
+                       opacity: 0.6,
+                     }}
                     initial={{ scale: 0.98, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
-                    transition={{ type: "spring", stiffness: 520, damping: 30, mass: 0.7 }}
+                    transition={{
+                      type: "spring",
+                      stiffness: 520,
+                      damping: 30,
+                      mass: 0.7,
+                    }}
                   >
                     <div
-                      className="w-full h-full flex items-center justify-center"
+                      className="w-full h-full flex items-center justify-center text-neutral-600"
                       style={{ fontSize: 10 }}
                     >
                       {label}
@@ -299,29 +436,115 @@ const DayRow: React.FC<Props> = ({
                     initial={{ opacity: 0, y: 6, scale: 0.96 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 6, scale: 0.98 }}
-                    transition={{ type: "spring", stiffness: 460, damping: 28, mass: 0.6 }}
-                    className="w-72 rounded-2xl border bg-popover/95 backdrop-blur-md shadow-lg ring-1 ring-black/5 p-3 text-foreground text-xs space-y-2"
+                    transition={{
+                      type: "spring",
+                      stiffness: 460,
+                      damping: 28,
+                      mass: 0.6,
+                    }}
+                    className="w-96 rounded-lg border bg-white shadow-xl ring-1 ring-gray-200 p-4 text-foreground text-sm"
                   >
-                    <div className="font-semibold text-sm mb-1 text-foreground">
+                    <div className="font-semibold text-neutral-700 mb-3">
                       Hidden bookings ({overflowBars.length})
                     </div>
-                    <div className="space-y-2 max-h-64 overflow-auto pr-1">
+                    <div className="space-y-3 max-h-80 overflow-auto pr-1">
                       {overflowBars.map((b) => {
                         const timeStart = timeSlots[b.startIndex];
                         const timeEnd =
                           b.endIndex >= timeSlots.length
                             ? timeSlots[timeSlots.length - 1]
                             : timeSlots[b.endIndex];
+                        const interpreterColor = getInterpreterColor(
+                          b.interpreterId,
+                          b.interpreterName
+                        );
                         return (
-                          <div key={`hidden-${b.bookingId}`} className="border rounded-md p-2">
-                            <div className="font-medium text-foreground">{b.name}</div>
-                            <div className="text-muted-foreground">{b.room}</div>
-                            <div className="text-muted-foreground/70">
-                              {timeStart} - {timeEnd}
+                          <div
+                            key={`hidden-${b.bookingId}`}
+                            className="border rounded-md p-3 bg-gray-50"
+                          >
+                            <div className="space-y-2 text-sm">
+                              {/* Line 1: Room + Date time - RIGHT ALIGNED */}
+                              <div className="flex justify-between items-center text-neutral-700">
+                                <span className="text-sm font-medium">
+                                  Room: {b.room}
+                                </span>
+                                <span className="text-base font-semibold">
+                                  {day.fullDate.toLocaleString("en-US", {
+                                    month: "short",
+                                  })}{" "}
+                                  {day.date} • {timeStart} - {timeEnd}
+                                </span>
+                              </div>
+
+                              {/* Line 2: Name - LEFT ALIGNED */}
+                              <div className="text-left">
+                                <span className="font-semibold text-neutral-500">
+                                  Name:{" "}
+                                </span>
+                                <span className="font-medium text-neutral-700">
+                                  {b.name}
+                                </span>
+                              </div>
+
+                              {/* Line 3: Interpreter - LEFT ALIGNED */}
+                              <div className="text-left">
+                                <span className="font-semibold text-neutral-500">
+                                  Interpreter:{" "}
+                                </span>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-medium">
+                                    {b.interpreterName || "No assignment"}
+                                  </span>
+                                  {interpreterColor ? (
+                                    <div
+                                      className="h-3 w-3 rounded-full"
+                                      style={{ backgroundColor: interpreterColor.bg }}
+                                    ></div>
+                                  ) : (
+                                    <div className="h-3 w-3 rounded-full bg-gray-300"></div>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Status */}
+                              <div className="text-left">
+                                <span className="font-semibold text-neutral-500">
+                                  Status:{" "}
+                                </span>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-medium text-neutral-700">
+                                    {b.status === "approve"
+                                      ? "Approved"
+                                      : b.status === "waiting"
+                                      ? "Waiting"
+                                      : b.status === "cancel"
+                                      ? "Cancelled"
+                                      : b.status}
+                                  </span>
+                                  <div
+                                    className={`h-3 w-3 rounded-full ${getStatusStyle(b.status).bg}`}
+                                  ></div>
+                                </div>
+                              </div>
+
+                              {/* Meeting Type */}
+                              <div className="text-left">
+                                <span className="font-semibold text-neutral-500">
+                                  Meeting Type:{" "}
+                                </span>
+                                <span className="font-medium text-neutral-700">
+                                  {b.meetingType || "Not specified"}
+                                </span>
+                              </div>
+
+                              {/* Contact info (optional) */}
+                              <div className="border-t pt-2 mt-2 text-center">
+                                <div className="text-neutral-600 text-xs">
+                                  {b.ownerEmail} • {b.ownerTel}
+                                </div>
+                              </div>
                             </div>
-                            {b.meetingDetail && (
-                              <div className="text-muted-foreground/70 mt-1">{b.meetingDetail}</div>
-                            )}
                           </div>
                         );
                       })}
@@ -332,6 +555,7 @@ const DayRow: React.FC<Props> = ({
             );
           })}
       </div>
+      {/* Neon glow when click TODAY */}
       {isHighlighted && (
         <div className="absolute inset-0 pointer-events-none z-10">
           {/* Neon wave glow background */}

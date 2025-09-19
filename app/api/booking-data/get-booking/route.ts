@@ -43,11 +43,12 @@
         meetingDetail: b.meetingDetail ?? "",
         // legacy compatibility
         topic: b.meetingDetail ?? "",
-        bookedBy,
-        status: mapStatus(b.bookingStatus),
-        timeStart: b.timeStart.toISOString(),
-        timeEnd: b.timeEnd.toISOString(),
-        createdAt: b.createdAt.toISOString(),
+
+        bookedBy,                                 // ชื่อผู้จอง
+        status: mapStatus(b.bookingStatus),          // 'Approve' | 'Wait' | 'Cancel'
+        startTime: extractHHMM(b.timeStart.toISOString()),          // "HH:mm"
+        endTime: extractHHMM(b.timeEnd.toISOString()),              // "HH:mm"
+        requestedTime: `${extractYMD(b.createdAt.toISOString())} ${extractHHMM(b.createdAt.toISOString())}:00`,
       };
     });
 

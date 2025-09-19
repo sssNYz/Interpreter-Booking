@@ -1,12 +1,10 @@
 import prisma from "@/prisma/prisma";
-import type { Prisma } from "@prisma/client";
-import type { RunResult, CandidateResult, HoursSnapshot, AssignmentLogData, AssignmentPolicy } from "@/types/assignment";
+import type { RunResult, CandidateResult, AssignmentPolicy } from "@/types/assignment";
 import { loadPolicy, getDRPolicy } from "../config/policy";
 import { getActiveInterpreters, getInterpreterHours } from "../scoring/fairness";
-import { computeEnhancedUrgencyScore } from "../scoring/urgency";
+import { computeEnhancedUrgencyScore, shouldAssignImmediately } from "../scoring/urgency";
 import { rankByScore } from "../scoring/scoring";
 import { isDRMeeting } from "../utils/dr-history";
-import { shouldAssignImmediately, bookingPool, processPoolEntries, processPoolEntriesWithBatchResults } from "../pool/pool";
 import {
   filterAvailableInterpreters,
   validateAssignmentSafety,
@@ -14,10 +12,8 @@ import {
 } from "../utils/conflict-detection";
 import {
   getAssignmentLogger,
-  type EnhancedAssignmentLogData,
   type ConflictDetectionLogData,
-  type DRPolicyLogData,
-  type PoolProcessingLogData
+  type DRPolicyLogData
 } from "../logging/logging";
 import { getAssignmentMonitor, logSystemError } from "../logging/monitoring";
 import {
@@ -150,37 +146,25 @@ export async function runAssignment(bookingId: number): Promise<RunResult> {
       };
     }
 
-    // Check if booking should be assigned immediately or sent to pool based on mode
-    const isUrgent = await shouldAssignImmediately(booking.timeStart, booking.meetingType, policy.mode);
+    // Urgent-only approval: assign only if within urgent threshold; otherwise skip (manual)
+    const isUrgent = await shouldAssignImmediately(booking.timeStart, booking.meetingType);
 
     if (!isUrgent) {
-      console.log(`📥 Booking ${bookingId} is not urgent, adding to pool !!! (mode: ${policy.mode})`);
-
-      const poolEntry = await bookingPool.addToPoolEnhanced(
-        booking.bookingId,
-        booking.meetingType,
-        booking.timeStart,
-        booking.timeEnd,
-        policy.mode
-      );
-
+      console.log(`⏸️ Booking ${bookingId} is not urgent. Skipping auto-assign (no pool).`);
       return {
-        status: "pooled",
-        reason: `Non-urgent booking added to pool (mode: ${policy.mode}, threshold: ${poolEntry.thresholdDays} days, deadline: ${poolEntry.deadlineTime.toISOString()})`,
-        poolEntry
+        status: "escalated",
+        reason: "not urgent — pending manual approval"
       };
     }
 
     // Proceed with immediate assignment
     console.log(`⚡ Booking ${bookingId} is urgent !!!, proceeding with immediate assignment`);
 
-    // Check for dynamic pool changes before assignment
+    // Optional dynamic recalibration remains for fairness only (not booking pool)
     const poolManagement = await checkAndAdjustDynamicPool(policy);
-
     if (poolManagement.shouldRecalculate) {
       console.log(`🔄 Interpreter list changes require fairness recalculation for assignment`);
     }
-
     return await performAssignment(booking, policy, poolManagement, isUrgent);
 
   } catch (error) {
@@ -204,215 +188,7 @@ export async function runAssignment(bookingId: number): Promise<RunResult> {
   }
 }
 
-/**
- * Process all pool entries that are ready for assignment with enhanced batch processing
- */
-export async function processPool(): Promise<RunResult[]> {
-  console.log("🔄 Processing booking pool with enhanced mode-specific logic...");
-
-  const logger = getAssignmentLogger();
-  const processingStartTime = new Date();
-  const batchId = `batch_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
-  // Load current policy
-  const policy = await loadPolicy();
-
-  // Check for dynamic pool changes before processing
-  const poolManagement = await checkAndAdjustDynamicPool(policy);
-
-  if (poolManagement.shouldRecalculate) {
-    console.log(`🔄 Dynamic pool changes detected, adjusting batch processing for fairness`);
-    console.log(`   - New interpreters: ${poolManagement.poolAdjustment.newInterpreters.length}`);
-    console.log(`   - Removed interpreters: ${poolManagement.poolAdjustment.removedInterpreters.length}`);
-    console.log(`   - Adjustment factor: ${poolManagement.poolAdjustment.adjustmentFactor.toFixed(2)}`);
-  }
-
-  // Get enhanced processing results with batch information
-  const processingResult = await processPoolEntriesWithBatchResults(policy.mode);
-  const { entries: readyEntries, batchResults, summary } = processingResult;
-
-  if (readyEntries.length === 0) {
-    console.log("📭 No pool entries ready for assignment");
-    return [];
-  }
-
-  console.log(`📊 Pool processing summary (${policy.mode} mode): ${summary.totalProcessed} processed, ${summary.totalAssigned} assigned, ${summary.totalEscalated} escalated`);
-
-  if (batchResults && batchResults.length > 0) {
-    console.log(`⚖️ Batch processing results: ${batchResults.length} batches, fairness improvement: ${summary.fairnessImprovement?.toFixed(2) || 'N/A'}`);
-  }
-
-  const results: RunResult[] = [];
-  const errors: Array<{ bookingId: number; error: string; timestamp: Date }> = [];
-  let assignedCount = 0;
-  let escalatedCount = 0;
-  let failedCount = 0;
-
-  const batchProcessingStart = Date.now();
-
-  for (const entry of readyEntries) {
-    const entryStartTime = Date.now();
-
-    try {
-      console.log(`🔄 Processing pool entry for booking ${entry.bookingId} (mode: ${entry.mode}, priority: ${entry.processingPriority})`);
-
-      // Get current booking details
-      const booking = await prisma.bookingPlan.findUnique({
-        where: { bookingId: entry.bookingId },
-        select: {
-          bookingId: true,
-          timeStart: true,
-          timeEnd: true,
-          meetingType: true,
-          interpreterEmpCode: true,
-          meetingDetail: true
-        }
-      });
-
-      if (!booking) {
-        console.log(`❌ Pool entry ${entry.bookingId} not found in database, removing from pool`);
-        bookingPool.removeFromPool(entry.bookingId);
-
-        const error = "booking not found in database";
-        errors.push({
-          bookingId: entry.bookingId,
-          error,
-          timestamp: new Date()
-        });
-        failedCount++;
-
-        results.push({
-          status: "escalated",
-          reason: error
-        });
-        continue;
-      }
-
-      // Check if already assigned
-      if (booking.interpreterEmpCode) {
-        console.log(`✅ Pool entry ${entry.bookingId} already assigned, removing from pool`);
-        bookingPool.removeFromPool(entry.bookingId);
-        assignedCount++;
-
-        results.push({
-          status: "assigned",
-          interpreterId: booking.interpreterEmpCode,
-          reason: "already assigned"
-        });
-        continue;
-      }
-
-      // Perform assignment with pool processing context
-      const result = await performAssignmentWithPoolContext(booking, policy, {
-        batchId,
-        poolMode: entry.mode,
-        processingPriority: entry.processingPriority,
-        thresholdDays: entry.thresholdDays,
-        deadlineTime: entry.deadlineTime,
-        fairnessImprovement: summary.fairnessImprovement
-      }, poolManagement);
-
-      // Remove from pool if assignment was successful
-      if (result.status === "assigned") {
-        bookingPool.removeFromPool(entry.bookingId);
-        assignedCount++;
-      } else if (result.status === "escalated") {
-        escalatedCount++;
-      }
-
-      results.push(result);
-
-    } catch (error) {
-      console.error(`❌ Error processing pool entry ${entry.bookingId}:`, error);
-
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      errors.push({
-        bookingId: entry.bookingId,
-        error: errorMessage,
-        timestamp: new Date()
-      });
-      failedCount++;
-
-      results.push({
-        status: "escalated",
-        reason: `Error: ${errorMessage}`
-      });
-    }
-  }
-
-  const processingEndTime = new Date();
-  const totalProcessingTime = processingEndTime.getTime() - processingStartTime.getTime();
-  const averageProcessingTime = readyEntries.length > 0 ? totalProcessingTime / readyEntries.length : 0;
-
-  // Determine system load based on processing performance and results
-  const systemLoad: 'HIGH' | 'MEDIUM' | 'LOW' =
-    failedCount > readyEntries.length * 0.3 ? 'HIGH' :
-      escalatedCount > readyEntries.length * 0.2 ? 'MEDIUM' : 'LOW';
-
-  // Log pool processing batch results
-  const poolLogData: PoolProcessingLogData = {
-    batchId,
-    processingType: 'POOL_PROCESSING',
-    mode: policy.mode,
-    processingStartTime,
-    processingEndTime,
-    totalEntries: readyEntries.length,
-    processedEntries: readyEntries.length,
-    assignedEntries: assignedCount,
-    escalatedEntries: escalatedCount,
-    failedEntries: failedCount,
-    fairnessImprovement: summary.fairnessImprovement,
-    averageProcessingTimeMs: averageProcessingTime,
-    systemLoad,
-    errors,
-    performance: {
-      conflictDetectionTimeMs: 0, // Will be aggregated from individual assignments
-      scoringTimeMs: 0, // Will be aggregated from individual assignments
-      dbOperationTimeMs: 0, // Will be aggregated from individual assignments
-      totalTimeMs: totalProcessingTime
-    }
-  };
-
-  await logger.logPoolProcessing(poolLogData);
-
-  return results;
-}
-
-/**
- * Perform assignment with pool processing context for enhanced logging
- */
-async function performAssignmentWithPoolContext(
-  booking: {
-    bookingId: number;
-    timeStart: Date;
-    timeEnd: Date;
-    meetingType: string;
-    interpreterEmpCode: string | null;
-    meetingDetail: string | null;
-  },
-  policy: AssignmentPolicy,
-  poolContext: {
-    batchId: string;
-    poolMode: string;
-    processingPriority: number;
-    thresholdDays: number;
-    deadlineTime: Date;
-    fairnessImprovement?: number;
-  },
-  poolManagement?: {
-    poolAdjustment: DynamicPoolAdjustment;
-    fairnessAdjustments: FairnessAdjustment[];
-    shouldRecalculate: boolean;
-  }
-): Promise<RunResult> {
-  // Call the regular performAssignment but with pool context and dynamic pool management
-  const result = await performAssignment(booking, policy, poolManagement, false);
-
-  // The enhanced logging in performAssignment will automatically include pool context
-  // if we modify the logger calls to accept pool context
-
-  return result;
-}
+// Pool processing removed. System now performs immediate assignment only for urgent bookings.
 
 /**
  * Perform the actual assignment logic
@@ -1036,14 +812,6 @@ async function attemptAssignmentWithRetry(
 }
 
 
-
-/**
- * Get pool status for monitoring
- */
-export async function getPoolStatus() {
-  const { getPoolStatus } = await import("../pool/pool");
-  return getPoolStatus();
-}
 
 /**
  * Legacy function for backward compatibility

@@ -1,9 +1,9 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useRef, useState, useCallback } from "react";
-import { motion } from "framer-motion";
+import Link from "next/link"
+import { usePathname, useRouter } from "next/navigation"
+import { useEffect, useRef, useState, useCallback } from "react"
+import { motion } from "framer-motion"
 import {
   Calendar,
   CheckCircle,
@@ -30,33 +30,12 @@ import {
 
 // Admin submenu items
 const adminItems = [
-  {
-    title: "Overview",
-    url: "/AdminPage/overview-workload-page",
-    icon: BarChart2,
-  },
-  {
-    title: "Bookings management",
-    url: "/AdminPage/booking-manage-page",
-    icon: Inbox,
-  },
-  {
-    title: "Room management",
-    url: "/AdminPage/room-management",
-    icon: DoorOpen,
-  },
-  { title: "Interpreters management", url: "#", icon: CalendarIcon },
-  {
-    title: "User management",
-    url: "/AdminPage/user-manage-page",
-    icon: Settings,
-  },
-  {
-    title: "Auto-Assignment Config",
-    url: "/AdminPage/auto-assign-config",
-    icon: Cog,
-  },
-];
+  { title: "Overview", url: "/AdminPage/overview-workload-page", icon: BarChart2 },
+  { title: "Bookings management", url: "/AdminPage/booking-manage-page", icon: Inbox },
+  { title: "Interpreters management", url: "/AdminPage/interpreter-manage-page", icon: CalendarIcon },
+  { title: "User management", url: "/AdminPage/user-manage-page", icon: Settings },
+  { title: "Auto-Assignment Config", url: "/AdminPage/auto-assign-config", icon: Cog },
+]
 
 // A clean segmented-control style navbar that:
 // - Animates the active highlight to the exact width of the active button
@@ -92,26 +71,23 @@ export function AppNavbar() {
 
   // Compute the pill position/size to match the active button
   const updatePill = useCallback(() => {
-    const c = containerRef.current;
-    const el = btnRefs.current[active];
-    if (!c || !el) return;
-    const cRect = c.getBoundingClientRect();
-    const bRect = el.getBoundingClientRect();
-    setPill({ left: bRect.left - cRect.left, width: bRect.width, ready: true });
-  }, [active]);
+    const c = containerRef.current
+    const el = btnRefs.current[active]
+    if (!c || !el) return
+    const cRect = c.getBoundingClientRect()
+    const bRect = el.getBoundingClientRect()
+    setPill({ left: bRect.left - cRect.left, width: bRect.width, ready: true })
+  }, [active])
 
   useEffect(() => {
-    updatePill();
-    // Reposition on resize
-    const ro = new ResizeObserver(() => updatePill());
-    if (containerRef.current) ro.observe(containerRef.current);
-    const handle = () => updatePill();
-    window.addEventListener("resize", handle);
+    updatePill()
+    // Only reposition on window resize, not on content changes
+    const handle = () => updatePill()
+    window.addEventListener("resize", handle)
     return () => {
-      ro.disconnect();
-      window.removeEventListener("resize", handle);
-    };
-  }, [active, updatePill]);
+      window.removeEventListener("resize", handle)
+    }
+  }, [active, updatePill])
 
   const handleLogout = async () => {
     try {
