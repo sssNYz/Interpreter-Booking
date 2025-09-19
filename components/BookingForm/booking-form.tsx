@@ -930,7 +930,7 @@ export function BookingForm({
       }
 
       const submitOnce = async (force?: boolean) => {
-        const response = await fetch("/api/booking-data/post-booking-data", {
+        const response = await fetch("/api/booking-data/post-booking-data/0", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
