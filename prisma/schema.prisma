@@ -39,6 +39,10 @@ model BookingPlan {
   recurringBookings        BookingPlan[]     @relation("RecurringBookings")
   inviteEmails             InviteEmailList[]
 
+  // NEW: room relation
+  roomId                   Int?              @map("ROOM_ID")
+  room                     Room?             @relation(fields: [roomId], references: [id])
+
   @@index([ownerEmpCode])
   @@index([interpreterEmpCode])
   @@index([roomId])
@@ -47,6 +51,22 @@ model BookingPlan {
   @@index([otherTypeScope])
   @@map("BOOKING_PLAN")
 }
+
+model Room {
+  id        Int               @id @default(autoincrement()) @map("ID")
+  name      String            @unique @map("NAME") @db.VarChar(100)
+  location  String?           @map("LOCATION") @db.VarChar(255)
+  capacity  Int               @default(1) @map("CAPACITY")
+  isActive  Boolean           @default(true) @map("IS_ACTIVE")
+  createdAt DateTime          @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt DateTime          @updatedAt @map("updated_at") @db.Timestamp(0)
+
+  // Back relation from bookings
+  bookings  BookingPlan[]
+
+  @@map("ROOM")
+}
+
 model InviteEmailList {
   emailListId Int         @id @default(autoincrement()) @map("EMAIL_LIST_ID")
   bookingId   Int         @map("BOOKING_ID")
