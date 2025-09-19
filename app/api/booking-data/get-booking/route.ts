@@ -78,6 +78,8 @@
       const allow = new Set((adminEnvCenters.length ? adminEnvCenters : (myCenter ? [myCenter] : [])));
       filtered = rows.filter(b => {
         const c = centerPart(b.employee?.deptPath ?? null);
+        // Split out forwarded bookings from admin environment view
+        if (b.isForwarded) return false;
         return c ? allow.has(c) : false;
       });
     } else {
