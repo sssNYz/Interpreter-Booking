@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { BookingData } from "@/types/booking";
 
-export function useBookings(currentDate: Date) {
+export function useBookings(currentDate: Date, view?: 'user' | 'admin' | 'all') {
   const [bookings, setBookings] = useState<BookingData[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<unknown>(null);
@@ -13,8 +13,9 @@ export function useBookings(currentDate: Date) {
     setLoading(true);
     setError(null);
     try {
+      const qs = view ? `?view=${encodeURIComponent(view)}` : '';
       const res = await fetch(
-        `/api/booking-data/get-booking-byDate/${year}/${month}`
+        `/api/booking-data/get-booking-byDate/${year}/${month}${qs}`
       );
       const data = await res.json();
       setBookings(data);
@@ -23,7 +24,7 @@ export function useBookings(currentDate: Date) {
     } finally {
       setLoading(false);
     }
-  }, [currentDate]);
+  }, [currentDate, view]);
 
   useEffect(() => {
     refetch();

@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 // Public routes that don't require auth
-const publicPaths = new Set<string>(["/login", "/LoginPage", "/api/login", "/api/session/status", "/api/logout"]);
+const publicPaths = new Set<string>(["/login", "/LoginPage", "/api/login", "/api/session/status", "/api/logout", "/api/mock-login"]);
 
 export function middleware(req: NextRequest) {
     const { pathname } = req.nextUrl;
