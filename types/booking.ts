@@ -30,6 +30,11 @@ export type BookingData = {
   bookingStatus: string;
   createdAt: string;
   updatedAt: string;
+  // NEW FIELDS
+  languageCode?: string | null;
+  chairmanEmail?: string | null;
+  selectedInterpreterEmpCode?: string | null;
+  selectedInterpreterName?: string;
 };
 
 export type OwnerGroup = "software" | "iot" | "hardware" | "other";

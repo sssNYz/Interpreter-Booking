@@ -35,6 +35,11 @@ model BookingPlan {
   recurrenceWeekdays       String?         @map("RECURRENCE_WEEKDAYS") @db.VarChar(32)
   recurrenceWeekOrder      WeekOrder?      @map("RECURRENCE_WEEK_ORDER")
 
+  // NEW FIELDS FOR LANGUAGE AND INTERPRETER SELECTION
+  languageCode                String?         @map("LANGUAGE_CODE") @db.VarChar(16)
+  chairmanEmail               String?         @map("CHAIRMAN_EMAIL") @db.VarChar(255)
+  selectedInterpreterEmpCode  String?         @map("SELECTED_INTERPRETER_EMP_CODE") @db.VarChar(64)
+
   // NEW
   isForwarded        Boolean   @default(false) @map("IS_FORWARDED")
   forwardedByEmpCode String?   @map("FORWARDED_BY_EMP_CODE") @db.VarChar(64)
@@ -48,6 +53,10 @@ model BookingPlan {
   recurringBookings   BookingPlan[]     @relation("RecurringBookings")
   inviteEmails        InviteEmailList[]
   forwardTargets     BookingForwardTarget[]
+  
+  // NEW RELATIONS
+  language                    Language?       @relation(fields: [languageCode], references: [code])
+  selectedInterpreter         Employee?       @relation("SelectedInterpreterEmployee", fields: [selectedInterpreterEmpCode], references: [empCode])
 
   @@index([ownerEmpCode])
   @@index([interpreterEmpCode])
@@ -55,6 +64,9 @@ model BookingPlan {
   @@index([drType])
   @@index([otherTypeScope])
   @@index([forwardedByEmpCode]) // NEW
+  @@index([languageCode])
+  @@index([chairmanEmail])
+  @@index([selectedInterpreterEmpCode])
   @@map("BOOKING_PLAN")
 }
 
@@ -81,6 +93,7 @@ model Language {
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamp(0)
 
   interpreters InterpreterLanguage[]
+  bookings     BookingPlan[]
 
   @@map("LANGUAGE")
 }
@@ -145,6 +158,7 @@ model Employee {
   bookingsAsInterpreter BookingPlan[]         @relation("InterpreterEmployee")
   bookingsOwned         BookingPlan[]         @relation("OwnerEmployee")
   bookingsForwarded     BookingPlan[]         @relation("ForwardedByEmployee")
+  bookingsSelectedAsInterpreter BookingPlan[] @relation("SelectedInterpreterEmployee")
   userRoles             UserRole[]
   interpreterLanguages  InterpreterLanguage[]
   adminVisions          AdminVision[]
@@ -292,7 +306,7 @@ model SystemErrorLog {
 }
 
 enum DRType {
-  PR_PR @map("PR-PR")
+  DR_PR @map("DR-PR")
   DR_k  @map("DR-k")
   DR_II @map("DR-II")
   DR_I  @map("DR-I")
@@ -322,7 +336,8 @@ enum MeetingType {
   VIP
   Weekly
   General
-  Augent
+  Urgent
+  President
   Other
 }
 
@@ -360,4 +375,5 @@ enum WeekOrder {
 enum RoleCode {
   ADMIN
   INTERPRETER
+  SUPER_ADMIN
 }

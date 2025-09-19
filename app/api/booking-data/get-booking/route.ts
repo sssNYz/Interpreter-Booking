@@ -2,6 +2,9 @@
   // app/api/bookings/route.ts
   import { NextResponse } from "next/server";
   import prisma from "@/prisma/prisma";
+  import { cookies } from "next/headers";
+  import { SESSION_COOKIE_NAME, verifySessionCookieValue } from "@/lib/auth/session";
+  import { centerPart } from "@/utils/users";
 
   export const dynamic = "force-dynamic";
 
@@ -19,16 +22,56 @@
     return "Complete";
   };
 
-  export async function GET() {
+  export async function GET(req: Request) {
+    // Auth: only ADMIN or SUPER_ADMIN can access
+    const cookieStore = await cookies();
+    const cookieValue = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+    const parsed = verifySessionCookieValue(cookieValue);
+    if (!parsed) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
+
+    const me = await prisma.employee.findUnique({
+      where: { empCode: parsed.empCode },
+      include: { userRoles: true, adminVisions: true },
+    });
+    const roles = me?.userRoles?.map(r => r.roleCode) ?? [];
+    const isSuper = roles.includes("SUPER_ADMIN");
+    const isAdmin = roles.includes("ADMIN") || isSuper;
+    if (!isAdmin) return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
+
+    const myCenter = centerPart(me?.deptPath ?? null);
+    const adminCenters = (me?.adminVisions ?? []).map(v => centerPart(v.deptPath)).filter((x): x is string => Boolean(x));
+
+    const url = new URL(req.url);
+    const viewRaw = (url.searchParams.get("view") || "").toLowerCase();
+    const view: "user"|"admin"|"all" = viewRaw === "user" || viewRaw === "admin" || viewRaw === "all" ? (viewRaw as "user"|"admin"|"all") : "admin";
+
     const rows = await prisma.bookingPlan.findMany({
       orderBy: { timeStart: "asc" },
       include: {
-        employee: { select: { firstNameEn: true, lastNameEn: true } },             // เจ้าของ
+        employee: { select: { firstNameEn: true, lastNameEn: true, deptPath: true } },             // เจ้าของ
         interpreterEmployee: { select: { firstNameEn: true, lastNameEn: true } },  // ล่าม (nullable)
       },
     });
 
-    const result = rows.map((b) => {
+    // Filter by vision
+    let filtered = rows;
+    if (isSuper && (view === "admin" || view === "all")) {
+      // all
+    } else if (view === "admin") {
+      const allow = new Set((adminCenters.length ? adminCenters : (myCenter ? [myCenter] : [])));
+      filtered = rows.filter(b => {
+        const c = centerPart(b.employee?.deptPath ?? null);
+        return c ? allow.has(c) : false;
+      });
+    } else {
+      const cMy = myCenter;
+      filtered = rows.filter(b => {
+        const c = centerPart(b.employee?.deptPath ?? null);
+        return cMy && c ? c === cMy : false;
+      });
+    }
+
+    const result = filtered.map((b) => {
       const bookedBy = `${b.employee?.firstNameEn ?? ""} ${b.employee?.lastNameEn ?? ""}`.trim();
       const interpreter = b.interpreterEmployee
         ? `${b.interpreterEmployee.firstNameEn ?? ""} ${b.interpreterEmployee.lastNameEn ?? ""}`.trim()

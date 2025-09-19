@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 // Mock user database
 const mockUsers = [
+  { code: "00000", email: "00000@gmail.com", tel: "00000", pren: "Mr.", name: "Sunny", surn: "Jojo", prenTh: "นาย", nameTh: "ซันนี่", surnTh: "โจ๊ๆ", fno: "DIT", divDeptSect: "R&D / AAAA / TEST", positionDescription: "EN" },
   // A0001 - A0010
   { code: "A0001", email: "A0001@gmail.com", tel: "0001", pren: "Mr.", name: "Alexander", surn: "Anderson", prenTh: "นาย", nameTh: "อเล็กซานเดอร์", surnTh: "แอนเดอร์สัน", fno: "DIT", divDeptSect: "R&D / AAAA / TEST", positionDescription: "EN" },
   { code: "A0002", email: "A0002@gmail.com", tel: "0002", pren: "Mrs.", name: "Amanda", surn: "Adams", prenTh: "นาง", nameTh: "อแมนดา", surnTh: "อดัมส์", fno: "DIT", divDeptSect: "R&D / AAAA / TEST", positionDescription: "EN" },
