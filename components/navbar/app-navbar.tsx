@@ -16,6 +16,7 @@ import {
   Cog,
   Star,
   DoorOpen,
+  Languages,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -29,38 +30,15 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 // Admin submenu items
-const adminItems = [
-  {
-    title: "Overview",
-    url: "/AdminPage/overview-workload-page",
-    icon: BarChart2,
-  },
-  {
-    title: "Room management",
-    url: "/AdminPage/room-management",
-    icon: DoorOpen,
-  },
-  {
-    title: "Bookings management",
-    url: "/AdminPage/booking-manage-page",
-    icon: Inbox,
-  },
-  {
-    title: "Interpreters management",
-    url: "/AdminPage/interpreter-manage-page",
-    icon: CalendarIcon,
-  },
-  {
-    title: "User management",
-    url: "/AdminPage/user-manage-page",
-    icon: Settings,
-  },
-  {
-    title: "Auto-Assignment Config",
-    url: "/AdminPage/auto-assign-config",
-    icon: Cog,
-  },
-];
+const ADMIN_MENU_ALL = [
+  { title: "Overview", url: "/AdminPage/overview-workload-page", icon: BarChart2 },
+  { title: "Bookings management", url: "/AdminPage/booking-manage-page", icon: Inbox },
+  { title: "Interpreters management", url: "/AdminPage/interpreter-manage-page", icon: CalendarIcon },
+  { title: "User management", url: "/AdminPage/user-manage-page", icon: Settings },
+  { title: "Language management", url: "/AdminPage/language-manage-page", icon: Languages },
+  { title: "Environment management", url: "/AdminPage/environment-manage-page", icon: Cog },
+  { title: "Auto-Assignment Config", url: "/AdminPage/auto-assign-config", icon: Cog },
+] as const
 
 // A clean segmented-control style navbar that:
 // - Animates the active highlight to the exact width of the active button
@@ -82,7 +60,9 @@ export function AppNavbar() {
     admin: null,
   });
 
-  const [pill, setPill] = useState({ left: 0, width: 0, ready: false });
+  const [pill, setPill] = useState({ left: 0, width: 0, ready: false })
+  const [canAdmin, setCanAdmin] = useState<boolean>(false)
+  const [isSuper, setIsSuper] = useState<boolean>(false)
 
   // Update active based on the URL
   useEffect(() => {
@@ -107,12 +87,27 @@ export function AppNavbar() {
   useEffect(() => {
     updatePill();
     // Only reposition on window resize, not on content changes
-    const handle = () => updatePill();
-    window.addEventListener("resize", handle);
+    const handle = () => updatePill()
+    window.addEventListener("resize", handle)
     return () => {
-      window.removeEventListener("resize", handle);
-    };
-  }, [active, updatePill]);
+      window.removeEventListener("resize", handle)
+    }
+  }, [active, updatePill])
+
+  // Determine if current user can see Admin menu
+  useEffect(() => {
+    let alive = true
+    fetch("/api/user/me", { cache: "no-store" })
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (!alive || !data?.user) return
+        const roles: string[] = data.user.roles || []
+        setCanAdmin(roles.includes("ADMIN") || roles.includes("SUPER_ADMIN"))
+        setIsSuper(roles.includes("SUPER_ADMIN"))
+      })
+      .catch(() => {})
+    return () => { alive = false }
+  }, [])
 
   const handleLogout = async () => {
     try {
@@ -197,35 +192,36 @@ export function AppNavbar() {
                 </button>
               </Link>
 
-              {/* Admin dropdown (portal so it won't get clipped by the pill container) */}
-              <DropdownMenu onOpenChange={(open) => open && setActive("admin")}>
-                <DropdownMenuTrigger asChild>
-                  <button
-                    ref={(el) => {
-                      btnRefs.current.admin = el;
-                    }}
-                    className={itemClass(active === "admin")}
-                  >
-                    <Star className="h-4 w-4" />
-                    <span>Admin</span>
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-72">
-                  <DropdownMenuLabel>Admin</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  {adminItems.map((item) => (
-                    <DropdownMenuItem key={item.title} asChild>
-                      <Link
-                        href={item.url}
-                        className="flex items-center gap-2 py-2"
-                      >
-                        <item.icon className="h-4 w-4" />
-                        <span>{item.title}</span>
-                      </Link>
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
+              {/* Admin dropdown */}
+              {canAdmin && (
+                <DropdownMenu onOpenChange={(open) => open && setActive("admin")}>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      ref={(el) => { btnRefs.current.admin = el }}
+                      className={itemClass(active === "admin")}
+                    >
+                      <Star className="h-4 w-4" />
+                      <span>Admin</span>
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-72">
+                    <DropdownMenuLabel>Admin</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    {(ADMIN_MENU_ALL.filter(item => {
+                      // Only super admin can see interpreter and language management
+                      if (!isSuper && (item.url.includes('/interpreter-manage-page') || item.url.includes('/language-manage-page'))) return false;
+                      return true;
+                    })).map((item) => (
+                      <DropdownMenuItem key={item.title} asChild>
+                        <Link href={item.url} className="flex items-center gap-2 py-2">
+                          <item.icon className="h-4 w-4" />
+                          <span>{item.title}</span>
+                        </Link>
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
             </div>
 
             {/* Logout */}

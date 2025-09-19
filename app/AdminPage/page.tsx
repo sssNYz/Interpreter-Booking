@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { Home, Inbox, Calendar, Settings, Cog, Users, TestTube } from "lucide-react"
+import { Inbox, Calendar, Cog, Users, TestTube, Languages } from "lucide-react"
 
 const adminMenuItems = [
   {
@@ -38,6 +38,13 @@ const adminMenuItems = [
     url: "#",
     icon: Calendar,
     color: "bg-orange-500"
+  },
+  {
+    title: "Language Management",
+    description: "Manage system languages and language codes",
+    url: "/AdminPage/language-manage-page",
+    icon: Languages,
+    color: "bg-teal-500"
   }
 ]
 

@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/prisma/prisma";
 import type { Prisma } from "@prisma/client";
+import { cookies } from "next/headers";
+import { SESSION_COOKIE_NAME, verifySessionCookieValue } from "@/lib/auth/session";
+import { centerPart, splitPath } from "@/utils/users";
 import {
   parseQuery,
   buildParts,
@@ -31,10 +34,18 @@ export async function GET(req: NextRequest) {
       deptPath: { contains: p },
     }));
 
+    // ----- Vision scope: NOW disabled for admin (can see all users) -----
+    const cookieStore = await cookies();
+    const cookieValue = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+    const parsed = verifySessionCookieValue(cookieValue);
+    // Keep variables for future use, but do not restrict admins
+    let visionOr: Prisma.EmployeeWhereInput[] = [];
+
     const baseWhere: Prisma.EmployeeWhereInput = {
       AND: [
         ...(orSearch.length ? [{ OR: orSearch }] : []),
         ...(segmentReduce.length ? segmentReduce : []),
+        ...(visionOr.length ? [{ OR: visionOr }] : []),
       ],
     };
 
@@ -55,9 +66,12 @@ export async function GET(req: NextRequest) {
     ]);
 
     // --------- กรองซ้ำแบบ segment เพื่อความแม่นยำ ----------
-    const pageRows = parts.length
+    let pageRows = parts.length
       ? employees.filter((e) => hasSegmentPrefix(e.deptPath, parts))
       : employees;
+
+    // Precise vision filter (center match) for admins (non-super)
+    // No extra admin vision filter here (admins can view all users)
 
     const users = pageRows.map((e) => ({
       id: e.id,
@@ -92,7 +106,29 @@ export async function GET(req: NextRequest) {
         totalPages: Math.max(1, Math.ceil(total / q.pageSize)),
       },
       stats: { total, admins, interpreters },
-      tree: q.includeTree ? await buildFilterTree(prisma) : undefined,
+      // Build tree from currently visible rows to reflect vision scope
+      tree: q.includeTree
+        ? (() => {
+            const tmp: Record<string, Record<string, Set<string>>> = {};
+            for (const e of pageRows) {
+              const [dep, grp, sec] = splitPath(e.deptPath);
+              if (!dep) continue;
+              tmp[dep] ??= {};
+              if (!grp) continue;
+              tmp[dep][grp] ??= new Set<string>();
+              if (sec) tmp[dep][grp].add(sec);
+            }
+            const result: Record<string, Record<string, string[]>> = {};
+            const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
+            for (const dep of Object.keys(tmp).sort(collator.compare)) {
+              result[dep] = {};
+              for (const grp of Object.keys(tmp[dep]).sort(collator.compare)) {
+                result[dep][grp] = Array.from(tmp[dep][grp]).sort(collator.compare);
+              }
+            }
+            return result;
+          })()
+        : undefined,
     });
   } catch (err) {
     console.error(err);
