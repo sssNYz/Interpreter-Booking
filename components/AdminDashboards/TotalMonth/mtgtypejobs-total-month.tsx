@@ -183,7 +183,6 @@ interface TypesTabProps {
 export function TypesTab({ year, data: externalData, selectedMonth: propSelectedMonth }: TypesTabProps) {
   // ---- hooks ----
   const [data, setData] = React.useState<TypesApiResponse | null>(null);
-  const [showAllMonths, setShowAllMonths] = React.useState<boolean>(false);
 
   // Use external data if provided, otherwise fetch internally
   const currentData = externalData !== undefined ? externalData : data;
@@ -302,12 +301,9 @@ export function TypesTab({ year, data: externalData, selectedMonth: propSelected
   // ===== Table #2: Month × Type × Interpreter =====
   const groupSize = TYPE_PRIORITY.length;
   const selectedMonth = propSelectedMonth || (months.length > 0 ? months[0] : "");
-  const monthsToRender: MonthName[] = showAllMonths
-    ? months
-    : (selectedMonth ? [selectedMonth] as MonthName[] : []);
+  const monthsToRender: MonthName[] = selectedMonth ? [selectedMonth] as MonthName[] : [];
 
   const dynamicFooter = React.useMemo<FooterByInterpreter>(() => {
-    if (showAllMonths) return typesMGIFooter;
     const mrow = yearData.find((d) => d.month === selectedMonth);
     const perInterpreter = interpreters.map((itp) =>
       TYPE_PRIORITY.reduce((sum, label) => {
@@ -320,7 +316,7 @@ export function TypesTab({ year, data: externalData, selectedMonth: propSelected
     const grand = perInterpreter.reduce((a, b) => a + b, 0);
     const diff = diffRange(perInterpreter);
     return { perInterpreter, grand, diff };
-  }, [showAllMonths, typesMGIFooter, yearData, propSelectedMonth, months, interpreters]);
+  }, [yearData, selectedMonth, interpreters]);
 
   return (
     <>
@@ -427,17 +423,7 @@ export function TypesTab({ year, data: externalData, selectedMonth: propSelected
       {/* ===== Table 2: Month × Type × Interpreter (unchanged) ===== */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between gap-3">
-            <CardTitle className="text-base">Month × Type × Interpreter (Year {activeYear})</CardTitle>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowAllMonths((v) => !v)}
-              className="whitespace-nowrap"
-            >
-              {showAllMonths ? "Show current month only" : "Show all months"}
-            </Button>
-          </div>
+          <CardTitle className="text-base">Month × Type × Interpreter (Year {activeYear})</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
