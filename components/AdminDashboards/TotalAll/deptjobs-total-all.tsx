@@ -21,7 +21,6 @@ import type {
   DepartmentsApiResponse,
 } from "@/types/admin-dashboard";
 import { OwnerGroupLabel as OGLabel } from "@/types/admin-dashboard";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 
 import { 
@@ -180,22 +179,22 @@ const TechLegend = () => (
   <div style={{ 
     display: "flex", 
     flexWrap: "wrap", 
-    gap: "16px", 
+    gap: "12px", 
     justifyContent: "center", 
-    marginTop: "16px",
-    padding: "8px"
+    marginTop: "8px",
+    padding: "4px"
   }}>
     {TECH_CATEGORIES.map((label) => (
-      <div key={label} style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+      <div key={label} style={{ display: "flex", alignItems: "center", gap: "4px" }}>
         <div
           style={{
-            width: "12px",
-            height: "12px",
+            width: "15px",
+            height: "15px",
             backgroundColor: TECH_COLORS[label],
             borderRadius: "2px",
           }}
         />
-        <span style={{ fontSize: "12px", fontWeight: "500" }}>{label}</span>
+        <span style={{ fontSize: "14px", fontWeight: "400" }}>{label}</span>
       </div>
     ))}
   </div>
@@ -210,7 +209,6 @@ interface DeptTabProps {
 
 export function DeptTab({ year, data: externalData }: DeptTabProps) {
   const [data, setData] = React.useState<DepartmentsApiResponse | null>(null);
-  const [showAllMonths, setShowAllMonths] = React.useState<boolean>(false);
 
   // Use external data if provided, otherwise fetch internally
   const currentData = externalData !== undefined ? externalData : data;
@@ -243,10 +241,6 @@ export function DeptTab({ year, data: externalData }: DeptTabProps) {
   const interpreters: InterpreterName[] = React.useMemo(() => currentData?.interpreters ?? [], [currentData?.interpreters]);
   const departments: OwnerGroup[] = React.useMemo(() => currentData?.departments ?? [], [currentData?.departments]);
   const yearData: MonthlyDataRow[] = React.useMemo(() => currentData?.yearData ?? [], [currentData?.yearData]);
-  const deptMGIFooter: FooterByInterpreter = React.useMemo(
-    () => currentData?.deptMGIFooter ?? { perInterpreter: [], grand: 0, diff: 0 },
-    [currentData?.deptMGIFooter]
-  );
 
 
   // Create tech category data using real department data
@@ -294,13 +288,14 @@ export function DeptTab({ year, data: externalData }: DeptTabProps) {
     });
   }, [months, yearData, interpreters]);
 
+  // For Total All view, always show all months aggregated
   const monthsToRender: MonthName[] = React.useMemo(
-    () => showAllMonths ? months : (months.length > 0 ? [months[0]] : []),
-    [showAllMonths, months]
+    () => months,
+    [months]
   );
 
   const dynamicFooter = React.useMemo<FooterByInterpreter>(() => {
-    if (showAllMonths) return deptMGIFooter;
+    // For Total All view, always use the full year data
     const perInterpreter = interpreters.map((itp) =>
       monthsToRender.reduce((acc, m) => {
         const r = yearData.find((d) => d.month === m);
@@ -314,7 +309,7 @@ export function DeptTab({ year, data: externalData }: DeptTabProps) {
     const grand = perInterpreter.reduce((a, b) => a + b, 0);
     const diff = diffRange(perInterpreter);
     return { perInterpreter, grand, diff };
-  }, [showAllMonths, deptMGIFooter, interpreters, monthsToRender, yearData, departments]);
+  }, [interpreters, monthsToRender, yearData, departments]);
 
   // Early return if no basic data structure
   if (!months?.length || !interpreters?.length) {
@@ -402,7 +397,7 @@ export function DeptTab({ year, data: externalData }: DeptTabProps) {
       <Card className="h-[380px] mb-8 overflow-visible">
         <CardHeader className="pb-0">
           <CardTitle className="text-base">
-            Tech Categories — All Months (Year {activeYear})
+            Tech Categories — Total All (Year {activeYear})
           </CardTitle>
         </CardHeader>
         <CardContent className="h-[320px]">
@@ -576,26 +571,16 @@ export function DeptTab({ year, data: externalData }: DeptTabProps) {
       {/* Table B: Month × Group × Interpreter */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between gap-3">
-            <CardTitle className="text-base">
-              Month × Group × Interpreter (Year {activeYear})
-            </CardTitle>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowAllMonths((v) => !v)}
-              className="whitespace-nowrap"
-            >
-              {showAllMonths ? "Show current month only" : "Show all months"}
-            </Button>
-          </div>
+          <CardTitle className="text-base">
+            Total All × Group × Interpreter (Year {activeYear})
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-slate-100 dark:bg-slate-800">
-                  <th className="p-2 text-left">Month</th>
+                  <th className="p-2 text-left">All</th>
                   <th className="p-2 text-left">Group</th>
                   {interpreters.map((p) => (
                     <th key={p} className="p-2 text-right">{p}</th>
@@ -605,32 +590,33 @@ export function DeptTab({ year, data: externalData }: DeptTabProps) {
                 </tr>
               </thead>
               <tbody>
-                {monthsToRender.map((m) => (
-                  <React.Fragment key={m}>
-                    {departments.map((dept, idx) => {
+                {departments.map((dept, idx) => {
+                  // Aggregate data across all months for this department
+                  const vals = interpreters.map((p) => 
+                    monthsToRender.reduce((acc, m) => {
                       const r = yearData.find((d) => d.month === m);
-                      const vals = interpreters.map((p) => r?.deptByInterpreter?.[p]?.[dept] ?? 0);
-                      const total = vals.reduce((a, b) => a + b, 0);
-                      const d = diffRange(vals);
+                      return acc + (r?.deptByInterpreter?.[p]?.[dept] ?? 0);
+                    }, 0)
+                  );
+                  const total = vals.reduce((a, b) => a + b, 0);
+                  const d = diffRange(vals);
 
-                      return (
-                        <tr key={`${m}-${dept}`} className="border-b odd:bg-white even:bg-muted/30 hover:bg-muted/40">
-                          {idx === 0 && (
-                            <td className="p-2 align-top font-medium" rowSpan={departments.length}>
-                              {m}
-                            </td>
-                          )}
-                          <td className="p-2">{OGLabel[dept]}</td>
-                          {interpreters.map((p, i) => (
-                            <td key={p} className="p-2 text-right">{vals[i]}</td>
-                          ))}
-                          <td className={`p-2 text-right font-medium ${diffClass(d)}`}>{d}</td>
-                          <td className="p-2 text-right font-semibold">{total}</td>
-                        </tr>
-                      );
-                    })}
-                  </React.Fragment>
-                ))}
+                  return (
+                    <tr key={dept} className="border-b odd:bg-white even:bg-muted/30 hover:bg-muted/40">
+                      {idx === 0 && (
+                        <td className="p-2 align-top font-medium" rowSpan={departments.length}>
+                          Month
+                        </td>
+                      )}
+                      <td className="p-2">{OGLabel[dept]}</td>
+                      {interpreters.map((p, i) => (
+                        <td key={p} className="p-2 text-right">{vals[i]}</td>
+                      ))}
+                      <td className={`p-2 text-right font-medium ${diffClass(d)}`}>{d}</td>
+                      <td className="p-2 text-right font-semibold">{total}</td>
+                    </tr>
+                  );
+                })}
                 <tr className="bg-emerald-50 text-emerald-900 font-semibold">
                   <td className="p-2" colSpan={2}>TOTAL</td>
                   {dynamicFooter.perInterpreter.map((v, idx) => (

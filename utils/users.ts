@@ -15,7 +15,8 @@ export interface ParsedQuery {
 }
 
 // ---------- New: split/normalize ----------
-const SPLIT_RE = /\s*\\\s*/; // แยกด้วย backslash โดยไม่แคร์ช่องว่าง
+// Split by one-or-more slashes or backslashes, trimming spaces around separators
+const SPLIT_RE = /\s*[\\\/]+\s*/;
 
 export function splitPath(path?: string | null): string[] {
   if (!path) return [];
@@ -23,6 +24,15 @@ export function splitPath(path?: string | null): string[] {
     .split(SPLIT_RE)
     .map(s => s.trim())
     .filter(Boolean);
+}
+
+// Return the "center" segment (bbb) from aaa/bbb/ccc.
+// If only one segment, return that segment. If empty, return null.
+export function centerPart(path?: string | null): string | null {
+  const parts = splitPath(path);
+  if (parts.length === 0) return null;
+  if (parts.length === 1) return parts[0];
+  return parts[1];
 }
 
 export function buildParts(dep: string, grp: string, sec: string): string[] {

@@ -214,6 +214,20 @@ export function MeetingDetailsSection({
               </Command>
             </PopoverContent>
           </Popover>
+          <Input
+            id="meetingRoom"
+            placeholder="Enter meeting room"
+            value={meetingRoom}
+            onChange={(e) => setMeetingRoom(e.target.value)}
+            className={
+              errors.meetingRoom
+                ? "border-destructive focus:border-destructive"
+                : ""
+            }
+            aria-describedby={
+              errors.meetingRoom ? "meetingRoom-error" : undefined
+            }
+          />
         </div>
 
         <div className="space-y-2">
@@ -246,11 +260,12 @@ export function MeetingDetailsSection({
               <SelectValue placeholder="Select type" />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="President">President</SelectItem>
               <SelectItem value="DR">DR</SelectItem>
               <SelectItem value="VIP">VIP</SelectItem>
               <SelectItem value="Weekly">Weekly</SelectItem>
               <SelectItem value="General">General</SelectItem>
-              <SelectItem value="Augent">Augent</SelectItem>
+              <SelectItem value="Urgent">Urgent</SelectItem>
               <SelectItem value="Other">Other</SelectItem>
             </SelectContent>
           </Select>
@@ -282,7 +297,7 @@ export function MeetingDetailsSection({
               <SelectValue placeholder="Select DR type" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="PR_PR">PR-PR</SelectItem>
+              <SelectItem value="DR_PR">DR-PR</SelectItem>
               <SelectItem value="DR_k">DR-k</SelectItem>
               <SelectItem value="DR_II">DR-II</SelectItem>
               <SelectItem value="DR_I">DR-I</SelectItem>
