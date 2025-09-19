@@ -35,6 +35,7 @@ const ADMIN_MENU_ALL = [
   { title: "Interpreters management", url: "/AdminPage/interpreter-manage-page", icon: CalendarIcon },
   { title: "User management", url: "/AdminPage/user-manage-page", icon: Settings },
   { title: "Language management", url: "/AdminPage/language-manage-page", icon: Languages },
+  { title: "Environment management", url: "/AdminPage/environment-manage-page", icon: Cog },
   { title: "Auto-Assignment Config", url: "/AdminPage/auto-assign-config", icon: Cog },
 ] as const
 
