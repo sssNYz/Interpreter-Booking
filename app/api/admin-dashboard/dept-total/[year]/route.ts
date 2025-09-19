@@ -70,15 +70,19 @@ export async function GET(
     if (parsed) {
       const me = await prisma.employee.findUnique({
         where: { empCode: parsed.empCode },
-        include: { userRoles: true, adminVisions: true },
+        include: { userRoles: true },
       });
       const roles = me?.userRoles?.map(r => r.roleCode) ?? [];
       const isSuper = roles.includes("SUPER_ADMIN");
       const isAdmin = roles.includes("ADMIN") || isSuper;
       if (isAdmin && !isSuper) {
         const myCenter = centerPart(me?.deptPath ?? null);
-        const adminCenters = (me?.adminVisions ?? []).map(v => centerPart(v.deptPath)).filter((x): x is string => Boolean(x));
-        const allow = new Set(adminCenters.length ? adminCenters : (myCenter ? [myCenter] : []));
+        const envs = await prisma.environmentAdmin.findMany({
+          where: { adminEmpCode: me!.empCode },
+          select: { environment: { select: { centers: { select: { center: true } } } } },
+        });
+        const adminEnvCenters = envs.flatMap(e => e.environment.centers.map(c => c.center));
+        const allow = new Set(adminEnvCenters.length ? adminEnvCenters : (myCenter ? [myCenter] : []));
         records = recordsRaw.filter(r => {
           const c = centerPart(r.employee?.deptPath ?? null);
           return c && allow.has(c);

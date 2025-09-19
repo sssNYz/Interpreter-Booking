@@ -28,7 +28,7 @@ export async function PATCH(
     }
     const requester = await prisma.employee.findUnique({
       where: { empCode: parsedSession.empCode },
-      include: { userRoles: true, adminVisions: true },
+      include: { userRoles: true },
     })
     const roles = requester?.userRoles?.map(r => r.roleCode) ?? []
     const isSuper = roles.includes("SUPER_ADMIN")
@@ -36,8 +36,14 @@ export async function PATCH(
     if (!isAdmin) {
       return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 })
     }
-    const allowCenters = new Set((requester?.adminVisions ?? []).map(v => centerPart(v.deptPath)).filter((x): x is string => Boolean(x)))
+    // Allowed centers: union of admin's environment centers (fallback to user's own center)
     const myCenter = centerPart(requester?.deptPath ?? null)
+    const envs = await prisma.environmentAdmin.findMany({
+      where: { adminEmpCode: requester!.empCode },
+      select: { environment: { select: { centers: { select: { center: true } } } } },
+    })
+    const envCenters = envs.flatMap(e => e.environment.centers.map(c => c.center))
+    const allowCenters = new Set(envCenters)
     const { id } = await ctx.params
     const bookingId = Number.parseInt(id, 10)
     if (!Number.isInteger(bookingId)) {
@@ -77,7 +83,7 @@ export async function PATCH(
         return { status: 422 as const, payload: { error: "POLICY_VIOLATION", message: "Booking is canceled" } }
       }
 
-      // Vision check for non-super admins: booking owner's center must be in allowed centers
+      // Environment check for non-super admins: booking owner's center must be in allowed centers
       if (!isSuper) {
         const bCenter = centerPart(bk.employee?.deptPath ?? null)
         const allow = allowCenters.size ? allowCenters : (myCenter ? new Set([myCenter]) : new Set<string>())
