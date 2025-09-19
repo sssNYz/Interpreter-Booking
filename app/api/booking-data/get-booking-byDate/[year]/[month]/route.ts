@@ -10,7 +10,7 @@ export async function GET(
   request: Request,
   context: { params: { year: string; month: string } }
 ) {
-  const { year, month } = context.params;
+  const { year, month } = await context.params;
 
   const yearNum = parseInt(year);
   const monthNum = parseInt(month);
