@@ -54,13 +54,6 @@ interface ConfigImpactAssessment {
     fairnessImprovement: boolean;
     windowDaysChange?: number;
   };
-  poolProcessingImpact?: {
-    currentPoolSize: number;
-    thresholdAdjustments: number;
-    deadlineAdjustments: number;
-    processingFrequencyChange?: string;
-    batchProcessingChange?: string;
-  };
   drPolicyImpact?: {
     blockingBehaviorChange?: string;
     penaltyChange: number;

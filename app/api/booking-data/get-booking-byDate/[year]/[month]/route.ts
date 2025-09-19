@@ -41,15 +41,28 @@ export async function GET(
       },
     },
     orderBy: { timeStart: "asc" },
-    include: {
+    select: {
+      bookingId: true,
+      ownerEmpCode: true,
+      ownerGroup: true,
+      meetingRoom: true,
+      meetingDetail: true,
+      timeStart: true,
+      timeEnd: true,
+      bookingStatus: true,
+      createdAt: true,
+      updatedAt: true,
       employee: {
         select: { firstNameEn: true, lastNameEn: true, email: true, telExt: true },
       },
       interpreterEmployee: {
-        select: { empCode: true },
+        select: { empCode: true,
+                firstNameEn: true,
+                lastNameEn: true,
+         },
       },
     },
-  } as Parameters<typeof prisma.bookingPlan.findMany>[0]);
+  });
 
   {/**
     // Map to the BookingData shape expected by the frontend
@@ -70,6 +83,7 @@ export async function GET(
     ownerEmpCode: string;
     ownerGroup: string;
     meetingRoom: string;
+    meetingType: string;
     meetingDetail: string | null;
     timeStart: Date;
     timeEnd: Date;
@@ -77,7 +91,8 @@ export async function GET(
     createdAt: Date;
     updatedAt: Date;
     employee?: { firstNameEn: string | null; lastNameEn: string | null; email: string | null; telExt: string | null } | null;
-    interpreterEmployee?: { empCode: string | null } | null;
+    interpreterEmployee?: { empCode: string | null; firstNameEn: string | null; lastNameEn: string | null } | null;
+    
   }>).map((b) => ({
     bookingId: b.bookingId,
     ownerEmpCode: b.ownerEmpCode,
@@ -88,10 +103,14 @@ export async function GET(
     ownerGroup: asOwnerGroup(b.ownerGroup),
     meetingRoom: b.meetingRoom,
     meetingDetail: b.meetingDetail ?? "",
+    meetingType: b.meetingType,
     // highPriority removed from API response
     timeStart: b.timeStart.toISOString(),
     timeEnd: b.timeEnd.toISOString(),
     interpreterId: b.interpreterEmployee?.empCode ?? null,
+    interpreterName: b.interpreterEmployee
+    ?`${b.interpreterEmployee.firstNameEn ?? ""} ${b.interpreterEmployee.lastNameEn ?? ""}`.trim()  
+    : "",
     bookingStatus: b.bookingStatus,
     createdAt: b.createdAt.toISOString(),
     updatedAt: b.updatedAt.toISOString(),
