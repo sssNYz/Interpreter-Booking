@@ -48,6 +48,18 @@ const STATUS_OPTIONS: StatusOptionConfig[] = [
 ];
 export default function BookingManagement(): React.JSX.Element {
   const [bookings, setBookings] = useState<BookingManage[]>([]);
+  const [forwarded, setForwarded] = useState<{
+    bookingId: number;
+    deptPath: string;
+    meetingRoom: string;
+    meetingType: string;
+    timeStart: string;
+    timeEnd: string;
+    status: string;
+    owner: { empCode: string | null; name: string; deptPath: string | null };
+    languageCode?: string | null;
+    selectedInterpreterEmpCode?: string | null;
+  }[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const [filters, setFilters] = useState<BookingFilters>({
@@ -91,6 +103,25 @@ export default function BookingManagement(): React.JSX.Element {
     }
   }, []);
 
+  const fetchForwarded = useCallback(async () => {
+    try {
+      const res = await fetch("/api/admin/forward-requests", { cache: "no-store" });
+      if (!res.ok) throw new Error(`Failed to load forwarded (${res.status})`);
+      const data = await res.json();
+      setForwarded(Array.isArray(data?.data) ? data.data : []);
+    } catch (e) {
+      console.error(e);
+      setForwarded([]);
+    }
+  }, []);
+
+  const mapForwardStatus = useCallback((s: string): "Approve"|"Cancel"|"Wait" => {
+    const low = (s || "").toLowerCase();
+    if (low === 'approve') return 'Approve';
+    if (low === 'cancel') return 'Cancel';
+    return 'Wait';
+  }, []);
+
   useEffect(() => {
     setIsClient(true);
     const now = new Date();
@@ -98,7 +129,8 @@ export default function BookingManagement(): React.JSX.Element {
     setCurrentMonth(months[now.getMonth()]);
     setCurrentYear(now.getFullYear());
     fetchBookings();
-  }, [fetchBookings]);
+    fetchForwarded();
+  }, [fetchBookings, fetchForwarded]);
 
   const yearOptions = useMemo(() => {
     const baseYear = currentYear ?? new Date().getFullYear();
@@ -180,6 +212,7 @@ export default function BookingManagement(): React.JSX.Element {
     try {
       setError(null);
       await fetchBookings();
+      await fetchForwarded();
     } catch (e) {
       setError((e as Error).message);
     }
@@ -529,6 +562,138 @@ export default function BookingManagement(): React.JSX.Element {
           </CardContent>
         </Card>
 
+        {/* Forwarded to me */}
+        <Card className="mb-6 bg-white rounded-xl shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-base">Forwarded To Me</CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            {forwarded.length === 0 ? (
+              <div className="p-6 text-gray-500">No forwarded requests</div>
+            ) : (
+              <table className="w-full text-sm table-fixed">
+                <thead className="bg-white">
+                  <tr className="border-b border-gray-200">
+                    <th className="w-20 px-4 py-3 text-center font-semibold text-gray-900 bg-gray-50 text-sm">Meeting Type</th>
+                    <th className="w-32 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Date Meeting</th>
+                    <th className="w-36 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Meeting Time</th>
+                    <th className="w-32 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">User</th>
+                    <th className="w-32 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Interpreter</th>
+                    <th className="w-24 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Room</th>
+                    <th className="w-28 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Status</th>
+                    <th className="w-48 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Date Request</th>
+                    <th className="w-32 px-6 py-3 text-center font-semibold text-gray-900 bg-gray-50 text-sm">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {forwarded.map((r, index) => (
+                    <tr key={`${r.bookingId}-${r.deptPath}`} className={`border-b border-gray-100 hover:bg-blue-50 transition-colors ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'}`}>
+                      <td className="px-4 py-4 text-center">
+                        {getMeetingTypeBadge(r.meetingType as any, undefined, undefined)}
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="flex items-start gap-2">
+                          <div className="group relative flex-1">
+                            <span className="font-semibold text-gray-900 text-sm cursor-help break-words">
+                              {formatDate(new Date(r.timeStart).toISOString().split('T')[0])}
+                            </span>
+                            <div className="absolute top-full left-0 mt-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50">
+                              {new Date(r.timeStart).toLocaleString()}
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="flex items-center gap-1 text-gray-800 font-mono text-sm">
+                          <Clock className="h-4 w-4 text-gray-500 flex-shrink-0" />
+                          <span className="whitespace-nowrap">{new Date(r.timeStart).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})} - {new Date(r.timeEnd).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <span className="font-semibold text-gray-900 text-sm break-words">{r.owner.name || '-'}</span>
+                      </td>
+                      <td className="px-4 py-4">
+                        <span className="text-gray-800 text-sm break-words">-</span>
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="flex items-center justify-center h-full">
+                          <span className="px-2 py-1 bg-gray-100 text-gray-800 rounded-md text-sm font-semibold break-words">{r.meetingRoom}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        {(() => { const ui = mapForwardStatus(r.status); return (
+                          <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-semibold ${getStatusColor(ui)}`}>
+                            {getStatusIcon(ui)}
+                            <span className="truncate">{ui}</span>
+                          </span>
+                        ); })()}
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="text-sm text-gray-600 whitespace-nowrap">{formatRequestedTime(new Date((r as any).createdAt ?? r.timeStart).toISOString().replace('T',' ').slice(0,16)+':00')}</span>
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        <div className="flex items-center gap-2 justify-center">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              const match = bookings.find(b => b.id === r.bookingId);
+                              if (match) {
+                                setSelectedBooking(match);
+                                setShowBookingDetailDialog(true);
+                                return;
+                              }
+                              const ymd = new Date(r.timeStart).toISOString().split('T')[0];
+                              const hh = (d: string) => new Date(d).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+                              const fallback: any = {
+                                id: r.bookingId,
+                                dateTime: ymd,
+                                interpreter: "",
+                                room: r.meetingRoom,
+                                group: 'other',
+                                meetingDetail: '',
+                                topic: '',
+                                bookedBy: r.owner.name || '',
+                                status: 'Wait',
+                                startTime: hh(r.timeStart),
+                                endTime: hh(r.timeEnd),
+                                requestedTime: new Date((r as any).createdAt ?? r.timeStart).toISOString(),
+                                isDR: false,
+                                meetingType: r.meetingType,
+                              };
+                              setSelectedBooking(fallback);
+                              setShowBookingDetailDialog(true);
+                            }}
+                          >Edit</Button>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={async () => {
+                              const reason = prompt("Reject reason?");
+                              if (!reason || !reason.trim()) return;
+                              const res = await fetch(`/api/admin/bookings/${r.bookingId}/cancel`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ note: reason.trim() }),
+                              });
+                              if (!res.ok) {
+                                const j = await res.json().catch(() => null);
+                                alert(`Reject failed: ${j?.message || res.status}`);
+                                return;
+                              }
+                              await fetchForwarded();
+                            }}
+                          >Reject</Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </CardContent>
+        </Card>
+
         {error && (
           <div className="mb-6 p-4 rounded-md bg-red-50 border border-red-200 text-red-700">
             Failed to load data: {error}
@@ -626,6 +791,52 @@ export default function BookingManagement(): React.JSX.Element {
                             <SquarePen className="h-4 w-4 mr-1" />
                             Edit
                           </Button>
+                          {booking.status === 'Wait' && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 px-3 ml-2"
+                            onClick={async () => {
+                              try {
+                                const envRes = await fetch('/api/environments', { cache: 'no-store' });
+                                if (!envRes.ok) throw new Error('Load environments failed');
+                                const envs = await envRes.json();
+                                const meRes = await fetch('/api/user/me', { cache: 'no-store' });
+                                if (!meRes.ok) throw new Error('Load me failed');
+                                const me = await meRes.json();
+                                const myCenters = (me?.user?.adminEnvCenters ?? []) as string[];
+                                const allCenters = envs.flatMap((e: any) => e.centers.map((c: any) => c.center)) as string[];
+                                const candidates = allCenters.filter((c: string) => !myCenters.includes(c));
+                                if (candidates.length === 0) { alert('No other environments to forward.'); return; }
+                                const input = prompt(`Forward to centers (comma separated, or type 'all'):\n${candidates.join(', ')}`);
+                                if (!input) return;
+                                let targets = input.split(',').map(s => s.trim()).filter(Boolean);
+                                const useAll = targets.length === 1 && targets[0].toLowerCase() === 'all';
+                                if (useAll) {
+                                  targets = candidates;
+                                } else if (targets.map(t => t.toLowerCase()).includes('all')) {
+                                  const others = targets.filter(t => t.toLowerCase() !== 'all');
+                                  targets = Array.from(new Set([...candidates, ...others]));
+                                }
+                                const invalid = targets.filter(t => !candidates.includes(t));
+                                if (invalid.length > 0) { alert(`Invalid centers: ${invalid.join(', ')}`); return; }
+                                const note = prompt('Reason to forward? (required)')?.trim();
+                                if (!note) return;
+                                const res = await fetch(`/api/admin/bookings/${booking.id}/forward`, {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ targets, note }),
+                                });
+                                if (!res.ok) { const j = await res.json().catch(()=>null); throw new Error(j?.message || `Forward failed (${res.status})`); }
+                                await refreshData();
+                              } catch (e) {
+                                alert((e as Error).message);
+                              }
+                            }}
+                          >
+                            Forward
+                          </Button>
+                          )}
                         </td>
                       </tr>
                     ))}

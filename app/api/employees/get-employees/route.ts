@@ -34,26 +34,12 @@ export async function GET(req: NextRequest) {
       deptPath: { contains: p },
     }));
 
-    // ----- Vision scope (admin) -----
+    // ----- Vision scope: NOW disabled for admin (can see all users) -----
     const cookieStore = await cookies();
     const cookieValue = cookieStore.get(SESSION_COOKIE_NAME)?.value;
     const parsed = verifySessionCookieValue(cookieValue);
+    // Keep variables for future use, but do not restrict admins
     let visionOr: Prisma.EmployeeWhereInput[] = [];
-    if (parsed) {
-      const me = await prisma.employee.findUnique({
-        where: { empCode: parsed.empCode },
-        include: { userRoles: true, adminVisions: true },
-      });
-      const roles = me?.userRoles?.map(r => r.roleCode) ?? [];
-      const isSuper = roles.includes("SUPER_ADMIN");
-      const isAdmin = roles.includes("ADMIN") || isSuper;
-      if (isAdmin && !isSuper) {
-        const myCenter = centerPart(me?.deptPath ?? null);
-        const adminCenters = (me?.adminVisions ?? []).map(v => centerPart(v.deptPath)).filter((x): x is string => Boolean(x));
-        const allow = adminCenters.length ? adminCenters : (myCenter ? [myCenter] : []);
-        visionOr = allow.map(c => ({ deptPath: { contains: c } }));
-      }
-    }
 
     const baseWhere: Prisma.EmployeeWhereInput = {
       AND: [
@@ -85,15 +71,7 @@ export async function GET(req: NextRequest) {
       : employees;
 
     // Precise vision filter (center match) for admins (non-super)
-    if (visionOr.length) {
-      const allowCenters = new Set(
-        (visionOr as any[]).map((o) => String(o.deptPath.contains))
-      );
-      pageRows = pageRows.filter((e) => {
-        const c = centerPart(e.deptPath ?? null);
-        return c ? allowCenters.has(c) : false;
-      });
-    }
+    // No extra admin vision filter here (admins can view all users)
 
     const users = pageRows.map((e) => ({
       id: e.id,
