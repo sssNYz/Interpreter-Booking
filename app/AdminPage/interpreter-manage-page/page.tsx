@@ -1,10 +1,27 @@
 "use client"
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Users } from "lucide-react";
 import InterpreterColorManager from "@/components/AdminControls/interpreter-color-manager";
 
 export default function AdminPageInterpreterManagement() {
+  const [allowed, setAllowed] = useState<boolean | null>(null);
+  useEffect(() => {
+    let alive = true;
+    fetch('/api/user/me', { cache: 'no-store' })
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (!alive) return;
+        const roles: string[] = data?.user?.roles || [];
+        setAllowed(roles.includes('SUPER_ADMIN'));
+      }).catch(() => setAllowed(false));
+    return () => { alive = false };
+  }, []);
+
+  if (allowed === null) return null; // or loading
+  if (!allowed) return (
+    <div className="min-h-screen flex items-center justify-center text-sm text-muted-foreground">Forbidden</div>
+  );
   return (
     <div className="min-h-screen bg-[#f7f7f7] font-sans text-gray-900">
       {/* Header */}

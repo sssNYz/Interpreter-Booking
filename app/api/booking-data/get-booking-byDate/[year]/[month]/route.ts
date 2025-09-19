@@ -1,5 +1,8 @@
 // NOTE: Protected by middleware via cookie session
 import prisma from '@/prisma/prisma';
+import { cookies } from 'next/headers';
+import { SESSION_COOKIE_NAME, verifySessionCookieValue } from '@/lib/auth/session';
+import { centerPart } from '@/utils/users';
 import type { BookingData, OwnerGroup as OwnerGroupUI } from '@/types/booking';
 export const dynamic = "force-dynamic";
 
@@ -41,22 +44,70 @@ export async function GET(
       ownerGroup: true,
       meetingRoom: true,
       meetingDetail: true,
+      meetingType: true,
       timeStart: true,
       timeEnd: true,
       bookingStatus: true,
       createdAt: true,
       updatedAt: true,
       employee: {
-        select: { firstNameEn: true, lastNameEn: true, email: true, telExt: true },
+        select: { firstNameEn: true, lastNameEn: true, email: true, telExt: true, deptPath: true },
       },
       interpreterEmployee: {
         select: { empCode: true,
                 firstNameEn: true,
                 lastNameEn: true,
-         },
+                                                  },
       },
     },
   });
+
+  // Determine current user roles and allowed centers based on 'view'
+  const url = new URL(request.url);
+  const viewRaw = (url.searchParams.get('view') || '').toLowerCase();
+  const cookieStore = await cookies();
+  const cookieValue = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+  const parsed = verifySessionCookieValue(cookieValue);
+  let roles: string[] = [];
+  let myCenter: string | null = null;
+  let adminCenters: string[] = [];
+  if (parsed) {
+    const me = await prisma.employee.findUnique({
+      where: { empCode: parsed.empCode },
+      include: { userRoles: true, adminVisions: true },
+    });
+    if (me) {
+      roles = (me.userRoles ?? []).map(r => r.roleCode);
+      myCenter = centerPart(me.deptPath);
+      adminCenters = (me.adminVisions ?? [])
+        .map(v => centerPart(v.deptPath))
+        .filter((x): x is string => Boolean(x));
+    }
+  }
+  const hasAdmin = roles.includes('ADMIN') || roles.includes('SUPER_ADMIN');
+  const isSuper = roles.includes('SUPER_ADMIN');
+  const view: 'user'|'admin'|'all' = viewRaw === 'user' || viewRaw === 'admin' || viewRaw === 'all'
+    ? (viewRaw as 'user'|'admin'|'all')
+    : (hasAdmin ? 'admin' : 'user');
+
+  let filtered = bookings;
+  if (isSuper && (view === 'admin' || view === 'all')) {
+    // super admin sees all
+    filtered = bookings;
+  } else if (view === 'admin' && hasAdmin) {
+    const allow = new Set((adminCenters.length ? adminCenters : (myCenter ? [myCenter] : [])));
+    filtered = bookings.filter(b => {
+      const c = centerPart(b.employee?.deptPath ?? null);
+      return c ? allow.has(c) : false;
+    });
+  } else {
+    // user view (default)
+    const cMy = myCenter;
+    filtered = bookings.filter(b => {
+      const c = centerPart(b.employee?.deptPath ?? null);
+      return cMy && c ? c === cMy : false;
+    });
+  }
 
   // Map to the BookingData shape expected by the frontend
   const toIso = (d: Date) => d.toISOString();
@@ -70,7 +121,7 @@ export async function GET(
     return "other";
   };
 
-  const result: BookingData[] = (bookings as Array<{
+  const result: BookingData[] = (filtered as Array<{
     bookingId: number;
     ownerEmpCode: string;
     ownerGroup: string;
@@ -82,7 +133,7 @@ export async function GET(
     bookingStatus: string;
     createdAt: Date;
     updatedAt: Date;
-    employee?: { firstNameEn: string | null; lastNameEn: string | null; email: string | null; telExt: string | null } | null;
+    employee?: { firstNameEn: string | null; lastNameEn: string | null; email: string | null; telExt: string | null; deptPath?: string | null } | null;
     interpreterEmployee?: { empCode: string | null; firstNameEn: string | null; lastNameEn: string | null } | null;
     
   }>).map((b) => ({
