@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/prisma/prisma";
 import { Prisma } from "@prisma/client";
+import { cookies } from "next/headers";
+import { SESSION_COOKIE_NAME, verifySessionCookieValue } from "@/lib/auth/session";
 
 type AssignBody = {
 	adminEmpCode?: string;
@@ -9,11 +11,20 @@ type AssignBody = {
 
 // Assign one deptPath scope to an admin
 export async function POST(req: NextRequest) {
-	try {
-		let body: AssignBody = {};
-		try {
-			body = (await req.json()) as AssignBody;
-		} catch {}
+    try {
+        // Only SUPER_ADMIN can modify admin scopes
+        const cookieStore = await cookies();
+        const cookieValue = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+        const parsed = verifySessionCookieValue(cookieValue);
+        if (!parsed) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
+        const me = await prisma.employee.findUnique({ where: { empCode: parsed.empCode }, include: { userRoles: true } });
+        const roles = me?.userRoles?.map(r => r.roleCode) ?? [];
+        if (!roles.includes("SUPER_ADMIN")) return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
+
+        let body: AssignBody = {};
+        try {
+            body = (await req.json()) as AssignBody;
+        } catch {}
 		const adminEmpCode = (body.adminEmpCode ?? "").trim();
 		const deptPath = (body.deptPath ?? "").trim();
 		if (!adminEmpCode || !deptPath) {
@@ -50,12 +61,21 @@ export async function POST(req: NextRequest) {
 
 // Unassign one deptPath scope from an admin
 export async function DELETE(req: NextRequest) {
-	try {
-		let adminEmpCode = "";
-		let deptPath = "";
-		try {
-			const body = (await req.json()) as AssignBody;
-			adminEmpCode = (body.adminEmpCode ?? "").trim();
+    try {
+        // Only SUPER_ADMIN can modify admin scopes
+        const cookieStore = await cookies();
+        const cookieValue = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+        const parsed = verifySessionCookieValue(cookieValue);
+        if (!parsed) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
+        const me = await prisma.employee.findUnique({ where: { empCode: parsed.empCode }, include: { userRoles: true } });
+        const roles = me?.userRoles?.map(r => r.roleCode) ?? [];
+        if (!roles.includes("SUPER_ADMIN")) return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
+
+        let adminEmpCode = "";
+        let deptPath = "";
+        try {
+            const body = (await req.json()) as AssignBody;
+            adminEmpCode = (body.adminEmpCode ?? "").trim();
 			deptPath = (body.deptPath ?? "").trim();
 		} catch {}
 		if (!adminEmpCode || !deptPath) {

@@ -32,4 +32,9 @@ export interface CreateBookingRequest {
   recurrenceWeekOrder?: WeekOrder | null;
   // Phase 4: optional flag to skip weekend children for non-occurrence flows
   skipWeekends?: boolean;
+
+  // NEW FIELDS FOR LANGUAGE AND INTERPRETER SELECTION
+  languageCode?: string | null;
+  chairmanEmail?: string | null;
+  selectedInterpreterEmpCode?: string | null;
 }
