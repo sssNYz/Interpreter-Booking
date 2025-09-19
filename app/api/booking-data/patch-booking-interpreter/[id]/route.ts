@@ -2,6 +2,9 @@
 import { NextResponse } from "next/server"
 import prisma from "@/prisma/prisma"
 import { RoleCode } from "@prisma/client"
+import { cookies } from "next/headers"
+import { SESSION_COOKIE_NAME, verifySessionCookieValue } from "@/lib/auth/session"
+import { centerPart } from "@/utils/users"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
@@ -16,6 +19,25 @@ export async function PATCH(
   ctx: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Auth: ADMIN or SUPER_ADMIN only
+    const cookieStore = await cookies()
+    const cookieValue = cookieStore.get(SESSION_COOKIE_NAME)?.value
+    const parsedSession = verifySessionCookieValue(cookieValue)
+    if (!parsedSession) {
+      return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 })
+    }
+    const requester = await prisma.employee.findUnique({
+      where: { empCode: parsedSession.empCode },
+      include: { userRoles: true, adminVisions: true },
+    })
+    const roles = requester?.userRoles?.map(r => r.roleCode) ?? []
+    const isSuper = roles.includes("SUPER_ADMIN")
+    const isAdmin = roles.includes("ADMIN") || isSuper
+    if (!isAdmin) {
+      return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 })
+    }
+    const allowCenters = new Set((requester?.adminVisions ?? []).map(v => centerPart(v.deptPath)).filter((x): x is string => Boolean(x)))
+    const myCenter = centerPart(requester?.deptPath ?? null)
     const { id } = await ctx.params
     const bookingId = Number.parseInt(id, 10)
     if (!Number.isInteger(bookingId)) {
@@ -47,11 +69,21 @@ export async function PATCH(
           timeEnd: true,
           interpreterEmpCode: true,
           updatedAt: true,
+          employee: { select: { deptPath: true } },
         },
       })
       if (!bk) return { status: 404 as const, payload: { error: "NOT_FOUND", message: "Booking not found" } }
       if (bk.bookingStatus === "cancel") {
         return { status: 422 as const, payload: { error: "POLICY_VIOLATION", message: "Booking is canceled" } }
+      }
+
+      // Vision check for non-super admins: booking owner's center must be in allowed centers
+      if (!isSuper) {
+        const bCenter = centerPart(bk.employee?.deptPath ?? null)
+        const allow = allowCenters.size ? allowCenters : (myCenter ? new Set([myCenter]) : new Set<string>())
+        if (!(bCenter && allow.has(bCenter))) {
+          return { status: 403 as const, payload: { error: "FORBIDDEN", message: "Out of admin vision" } }
+        }
       }
 
       // คนเดิม → ผ่าน (ไม่แก้ DB)
