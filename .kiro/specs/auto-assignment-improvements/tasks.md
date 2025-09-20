@@ -13,6 +13,7 @@
   - Create conflict detection utilities to prevent double-booking of interpreters
   - Add database queries to check for time overlaps before assignment
   - Integrate conflict checking into the main assignment flow
+  
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5_
 
 - [x] 1.1 Create conflict detection utility functions
