@@ -183,6 +183,7 @@ export function computeFairnessScore(
   // Score decreases as gap increases
   const score = Math.max(0, 1 - (gap / maxGapHours));
   
+  
   return score;
 }
 

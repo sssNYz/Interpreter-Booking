@@ -20,6 +20,8 @@ export type BookingData = {
   ownerGroup: OwnerGroup;
   meetingRoom: string;
   meetingDetail: string;
+  meetingType: string;
+  applicableModel?: string;
   timeStart: string;
   timeEnd: string;
   interpreterId: string | null;
@@ -28,6 +30,11 @@ export type BookingData = {
   bookingStatus: string;
   createdAt: string;
   updatedAt: string;
+  // NEW FIELDS
+  languageCode?: string | null;
+  chairmanEmail?: string | null;
+  selectedInterpreterEmpCode?: string | null;
+  selectedInterpreterName?: string;
 };
 
 export type OwnerGroup = "software" | "iot" | "hardware" | "other";
@@ -63,9 +70,11 @@ export type BarItem = {
   status: string; // affects color
   startIndex: number; // inclusive
   endIndex: number; // exclusive
-  lane: 0 | 1; // stacked level
+  lane: number; // stacked level
   interpreterName?: string; // interpreter name if assigned
+  interpreterId?: string | null; // interpreter id if assigned
   meetingDetail?: string; // meeting details
+  meetingType?: string; // meeting type
   ownerEmail?: string; // owner email
   ownerTel?: string; // owner phone
   ownerGroup?: OwnerGroup; // owner group/department

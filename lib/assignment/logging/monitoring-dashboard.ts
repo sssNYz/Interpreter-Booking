@@ -72,9 +72,22 @@ export class MonitoringDashboard {
    * Build overview dashboard section
    */
   private buildOverview(
-    realTimeStatus: any,
-    assignmentPatterns: any,
-    poolStatus: any
+    realTimeStatus: {
+      status: string;
+      lastProcessedAssignment?: Date;
+      activeAssignments: number;
+      poolBacklog: number;
+      systemLoad: string;
+      upcomingDeadlines: number;
+      criticalAlerts: number;
+    },
+    assignmentPatterns: {
+      totalAssignments: number;
+      successRate: number;
+      escalationRate: number;
+      interpreterWorkload: Record<string, number>;
+    },
+    poolStatus: { totalPoolEntries: number }
   ): DashboardOverview {
     return {
       systemStatus: {
@@ -101,8 +114,18 @@ export class MonitoringDashboard {
    * Build performance dashboard section
    */
   private buildPerformanceDashboard(
-    performanceMetrics: any,
-    assignmentPatterns: any
+    performanceMetrics: {
+      averageProcessingTime: number;
+      maxProcessingTime: number;
+      averageConflictRate: number;
+    },
+    assignmentPatterns: {
+      totalAssignments: number;
+      successRate: number;
+      escalationRate: number;
+      drOverrideRate: number;
+      interpreterWorkload: Record<string, number>;
+    }
   ): PerformanceDashboard {
     return {
       processingTimes: {
@@ -130,8 +153,32 @@ export class MonitoringDashboard {
    * Build health dashboard section
    */
   private buildHealthDashboard(
-    healthAnalysis: any,
-    realTimeStatus: any
+    healthAnalysis: {
+      overallHealth: 'HEALTHY' | 'WARNING' | 'CRITICAL';
+      metrics: {
+        successRate: number;
+        escalationRate: number;
+        averageProcessingTime: number;
+        conflictRate: number;
+        drOverrideRate: number;
+      };
+      trends: {
+        processingTimesTrend: string;
+        conflictsTrend: string;
+        successRateTrend: string;
+      };
+      alerts: Array<{
+        type: string;
+        severity: 'LOW' | 'MEDIUM' | 'HIGH';
+        message: string;
+        timestamp: Date;
+      }>;
+      recommendations: string[];
+    },
+    realTimeStatus: {
+      status: string;
+      upcomingDeadlines: number;
+    }
   ): HealthDashboard {
     return {
       overallHealth: healthAnalysis.overallHealth,
@@ -151,8 +198,8 @@ export class MonitoringDashboard {
    * Build trends dashboard section
    */
   private buildTrendsDashboard(
-    assignmentPatterns: any,
-    conflictStats: any,
+    assignmentPatterns: { totalAssignments: number; successRate: number; interpreterWorkload: Record<string, number> },
+    conflictStats: { averageConflictsPerCheck: number; totalConflictChecks: number },
     timeRangeDays: number
   ): TrendsDashboard {
     return {
@@ -181,8 +228,16 @@ export class MonitoringDashboard {
    * Build alerts dashboard section
    */
   private buildAlertsDashboard(
-    healthAlerts: any[],
-    realTimeStatus: any
+    healthAlerts: Array<{
+      type: string;
+      severity: 'LOW' | 'MEDIUM' | 'HIGH';
+      message: string;
+      timestamp: Date;
+    }>,
+    realTimeStatus: {
+      status: string;
+      upcomingDeadlines: number;
+    }
   ): AlertsDashboard {
     const alerts = [...healthAlerts];
     
@@ -222,7 +277,7 @@ export class MonitoringDashboard {
         total: alerts.length,
         critical: alerts.filter(alert => alert.severity === 'HIGH').length,
         warnings: alerts.filter(alert => alert.severity === 'MEDIUM').length,
-        lastAlert: alerts.length > 0 ? alerts[alerts.length - 1].timestamp : null
+        lastAlert: alerts.length > 0 ? alerts[alerts.length - 1].timestamp : undefined
       }
     };
   }
@@ -270,7 +325,7 @@ export class MonitoringDashboard {
   /**
    * Calculate throughput
    */
-  private calculateThroughput(assignmentPatterns: any): number {
+  private calculateThroughput(assignmentPatterns: { totalAssignments: number }): number {
     // Simplified calculation - assignments per hour over the analysis period
     return Math.round(assignmentPatterns.totalAssignments / (7 * 24)); // Assuming 7-day period
   }
@@ -278,7 +333,7 @@ export class MonitoringDashboard {
   /**
    * Calculate efficiency score
    */
-  private calculateEfficiencyScore(assignmentPatterns: any, performanceMetrics: any): number {
+  private calculateEfficiencyScore(assignmentPatterns: { successRate: number; escalationRate: number; drOverrideRate: number }, performanceMetrics: { averageProcessingTime: number; averageConflictRate: number }): number {
     const successWeight = 0.4;
     const speedWeight = 0.3;
     const conflictWeight = 0.3;
@@ -293,7 +348,7 @@ export class MonitoringDashboard {
   /**
    * Identify system bottlenecks
    */
-  private identifyBottlenecks(assignmentPatterns: any, performanceMetrics: any): string[] {
+  private identifyBottlenecks(assignmentPatterns: { escalationRate: number; drOverrideRate: number }, performanceMetrics: { averageProcessingTime: number; averageConflictRate: number }): string[] {
     const bottlenecks = [];
     
     if (performanceMetrics.averageProcessingTime > 3000) {
@@ -318,7 +373,7 @@ export class MonitoringDashboard {
   /**
    * Calculate health score
    */
-  private calculateHealthScore(metrics: any): number {
+  private calculateHealthScore(metrics: { successRate: number; escalationRate: number; averageProcessingTime: number; conflictRate: number; drOverrideRate: number }): number {
     const weights = {
       successRate: 0.3,
       escalationRate: 0.2,
@@ -340,7 +395,7 @@ export class MonitoringDashboard {
   /**
    * Calculate performance score
    */
-  private calculatePerformanceScore(metrics: any): number {
+  private calculatePerformanceScore(metrics: { averageProcessingTime: number; conflictRate: number }): number {
     const processingScore = Math.max(0, 1 - (metrics.averageProcessingTime / 5000));
     const conflictScore = Math.max(0, 1 - metrics.conflictRate);
     
@@ -350,7 +405,7 @@ export class MonitoringDashboard {
   /**
    * Calculate reliability score
    */
-  private calculateReliabilityScore(metrics: any): number {
+  private calculateReliabilityScore(metrics: { successRate: number; escalationRate: number }): number {
     const successScore = metrics.successRate;
     const escalationScore = Math.max(0, 1 - metrics.escalationRate);
     
@@ -360,7 +415,7 @@ export class MonitoringDashboard {
   /**
    * Identify critical issues
    */
-  private identifyCriticalIssues(healthAnalysis: any): string[] {
+  private identifyCriticalIssues(healthAnalysis: { overallHealth: string; metrics: { successRate: number; escalationRate: number; averageProcessingTime: number } }): string[] {
     const issues = [];
     
     if (healthAnalysis.overallHealth === 'CRITICAL') {
@@ -385,7 +440,7 @@ export class MonitoringDashboard {
   /**
    * Calculate volume trend
    */
-  private calculateVolumeTrend(assignmentPatterns: any): 'INCREASING' | 'STABLE' | 'DECREASING' {
+  private calculateVolumeTrend(assignmentPatterns: { totalAssignments: number }): 'INCREASING' | 'STABLE' | 'DECREASING' {
     // Simplified - would need historical comparison
     if (assignmentPatterns.totalAssignments > 100) return 'INCREASING';
     if (assignmentPatterns.totalAssignments < 20) return 'DECREASING';
@@ -395,7 +450,7 @@ export class MonitoringDashboard {
   /**
    * Calculate success trend
    */
-  private calculateSuccessTrend(assignmentPatterns: any): 'IMPROVING' | 'STABLE' | 'DECLINING' {
+  private calculateSuccessTrend(assignmentPatterns: { successRate: number }): 'IMPROVING' | 'STABLE' | 'DECLINING' {
     if (assignmentPatterns.successRate > 0.9) return 'IMPROVING';
     if (assignmentPatterns.successRate < 0.7) return 'DECLINING';
     return 'STABLE';
@@ -404,7 +459,7 @@ export class MonitoringDashboard {
   /**
    * Calculate conflict frequency trend
    */
-  private calculateConflictFrequencyTrend(conflictStats: any): 'IMPROVING' | 'STABLE' | 'WORSENING' {
+  private calculateConflictFrequencyTrend(conflictStats: { averageConflictsPerCheck: number }): 'IMPROVING' | 'STABLE' | 'WORSENING' {
     if (conflictStats.averageConflictsPerCheck < 0.2) return 'IMPROVING';
     if (conflictStats.averageConflictsPerCheck > 0.6) return 'WORSENING';
     return 'STABLE';
@@ -413,7 +468,7 @@ export class MonitoringDashboard {
   /**
    * Calculate conflict resolution trend
    */
-  private calculateConflictResolutionTrend(conflictStats: any): 'IMPROVING' | 'STABLE' | 'WORSENING' {
+  private calculateConflictResolutionTrend(conflictStats: { totalConflictChecks: number; averageConflictsPerCheck: number }): 'IMPROVING' | 'STABLE' | 'WORSENING' {
     // Simplified - based on total conflict checks vs conflicts found
     const resolutionRate = conflictStats.totalConflictChecks > 0 
       ? 1 - (conflictStats.averageConflictsPerCheck)

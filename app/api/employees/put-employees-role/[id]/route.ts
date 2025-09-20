@@ -2,6 +2,8 @@
 export const runtime = 'nodejs';
 
 import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
+import { SESSION_COOKIE_NAME, verifySessionCookieValue } from '@/lib/auth/session';
 import prisma from '@/prisma/prisma';
 import { z } from 'zod';
 import { RoleCode } from '@prisma/client';
@@ -66,12 +68,50 @@ export async function PUT(req: Request, ctx: Ctx) {
 
   // ดำเนินการแบบ type-safe ทั้งหมด
   try {
+    // Authz: only SUPER_ADMIN may add/remove ADMIN or SUPER_ADMIN roles
+    const cookieStore = await cookies();
+    const cookieValue = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+    const parsedSession = verifySessionCookieValue(cookieValue);
+    if (!parsedSession) return NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401 });
+
+    const requester = await prisma.employee.findUnique({
+      where: { empCode: parsedSession.empCode },
+      include: { userRoles: true },
+    });
+    const requesterRoles = requester?.userRoles?.map(r => r.roleCode) ?? [];
+    const isSuperAdmin = requesterRoles.includes('SUPER_ADMIN');
+    const isAdminOnly = requesterRoles.includes('ADMIN') && !isSuperAdmin;
+
+    if (!isSuperAdmin && !isAdminOnly) {
+      return NextResponse.json({ error: 'FORBIDDEN' }, { status: 403 });
+    }
+
     const exists = await prisma.employee.findUnique({
       where: { id: userId },
-      select: { id: true },
+      include: { userRoles: true },
     });
     if (!exists) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+
+    if (!isSuperAdmin) {
+      // Admin (non-super) cannot add/remove ADMIN or SUPER_ADMIN
+      const targetCurrent = new Set((exists.userRoles ?? []).map(r => r.roleCode));
+      const targetNext = new Set(roles);
+      const forbiddenRoles: RoleCode[] = ['ADMIN', 'SUPER_ADMIN'];
+
+      // Adding forbidden?
+      for (const r of forbiddenRoles) {
+        if (!targetCurrent.has(r) && targetNext.has(r)) {
+          return NextResponse.json({ error: 'FORBIDDEN_ROLE_CHANGE', message: `Cannot add role ${r}` }, { status: 403 });
+        }
+      }
+      // Removing forbidden?
+      for (const r of forbiddenRoles) {
+        if (targetCurrent.has(r) && !targetNext.has(r)) {
+          return NextResponse.json({ error: 'FORBIDDEN_ROLE_CHANGE', message: `Cannot remove role ${r}` }, { status: 403 });
+        }
+      }
     }
 
     await prisma.$transaction(async (tx) => {

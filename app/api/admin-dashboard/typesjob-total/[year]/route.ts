@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/prisma/prisma";
+import { cookies } from "next/headers";
+import { SESSION_COOKIE_NAME, verifySessionCookieValue } from "@/lib/auth/session";
+import { centerPart } from "@/utils/users";
 
 import type {
   MonthlyDataRow,
@@ -45,7 +48,7 @@ export async function GET(
 
     const dateRange = createDateRange(yearNum);
 
-    const records = await prisma.bookingPlan.findMany({
+    const recordsRaw = await prisma.bookingPlan.findMany({
       where: {
         timeStart: { gte: dateRange.start, lt: dateRange.end },
         interpreterEmpCode: { not: null },
@@ -59,11 +62,40 @@ export async function GET(
         meetingType: true,
         drType: true,     
         interpreterEmpCode: true,
+        employee: { select: { deptPath: true } },
         interpreterEmployee: {
           select: { firstNameEn: true, lastNameEn: true, empCode: true },
         },
       },
     });
+
+    // Vision filter (admin)
+    const cookieStore = await cookies();
+    const cookieValue = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+    const parsed = verifySessionCookieValue(cookieValue);
+    let records = recordsRaw;
+    if (parsed) {
+      const me = await prisma.employee.findUnique({
+        where: { empCode: parsed.empCode },
+        include: { userRoles: true },
+      });
+      const roles = me?.userRoles?.map(r => r.roleCode) ?? [];
+      const isSuper = roles.includes("SUPER_ADMIN");
+      const isAdmin = roles.includes("ADMIN") || isSuper;
+      if (isAdmin && !isSuper) {
+        const myCenter = centerPart(me?.deptPath ?? null);
+        const envs = await prisma.environmentAdmin.findMany({
+          where: { adminEmpCode: me!.empCode },
+          select: { environment: { select: { centers: { select: { center: true } } } } },
+        });
+        const adminEnvCenters = envs.flatMap(e => e.environment.centers.map(c => c.center));
+        const allow = new Set(adminEnvCenters.length ? adminEnvCenters : (myCenter ? [myCenter] : []));
+        records = recordsRaw.filter(r => {
+          const c = centerPart(r.employee?.deptPath ?? null);
+          return c && allow.has(c);
+        });
+      }
+    }
 
     // Get all active interpreters for the year using consolidated utility
     const activeInterpreters = await fetchActiveInterpreters(prisma, dateRange);
