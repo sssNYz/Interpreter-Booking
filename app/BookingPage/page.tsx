@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { CalendarDays, CheckCircle } from "lucide-react";
-
 import BookingCalendar from "@/components/BookingCalendar/booking-calendar";
 import BookingHistory from "@/components/BookingHistory/booking-history";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
