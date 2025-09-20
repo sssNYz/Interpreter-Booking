@@ -11,7 +11,7 @@ export const OwnerGroupLabel: Record<OwnerGroup, string> = {
 
 export type MeetingType = 'DR' | 'PDR' | 'VIP' | 'Weekly' | 'General' | 'Augent' | 'Other';
 export type BookingStatus = 'approve' | 'cancel' | 'waiting' | 'complet';
-export type DRType = 'PR_PR' | 'DR_k' | 'DR_II' | 'DR_I' | 'Other';
+export type DRType = 'DR_PR' | 'DR_k' | 'DR_II' | 'DR_I' | 'Other';
 export type OtherTypeScope = 'meeting_type' | 'dr_type';
 export type RecurrenceType = 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'custom';
 export type EndType = 'never' | 'on_date' | 'after_occurrences';

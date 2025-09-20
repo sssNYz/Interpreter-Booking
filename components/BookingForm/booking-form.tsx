@@ -19,7 +19,7 @@ import {
   isValidStartTime,
   isValidTimeRange,
 } from "@/utils/time";
-import { Calendar, Clock } from "lucide-react";
+import { Calendar, Clock, AlertTriangle } from "lucide-react";
 import type { MeetingType, DRType } from "@/prisma/prisma";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { toast } from "sonner";
@@ -29,6 +29,8 @@ import { MAX_LANES } from "@/utils/constants";
 import { PersonalInfoSection } from "@/components/BookingForm/sections/PersonalInfoSection";
 import { MeetingDetailsSection } from "@/components/BookingForm/sections/MeetingDetailsSection";
 import { InviteEmailsSection } from "@/components/BookingForm/sections/InviteEmailsSection";
+import { getAvailableLanguages } from "@/utils/language";
+import { getAvailableInterpreters, checkChairmanAvailability } from "@/utils/interpreter";
 import {
   Select,
   SelectContent,
@@ -55,6 +57,7 @@ export function BookingForm({
   selectedSlot,
   daysInMonth,
   dayOccupancy,
+  maxLanes = MAX_LANES,
 }: BookingFormProps) {
   // Form state
   const [startTime, setStartTime] = useState<string>("");
@@ -75,6 +78,17 @@ export function BookingForm({
   const [applicableModel, setApplicableModel] = useState<string>("");
   const [inviteEmails, setInviteEmails] = useState<string[]>([]);
   const [newEmail, setNewEmail] = useState<string>("");
+
+  // NEW FIELDS FOR LANGUAGE AND INTERPRETER SELECTION
+  const [selectedLanguageCodes, setSelectedLanguageCodes] = useState<string[]>([]);
+  const [chairmanEmail, setChairmanEmail] = useState<string>("");
+  const [selectedInterpreterEmpCode, setSelectedInterpreterEmpCode] = useState<string | null>(null);
+  
+  // State for loading data
+  const [languages, setLanguages] = useState<Array<{id: number; code: string; name: string; isActive: boolean}>>([]);
+  const [interpreters, setInterpreters] = useState<Array<{empCode: string; firstNameEn?: string; lastNameEn?: string; interpreterLanguages: Array<{language: {name: string}}>}>>([]);
+  const [loadingLanguages, setLoadingLanguages] = useState(false);
+  const [loadingInterpreters, setLoadingInterpreters] = useState(false);
 
   // Recurrence state
   type RecurrenceTypeUi =
@@ -151,6 +165,10 @@ export function BookingForm({
       setNewEmail("");
       setErrors({});
       setIsSubmitting(false);
+      // Reset new fields
+      setSelectedLanguageCodes([]);
+      setChairmanEmail("");
+      setSelectedInterpreterEmpCode(null);
       // Reset recurrence
       setRepeatChoice("none");
       // setIsRecurring(false);
@@ -181,6 +199,91 @@ export function BookingForm({
       } catch {}
     }
   }, [open]);
+
+  // Load languages when form opens
+  useEffect(() => {
+    if (open) {
+      const loadLanguages = async () => {
+        setLoadingLanguages(true);
+        try {
+          const data = await getAvailableLanguages();
+          setLanguages(data);
+        } catch (error) {
+          console.error('Error loading languages:', error);
+        } finally {
+          setLoadingLanguages(false);
+        }
+      };
+      loadLanguages();
+    }
+  }, [open]);
+
+  // Load interpreters when relevant filters change
+  useEffect(() => {
+    if (open && meetingType === "President") {
+      const loadInterpreters = async () => {
+        setLoadingInterpreters(true);
+        try {
+          const localDate = dayObj ? getLocalDateString(dayObj.fullDate) : "";
+          const startDateTime = startTime && localDate ? buildDateTimeString(localDate, startTime) : undefined;
+          const endDateTime = endTime && localDate ? buildDateTimeString(localDate, endTime) : undefined;
+          const data = await getAvailableInterpreters(
+            selectedLanguageCodes[0] || undefined,
+            startDateTime,
+            endDateTime
+          );
+          setInterpreters(data);
+        } catch (error) {
+          console.error('Error loading interpreters:', error);
+        } finally {
+          setLoadingInterpreters(false);
+        }
+      };
+      loadInterpreters();
+    }
+  }, [open, meetingType, selectedLanguageCodes, startTime, endTime, dayObj]);
+
+  // Real-time chairman availability checking for DR meetings
+  useEffect(() => {
+    if (meetingType === "DR" && chairmanEmail && startTime && endTime && dayObj) {
+      const checkAvailability = async () => {
+        try {
+          const localDate = getLocalDateString(dayObj.fullDate);
+          const startDateTime = buildDateTimeString(localDate, startTime);
+          const endDateTime = buildDateTimeString(localDate, endTime);
+          
+          const result = await checkChairmanAvailability(chairmanEmail, startDateTime, endDateTime);
+          
+          if (!result.available && result.conflictBooking) {
+            setErrors(prev => ({
+              ...prev,
+              chairmanEmail: `Chairman is already booked: ${result.conflictBooking.ownerName} at ${result.conflictBooking.meetingRoom} (${result.conflictBooking.timeStart} - ${result.conflictBooking.timeEnd})`
+            }));
+          } else {
+            // Clear chairman error if available
+            setErrors(prev => {
+              const newErrors = { ...prev };
+              delete newErrors.chairmanEmail;
+              return newErrors;
+            });
+          }
+        } catch (error) {
+          console.error('Error checking chairman availability:', error);
+        }
+      };
+      
+      // Debounce the check to avoid too many API calls
+      const timeoutId = setTimeout(checkAvailability, 500);
+      return () => clearTimeout(timeoutId);
+    } else {
+      // Clear chairman error if not DR meeting or missing required fields
+      setErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors.chairmanEmail;
+        return newErrors;
+      });
+    }
+  }, [meetingType, chairmanEmail, startTime, endTime, dayObj]);
 
   // Time slots generation (unified)
   const slotsTime = useMemo(() => generateStandardTimeSlots(), []);
@@ -474,7 +577,7 @@ export function BookingForm({
   const isStartDisabled = (t: string) => {
     if (!dayOccupancy) return false;
     const idx = slotsTime.indexOf(t);
-    return idx >= 0 && dayOccupancy[idx] >= MAX_LANES;
+    return idx >= 0 && dayOccupancy[idx] >= maxLanes;
   };
 
   const isEndDisabled = (t: string) => {
@@ -484,7 +587,7 @@ export function BookingForm({
     const endExclusive = endIdx === -1 ? slotsTime.length : endIdx;
     if (endExclusive <= startIdx) return true;
     for (let i = startIdx; i < endExclusive; i++) {
-      if (dayOccupancy[i] >= MAX_LANES) return true;
+      if (dayOccupancy[i] >= maxLanes) return true;
     }
     return false;
   };
@@ -734,6 +837,20 @@ export function BookingForm({
         newErrors.otherType = `Other type scope is not allowed for ${meetingType}`;
     }
 
+    // NEW VALIDATION FOR LANGUAGE AND INTERPRETER SELECTION
+    // Language required for all bookings
+    if (!selectedLanguageCodes || selectedLanguageCodes.length === 0) {
+      newErrors.languageCodes = "Language is required";
+    }
+
+    if (meetingType === "DR" && !chairmanEmail.trim()) {
+      newErrors.chairmanEmail = "Chairman email is required for DR meetings";
+    }
+
+    if (meetingType === "President" && !selectedInterpreterEmpCode) {
+      newErrors.selectedInterpreterEmpCode = "Interpreter selection is required for President meetings";
+    }
+
     if (!startTime) newErrors.startTime = "Start time is required";
     if (!endTime) newErrors.endTime = "End time is required";
     if (startTime && !isValidStartTime(startTime))
@@ -775,7 +892,7 @@ export function BookingForm({
         const choice = await new Promise<"skip" | "cancel">((resolve) => {
           toast.custom(
             (t) => (
-              <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm w-[420px]">
+              <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm w-full max-w-sm">
                 <Alert className="border-none p-0">
                   <AlertTitle className="text-gray-900">
                     <span className="text-amber-600 font-semibold">
@@ -859,12 +976,12 @@ export function BookingForm({
       if (meetingType === "DR") {
         // Map Prisma enum values to database enum values for raw SQL
         const drTypeMap: Record<DRType, string> = {
-          'PR_PR': 'PR-PR',
+          'DR_PR': 'DR-PR',
           'DR_k': 'DR-k', 
           'DR_II': 'DR-II',
           'DR_I': 'DR-I',
           'Other': 'Other'
-        };
+        };  
         typeExtras.drType = drType ? drTypeMap[drType] : null;
         if (drType === "Other") {
           typeExtras.otherType = otherType.trim();
@@ -883,7 +1000,13 @@ export function BookingForm({
         typeExtras.otherTypeScope = null;
       }
 
-      const bookingData = { ...bookingDataBase, ...typeExtras };
+      const bookingData = { 
+        ...bookingDataBase, 
+        ...typeExtras,
+        languageCode: selectedLanguageCodes[0] || null,
+        chairmanEmail: meetingType === "DR" ? chairmanEmail.trim() : null,
+        selectedInterpreterEmpCode: meetingType === "President" ? selectedInterpreterEmpCode : null,
+      };
 
       // Merge recurrence into payload
       let recurrencePayload: Record<string, unknown> = {};
@@ -943,7 +1066,7 @@ export function BookingForm({
         const proceed = await new Promise<boolean>((resolve) => {
           toast.custom(
             (t) => (
-              <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm w-[420px]">
+              <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm w-full max-w-sm">
                 <Alert className="border-none p-0">
                   <AlertTitle className="text-gray-900">
                     <span className="text-amber-600 font-semibold">
@@ -991,6 +1114,46 @@ export function BookingForm({
         }
       }
 
+      // If chairman conflict detected, show error and stop
+      if (response.status === 409 && result?.code === "CHAIRMAN_CONFLICT") {
+        toast.custom(
+          (t) => (
+            <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm w-full max-w-sm">
+              <Alert className="border-none p-0">
+                <AlertTitle className="text-gray-900">
+                  <span className="text-red-600 font-semibold">
+                    Chairman Conflict
+                  </span>
+                  <span className="ml-1">
+                    {result?.message || "Chairman is already booked for this time"}
+                  </span>
+                </AlertTitle>
+                <AlertDescription className="text-gray-700">
+                  {result?.conflictDetails && (
+                    <div className="mt-2 text-sm">
+                      <p><strong>Conflicting booking:</strong></p>
+                      <p>• Owner: {result.conflictDetails.ownerName}</p>
+                      <p>• Room: {result.conflictDetails.meetingRoom}</p>
+                      <p>• Time: {new Date(result.conflictDetails.timeStart).toLocaleString()} - {new Date(result.conflictDetails.timeEnd).toLocaleString()}</p>
+                    </div>
+                  )}
+                </AlertDescription>
+              </Alert>
+              <div className="flex justify-end mt-4">
+                <button
+                  onClick={() => toast.dismiss(t)}
+                  className="bg-gray-900 text-white px-3 py-1 rounded text-xs"
+                >
+                  OK
+                </button>
+              </div>
+            </div>
+          ),
+          { duration: 10000 }
+        );
+        return; // Stop submission
+      }
+
       if (result.success) {
         const bookingDate = dayObj?.fullDate.toLocaleDateString("en-US", {
           weekday: "long",
@@ -1001,7 +1164,7 @@ export function BookingForm({
         const duration = `${startTime} - ${endTime}`;
         toast.custom(
           (t) => (
-            <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm w-[420px]">
+            <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm w-full max-w-sm">
               <Alert className="border-none p-0">
                 <AlertTitle className="text-gray-900">
                   <span className="text-green-600 font-semibold">Success</span>
@@ -1032,7 +1195,7 @@ export function BookingForm({
       } else {
         toast.custom(
           (t) => (
-            <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm w-[420px]">
+            <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm w-full max-w-sm">
               <Alert className="border-none p-0">
                 <AlertTitle className="text-gray-900">
                   <span className="text-red-600 font-semibold">Error</span>
@@ -1062,7 +1225,7 @@ export function BookingForm({
       console.error("Error creating booking:", error);
       toast.custom(
         (t) => (
-          <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm w-[420px]">
+          <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm w-full max-w-sm">
             <Alert className="border-none p-0">
               <AlertTitle className="text-gray-900">
                 <span className="text-red-600 font-semibold">Error</span>
@@ -1525,6 +1688,114 @@ export function BookingForm({
                   </div>
                 }
               />
+            </fieldset>
+
+            {/* NEW FIELDS FOR LANGUAGE AND INTERPRETER SELECTION */}
+            <fieldset className="space-y-6">
+              <legend className="sr-only">Language and Interpreter Selection</legend>
+              
+              {/* Language Selection (Multi-select) */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">
+                  Language(s) <span className="text-red-500">*</span>
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {loadingLanguages ? (
+                    <div className="text-sm text-muted-foreground">Loading languages...</div>
+                  ) : (
+                    languages.map((language) => {
+                      const checked = selectedLanguageCodes.includes(language.code);
+                      return (
+                        <label key={language.code} className="flex items-center gap-2 text-sm">
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4"
+                            checked={checked}
+                            onChange={(e) => {
+                              setSelectedInterpreterEmpCode(null);
+                              setSelectedLanguageCodes((prev) => {
+                                if (e.target.checked) return [...prev, language.code];
+                                return prev.filter((c) => c !== language.code);
+                              });
+                            }}
+                          />
+                          <span>{language.name} ({language.code})</span>
+                        </label>
+                      );
+                    })
+                  )}
+                </div>
+                {errors.languageCodes && (
+                  <div className="flex items-center gap-2 text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-md p-2">
+                    <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+                    <span>{errors.languageCodes}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Chairman Email - Only for DR meetings */}
+              {meetingType === "DR" && (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">
+                    Chairman Email <span className="text-red-500">*</span>
+                  </label>
+                  <Input
+                    type="email"
+                    value={chairmanEmail}
+                    onChange={(e) => setChairmanEmail(e.target.value)}
+                    placeholder="chairman@company.com"
+                    className={errors.chairmanEmail ? "border-red-500" : ""}
+                  />
+                  {errors.chairmanEmail && (
+                    <div className="flex items-center gap-2 text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-md p-2">
+                      <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+                      <span>{errors.chairmanEmail}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Interpreter Selection - Only for President meetings */}
+              {meetingType === "President" && (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">
+                    Select Interpreter <span className="text-red-500">*</span>
+                  </label>
+                  <Select
+                    value={selectedInterpreterEmpCode || "none"}
+                    onValueChange={(value) => setSelectedInterpreterEmpCode(value === "none" ? null : value)}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Choose interpreter for this meeting" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {loadingInterpreters ? (
+                        <SelectItem value="loading" disabled>Loading interpreters...</SelectItem>
+                      ) : interpreters.length === 0 ? (
+                        <SelectItem value="none" disabled>No interpreters available</SelectItem>
+                      ) : (
+                        interpreters.map((interpreter) => (
+                          <SelectItem key={interpreter.empCode} value={interpreter.empCode}>
+                            {interpreter.firstNameEn && interpreter.lastNameEn 
+                              ? `${interpreter.firstNameEn} ${interpreter.lastNameEn}` 
+                              : interpreter.empCode} ({interpreter.empCode})
+                            {selectedLanguageCodes.length > 0 && (
+                              <span className="text-muted-foreground ml-2">
+                                - {interpreter.interpreterLanguages
+                                  .map((il: {language: {name: string}}) => il.language.name)
+                                  .join(", ")}
+                              </span>
+                            )}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                  {errors.selectedInterpreterEmpCode && (
+                    <p className="text-sm text-red-500">{errors.selectedInterpreterEmpCode}</p>
+                  )}
+                </div>
+              )}
             </fieldset>
 
             <fieldset className="space-y-6">

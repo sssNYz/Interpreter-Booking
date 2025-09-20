@@ -56,13 +56,6 @@ export async function POST(request: NextRequest) {
         affectedInterpreters: impact.fairnessImpact.affectedInterpreters,
         windowDaysChange: impact.fairnessImpact.windowDaysChange
       } : null,
-      poolProcessing: impact.poolProcessingImpact ? {
-        currentPoolSize: impact.poolProcessingImpact.currentPoolSize,
-        thresholdAdjustments: impact.poolProcessingImpact.thresholdAdjustments,
-        deadlineAdjustments: impact.poolProcessingImpact.deadlineAdjustments,
-        processingFrequencyChange: impact.poolProcessingImpact.processingFrequencyChange,
-        batchProcessingChange: impact.poolProcessingImpact.batchProcessingChange
-      } : null,
       drPolicy: impact.drPolicyImpact ? {
         blockingBehaviorChange: impact.drPolicyImpact.blockingBehaviorChange,
         penaltyChange: impact.drPolicyImpact.penaltyChange,
@@ -103,22 +96,19 @@ export async function GET() {
   try {
     console.log("📊 Getting current system state for impact assessment...");
 
-    const { bookingPool } = await import("@/lib/assignment/pool/pool");
     const { loadPolicy } = await import("@/lib/assignment/config/policy");
     const prisma = (await import("@/prisma/prisma")).default;
 
     const [
       currentPolicy,
-      poolStats,
       activeInterpreters,
       recentAssignments
     ] = await Promise.all([
       loadPolicy(),
-      bookingPool.getPoolStats(),
-      prisma.interpreter.count({ where: { isActive: true } }),
+      prisma.employee.count({ where: { isActive: true } }),
       prisma.assignmentLog.count({
         where: {
-          timestamp: {
+          createdAt: {
             gte: new Date(Date.now() - 24 * 60 * 60 * 1000) // Last 24 hours
           }
         }
@@ -153,10 +143,10 @@ export async function GET() {
     const currentState = {
       policy: currentPolicy,
       pool: {
-        totalEntries: poolStats.totalInPool,
-        readyForProcessing: poolStats.readyForProcessing,
-        failedEntries: poolStats.failedEntries,
-        oldestEntry: poolStats.oldestEntry
+        totalEntries: 0,
+        readyForProcessing: 0,
+        failedEntries: 0,
+        oldestEntry: null
       },
       interpreters: {
         active: activeInterpreters,

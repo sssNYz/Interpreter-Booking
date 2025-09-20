@@ -2,7 +2,13 @@
 
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -39,24 +45,50 @@ export default function AutoAssignConfig() {
     };
   } | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-  
+
   // Use ref to track validation state without causing re-renders
   const isValidatingRef = useRef(false);
   const validationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Apply mode defaults to UI when switching away from CUSTOM so users see locked values reflected
-  const applyModeDefaultsUI = (mode: 'BALANCE' | 'URGENT' | 'NORMAL' | 'CUSTOM') => {
+  const applyModeDefaultsUI = (
+    mode: "BALANCE" | "URGENT" | "NORMAL" | "CUSTOM"
+  ) => {
     if (!localConfig) return;
-    if (mode === 'CUSTOM') return; // keep user custom values
+    if (mode === "CUSTOM") return; // keep user custom values
     let updates: Partial<AssignmentPolicy> = {};
-    if (mode === 'BALANCE') {
-      updates = { fairnessWindowDays: 60, maxGapHours: 2, w_fair: 2.0, w_urgency: 0.6, w_lrs: 0.6, drConsecutivePenalty: -0.8 };
-    } else if (mode === 'URGENT') {
-      updates = { fairnessWindowDays: 14, maxGapHours: 10, w_fair: 0.5, w_urgency: 2.5, w_lrs: 0.2, drConsecutivePenalty: -0.1 };
+    if (mode === "BALANCE") {
+      updates = {
+        fairnessWindowDays: 60,
+        maxGapHours: 2,
+        w_fair: 2.0,
+        w_urgency: 0.6,
+        w_lrs: 0.6,
+        drConsecutivePenalty: -0.8,
+      };
+    } else if (mode === "URGENT") {
+      updates = {
+        fairnessWindowDays: 14,
+        maxGapHours: 10,
+        w_fair: 0.5,
+        w_urgency: 2.5,
+        w_lrs: 0.2,
+        drConsecutivePenalty: -0.1,
+      };
     } else {
-      updates = { fairnessWindowDays: 30, maxGapHours: 5, w_fair: 1.2, w_urgency: 0.8, w_lrs: 0.3, drConsecutivePenalty: -0.5 };
+      updates = {
+        fairnessWindowDays: 30,
+        maxGapHours: 5,
+        w_fair: 1.2,
+        w_urgency: 0.8,
+        w_lrs: 0.3,
+        drConsecutivePenalty: -0.5,
+      };
     }
-    setLocalConfig({ ...localConfig, policy: { ...localConfig.policy, ...updates, mode } });
+    setLocalConfig({
+      ...localConfig,
+      policy: { ...localConfig.policy, ...updates, mode },
+    });
     setHasUnsavedChanges(true);
   };
 
@@ -84,16 +116,19 @@ export default function AutoAssignConfig() {
       isValidatingRef.current = true;
       setValidating(true);
       console.log("🔍 Running validation...");
-      
+
       const response = await fetch("/api/admin/config/auto-assign/validate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(configToValidate)
+        body: JSON.stringify(configToValidate),
       });
 
       const result = await response.json();
       setValidationResults(result);
-      console.log("✅ Validation complete:", result.validation?.overallValid ? 'VALID' : 'INVALID');
+      console.log(
+        "✅ Validation complete:",
+        result.validation?.overallValid ? "VALID" : "INVALID"
+      );
     } catch (error) {
       console.error("❌ Validation error:", error);
     } finally {
@@ -159,8 +194,8 @@ export default function AutoAssignConfig() {
 
     // Check for validation errors before saving
     const hasValidationErrors = localConfig.priorities.some(priority => {
-      const urgentValid = (priority.urgentThresholdDays || 0) >= 0 && (priority.urgentThresholdDays || 0) <= 60;
-      const generalValid = (priority.generalThresholdDays || 1) >= 1 && (priority.generalThresholdDays || 1) <= 365;
+      const urgentValid = (priority.urgentThresholdDays || 0) >= 0 && (priority.urgentThresholdDays || 0) <= 365;
+      const generalValid = (priority.generalThresholdDays || 1) >= 1 && (priority.generalThresholdDays || 1) <= 1000;
       const priorityValid = (priority.priorityValue || 1) >= 1 && (priority.priorityValue || 1) <= 10;
       return !urgentValid || !generalValid || !priorityValid;
     });
@@ -171,9 +206,12 @@ export default function AutoAssignConfig() {
     }
 
     // Detect what has actually changed
-    const policyChanged = JSON.stringify(config.policy) !== JSON.stringify(localConfig.policy);
-    const prioritiesChanged = JSON.stringify(config.priorities) !== JSON.stringify(localConfig.priorities);
-    
+    const policyChanged =
+      JSON.stringify(config.policy) !== JSON.stringify(localConfig.policy);
+    const prioritiesChanged =
+      JSON.stringify(config.priorities) !==
+      JSON.stringify(localConfig.priorities);
+
     if (!policyChanged && !prioritiesChanged) {
       console.log("ℹ️ No changes detected, skipping save");
       toast.info("No changes to save");
@@ -183,7 +221,7 @@ export default function AutoAssignConfig() {
     console.log("🚀 Attempting to save config changes:");
     console.log(`   📋 Policy changed: ${policyChanged}`);
     console.log(`   🎯 Priorities changed: ${prioritiesChanged}`);
-    
+
     // Only send changed data
     const payload: {
       policy?: AssignmentPolicy;
@@ -208,7 +246,7 @@ export default function AutoAssignConfig() {
       const response = await fetch("/api/admin/config/auto-assign", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
       });
 
       console.log("📥 Response status:", response.status);
@@ -219,7 +257,7 @@ export default function AutoAssignConfig() {
         setConfig(result.data);
         setLocalConfig(result.data);
         setHasUnsavedChanges(false);
-        
+
         // Show what was saved
         const changesSummary = result.changesSummary;
         let successMessage = "Configuration saved successfully";
@@ -228,13 +266,13 @@ export default function AutoAssignConfig() {
           if (changesSummary.policyUpdated) changes.push("policy");
           if (changesSummary.prioritiesUpdated) changes.push("priorities");
           if (changes.length > 0) {
-            successMessage += ` (${changes.join(', ')})`;
+            successMessage += ` (${changes.join(", ")})`;
           }
         }
-        
+
         toast.success(successMessage);
         console.log("✅ Configuration saved successfully");
-        
+
         if (result.changesSummary) {
           console.log("📊 Changes summary:", result.changesSummary);
         }
@@ -249,7 +287,11 @@ export default function AutoAssignConfig() {
       }
     } catch (error) {
       console.error("❌ Error saving config:", error);
-      toast.error(`Failed to save configuration: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      toast.error(
+        `Failed to save configuration: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
+      );
     } finally {
       setSaving(false);
     }
@@ -267,26 +309,29 @@ export default function AutoAssignConfig() {
     if (!localConfig) return;
     setLocalConfig({
       ...localConfig,
-      policy: { ...localConfig.policy, ...updates }
+      policy: { ...localConfig.policy, ...updates },
     });
     setHasUnsavedChanges(true);
   };
 
-  const handleModeChange = (mode: AssignmentPolicy['mode']) => {
-    if (mode === 'CUSTOM') {
+  const handleModeChange = (mode: AssignmentPolicy["mode"]) => {
+    if (mode === "CUSTOM") {
       updatePolicy({ mode });
     } else {
       applyModeDefaultsUI(mode);
     }
   };
 
-  const updatePriority = (meetingType: string, updates: Partial<MeetingTypePriority>) => {
+  const updatePriority = (
+    meetingType: string,
+    updates: Partial<MeetingTypePriority>
+  ) => {
     if (!localConfig) return;
     setLocalConfig({
       ...localConfig,
-      priorities: localConfig.priorities.map(p =>
+      priorities: localConfig.priorities.map((p) =>
         p.meetingType === meetingType ? { ...p, ...updates } : p
-      )
+      ),
     });
     setHasUnsavedChanges(true);
   };
@@ -319,12 +364,15 @@ export default function AutoAssignConfig() {
         </div>
         <div className="flex items-center gap-3">
           {hasUnsavedChanges && (
-            <Badge variant="outline" className="text-orange-600 border-orange-200">
+            <Badge
+              variant="outline"
+              className="text-orange-600 border-orange-200"
+            >
               Unsaved Changes
             </Badge>
           )}
           <Button
-            onClick={() => window.open('/AdminPage/mode-test', '_blank')}
+            onClick={() => window.open("/AdminPage/mode-test", "_blank")}
             variant="outline"
             className="flex items-center gap-2"
           >
@@ -339,8 +387,8 @@ export default function AutoAssignConfig() {
           <Button
             onClick={saveConfig}
             disabled={saving || (localConfig && localConfig.priorities.some(priority => {
-              const urgentValid = (priority.urgentThresholdDays || 0) >= 0 && (priority.urgentThresholdDays || 0) <= 60;
-              const generalValid = (priority.generalThresholdDays || 1) >= 1 && (priority.generalThresholdDays || 1) <= 365;
+              const urgentValid = (priority.urgentThresholdDays || 0) >= 0 && (priority.urgentThresholdDays || 0) <= 365;
+              const generalValid = (priority.generalThresholdDays || 1) >= 1 && (priority.generalThresholdDays || 1) <= 1000;
               const priorityValid = (priority.priorityValue || 1) >= 1 && (priority.priorityValue || 1) <= 10;
               return !urgentValid || !generalValid || !priorityValid;
             }))}
@@ -387,14 +435,15 @@ export default function AutoAssignConfig() {
             </Alert>
           )}
 
-          {validationResults.isValid && validationResults.warnings?.length === 0 && (
-            <Alert variant="default" className="border-green-200 bg-green-50">
-              <CheckCircleIcon className="h-4 w-4 text-green-600" />
-              <AlertDescription className="text-green-800">
-                Configuration is valid and ready to save
-              </AlertDescription>
-            </Alert>
-          )}
+          {validationResults.isValid &&
+            validationResults.warnings?.length === 0 && (
+              <Alert variant="default" className="border-green-200 bg-green-50">
+                <CheckCircleIcon className="h-4 w-4 text-green-600" />
+                <AlertDescription className="text-green-800">
+                  Configuration is valid and ready to save
+                </AlertDescription>
+              </Alert>
+            )}
         </div>
       )}
 
@@ -631,20 +680,20 @@ export default function AutoAssignConfig() {
                             <Input
                               type="number"
                               min="0"
-                              max="60"
+                              max="365"
                               value={priority.urgentThresholdDays || 0}
                               onChange={(e) => updatePriority(priority.meetingType, { urgentThresholdDays: parseInt(e.target.value) || 0 })}
                               className={`h-7 text-xs ${
-                                (priority.urgentThresholdDays || 0) < 0 || (priority.urgentThresholdDays || 0) > 60 
+                                (priority.urgentThresholdDays || 0) < 0 || (priority.urgentThresholdDays || 0) > 365 
                                   ? 'border-red-500 bg-red-50' 
                                   : ''
                               }`}
                             />
                             {(priority.urgentThresholdDays || 0) < 0 && (
-                              <p className="text-xs text-red-500 mt-1">⚠️ Urgent must be 0-60 days</p>
+                              <p className="text-xs text-red-500 mt-1">⚠️ Urgent must be 0-365 days</p>
                             )}
-                            {(priority.urgentThresholdDays || 0) > 60 && (
-                              <p className="text-xs text-red-500 mt-1">⚠️ Urgent must be 0-60 days</p>
+                            {(priority.urgentThresholdDays || 0) > 365 && (
+                              <p className="text-xs text-red-500 mt-1">⚠️ Urgent must be 0-365 days</p>
                             )}
                           </div>
                           <div>
@@ -652,20 +701,20 @@ export default function AutoAssignConfig() {
                             <Input
                               type="number"
                               min="1"
-                              max="365"
+                              max="1000"
                               value={priority.generalThresholdDays || 1}
                               onChange={(e) => updatePriority(priority.meetingType, { generalThresholdDays: parseInt(e.target.value) || 1 })}
                               className={`h-7 text-xs ${
-                                (priority.generalThresholdDays || 1) < 1 || (priority.generalThresholdDays || 1) > 365 
+                                (priority.generalThresholdDays || 1) < 1 || (priority.generalThresholdDays || 1) > 1000 
                                   ? 'border-red-500 bg-red-50' 
                                   : ''
                               }`}
                             />
                             {(priority.generalThresholdDays || 1) < 1 && (
-                              <p className="text-xs text-red-500 mt-1">⚠️ General must be 1-365 days</p>
+                              <p className="text-xs text-red-500 mt-1">⚠️ General must be 1-1000 days</p>
                             )}
-                            {(priority.generalThresholdDays || 1) > 365 && (
-                              <p className="text-xs text-red-500 mt-1">⚠️ General must be 1-365 days</p>
+                            {(priority.generalThresholdDays || 1) > 1000 && (
+                              <p className="text-xs text-red-500 mt-1">⚠️ General must be 1-1000 days</p>
                             )}
                           </div>
                         </div>

@@ -1,2 +1,6 @@
 {
-}
+    "chatgpt.config": {
+    "userPrompt": "Please use A2 English. Use simple words and short sentences. Avoid idioms and phrasal verbs. Give full detail. Use this order: 1) Short summary (2 lines). 2) Steps. 3) Example. 4) Pros and cons. 5) Risks. 6) Clear next action. Explain new words with one short example."
+    },
+    "chatgpt.openOnStartup": true
+    }
