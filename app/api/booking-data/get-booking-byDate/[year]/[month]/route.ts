@@ -5,6 +5,7 @@ import { SESSION_COOKIE_NAME, verifySessionCookieValue } from '@/lib/auth/sessio
 import { centerPart } from '@/utils/users';
 import type { BookingData, OwnerGroup as OwnerGroupUI } from '@/types/booking';
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 export async function GET(
   request: Request,

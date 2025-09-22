@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/prisma/prisma";
 import { Prisma } from "@prisma/client";
+export const runtime = "nodejs";
 
 type CreateLanguageBody = {
 	code?: string;
