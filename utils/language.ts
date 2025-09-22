@@ -11,7 +11,8 @@ export interface Language {
 
 export const getAvailableLanguages = async (): Promise<Language[]> => {
   try {
-    const response = await fetch('/api/language');
+    // Request only active languages for booking flows
+    const response = await fetch('/api/language?active=true');
     if (!response.ok) {
       throw new Error('Failed to fetch languages');
     }

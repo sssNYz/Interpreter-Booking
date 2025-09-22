@@ -28,14 +28,6 @@ export interface UserSummary {
   email?: string;
   roles: Role[];
   languages?: InterpreterLanguage[];
-  adminScopes?: AdminScope[];
-}
-
-export interface AdminScope {
-  id: number;
-  adminEmpCode: string;
-  deptPath: string;
-  createdAt: string;
 }
 
 export interface InterpreterLanguage {

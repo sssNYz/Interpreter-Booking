@@ -13,7 +13,7 @@ export default function AdminPageInterpreterManagement() {
       .then(data => {
         if (!alive) return;
         const roles: string[] = data?.user?.roles || [];
-        setAllowed(roles.includes('SUPER_ADMIN'));
+        setAllowed(roles.includes('ADMIN') || roles.includes('SUPER_ADMIN'));
       }).catch(() => setAllowed(false));
     return () => { alive = false };
   }, []);

@@ -26,21 +26,19 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
     }
 
-    // Admin sees bookings forwarded to any of their environment centers
-    const envs = await prisma.environmentAdmin.findMany({
+    // Admin sees bookings forwarded to any of their environments
+    const envLinks = await prisma.environmentAdmin.findMany({
       where: { adminEmpCode: auth.requester.empCode },
-      select: { environment: { select: { centers: { select: { center: true } } } } },
+      select: { environmentId: true },
     });
-    const paths = envs.flatMap((e) => e.environment.centers.map((c) => c.center));
-    if (paths.length === 0) {
-      return NextResponse.json({ ok: true, data: [] });
-    }
+    const envIds = envLinks.map((e) => e.environmentId);
+    if (envIds.length === 0) return NextResponse.json({ ok: true, data: [] });
 
     const rows = await prisma.bookingForwardTarget.findMany({
-      where: { deptPath: { in: paths } },
+      where: { environmentId: { in: envIds } },
       select: {
         bookingId: true,
-        deptPath: true,
+        environment: { select: { id: true, name: true } },
         booking: {
           select: {
             bookingId: true,
@@ -64,7 +62,8 @@ export async function GET(req: NextRequest) {
       .filter((r) => r.booking.bookingStatus === "waiting")
       .map((r) => ({
         bookingId: r.bookingId,
-        deptPath: r.deptPath,
+        environmentId: r.environment.id,
+        environmentName: r.environment.name,
         meetingRoom: r.booking.meetingRoom,
         meetingType: r.booking.meetingType,
         timeStart: r.booking.timeStart,

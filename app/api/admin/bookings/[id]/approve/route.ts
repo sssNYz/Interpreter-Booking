@@ -70,21 +70,32 @@ export async function POST(
         return { status: 409 as const, payload: { error: "CONFLICT", message: "Booking not in waiting status" } };
       }
 
-      // Scope: non-super admins must manage within their environment centers
+      // Scope: non-super admins must manage within their environments.
       if (!auth.isSuper) {
         const myCenter = centerPart(auth.requester.deptPath ?? null);
         const envs = await tx.environmentAdmin.findMany({
           where: { adminEmpCode: auth.requester.empCode },
           select: { environmentId: true, environment: { select: { centers: { select: { center: true } } } } },
         });
+        const envIds = envs.map((e) => e.environmentId);
         const allowCenters = new Set(envs.flatMap((e) => e.environment.centers.map((c) => c.center)));
         const bCenter = centerPart(bk.employee?.deptPath ?? null);
         const allowedCenters = allowCenters.size ? allowCenters : (myCenter ? new Set([myCenter]) : new Set<string>());
-        if (!(bCenter && allowedCenters.has(bCenter))) {
+
+        // Allow if booking owner's center is within scope OR the booking is forwarded to one of admin's environments
+        let allowedByScope = !!(bCenter && allowedCenters.has(bCenter));
+        if (!allowedByScope && envIds.length > 0) {
+          const forwarded = await tx.bookingForwardTarget.findFirst({
+            where: { bookingId: bk.bookingId, environmentId: { in: envIds } },
+            select: { bookingId: true },
+          });
+          allowedByScope = !!forwarded;
+        }
+        if (!allowedByScope) {
           return { status: 403 as const, payload: { error: "FORBIDDEN", message: "Out of admin scope" } };
         }
+
         // Interpreter must belong to one of admin's environments
-        const envIds = envs.map((e) => e.environmentId);
         if (envIds.length > 0) {
           const link = await tx.environmentInterpreter.findFirst({
             where: { interpreterEmpCode: newCode, environmentId: { in: envIds } },
