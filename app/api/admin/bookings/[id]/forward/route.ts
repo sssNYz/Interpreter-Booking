@@ -4,7 +4,7 @@ import prisma from "@/prisma/prisma";
 import { SESSION_COOKIE_NAME, verifySessionCookieValue } from "@/lib/auth/session";
 
 type Body = {
-  targets: string[]; // centers or deptPath keys
+  environmentIds: number[]; // target environments
   note: string;
 };
 
@@ -42,10 +42,10 @@ export async function POST(
 
     const raw = (await req.json().catch(() => null)) as unknown;
     const body = raw as Body | null;
-    const targets = Array.isArray(body?.targets) ? body!.targets.map(String).map((s) => s.trim()).filter(Boolean) : [];
+    const envIds = Array.isArray(body?.environmentIds) ? body!.environmentIds.map((n) => Number(n)).filter((n) => Number.isInteger(n)) : [];
     const note = typeof body?.note === "string" ? body!.note.trim() : "";
-    if (targets.length === 0 || note.length === 0) {
-      return NextResponse.json({ error: "BAD_REQUEST", message: "targets[] and note are required" }, { status: 400 });
+    if (envIds.length === 0 || note.length === 0) {
+      return NextResponse.json({ error: "BAD_REQUEST", message: "environmentIds[] and note are required" }, { status: 400 });
     }
 
     const result = await prisma.$transaction(async (tx) => {
@@ -59,22 +59,22 @@ export async function POST(
         return { status: 409 as const, payload: { error: "CONFLICT", message: "Only waiting bookings can be forwarded" } };
       }
 
-      // Validate targets exist as centers
-      const centers = await tx.environmentCenter.findMany({
-        where: { center: { in: targets } },
-        select: { center: true },
+      // Validate target environments exist
+      const envs = await tx.environment.findMany({
+        where: { id: { in: envIds } },
+        select: { id: true },
       });
-      const valid = new Set(centers.map((c) => c.center));
-      const invalid = targets.filter((t) => !valid.has(t));
+      const valid = new Set(envs.map((e) => e.id));
+      const invalid = envIds.filter((t) => !valid.has(t));
       if (invalid.length > 0) {
-        return { status: 400 as const, payload: { error: "INVALID_TARGETS", targets: invalid } };
+        return { status: 400 as const, payload: { error: "INVALID_TARGETS", environmentIds: invalid } };
       }
 
       // Insert targets idempotently
       for (const t of valid) {
         await tx.bookingForwardTarget.upsert({
-          where: { bookingId_deptPath: { bookingId, deptPath: t } },
-          create: { bookingId, deptPath: t },
+          where: { bookingId_environmentId: { bookingId, environmentId: t } },
+          create: { bookingId, environmentId: t },
           update: {},
         });
       }
@@ -91,7 +91,7 @@ export async function POST(
         fa.push({
           empCode: auth.requester.empCode,
           action: "FORWARD",
-          deptPath: t,
+          environmentId: t,
           at: new Date().toISOString(),
           note,
         });
@@ -107,4 +107,3 @@ export async function POST(
     return NextResponse.json({ error: "INTERNAL_ERROR", message }, { status: 500 });
   }
 }
-

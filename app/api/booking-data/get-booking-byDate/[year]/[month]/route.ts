@@ -104,22 +104,60 @@ export async function GET(
     ? (viewRaw as 'user'|'admin'|'all')
     : (hasAdmin ? 'admin' : 'user');
 
+  // Build interpreter-based environment sets
+  // Admin: interpreters belonging to admin's environments
+  let adminEnvInterpreterCodes: string[] = [];
+  // User: interpreters belonging to the user's environment
+  let userEnvInterpreterCodes: string[] = [];
+
+  if (hasAdmin) {
+    const envs = await prisma.environmentAdmin.findMany({
+      where: { adminEmpCode: parsed?.empCode ?? "" },
+      select: { environmentId: true },
+    });
+    const envIds = envs.map(e => e.environmentId);
+    if (envIds.length > 0) {
+      const links = await prisma.environmentInterpreter.findMany({
+        where: { environmentId: { in: envIds } },
+        select: { interpreterEmpCode: true },
+      });
+      adminEnvInterpreterCodes = links.map(l => l.interpreterEmpCode);
+    }
+  }
+
+  if (myCenter) {
+    const ec = await prisma.environmentCenter.findUnique({ where: { center: myCenter } });
+    if (ec) {
+      const links = await prisma.environmentInterpreter.findMany({
+        where: { environmentId: ec.environmentId },
+        select: { interpreterEmpCode: true },
+      });
+      userEnvInterpreterCodes = links.map(l => l.interpreterEmpCode);
+    }
+  }
+
   let filtered = bookings;
   if (isSuper && (view === 'admin' || view === 'all')) {
     // super admin sees all
     filtered = bookings;
   } else if (view === 'admin' && hasAdmin) {
-    const allow = new Set((adminEnvCenters.length ? adminEnvCenters : (myCenter ? [myCenter] : [])));
+    const allowCenters = new Set((adminEnvCenters.length ? adminEnvCenters : (myCenter ? [myCenter] : [])));
+    const allowInterpreters = new Set(adminEnvInterpreterCodes);
     filtered = bookings.filter(b => {
       const c = centerPart(b.employee?.deptPath ?? null);
-      return c ? allow.has(c) : false;
+      const inCenters = c ? allowCenters.has(c) : false;
+      const byInterpreter = b.interpreterEmployee?.empCode ? allowInterpreters.has(b.interpreterEmployee.empCode) : false;
+      return inCenters || byInterpreter;
     });
   } else {
     // user view (default)
-    const allow = new Set((userEnvCenters.length ? userEnvCenters : (myCenter ? [myCenter] : [])));
+    const allowCenters = new Set((userEnvCenters.length ? userEnvCenters : (myCenter ? [myCenter] : [])));
+    const allowInterpreters = new Set(userEnvInterpreterCodes);
     filtered = bookings.filter(b => {
       const c = centerPart(b.employee?.deptPath ?? null);
-      return c ? allow.has(c) : false;
+      const inCenters = c ? allowCenters.has(c) : false;
+      const byInterpreter = b.interpreterEmployee?.empCode ? allowInterpreters.has(b.interpreterEmployee.empCode) : false;
+      return inCenters || byInterpreter;
     });
   }
 

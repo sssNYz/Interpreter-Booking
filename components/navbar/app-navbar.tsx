@@ -184,8 +184,7 @@ export function AppNavbar() {
                     <DropdownMenuLabel>Admin</DropdownMenuLabel>
                     <DropdownMenuSeparator />
                     {(ADMIN_MENU_ALL.filter(item => {
-                      // Only super admin can see interpreter and language management
-                      if (!isSuper && (item.url.includes('/interpreter-manage-page') || item.url.includes('/language-manage-page'))) return false;
+                      // Admin and Super Admin can see all admin items
                       return true;
                     })).map((item) => (
                       <DropdownMenuItem key={item.title} asChild>

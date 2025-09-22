@@ -8,20 +8,25 @@ type CreateLanguageBody = {
 	isActive?: boolean;
 };
 
-export async function GET() {
-	try {
-		const languages = await prisma.language.findMany({
-			orderBy: { name: 'asc' }
-		});
+export async function GET(req: NextRequest) {
+    try {
+        const { searchParams } = new URL(req.url);
+        const activeParam = searchParams.get("active");
+        const onlyActive = activeParam === "true";
 
-		return NextResponse.json(languages);
-	} catch (err: unknown) {
-		console.error("GET /api/language error", err);
-		return NextResponse.json(
-			{ error: "Internal error" },
-			{ status: 500 }
-		);
-	}
+        const languages = await prisma.language.findMany({
+            where: onlyActive ? { isActive: true } : undefined,
+            orderBy: { name: 'asc' }
+        });
+
+        return NextResponse.json(languages);
+    } catch (err: unknown) {
+        console.error("GET /api/language error", err);
+        return NextResponse.json(
+            { error: "Internal error" },
+            { status: 500 }
+        );
+    }
 }
 
 export async function POST(req: NextRequest) {
