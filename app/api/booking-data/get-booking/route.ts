@@ -1,10 +1,11 @@
   // NOTE: Protected by middleware via cookie session
   // app/api/bookings/route.ts
-  import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
   import prisma from "@/prisma/prisma";
   import { cookies } from "next/headers";
   import { SESSION_COOKIE_NAME, verifySessionCookieValue } from "@/lib/auth/session";
   import { centerPart } from "@/utils/users";
+export const runtime = "nodejs";
 
   export const dynamic = "force-dynamic";
 
@@ -74,8 +75,8 @@
     const rows = await prisma.bookingPlan.findMany({
       orderBy: { timeStart: "asc" },
       include: {
-        employee: { select: { firstNameEn: true, lastNameEn: true, deptPath: true } },             // เจ้าของ
-        interpreterEmployee: { select: { firstNameEn: true, lastNameEn: true } },  // ล่าม (nullable)
+        employee: { select: { firstNameEn: true, lastNameEn: true, deptPath: true } },
+        interpreterEmployee: { select: { empCode: true, firstNameEn: true, lastNameEn: true } },
       },
     });
 
@@ -91,7 +92,7 @@
         // Split out forwarded bookings from admin environment view
         if (b.isForwarded) return false;
         const inCenters = c ? allowCenters.has(c) : false;
-        const byInterpreter = (b as any).interpreterEmpCode ? allowInterpreters.has((b as any).interpreterEmpCode) : false;
+        const byInterpreter = b.interpreterEmployee?.empCode ? allowInterpreters.has(b.interpreterEmployee.empCode) : false;
         return inCenters || byInterpreter;
       });
     } else {
@@ -100,7 +101,7 @@
       filtered = rows.filter(b => {
         const c = centerPart(b.employee?.deptPath ?? null);
         const inCenters = c ? allowCenters.has(c) : false;
-        const byInterpreter = (b as any).interpreterEmpCode ? allowInterpreters.has((b as any).interpreterEmpCode) : false;
+        const byInterpreter = b.interpreterEmployee?.empCode ? allowInterpreters.has(b.interpreterEmployee.empCode) : false;
         return inCenters || byInterpreter;
       });
     }

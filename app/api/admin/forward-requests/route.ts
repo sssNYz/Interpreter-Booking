@@ -1,25 +1,26 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import prisma from "@/prisma/prisma";
 import { SESSION_COOKIE_NAME, verifySessionCookieValue } from "@/lib/auth/session";
+export const runtime = "nodejs";
 
 async function getRequester() {
   const cookieStore = await cookies();
   const cookieValue = cookieStore.get(SESSION_COOKIE_NAME)?.value;
   const parsed = verifySessionCookieValue(cookieValue);
-  if (!parsed) return null as const;
+  if (!parsed) return null;
   const requester = await prisma.employee.findUnique({
     where: { empCode: parsed.empCode },
     include: { userRoles: true },
   });
-  if (!requester) return null as const;
+  if (!requester) return null;
   const roles = new Set((requester.userRoles ?? []).map((r) => r.roleCode));
   const isSuper = roles.has("SUPER_ADMIN");
   const isAdmin = isSuper || roles.has("ADMIN");
-  return { requester, isAdmin, isSuper } as const;
+  return { requester, isAdmin, isSuper };
 }
 
-export async function GET(req: NextRequest) {
+export async function GET() {
   try {
     const auth = await getRequester();
     if (!auth?.isAdmin) {
