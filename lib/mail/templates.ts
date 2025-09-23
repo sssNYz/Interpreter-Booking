@@ -1,3 +1,5 @@
+import prisma, { MeetingType } from "@/prisma/prisma"
+
 export interface EmailTemplate {
   id: string
   name: string
@@ -570,6 +572,22 @@ export function formatTemplate(template: EmailTemplate, variables: Record<string
   return { subject, body, isHtml: template.isHtml }
 }
 
+// Mapping to support all meeting types defined in Prisma schema
+export const DEFAULT_TEMPLATE_BY_MEETING_TYPE: Record<MeetingType, string> = {
+  DR: 'device-dr-meeting',
+  VIP: 'general-meeting',
+  Weekly: 'general-meeting',
+  General: 'general-meeting',
+  Urgent: 'reminder',
+  President: 'general-meeting',
+  Other: 'general-meeting'
+}
+
+export function getTemplateForMeetingType(meetingType: MeetingType): EmailTemplate | undefined {
+  const templateId = DEFAULT_TEMPLATE_BY_MEETING_TYPE[meetingType]
+  return getTemplateById(templateId)
+}
+
 export function getDeviceDRTemplateVariables(): Record<string, string> {
   return {
     topic: 'DC-K/I Altair comply WAF&RDS policies',
@@ -585,6 +603,95 @@ export function getDeviceDRTemplateVariables(): Record<string, string> {
     organizerDivision: 'R&D DIVISION / DEVICE GROUP',
     organizerPhone: '0-3846-9700 #7650'
   }
+}
+
+// Generic variables helper for non-DR meeting types
+export function getGenericMeetingTemplateVariables(): Record<string, string> {
+  return {
+    topic: 'Meeting Topic',
+    date: 'dd/MMM/\'yy (EEE)',
+    time: 'HH:mm–HH:mm',
+    location: 'Meeting Room / Teams',
+    organizer: 'Organizer',
+    organizerName: 'Organizer'
+  }
+}
+
+// ===== DB-backed variable builders =====
+function formatGbDateWithWeekday(date: Date): string {
+  return date
+    .toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' })
+    .replace(/(\d+)\/(\w+)\/(\d+)/, '$1/$2/\'$3') +
+    ` (${date.toLocaleDateString('en-US', { weekday: 'short' })})`
+}
+
+function formatTimeRange(start: Date, end: Date): string {
+  const s = start.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false })
+  const e = end.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false })
+  return `${s}–${e}`
+}
+
+export async function buildTemplateVariablesFromBooking(bookingId: number): Promise<Record<string, string>> {
+  const booking = await prisma.bookingPlan.findUnique({
+    where: { bookingId },
+    include: {
+      employee: true, // owner
+      inviteEmails: true,
+    }
+  })
+  if (!booking) throw new Error(`Booking not found: ${bookingId}`)
+
+  const start = new Date(booking.timeStart)
+  const end = new Date(booking.timeEnd)
+
+  const isDR = booking.meetingType === 'DR'
+  const drStage = isDR
+    ? (booking.drType ?? (booking.otherType ?? '-'))
+    : (booking.meetingType === 'Other' ? (booking.otherType ?? '-') : '-')
+
+  const topic = booking.meetingDetail
+    ? `${booking.meetingType} – ${booking.meetingDetail}`
+    : booking.meetingType
+
+  const participant = booking.inviteEmails.length
+    ? booking.inviteEmails.map(i => i.email).join(', ')
+    : ''
+
+  const organizerName = booking.employee
+    ? [booking.employee.firstNameEn, booking.employee.lastNameEn].filter(Boolean).join(' ') || (booking.employee.email ?? booking.ownerEmpCode)
+    : booking.ownerEmpCode
+
+  const organizerDivision = booking.employee?.deptPath ?? ''
+  const organizerPhone = booking.employee?.telExt ?? ''
+
+  return {
+    // Common
+    topic,
+    date: formatGbDateWithWeekday(start),
+    time: formatTimeRange(start, end),
+    // General template fields
+    location: booking.meetingRoom,
+    organizer: organizerName,
+    organizerName,
+    // DR template specific extras (safe for others too)
+    deviceGroup: booking.ownerGroup,
+    applicableModel: booking.applicableModel ?? '-',
+    drStage: drStage,
+    place: booking.meetingRoom,
+    chairman: booking.chairmanEmail ?? '',
+    participant,
+    organizerDivision,
+    organizerPhone,
+  }
+}
+
+export async function getFormattedTemplateForBooking(bookingId: number): Promise<{ subject: string; body: string; isHtml: boolean }> {
+  const booking = await prisma.bookingPlan.findUnique({ where: { bookingId } })
+  if (!booking) throw new Error(`Booking not found: ${bookingId}`)
+  const template = getTemplateForMeetingType(booking.meetingType as MeetingType)
+  if (!template) throw new Error(`No template configured for meeting type: ${booking.meetingType}`)
+  const variables = await buildTemplateVariablesFromBooking(bookingId)
+  return formatTemplate(template, variables)
 }
 
 export function generateCancellationEmailHTML(event: { start?: string; end?: string; summary?: string; location?: string }, reason?: string): string {

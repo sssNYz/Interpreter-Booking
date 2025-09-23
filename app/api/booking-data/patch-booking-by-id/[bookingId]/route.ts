@@ -70,6 +70,15 @@ export async function PATCH(
     },
   });
 
+  // fire-and-forget approval email when status transitions to approve
+  try {
+    if (to === 'approve' && from !== 'approve') {
+      const { sendApprovalEmailForBooking } = await import('@/lib/mail/sender')
+      // do not await; non-blocking
+      sendApprovalEmailForBooking(updated.bookingId).catch(() => {})
+    }
+  } catch {}
+
   return NextResponse.json(updated, { status: 200 });
 }
 
