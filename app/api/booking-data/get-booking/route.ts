@@ -1,10 +1,11 @@
   // NOTE: Protected by middleware via cookie session
   // app/api/bookings/route.ts
-  import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
   import prisma from "@/prisma/prisma";
   import { cookies } from "next/headers";
   import { SESSION_COOKIE_NAME, verifySessionCookieValue } from "@/lib/auth/session";
   import { centerPart } from "@/utils/users";
+export const runtime = "nodejs";
 
   export const dynamic = "force-dynamic";
 
@@ -41,20 +42,29 @@
     const myCenter = centerPart(me?.deptPath ?? null);
     // Admin env centers (union)
     let adminEnvCenters: string[] = [];
+    let adminEnvInterpreterCodes: string[] = [];
     if (roles.includes("ADMIN") || roles.includes("SUPER_ADMIN")) {
       const envs = await prisma.environmentAdmin.findMany({
         where: { adminEmpCode: me!.empCode },
-        select: { environment: { select: { centers: { select: { center: true } } } } },
+        select: { environmentId: true, environment: { select: { centers: { select: { center: true } } } } },
       });
       adminEnvCenters = envs.flatMap(e => e.environment.centers.map(c => c.center));
+      const envIds = envs.map(e => e.environmentId);
+      if (envIds.length) {
+        const links = await prisma.environmentInterpreter.findMany({ where: { environmentId: { in: envIds } }, select: { interpreterEmpCode: true } });
+        adminEnvInterpreterCodes = links.map(l => l.interpreterEmpCode);
+      }
     }
     // User env centers
     let userEnvCenters: string[] = [];
+    let userEnvInterpreterCodes: string[] = [];
     if (myCenter) {
       const envCenter = await prisma.environmentCenter.findUnique({ where: { center: myCenter } });
       if (envCenter) {
         const env = await prisma.environment.findUnique({ where: { id: envCenter.environmentId }, select: { centers: { select: { center: true } } } });
         userEnvCenters = env?.centers.map(c => c.center) ?? [];
+        const links = await prisma.environmentInterpreter.findMany({ where: { environmentId: envCenter.environmentId }, select: { interpreterEmpCode: true } });
+        userEnvInterpreterCodes = links.map(l => l.interpreterEmpCode);
       }
     }
 
@@ -65,8 +75,8 @@
     const rows = await prisma.bookingPlan.findMany({
       orderBy: { timeStart: "asc" },
       include: {
-        employee: { select: { firstNameEn: true, lastNameEn: true, deptPath: true } },             // เจ้าของ
-        interpreterEmployee: { select: { firstNameEn: true, lastNameEn: true } },  // ล่าม (nullable)
+        employee: { select: { firstNameEn: true, lastNameEn: true, deptPath: true } },
+        interpreterEmployee: { select: { empCode: true, firstNameEn: true, lastNameEn: true } },
       },
     });
 
@@ -75,18 +85,24 @@
     if (isSuper && (view === "admin" || view === "all")) {
       // all
     } else if (view === "admin") {
-      const allow = new Set((adminEnvCenters.length ? adminEnvCenters : (myCenter ? [myCenter] : [])));
+      const allowCenters = new Set((adminEnvCenters.length ? adminEnvCenters : (myCenter ? [myCenter] : [])));
+      const allowInterpreters = new Set(adminEnvInterpreterCodes);
       filtered = rows.filter(b => {
         const c = centerPart(b.employee?.deptPath ?? null);
         // Split out forwarded bookings from admin environment view
         if (b.isForwarded) return false;
-        return c ? allow.has(c) : false;
+        const inCenters = c ? allowCenters.has(c) : false;
+        const byInterpreter = b.interpreterEmployee?.empCode ? allowInterpreters.has(b.interpreterEmployee.empCode) : false;
+        return inCenters || byInterpreter;
       });
     } else {
-      const allow = new Set((userEnvCenters.length ? userEnvCenters : (myCenter ? [myCenter] : [])));
+      const allowCenters = new Set((userEnvCenters.length ? userEnvCenters : (myCenter ? [myCenter] : [])));
+      const allowInterpreters = new Set(userEnvInterpreterCodes);
       filtered = rows.filter(b => {
         const c = centerPart(b.employee?.deptPath ?? null);
-        return c ? allow.has(c) : false;
+        const inCenters = c ? allowCenters.has(c) : false;
+        const byInterpreter = b.interpreterEmployee?.empCode ? allowInterpreters.has(b.interpreterEmployee.empCode) : false;
+        return inCenters || byInterpreter;
       });
     }
 

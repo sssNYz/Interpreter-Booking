@@ -58,25 +58,25 @@ export async function POST(
         return { status: 200 as const, payload: { ok: true, status: "cancel", remainingTargets: 0 } };
       }
 
-      // Determine centers this admin manages via environments
+      // Determine environments this admin manages
       const envs = await tx.environmentAdmin.findMany({
         where: { adminEmpCode: auth.requester.empCode },
-        select: { environment: { select: { centers: { select: { center: true } } } } },
+        select: { environmentId: true },
       });
-      const paths = envs.flatMap((e) => e.environment.centers.map((c) => c.center));
+      const envIds = envs.map((e) => e.environmentId);
       // If admin has no environments, treat as no-op scope
-      if (paths.length === 0) {
+      if (envIds.length === 0) {
         return { status: 403 as const, payload: { error: "FORBIDDEN", message: "No environment scope" } };
       }
 
       // Get targets to delete for logging
       const targets = await tx.bookingForwardTarget.findMany({
-        where: { bookingId, deptPath: { in: paths } },
-        select: { deptPath: true },
+        where: { bookingId, environmentId: { in: envIds } },
+        select: { environmentId: true },
       });
 
       // Delete targets
-      await tx.bookingForwardTarget.deleteMany({ where: { bookingId, deptPath: { in: paths } } });
+      await tx.bookingForwardTarget.deleteMany({ where: { bookingId, environmentId: { in: envIds } } });
 
       // Count remaining targets
       const remaining = await tx.bookingForwardTarget.count({ where: { bookingId } });
@@ -93,7 +93,7 @@ export async function POST(
           fa.push({
             empCode: auth.requester.empCode,
             action: "CANCEL",
-            deptPath: t.deptPath,
+            environmentId: t.environmentId,
             at: new Date().toISOString(),
             note: note || null,
           });
@@ -102,7 +102,7 @@ export async function POST(
         fa.push({
           empCode: auth.requester.empCode,
           action: "CANCEL",
-          deptPath: null,
+          environmentId: null,
           at: new Date().toISOString(),
           note: note || null,
         });

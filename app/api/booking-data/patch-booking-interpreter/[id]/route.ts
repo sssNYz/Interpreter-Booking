@@ -83,11 +83,20 @@ export async function PATCH(
         return { status: 422 as const, payload: { error: "POLICY_VIOLATION", message: "Booking is canceled" } }
       }
 
-      // Environment check for non-super admins: booking owner's center must be in allowed centers
+      // Environment scope for non-super admins: owner's center OR forwarded to my environment
       if (!isSuper) {
         const bCenter = centerPart(bk.employee?.deptPath ?? null)
         const allow = allowCenters.size ? allowCenters : (myCenter ? new Set([myCenter]) : new Set<string>())
-        if (!(bCenter && allow.has(bCenter))) {
+        let allowedByScope = !!(bCenter && allow.has(bCenter))
+        if (!allowedByScope) {
+          const envLinks = await tx.environmentAdmin.findMany({ where: { adminEmpCode: requester!.empCode }, select: { environmentId: true } })
+          const envIds = envLinks.map(e => e.environmentId)
+          if (envIds.length > 0) {
+            const f = await tx.bookingForwardTarget.findFirst({ where: { bookingId: bk.bookingId, environmentId: { in: envIds } }, select: { bookingId: true } })
+            allowedByScope = !!f
+          }
+        }
+        if (!allowedByScope) {
           return { status: 403 as const, payload: { error: "FORBIDDEN", message: "Out of admin vision" } }
         }
       }

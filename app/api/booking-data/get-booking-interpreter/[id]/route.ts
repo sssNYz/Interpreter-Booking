@@ -3,6 +3,8 @@ import { NextResponse } from "next/server"
 import prisma from "@/prisma/prisma"
 import type { Prisma } from "@prisma/client"
 import { RoleCode } from "@prisma/client"
+import { cookies } from "next/headers"
+import { SESSION_COOKIE_NAME, verifySessionCookieValue } from "@/lib/auth/session"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
@@ -40,6 +42,22 @@ export async function GET(
   ctx: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Discover requester and environment scope (if admin)
+    const cookieStore = await cookies()
+    const cookieValue = cookieStore.get(SESSION_COOKIE_NAME)?.value
+    const parsed = verifySessionCookieValue(cookieValue)
+    let isSuper = false
+    let envIds: number[] = []
+    if (parsed) {
+      const me = await prisma.employee.findUnique({ where: { empCode: parsed.empCode }, include: { userRoles: true } })
+      const roles = new Set((me?.userRoles ?? []).map(r => r.roleCode))
+      const isAdmin = roles.has("ADMIN") || roles.has("SUPER_ADMIN")
+      isSuper = roles.has("SUPER_ADMIN")
+      if (isAdmin && !isSuper) {
+        const links = await prisma.environmentAdmin.findMany({ where: { adminEmpCode: parsed.empCode }, select: { environmentId: true } })
+        envIds = links.map(l => l.environmentId)
+      }
+    }
     const { id } = await ctx.params
     const bookingId = Number(id)
     if (!Number.isInteger(bookingId)) {
@@ -67,6 +85,13 @@ export async function GET(
 
     // --- เช็กคนเดียว (ต้องมีบทบาทล่ามด้วย) ---
     if (empCode) {
+      // If admin (non-super), ensure the interpreter is in their environments
+      if (envIds.length > 0) {
+        const inEnv = await prisma.environmentInterpreter.findFirst({ where: { interpreterEmpCode: empCode, environmentId: { in: envIds } }, select: { id: true } })
+        if (!inEnv) {
+          return NextResponse.json({ error: "FORBIDDEN", message: "Interpreter outside environment" }, { status: 403 })
+        }
+      }
       const isInterpreter = await prisma.employee.findFirst({
         where: {
           empCode,
@@ -122,6 +147,7 @@ export async function GET(
           ...overlapExclusive(bk.timeStart, bk.timeEnd),
         },
       },
+      ...(envIds.length > 0 ? { environmentInterpreterLinks: { some: { environmentId: { in: envIds } } } } : undefined),
     }
 
     const rows = await prisma.employee.findMany({

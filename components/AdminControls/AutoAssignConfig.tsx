@@ -18,7 +18,7 @@ import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 import { toast } from "sonner";
-import { SaveIcon, TestTubeIcon, AlertTriangleIcon, CheckCircleIcon } from "lucide-react";
+import { SaveIcon, TestTubeIcon, AlertTriangleIcon, CheckCircleIcon, Building2 } from "lucide-react";
 import ParameterInput from "./ParameterInput";
 
 import type { AssignmentPolicy, MeetingTypePriority } from "@/types/assignment";
@@ -27,6 +27,18 @@ interface ConfigData {
   policy: AssignmentPolicy;
   priorities: MeetingTypePriority[];
 }
+
+interface EnvironmentInfo {
+  id: number;
+  name: string;
+}
+
+type BasicPriority = {
+  meetingType: string;
+  priorityValue: number;
+  urgentThresholdDays: number;
+  generalThresholdDays: number;
+};
 
 export default function AutoAssignConfig() {
   const [config, setConfig] = useState<ConfigData | null>(null);
@@ -45,7 +57,9 @@ export default function AutoAssignConfig() {
     };
   } | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-
+  const [environment, setEnvironment] = useState<EnvironmentInfo | null>(null);
+  const [environmentLoading, setEnvironmentLoading] = useState(true);
+  
   // Use ref to track validation state without causing re-renders
   const isValidatingRef = useRef(false);
   const validationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -93,8 +107,14 @@ export default function AutoAssignConfig() {
   };
 
   useEffect(() => {
-    loadConfig();
+    loadEnvironment();
   }, []);
+
+  useEffect(() => {
+    if (environment) {
+      loadConfig();
+    }
+  }, [environment]);
 
   useEffect(() => {
     // Check for unsaved changes
@@ -160,15 +180,52 @@ export default function AutoAssignConfig() {
     };
   }, [localConfig]); // Only depend on localConfig, not the validation function
 
-  const loadConfig = async () => {
+  const loadEnvironment = async () => {
     try {
-      setLoading(true);
-      const response = await fetch("/api/admin/config/auto-assign");
+      setEnvironmentLoading(true);
+      const response = await fetch("/api/environments/me");
       const result = await response.json();
 
-      if (result.success) {
-        setConfig(result.data);
-        setLocalConfig(result.data);
+      if (result.ok && result.environment) {
+        setEnvironment({
+          id: result.environment.id,
+          name: result.environment.name
+        });
+      } else {
+        toast.error("No environment access found");
+      }
+    } catch (error) {
+      console.error("Error loading environment:", error);
+      toast.error("Failed to load environment");
+    } finally {
+      setEnvironmentLoading(false);
+    }
+  };
+
+  const loadConfig = async () => {
+    if (!environment) return;
+    
+    try {
+      setLoading(true);
+      const [policyRes, mtRes] = await Promise.all([
+        fetch(`/api/environments/${environment.id}/config/auto-assign`),
+        fetch(`/api/environments/${environment.id}/meeting-types`)
+      ]);
+
+      const policyJson = await policyRes.json();
+      const mtJson = await mtRes.json();
+
+      if (policyJson.ok) {
+        const priorities: MeetingTypePriority[] = Array.isArray(mtJson?.data?.env) && mtJson.data.env.length > 0
+          ? mtJson.data.env
+          : (Array.isArray(mtJson?.data?.global) ? mtJson.data.global : []);
+
+        const configData: ConfigData = {
+          policy: policyJson.data.effectivePolicy,
+          priorities
+        };
+        setConfig(configData);
+        setLocalConfig(configData);
         setHasUnsavedChanges(false);
       } else {
         toast.error("Failed to load configuration");
@@ -182,7 +239,7 @@ export default function AutoAssignConfig() {
   };
 
   const saveConfig = async () => {
-    if (!localConfig || !config) {
+    if (!localConfig || !config || !environment) {
       toast.error("No configuration to save");
       return;
     }
@@ -221,70 +278,47 @@ export default function AutoAssignConfig() {
     console.log("🚀 Attempting to save config changes:");
     console.log(`   📋 Policy changed: ${policyChanged}`);
     console.log(`   🎯 Priorities changed: ${prioritiesChanged}`);
-
-    // Only send changed data
-    const payload: {
-      policy?: AssignmentPolicy;
-      priorities?: MeetingTypePriority[];
-    } = {};
-    if (policyChanged) {
-      payload.policy = localConfig.policy;
-      console.log("   📋 Including policy changes");
-    }
-    if (prioritiesChanged) {
-      payload.priorities = localConfig.priorities;
-      console.log("   🎯 Including priority changes");
-    }
-
+    
     try {
       setSaving(true);
 
-      // Log the request payload
-      console.log("📤 Sending request to /api/admin/config/auto-assign");
-      console.log("📦 Optimized payload:", JSON.stringify(payload, null, 2));
+      // Save policy changes
+      if (policyChanged) {
+        console.log("📤 Sending policy to environment API");
+        const policyResponse = await fetch(`/api/environments/${environment.id}/config/auto-assign`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(localConfig.policy)
+        });
 
-      const response = await fetch("/api/admin/config/auto-assign", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+        if (!policyResponse.ok) {
+          const errorResult = await policyResponse.json();
+          throw new Error(errorResult.error || "Failed to save policy");
 
-      console.log("📥 Response status:", response.status);
-      const result = await response.json();
-      console.log("📥 Response data:", result);
-
-      if (result.success) {
-        setConfig(result.data);
-        setLocalConfig(result.data);
-        setHasUnsavedChanges(false);
-
-        // Show what was saved
-        const changesSummary = result.changesSummary;
-        let successMessage = "Configuration saved successfully";
-        if (changesSummary) {
-          const changes = [];
-          if (changesSummary.policyUpdated) changes.push("policy");
-          if (changesSummary.prioritiesUpdated) changes.push("priorities");
-          if (changes.length > 0) {
-            successMessage += ` (${changes.join(", ")})`;
-          }
-        }
-
-        toast.success(successMessage);
-        console.log("✅ Configuration saved successfully");
-
-        if (result.changesSummary) {
-          console.log("📊 Changes summary:", result.changesSummary);
-        }
-      } else {
-        console.error("❌ Save failed:", result);
-        toast.error(result.error || "Failed to save configuration");
-
-        // Show detailed error information
-        if (result.validation) {
-          console.log("🔍 Validation details:", result.validation);
         }
       }
+
+      // Save priority changes
+      if (prioritiesChanged && localConfig.priorities.length > 0) {
+        console.log("📤 Sending priorities to environment API");
+        const priorityResponse = await fetch(`/api/environments/${environment.id}/meeting-types`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(localConfig.priorities)
+        });
+
+        if (!priorityResponse.ok) {
+          const errorResult = await priorityResponse.json();
+          throw new Error(errorResult.error || "Failed to save priorities");
+        }
+      }
+
+      // Reload config to get updated data
+      await loadConfig();
+      
+      toast.success("Configuration saved successfully");
+      console.log("✅ Configuration saved successfully");
+      
     } catch (error) {
       console.error("❌ Error saving config:", error);
       toast.error(
@@ -336,6 +370,22 @@ export default function AutoAssignConfig() {
     setHasUnsavedChanges(true);
   };
 
+  if (environmentLoading) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <div className="text-lg">Loading environment...</div>
+      </div>
+    );
+  }
+
+  if (!environment) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <div className="text-lg text-red-600">No environment access found</div>
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center p-8">
@@ -357,10 +407,18 @@ export default function AutoAssignConfig() {
       {/* Header with Actions */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Auto-Assignment Configuration</h1>
-          <p className="text-muted-foreground mt-1">
-            Configure interpreter assignment behavior and policies
-          </p>
+          <div className="flex items-center gap-3 mb-2">
+            <Building2 className="h-6 w-6 text-blue-600" />
+            <h1 className="text-3xl font-bold">Auto-Assignment Configuration</h1>
+          </div>
+          <div className="flex items-center gap-2">
+            <p className="text-muted-foreground">
+              Configure interpreter assignment behavior and policies for
+            </p>
+            <Badge variant="outline" className="text-blue-600 border-blue-200">
+              {environment.name}
+            </Badge>
+          </div>
         </div>
         <div className="flex items-center gap-3">
           {hasUnsavedChanges && (
@@ -626,17 +684,47 @@ export default function AutoAssignConfig() {
                       size="sm"
                       onClick={async () => {
                         try {
-                          const response = await fetch("/api/admin/config/auto-assign/init-priorities", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" }
-                          });
-                          const result = await response.json();
-                          if (result.success) {
-                            await loadConfig();
-                            toast.success("Default priorities created");
+                          // Initialize env priorities by copying global (if exists) or creating defaults
+                          if (!environment) throw new Error("No environment");
+                          const mtRes = await fetch(`/api/environments/${environment.id}/meeting-types`);
+                          const mtJson = await mtRes.json();
+                          let items: BasicPriority[] = [];
+                          const globals: MeetingTypePriority[] = Array.isArray(mtJson?.data?.global) ? mtJson.data.global : [];
+                          const envs: MeetingTypePriority[] = Array.isArray(mtJson?.data?.env) ? mtJson.data.env : [];
+                          if (envs.length > 0) {
+                            items = envs.map((e) => ({
+                              meetingType: String(e.meetingType),
+                              priorityValue: Number(e.priorityValue || 1),
+                              urgentThresholdDays: Number(e.urgentThresholdDays || 0),
+                              generalThresholdDays: Number(e.generalThresholdDays || 1)
+                            }));
+                          } else if (globals.length > 0) {
+                            items = globals.map((g) => ({
+                              meetingType: String(g.meetingType),
+                              priorityValue: Number(g.priorityValue || 1),
+                              urgentThresholdDays: Number(g.urgentThresholdDays || 0),
+                              generalThresholdDays: Number(g.generalThresholdDays || 1)
+                            }));
                           } else {
-                            throw new Error(result.error || "Failed to create priorities");
+                            items = [
+                              { meetingType: 'DR', priorityValue: 5, urgentThresholdDays: 1, generalThresholdDays: 7 },
+                              { meetingType: 'VIP', priorityValue: 4, urgentThresholdDays: 2, generalThresholdDays: 14 },
+                              { meetingType: 'Weekly', priorityValue: 3, urgentThresholdDays: 3, generalThresholdDays: 30 },
+                              { meetingType: 'General', priorityValue: 2, urgentThresholdDays: 3, generalThresholdDays: 30 },
+                              { meetingType: 'Urgent', priorityValue: 3, urgentThresholdDays: 1, generalThresholdDays: 7 },
+                              { meetingType: 'Other', priorityValue: 1, urgentThresholdDays: 5, generalThresholdDays: 45 },
+                            ];
                           }
+
+                          const post = await fetch(`/api/environments/${environment.id}/meeting-types`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(items)
+                          });
+                          const postJson = await post.json();
+                          if (!post.ok || !postJson?.ok) throw new Error(postJson?.error || 'Failed to initialize');
+                          await loadConfig();
+                          toast.success("Priorities initialized for your environment");
                         } catch (error) {
                           console.error("Error creating priorities:", error);
                           toast.error("Failed to create default priorities");
