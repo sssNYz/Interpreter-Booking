@@ -7,21 +7,21 @@ import { NextResponse } from "next/server";
   import { centerPart } from "@/utils/users";
 export const runtime = "nodejs";
 
-  export const dynamic = "force-dynamic";
+export const dynamic = "force-dynamic";
 
   // Pure string extraction using ISO; avoid timezone math entirely
   const extractYMD = (iso: string) => iso.split("T")[0];
   const extractHHMM = (iso: string) => iso.split("T")[1].slice(0, 5);
 
-  // 'approve'|'cancel'|'waiting'|'complet' -> 'Approve'|'Cancel'|'Wait'|'Complete'
-  const mapStatus = (
-    s: "approve" | "cancel" | "waiting" | "complet"
-  ): "Approve" | "Cancel" | "Wait" | "Complete" => {
-    if (s === "approve") return "Approve";
-    if (s === "cancel") return "Cancel";
-    if (s === "waiting") return "Wait";
-    return "Complete";
-  };
+// 'approve'|'cancel'|'waiting'|'complet' -> 'Approve'|'Cancel'|'Wait'|'Complete'
+const mapStatus = (
+  s: "approve" | "cancel" | "waiting" | "complet"
+): "Approve" | "Cancel" | "Wait" | "Complete" => {
+  if (s === "approve") return "Approve";
+  if (s === "cancel") return "Cancel";
+  if (s === "waiting") return "Wait";
+  return "Complete";
+};
 
   export async function GET(req: Request) {
     // Auth: only ADMIN or SUPER_ADMIN can access
@@ -124,13 +124,15 @@ export const runtime = "nodejs";
         // คงไว้เพื่อ compatibility กับโค้ดเดิม
         topic: b.meetingDetail ?? "",
 
-        bookedBy,                                 // ชื่อผู้จอง
-        status: mapStatus(b.bookingStatus),          // 'Approve' | 'Wait' | 'Cancel'
-        startTime: extractHHMM(b.timeStart.toISOString()),          // "HH:mm"
-        endTime: extractHHMM(b.timeEnd.toISOString()),              // "HH:mm"
-        requestedTime: `${extractYMD(b.createdAt.toISOString())} ${extractHHMM(b.createdAt.toISOString())}:00`,
-      };
-    });
+      bookedBy, // ชื่อผู้จอง
+      status: mapStatus(b.bookingStatus), // 'Approve' | 'Wait' | 'Cancel'
+      startTime: extractHHMM(b.timeStart.toISOString()), // "HH:mm"
+      endTime: extractHHMM(b.timeEnd.toISOString()), // "HH:mm"
+      requestedTime: `${extractYMD(b.createdAt.toISOString())} ${extractHHMM(
+        b.createdAt.toISOString()
+      )}:00`,
+    };
+  });
 
-    return NextResponse.json(result);
-  }
+  return NextResponse.json(result);
+}

@@ -38,7 +38,7 @@ export function useSlotDataForBars({
     const occupancyByDay = new Map<number, number[]>();
 
     daysInMonth.forEach((day, dayIdx) => {
-      // 1) Build the same local-like date string used by cells: YYYY-MM-DD
+      // Local date string for the row (matches visible grid)
       const year = day.fullDate.getFullYear();
       const month = String(day.fullDate.getMonth() + 1).padStart(2, "0");
       const date = String(day.date).padStart(2, "0");

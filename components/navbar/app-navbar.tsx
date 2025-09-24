@@ -1,9 +1,9 @@
-"use client"
+"use client";
 
-import Link from "next/link"
-import { usePathname, useRouter } from "next/navigation"
-import { useEffect, useRef, useState, useCallback } from "react"
-import { motion } from "framer-motion"
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useRef, useState, useCallback } from "react";
+import { motion } from "framer-motion";
 import {
   Calendar,
   CheckCircle,
@@ -14,9 +14,11 @@ import {
   Settings,
   Cog,
   Star,
-} from "lucide-react"
+  DoorOpen,
+  Languages,
+} from "lucide-react";
 
-import { Button } from "@/components/ui/button"
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,96 +26,128 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+} from "@/components/ui/dropdown-menu";
 
 // Admin submenu items
 const ADMIN_MENU_ALL = [
-  { title: "Overview", url: "/AdminPage/overview-workload-page", icon: BarChart2 },
-  { title: "Bookings management", url: "/AdminPage/booking-manage-page", icon: Inbox },
-  { title: "System Management", url: "/AdminPage/management-page", icon: Settings },
-  { title: "User management", url: "/AdminPage/user-manage-page", icon: Settings },
-  { title: "Auto-Assignment Config", url: "/AdminPage/auto-assign-config", icon: Cog },
-] as const
+  {
+    title: "Overview",
+    url: "/AdminPage/overview-workload-page",
+    icon: BarChart2,
+  },
+  {
+    title: "Bookings management",
+    url: "/AdminPage/booking-manage-page",
+    icon: Inbox,
+  },
+  {
+    title: "System Management",
+    url: "/AdminPage/management-page",
+    icon: Settings,
+  },
+  {
+    title: "User management",
+    url: "/AdminPage/user-manage-page",
+    icon: Settings,
+  },
+  {
+    title: "Room management",
+    url: "/AdminPage/room-management",
+    icon: DoorOpen,
+  },
+  {
+    title: "Auto-Assignment Config",
+    url: "/AdminPage/auto-assign-config",
+    icon: Cog,
+  },
+] as const;
 
 // A clean segmented-control style navbar that:
 // - Animates the active highlight to the exact width of the active button
 // - Works with the Admin dropdown (no clipping, no z-index issues)
 // - Uses portal-based DropdownMenu so the menu renders above the pill
 export function AppNavbar() {
-  const router = useRouter()
-  const pathname = usePathname()
+  const router = useRouter();
+  const pathname = usePathname();
 
-  type Key = "calendar" | "mybookings" | "admin"
-  const [active, setActive] = useState<Key>("calendar")
+  type Key = "calendar" | "room" | "mybookings" | "admin";
+  const [active, setActive] = useState<Key>("calendar");
 
   // Refs to measure each button
-  const containerRef = useRef<HTMLDivElement | null>(null)
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const btnRefs = useRef<Record<Key, HTMLButtonElement | null>>({
     calendar: null,
+    room: null,
     mybookings: null,
     admin: null,
-  })
+  });
 
-  const [pill, setPill] = useState({ left: 0, width: 0, ready: false })
-  const [canAdmin, setCanAdmin] = useState<boolean>(false)
-  const [isSuper, setIsSuper] = useState<boolean>(false)
+  const [pill, setPill] = useState({ left: 0, width: 0, ready: false });
+  const [canAdmin, setCanAdmin] = useState<boolean>(false);
+  const [isSuper, setIsSuper] = useState<boolean>(false);
 
   // Update active based on the URL
   useEffect(() => {
-    if (!pathname) return
-    if (pathname === "/" || pathname.startsWith("/BookingPage")) setActive("calendar")
-    else if (pathname.startsWith("/MyBookings")) setActive("mybookings")
-    else if (pathname.startsWith("/AdminPage")) setActive("admin")
-  }, [pathname])
+    if (!pathname) return;
+    if (pathname === "/" || pathname.startsWith("/BookingPage"))
+      setActive("calendar");
+    else if (pathname.startsWith("/BookingRoomPage")) setActive("room");
+    else if (pathname.startsWith("/MyBookings")) setActive("mybookings");
+    else if (pathname.startsWith("/AdminPage")) setActive("admin");
+  }, [pathname]);
 
   // Compute the pill position/size to match the active button
   const updatePill = useCallback(() => {
-    const c = containerRef.current
-    const el = btnRefs.current[active]
-    if (!c || !el) return
-    const cRect = c.getBoundingClientRect()
-    const bRect = el.getBoundingClientRect()
-    setPill({ left: bRect.left - cRect.left, width: bRect.width, ready: true })
-  }, [active])
+    const c = containerRef.current;
+    const el = btnRefs.current[active];
+    if (!c || !el) return;
+    const cRect = c.getBoundingClientRect();
+    const bRect = el.getBoundingClientRect();
+    setPill({ left: bRect.left - cRect.left, width: bRect.width, ready: true });
+  }, [active]);
 
   useEffect(() => {
-    updatePill()
+    updatePill();
     // Only reposition on window resize, not on content changes
-    const handle = () => updatePill()
-    window.addEventListener("resize", handle)
+    const handle = () => updatePill();
+    window.addEventListener("resize", handle);
     return () => {
-      window.removeEventListener("resize", handle)
-    }
-  }, [active, updatePill])
+      window.removeEventListener("resize", handle);
+    };
+  }, [active, updatePill]);
 
   // Determine if current user can see Admin menu
   useEffect(() => {
-    let alive = true
+    let alive = true;
     fetch("/api/user/me", { cache: "no-store" })
-      .then(res => res.ok ? res.json() : null)
-      .then(data => {
-        if (!alive || !data?.user) return
-        const roles: string[] = data.user.roles || []
-        setCanAdmin(roles.includes("ADMIN") || roles.includes("SUPER_ADMIN"))
-        setIsSuper(roles.includes("SUPER_ADMIN"))
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!alive || !data?.user) return;
+        const roles: string[] = data.user.roles || [];
+        setCanAdmin(roles.includes("ADMIN") || roles.includes("SUPER_ADMIN"));
+        setIsSuper(roles.includes("SUPER_ADMIN"));
       })
-      .catch(() => {})
-    return () => { alive = false }
-  }, [])
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const handleLogout = async () => {
     try {
-      await fetch("/api/logout", { method: "POST" })
+      await fetch("/api/logout", { method: "POST" });
     } catch {}
     try {
-      localStorage.removeItem("booking.user")
+      localStorage.removeItem("booking.user");
     } catch {}
-    router.push("/login")
-  }
+    router.push("/login");
+  };
 
   const itemClass = (isActive: boolean) =>
     `relative z-10 h-8 px-4 rounded-full text-sm font-medium transition-colors flex items-center gap-2 whitespace-nowrap ` +
-    (isActive ? "text-primary-foreground" : "text-muted-foreground hover:text-foreground")
+    (isActive
+      ? "text-primary-foreground"
+      : "text-muted-foreground hover:text-foreground");
 
   return (
     <nav className="sticky top-0 z-[50] border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 shadow-sm">
@@ -134,7 +168,7 @@ export function AppNavbar() {
               {/* Animated highlight */}
               {pill.ready && (
                 <motion.div
-                   className="absolute top-1 bottom-1 rounded-full bg-neutral-700 z-0"
+                  className="absolute top-1 bottom-1 rounded-full bg-neutral-700 z-0"
                   animate={{ left: pill.left, width: pill.width }}
                   transition={{ type: "spring", stiffness: 400, damping: 30 }}
                 />
@@ -143,7 +177,9 @@ export function AppNavbar() {
               {/* Calendar */}
               <Link href="/BookingPage" className="contents">
                 <button
-                  ref={(el) => { btnRefs.current.calendar = el }}
+                  ref={(el) => {
+                    btnRefs.current.calendar = el;
+                  }}
                   className={itemClass(active === "calendar")}
                   onClick={() => setActive("calendar")}
                 >
@@ -152,10 +188,26 @@ export function AppNavbar() {
                 </button>
               </Link>
 
+              {/* Room */}
+              <Link href="/BookingRoomPage" className="contents">
+                <button
+                  ref={(el) => {
+                    btnRefs.current.room = el;
+                  }}
+                  className={itemClass(active === "room")}
+                  onClick={() => setActive("room")}
+                >
+                  <DoorOpen className="h-4 w-4" />
+                  <span>Room</span>
+                </button>
+              </Link>
+
               {/* My Bookings */}
               <Link href="/MyBookings" className="contents">
                 <button
-                  ref={(el) => { btnRefs.current.mybookings = el }}
+                  ref={(el) => {
+                    btnRefs.current.mybookings = el;
+                  }}
                   className={itemClass(active === "mybookings")}
                   onClick={() => setActive("mybookings")}
                 >
@@ -166,10 +218,14 @@ export function AppNavbar() {
 
               {/* Admin dropdown */}
               {canAdmin && (
-                <DropdownMenu onOpenChange={(open) => open && setActive("admin")}>
+                <DropdownMenu
+                  onOpenChange={(open) => open && setActive("admin")}
+                >
                   <DropdownMenuTrigger asChild>
                     <button
-                      ref={(el) => { btnRefs.current.admin = el }}
+                      ref={(el) => {
+                        btnRefs.current.admin = el;
+                      }}
                       className={itemClass(active === "admin")}
                     >
                       <Star className="h-4 w-4" />
@@ -179,12 +235,15 @@ export function AppNavbar() {
                   <DropdownMenuContent align="end" className="w-72">
                     <DropdownMenuLabel>Admin</DropdownMenuLabel>
                     <DropdownMenuSeparator />
-                    {(ADMIN_MENU_ALL.filter(item => {
+                    {ADMIN_MENU_ALL.filter((item) => {
                       // Admin and Super Admin can see all admin items
                       return true;
-                    })).map((item) => (
+                    }).map((item) => (
                       <DropdownMenuItem key={item.title} asChild>
-                        <Link href={item.url} className="flex items-center gap-2 py-2">
+                        <Link
+                          href={item.url}
+                          className="flex items-center gap-2 py-2"
+                        >
                           <item.icon className="h-4 w-4" />
                           <span>{item.title}</span>
                         </Link>
@@ -196,7 +255,11 @@ export function AppNavbar() {
             </div>
 
             {/* Logout */}
-            <Button variant="ghost" onClick={handleLogout} className="h-9 flex items-center px-3">
+            <Button
+              variant="ghost"
+              onClick={handleLogout}
+              className="h-9 flex items-center px-3"
+            >
               <LogOut className="h-4 w-4 mr-2" />
               Logout
             </Button>
@@ -204,5 +267,5 @@ export function AppNavbar() {
         </div>
       </div>
     </nav>
-  )
+  );
 }
