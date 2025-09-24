@@ -53,7 +53,6 @@ model BookingPlan {
 
   @@index([ownerEmpCode])
   @@index([interpreterEmpCode])
-  @@index([roomId])
   @@index([parentBookingId])
   @@index([drType])
   @@index([otherTypeScope])
@@ -184,8 +183,8 @@ model MeetingTypePriority {
   environmentId        Int?         @map("ENVIRONMENT_ID")
   environment          Environment? @relation(fields: [environmentId], references: [id])
 
-  @@index([environmentId], map: "MEETING_TYPE_PRIORITY_ENVIRONMENT_ID_fkey")
   @@unique([environmentId, meetingType])
+  @@index([environmentId], map: "MEETING_TYPE_PRIORITY_ENVIRONMENT_ID_fkey")
   @@map("MEETING_TYPE_PRIORITY")
 }
 
@@ -208,19 +207,19 @@ model MeetingTypeModeThreshold {
 
 // Per-environment overrides for assignment policy (mode remains global)
 model EnvironmentAssignmentConfig {
-  id                    Int      @id @default(autoincrement()) @map("ID")
-  environmentId         Int      @unique @map("ENVIRONMENT_ID")
+  id                   Int      @id @default(autoincrement()) @map("ID")
+  environmentId        Int      @unique @map("ENVIRONMENT_ID")
   // Optional per-environment overrides
-  mode                  String?  @map("MODE") @db.VarChar(32)
-  autoAssignEnabled     Boolean? @map("AUTO_ASSIGN_ENABLED")
-  fairnessWindowDays    Int?     @map("FAIRNESS_WINDOW_DAYS")
-  maxGapHours           Int?     @map("MAX_GAP_HOURS")
-  w_fair                Float?   @map("W_FAIR")
-  w_urgency             Float?   @map("W_URGENCY")
-  w_lrs                 Float?   @map("W_LRS")
-  drConsecutivePenalty  Float?   @map("DR_CONSECUTIVE_PENALTY")
-  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamp(0)
-  updatedAt             DateTime @updatedAt @map("updated_at") @db.Timestamp(0)
+  mode                 String?  @map("MODE") @db.VarChar(32)
+  autoAssignEnabled    Boolean? @map("AUTO_ASSIGN_ENABLED")
+  fairnessWindowDays   Int?     @map("FAIRNESS_WINDOW_DAYS")
+  maxGapHours          Int?     @map("MAX_GAP_HOURS")
+  w_fair               Float?   @map("W_FAIR")
+  w_urgency            Float?   @map("W_URGENCY")
+  w_lrs                Float?   @map("W_LRS")
+  drConsecutivePenalty Float?   @map("DR_CONSECUTIVE_PENALTY")
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt            DateTime @updatedAt @map("updated_at") @db.Timestamp(0)
 
   environment Environment @relation(fields: [environmentId], references: [id])
 
@@ -316,11 +315,11 @@ model SystemErrorLog {
 }
 
 model Environment {
-  id                Int                      @id @default(autoincrement()) @map("ID")
-  name              String                   @unique @map("NAME") @db.VarChar(128)
-  isActive          Boolean                  @default(true) @map("IS_ACTIVE")
-  createdAt         DateTime                 @default(now()) @map("created_at") @db.Timestamp(0)
-  updatedAt         DateTime                 @updatedAt @map("updated_at") @db.Timestamp(0)
+  id                Int                           @id @default(autoincrement()) @map("ID")
+  name              String                        @unique @map("NAME") @db.VarChar(128)
+  isActive          Boolean                       @default(true) @map("IS_ACTIVE")
+  createdAt         DateTime                      @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt         DateTime                      @updatedAt @map("updated_at") @db.Timestamp(0)
   forwardTargets    BookingForwardTarget[]
   admins            EnvironmentAdmin[]
   centers           EnvironmentCenter[]
@@ -367,6 +366,18 @@ model EnvironmentInterpreter {
   @@unique([environmentId, interpreterEmpCode], name: "unique_env_interpreter")
   @@index([interpreterEmpCode])
   @@map("ENVIRONMENT_INTERPRETER")
+}
+
+model Room {
+  id        Int      @id @default(autoincrement()) @map("ID")
+  name      String   @unique @map("NAME") @db.VarChar(128)
+  location  String?  @map("LOCATION") @db.VarChar(255)
+  capacity  Int      @default(1) @map("CAPACITY")
+  isActive  Boolean  @default(true) @map("IS_ACTIVE")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(0)
+
+  @@map("ROOM")
 }
 
 enum DRType {

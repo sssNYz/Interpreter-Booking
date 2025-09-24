@@ -40,7 +40,10 @@ import { PersonalInfoSection } from "@/components/BookingForm/sections/PersonalI
 import { MeetingDetailsSection } from "@/components/BookingForm/sections/MeetingDetailsSection";
 import { InviteEmailsSection } from "@/components/BookingForm/sections/InviteEmailsSection";
 import { getAvailableLanguages } from "@/utils/language";
-import { getAvailableInterpreters, checkChairmanAvailability } from "@/utils/interpreter";
+import {
+  getAvailableInterpreters,
+  checkChairmanAvailability,
+} from "@/utils/interpreter";
 import {
   Select,
   SelectContent,
@@ -90,13 +93,26 @@ export function BookingForm({
   const [newEmail, setNewEmail] = useState<string>("");
 
   // NEW FIELDS FOR LANGUAGE AND INTERPRETER SELECTION
-  const [selectedLanguageCodes, setSelectedLanguageCodes] = useState<string[]>([]);
+  const [selectedLanguageCodes, setSelectedLanguageCodes] = useState<string[]>(
+    []
+  );
   const [chairmanEmail, setChairmanEmail] = useState<string>("");
-  const [selectedInterpreterEmpCode, setSelectedInterpreterEmpCode] = useState<string | null>(null);
-  
+  const [selectedInterpreterEmpCode, setSelectedInterpreterEmpCode] = useState<
+    string | null
+  >(null);
+
   // State for loading data
-  const [languages, setLanguages] = useState<Array<{id: number; code: string; name: string; isActive: boolean}>>([]);
-  const [interpreters, setInterpreters] = useState<Array<{empCode: string; firstNameEn?: string; lastNameEn?: string; interpreterLanguages: Array<{language: {name: string}}>}>>([]);
+  const [languages, setLanguages] = useState<
+    Array<{ id: number; code: string; name: string; isActive: boolean }>
+  >([]);
+  const [interpreters, setInterpreters] = useState<
+    Array<{
+      empCode: string;
+      firstNameEn?: string;
+      lastNameEn?: string;
+      interpreterLanguages: Array<{ language: { name: string } }>;
+    }>
+  >([]);
   const [loadingLanguages, setLoadingLanguages] = useState(false);
   const [loadingInterpreters, setLoadingInterpreters] = useState(false);
 
@@ -148,7 +164,16 @@ export function BookingForm({
     | { type: "none" }
     | { type: "weekend"; message?: string }
     | { type: "overlap"; message?: string }
-    | { type: "chairman"; message?: string; details?: { ownerName?: string; meetingRoom?: string; timeStart?: string; timeEnd?: string } }
+    | {
+        type: "chairman";
+        message?: string;
+        details?: {
+          ownerName?: string;
+          meetingRoom?: string;
+          timeStart?: string;
+          timeEnd?: string;
+        };
+      }
     | { type: "apiError"; message?: string }
     | { type: "preflight"; message?: string }
     | { type: "forward"; bookingId?: number; message?: string };
@@ -158,7 +183,11 @@ export function BookingForm({
   const COOLDOWN_MS = 5000;
   const WINDOW_MS = 30000;
   const MAX_RETRIES = 2;
-  const [retryInfo, setRetryInfo] = useState<{ lastAttempt: number; windowStart: number; retries: number }>({
+  const [retryInfo, setRetryInfo] = useState<{
+    lastAttempt: number;
+    windowStart: number;
+    retries: number;
+  }>({
     lastAttempt: 0,
     windowStart: 0,
     retries: 0,
@@ -177,7 +206,11 @@ export function BookingForm({
     setRetryInfo((prev) => {
       const withinWindow = now - prev.windowStart < WINDOW_MS;
       return withinWindow
-        ? { lastAttempt: now, windowStart: prev.windowStart, retries: prev.retries + 1 }
+        ? {
+            lastAttempt: now,
+            windowStart: prev.windowStart,
+            retries: prev.retries + 1,
+          }
         : { lastAttempt: now, windowStart: now, retries: 1 };
     });
   };
@@ -192,17 +225,48 @@ export function BookingForm({
         },
         body: JSON.stringify({}), // Empty body - server will auto-select targets
       });
-      
-      const result = await response.json();
-      
-      if (result.ok) {
+
+      const contentType = response.headers.get("content-type") || "";
+      let result: unknown = null;
+      let rawText: string | null = null;
+      if (contentType.includes("application/json")) {
+        try {
+          result = await response.json();
+        } catch {}
+      } else {
+        try {
+          rawText = await response.text();
+        } catch {}
+      }
+
+      if (!response.ok) {
+        console.error("Error forwarding booking (HTTP)", {
+          status: response.status,
+          contentType,
+          result,
+          rawSample: rawText ? rawText.slice(0, 300) : null,
+        });
+        toast.error(`Request failed (HTTP ${response.status})`);
+        return;
+      }
+
+      const data =
+        result && typeof result === "object"
+          ? (result as Record<string, unknown>)
+          : {};
+      const ok = data.ok === true || data.success === true;
+      if (ok) {
         toast.success("Booking forwarded successfully!");
         onOpenChange(false);
         try {
           window.dispatchEvent(new CustomEvent("booking:updated"));
         } catch {}
       } else {
-        toast.error(result.error || "Failed to forward booking");
+        const message =
+          (typeof data.error === "string" && data.error) ||
+          (typeof data.message === "string" && data.message) ||
+          "Failed to forward booking";
+        toast.error(message);
       }
     } catch (error) {
       console.error("Error forwarding booking:", error);
@@ -219,15 +283,46 @@ export function BookingForm({
           "Content-Type": "application/json",
         },
       });
-      
-      const result = await response.json();
-      
-      if (result.success) {
+
+      const contentType = response.headers.get("content-type") || "";
+      let result: unknown = null;
+      let rawText: string | null = null;
+      if (contentType.includes("application/json")) {
+        try {
+          result = await response.json();
+        } catch {}
+      } else {
+        try {
+          rawText = await response.text();
+        } catch {}
+      }
+
+      if (!response.ok) {
+        console.error("Error deleting booking (HTTP)", {
+          status: response.status,
+          contentType,
+          result,
+          rawSample: rawText ? rawText.slice(0, 300) : null,
+        });
+        toast.error(`Request failed (HTTP ${response.status})`);
+        return;
+      }
+
+      const data =
+        result && typeof result === "object"
+          ? (result as Record<string, unknown>)
+          : {};
+      const success = data.success === true || data.ok === true;
+      if (success) {
         toast.success("Booking cancelled. You can now edit your request.");
         // Keep form open so user can edit
         setDialog({ type: "none" });
       } else {
-        toast.error(result.message || "Failed to cancel booking");
+        const message =
+          (typeof data.message === "string" && data.message) ||
+          (typeof data.error === "string" && data.error) ||
+          "Failed to cancel booking";
+        toast.error(message);
       }
     } catch (error) {
       console.error("Error deleting booking:", error);
@@ -314,7 +409,9 @@ export function BookingForm({
 
   const focusTimeOrRoom = () => {
     try {
-      const room = document.getElementById("meetingRoom") as HTMLInputElement | null;
+      const room = document.getElementById(
+        "meetingRoom"
+      ) as HTMLInputElement | null;
       room?.scrollIntoView({ behavior: "smooth", block: "center" });
       room?.focus();
     } catch {}
@@ -322,7 +419,9 @@ export function BookingForm({
 
   const focusChairmanField = () => {
     try {
-      const ce = document.getElementById("chairmanEmail") as HTMLInputElement | null;
+      const ce = document.getElementById(
+        "chairmanEmail"
+      ) as HTMLInputElement | null;
       ce?.scrollIntoView({ behavior: "smooth", block: "center" });
       ce?.focus();
     } catch {}
@@ -337,7 +436,7 @@ export function BookingForm({
           const data = await getAvailableLanguages();
           setLanguages(data);
         } catch (error) {
-          console.error('Error loading languages:', error);
+          console.error("Error loading languages:", error);
         } finally {
           setLoadingLanguages(false);
         }
@@ -353,8 +452,14 @@ export function BookingForm({
         setLoadingInterpreters(true);
         try {
           const localDate = dayObj ? getLocalDateString(dayObj.fullDate) : "";
-          const startDateTime = startTime && localDate ? buildDateTimeString(localDate, startTime) : undefined;
-          const endDateTime = endTime && localDate ? buildDateTimeString(localDate, endTime) : undefined;
+          const startDateTime =
+            startTime && localDate
+              ? buildDateTimeString(localDate, startTime)
+              : undefined;
+          const endDateTime =
+            endTime && localDate
+              ? buildDateTimeString(localDate, endTime)
+              : undefined;
           const data = await getAvailableInterpreters(
             selectedLanguageCodes[0] || undefined,
             startDateTime,
@@ -362,7 +467,7 @@ export function BookingForm({
           );
           setInterpreters(data);
         } catch (error) {
-          console.error('Error loading interpreters:', error);
+          console.error("Error loading interpreters:", error);
         } finally {
           setLoadingInterpreters(false);
         }
@@ -373,39 +478,49 @@ export function BookingForm({
 
   // Real-time chairman availability checking for DR meetings
   useEffect(() => {
-    if (meetingType === "DR" && chairmanEmail && startTime && endTime && dayObj) {
+    if (
+      meetingType === "DR" &&
+      chairmanEmail &&
+      startTime &&
+      endTime &&
+      dayObj
+    ) {
       const checkAvailability = async () => {
         try {
           const localDate = getLocalDateString(dayObj.fullDate);
           const startDateTime = buildDateTimeString(localDate, startTime);
           const endDateTime = buildDateTimeString(localDate, endTime);
-          
-          const result = await checkChairmanAvailability(chairmanEmail, startDateTime, endDateTime);
-          
+
+          const result = await checkChairmanAvailability(
+            chairmanEmail,
+            startDateTime,
+            endDateTime
+          );
+
           if (!result.available && result.conflictBooking) {
-            setErrors(prev => ({
+            setErrors((prev) => ({
               ...prev,
-              chairmanEmail: `Chairman is already booked: ${result.conflictBooking.ownerName} at ${result.conflictBooking.meetingRoom} (${result.conflictBooking.timeStart} - ${result.conflictBooking.timeEnd})`
+              chairmanEmail: `Chairman is already booked: ${result.conflictBooking.ownerName} at ${result.conflictBooking.meetingRoom} (${result.conflictBooking.timeStart} - ${result.conflictBooking.timeEnd})`,
             }));
           } else {
             // Clear chairman error if available
-            setErrors(prev => {
+            setErrors((prev) => {
               const newErrors = { ...prev };
               delete newErrors.chairmanEmail;
               return newErrors;
             });
           }
         } catch (error) {
-          console.error('Error checking chairman availability:', error);
+          console.error("Error checking chairman availability:", error);
         }
       };
-      
+
       // Debounce the check to avoid too many API calls
       const timeoutId = setTimeout(checkAvailability, 500);
       return () => clearTimeout(timeoutId);
     } else {
       // Clear chairman error if not DR meeting or missing required fields
-      setErrors(prev => {
+      setErrors((prev) => {
         const newErrors = { ...prev };
         delete newErrors.chairmanEmail;
         return newErrors;
@@ -985,7 +1100,8 @@ export function BookingForm({
     }
 
     if (meetingType === "President" && !selectedInterpreterEmpCode) {
-      newErrors.selectedInterpreterEmpCode = "Interpreter selection is required for President meetings";
+      newErrors.selectedInterpreterEmpCode =
+        "Interpreter selection is required for President meetings";
     }
 
     if (!startTime) newErrors.startTime = "Start time is required";
@@ -1016,7 +1132,10 @@ export function BookingForm({
   };
 
   // Form submission (real create call)
-  const proceedSubmit = async (opts?: { skipWeekends?: boolean, autoForward?: boolean }) => {
+  const proceedSubmit = async (opts?: {
+    skipWeekends?: boolean;
+    autoForward?: boolean;
+  }) => {
     setIsSubmitting(true);
     try {
       const localDate = getLocalDateString(dayObj!.fullDate);
@@ -1108,8 +1227,7 @@ export function BookingForm({
               : recurrenceWeekdays || null,
           recurrenceMonthday:
             recurrenceType === "monthly" || repeatChoice === "monthly"
-              ?
-                recurrenceMonthday ??
+              ? recurrenceMonthday ??
                 (selectedSlot?.day || dayObj?.fullDate.getDate() || 1)
               : null,
           recurrenceWeekOrder:
@@ -1119,7 +1237,7 @@ export function BookingForm({
       }
 
       const submitOnce = async (force?: boolean) => {
-        const response = await fetch("/api/booking-data/post-booking-data/0", {
+        const response = await fetch("/api/booking-data/post-booking-data", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -1130,15 +1248,46 @@ export function BookingForm({
             ...(force ? { force: true } : {}),
           }),
         });
-        const result = await response.json();
+
+        const contentType = response.headers.get("content-type") || "";
+        let result: unknown = null;
+        let rawText: string | null = null;
+        if (contentType.includes("application/json")) {
+          try {
+            result = await response.json();
+          } catch {}
+        } else {
+          try {
+            rawText = await response.text();
+          } catch {}
+        }
+
+        if (!response.ok) {
+          console.error("Submit booking failed (HTTP)", {
+            status: response.status,
+            statusText: response.statusText,
+            contentType,
+            result,
+            rawSample: rawText ? rawText.slice(0, 300) : null,
+            url: response.url,
+          });
+        }
+
         return { response, result } as const;
       };
 
       // First attempt without force
-      let { response, result } = await submitOnce(false);
+      const { response, result } = await submitOnce(false);
+      const data =
+        result && typeof result === "object"
+          ? (result as Record<string, unknown>)
+          : {};
 
       // If room conflict, show error and don't allow force submit
-      if (response.status === 409 && result?.code === "ROOM_CONFLICT") {
+      if (
+        response.status === 409 &&
+        (data as Record<string, unknown>)?.code === "ROOM_CONFLICT"
+      ) {
         toast.custom(
           (t) => (
             <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm w-[420px]">
@@ -1148,7 +1297,10 @@ export function BookingForm({
                     Room conflict
                   </span>
                   <span className="ml-1">
-                    {result?.message ||
+                    {(typeof (data as Record<string, unknown>).message ===
+                    "string"
+                      ? ((data as Record<string, unknown>).message as string)
+                      : undefined) ||
                       "This room is already booked during this time."}
                   </span>
                 </AlertTitle>
@@ -1171,37 +1323,60 @@ export function BookingForm({
         return; // Don't allow force submit for room conflicts
       }
 
-      if (response.status === 409 && result?.code === "OVERLAP_WARNING") {
+      if (
+        response.status === 409 &&
+        (data as Record<string, unknown>)?.code === "OVERLAP_WARNING"
+      ) {
         setDialog({
           type: "overlap",
           message:
-            result?.message ||
+            (typeof (data as Record<string, unknown>).message === "string"
+              ? ((data as Record<string, unknown>).message as string)
+              : undefined) ||
             "This room already has a booking overlapping this time.",
         });
         return;
       }
 
-      if (response.status === 409 && result?.code === "CHAIRMAN_CONFLICT") {
+      if (
+        response.status === 409 &&
+        (data as Record<string, unknown>)?.code === "CHAIRMAN_CONFLICT"
+      ) {
         setDialog({
           type: "chairman",
           message:
-            result?.message || "Chairman is already booked for this time",
-          details: result?.conflictDetails ?? undefined,
+            (typeof (data as Record<string, unknown>).message === "string"
+              ? ((data as Record<string, unknown>).message as string)
+              : undefined) || "Chairman is already booked for this time",
+          details: (data as Record<string, unknown>)
+            ?.conflictDetails as unknown as undefined,
         });
         return;
       }
 
-      if (result.success) {
+      if (data.success === true) {
         // Check if auto-assignment failed and forwarding is eligible
-        if (result.data?.autoAssignment?.status === "escalated" && result.data?.forwardSuggestion?.eligible) {
-          if (opts?.autoForward && result.data?.bookingId) {
-            await handleForwardBooking(result.data.bookingId);
+        const d =
+          data.data && typeof data.data === "object"
+            ? (data.data as Record<string, unknown>)
+            : undefined;
+        const autoStatus = (
+          d?.autoAssignment as Record<string, unknown> | undefined
+        )?.status;
+        const fwdEligible =
+          (d?.forwardSuggestion as Record<string, unknown> | undefined)
+            ?.eligible === true;
+        const bookingIdVal = d?.bookingId as number | undefined;
+        if (autoStatus === "escalated" && fwdEligible) {
+          if (opts?.autoForward && bookingIdVal) {
+            await handleForwardBooking(bookingIdVal);
             return;
           } else {
             setDialog({
               type: "forward",
-              bookingId: result.data.bookingId,
-              message: "No interpreter available in your environment. Would you like to forward this request to other environments?"
+              bookingId: bookingIdVal,
+              message:
+                "No interpreter available in your environment. Would you like to forward this request to other environments?",
             });
             return;
           }
@@ -1245,10 +1420,18 @@ export function BookingForm({
       } else {
         setDialog({
           type: "apiError",
-          message: result.message || result.error || "Please try again",
+          message:
+            (typeof (data as Record<string, unknown>).message === "string" &&
+              ((data as Record<string, unknown>).message as string)) ||
+            (typeof (data as Record<string, unknown>).error === "string" &&
+              ((data as Record<string, unknown>).error as string)) ||
+            "Please try again",
         });
-        if (result.details) {
-          console.error("Validation errors:", result.details);
+        if ((data as Record<string, unknown>)?.details) {
+          console.error(
+            "Validation errors:",
+            (data as Record<string, unknown>).details
+          );
         }
       }
     } catch (error) {
@@ -1273,7 +1456,10 @@ export function BookingForm({
       const preview = previewRecurringDates();
       const hasWeekend = preview.some((d) => isWeekend(d));
       if (hasWeekend) {
-        setDialog({ type: "weekend", message: "Some occurrences fall on Sat/Sun." });
+        setDialog({
+          type: "weekend",
+          message: "Some occurrences fall on Sat/Sun.",
+        });
         return;
       }
     }
@@ -1290,21 +1476,44 @@ export function BookingForm({
       const empCode = parsed.empCode;
       if (!empCode) return;
 
-      const preRes = await fetch('/api/booking-data/preflight', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const preRes = await fetch("/api/booking-data/preflight", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ownerEmpCode: empCode,
           timeStart: startDateTime,
           timeEnd: endDateTime,
           meetingType,
-        })
+        }),
       });
-      const preJson = await preRes.json();
-      const eligible = preJson?.data?.forwardSuggestion?.eligible === true;
+      const preCt = preRes.headers.get("content-type") || "";
+      let preJson: unknown = null;
+      if (preCt.includes("application/json")) {
+        try {
+          preJson = await preRes.json();
+        } catch {}
+      }
+
+      if (!preRes.ok) {
+        console.warn("Preflight not OK", { status: preRes.status, preCt });
+      }
+
+      const preData =
+        preJson && typeof preJson === "object"
+          ? (preJson as Record<string, unknown>)
+          : {};
+      const sugg = (preData?.data as Record<string, unknown> | undefined)
+        ?.forwardSuggestion as Record<string, unknown> | undefined;
+      const eligible = sugg?.eligible === true;
 
       if (eligible) {
-        setDialog({ type: 'preflight', message: 'No interpreter in your environment at this time. Do you want to forward?' });
+        let msg = "Do you want to forward?";
+        if (sugg?.capacityFull) {
+          msg = "No interpreter free in your center at this time. Forward?";
+        } else if (sugg?.environmentId == null) {
+          msg = "We can't find your center. Forward to other centers?";
+        }
+        setDialog({ type: "preflight", message: msg });
         return;
       }
     } catch (e) {
@@ -1754,8 +1963,10 @@ export function BookingForm({
 
             {/* NEW FIELDS FOR LANGUAGE AND INTERPRETER SELECTION */}
             <fieldset className="space-y-6">
-              <legend className="sr-only">Language and Interpreter Selection</legend>
-              
+              <legend className="sr-only">
+                Language and Interpreter Selection
+              </legend>
+
               {/* Language Selection (Multi-select) */}
               <div className="space-y-2">
                 <label className="text-sm font-medium text-foreground">
@@ -1763,12 +1974,19 @@ export function BookingForm({
                 </label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {loadingLanguages ? (
-                    <div className="text-sm text-muted-foreground">Loading languages...</div>
+                    <div className="text-sm text-muted-foreground">
+                      Loading languages...
+                    </div>
                   ) : (
                     languages.map((language) => {
-                      const checked = selectedLanguageCodes.includes(language.code);
+                      const checked = selectedLanguageCodes.includes(
+                        language.code
+                      );
                       return (
-                        <label key={language.code} className="flex items-center gap-2 text-sm">
+                        <label
+                          key={language.code}
+                          className="flex items-center gap-2 text-sm"
+                        >
                           <input
                             type="checkbox"
                             className="h-4 w-4"
@@ -1776,12 +1994,15 @@ export function BookingForm({
                             onChange={(e) => {
                               setSelectedInterpreterEmpCode(null);
                               setSelectedLanguageCodes((prev) => {
-                                if (e.target.checked) return [...prev, language.code];
+                                if (e.target.checked)
+                                  return [...prev, language.code];
                                 return prev.filter((c) => c !== language.code);
                               });
                             }}
                           />
-                          <span>{language.name} ({language.code})</span>
+                          <span>
+                            {language.name} ({language.code})
+                          </span>
                         </label>
                       );
                     })
@@ -1826,26 +2047,42 @@ export function BookingForm({
                   </label>
                   <Select
                     value={selectedInterpreterEmpCode || "none"}
-                    onValueChange={(value) => setSelectedInterpreterEmpCode(value === "none" ? null : value)}
+                    onValueChange={(value) =>
+                      setSelectedInterpreterEmpCode(
+                        value === "none" ? null : value
+                      )
+                    }
                   >
                     <SelectTrigger className="w-full">
                       <SelectValue placeholder="Choose interpreter for this meeting" />
                     </SelectTrigger>
                     <SelectContent>
                       {loadingInterpreters ? (
-                        <SelectItem value="loading" disabled>Loading interpreters...</SelectItem>
+                        <SelectItem value="loading" disabled>
+                          Loading interpreters...
+                        </SelectItem>
                       ) : interpreters.length === 0 ? (
-                        <SelectItem value="none" disabled>No interpreters available</SelectItem>
+                        <SelectItem value="none" disabled>
+                          No interpreters available
+                        </SelectItem>
                       ) : (
                         interpreters.map((interpreter) => (
-                          <SelectItem key={interpreter.empCode} value={interpreter.empCode}>
-                            {interpreter.firstNameEn && interpreter.lastNameEn 
-                              ? `${interpreter.firstNameEn} ${interpreter.lastNameEn}` 
-                              : interpreter.empCode} ({interpreter.empCode})
+                          <SelectItem
+                            key={interpreter.empCode}
+                            value={interpreter.empCode}
+                          >
+                            {interpreter.firstNameEn && interpreter.lastNameEn
+                              ? `${interpreter.firstNameEn} ${interpreter.lastNameEn}`
+                              : interpreter.empCode}{" "}
+                            ({interpreter.empCode})
                             {selectedLanguageCodes.length > 0 && (
                               <span className="text-muted-foreground ml-2">
-                                - {interpreter.interpreterLanguages
-                                  .map((il: {language: {name: string}}) => il.language.name)
+                                -{" "}
+                                {interpreter.interpreterLanguages
+                                  .map(
+                                    (il: { language: { name: string } }) =>
+                                      il.language.name
+                                  )
                                   .join(", ")}
                               </span>
                             )}
@@ -1855,7 +2092,9 @@ export function BookingForm({
                     </SelectContent>
                   </Select>
                   {errors.selectedInterpreterEmpCode && (
-                    <p className="text-sm text-red-500">{errors.selectedInterpreterEmpCode}</p>
+                    <p className="text-sm text-red-500">
+                      {errors.selectedInterpreterEmpCode}
+                    </p>
                   )}
                 </div>
               )}
@@ -1896,23 +2135,45 @@ export function BookingForm({
               {isSubmitting ? "Creating..." : "Create Booking"}
             </Button>
           </div>
-      </SheetFooter>
+        </SheetFooter>
       </SheetContent>
       {/* Centralized Modal Renderer */}
-      <AlertDialog open={dialog.type !== "none"} onOpenChange={(o) => { if (!o) setDialog({ type: "none" }); }}>
+      <AlertDialog
+        open={dialog.type !== "none"}
+        onOpenChange={(o: boolean) => {
+          if (!o) setDialog({ type: "none" });
+        }}
+      >
         <AlertDialogContent>
           {dialog.type === "preflight" && (
             <>
               <AlertDialogHeader>
                 <AlertDialogTitle>No Interpreter Available</AlertDialogTitle>
                 <AlertDialogDescription>
-                  {dialog.message || "No interpreter in your environment at this time."}
+                  {dialog.message ||
+                    "No interpreter in your environment at this time."}
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel onClick={() => setDialog({ type: "none" })}>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={() => { setDialog({ type: "none" }); focusTimeOrRoom(); }}>Edit</AlertDialogAction>
-                <AlertDialogAction onClick={async () => { setDialog({ type: "none" }); await proceedSubmit({ autoForward: true }); }}>Forward</AlertDialogAction>
+                <AlertDialogCancel onClick={() => setDialog({ type: "none" })}>
+                  Cancel
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => {
+                    setDialog({ type: "none" });
+                    focusTimeOrRoom();
+                  }}
+                >
+                  Edit
+                </AlertDialogAction>
+                <AlertDialogAction
+                  onClick={async () => {
+                    setDialog({ type: "none" });
+                    await proceedSubmit({ autoForward: true });
+                  }}
+                >
+                  Forward
+                </AlertDialogAction>
               </AlertDialogFooter>
             </>
           )}
@@ -1921,12 +2182,27 @@ export function BookingForm({
               <AlertDialogHeader>
                 <AlertDialogTitle>Weekend included</AlertDialogTitle>
                 <AlertDialogDescription>
-                  {dialog.message || "Some occurrences fall on Sat/Sun. Adjust your recurrence settings."}
+                  {dialog.message ||
+                    "Some occurrences fall on Sat/Sun. Adjust your recurrence settings."}
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogAction onClick={() => { setDialog({ type: "none" }); focusRecurrenceControls(); }}>Back to Edit</AlertDialogAction>
-                <AlertDialogAction onClick={() => { setDialog({ type: "none" }); proceedSubmit({ skipWeekends: true }); }}>Skip weekend</AlertDialogAction>
+                <AlertDialogAction
+                  onClick={() => {
+                    setDialog({ type: "none" });
+                    focusRecurrenceControls();
+                  }}
+                >
+                  Back to Edit
+                </AlertDialogAction>
+                <AlertDialogAction
+                  onClick={() => {
+                    setDialog({ type: "none" });
+                    proceedSubmit({ skipWeekends: true });
+                  }}
+                >
+                  Skip weekend
+                </AlertDialogAction>
               </AlertDialogFooter>
             </>
           )}
@@ -1936,11 +2212,19 @@ export function BookingForm({
               <AlertDialogHeader>
                 <AlertDialogTitle>Same room conflict</AlertDialogTitle>
                 <AlertDialogDescription>
-                  {dialog.message || "This room already has a booking overlapping this time."}
+                  {dialog.message ||
+                    "This room already has a booking overlapping this time."}
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogAction onClick={() => { setDialog({ type: "none" }); focusTimeOrRoom(); }}>Back to Edit</AlertDialogAction>
+                <AlertDialogAction
+                  onClick={() => {
+                    setDialog({ type: "none" });
+                    focusTimeOrRoom();
+                  }}
+                >
+                  Back to Edit
+                </AlertDialogAction>
               </AlertDialogFooter>
             </>
           )}
@@ -1956,21 +2240,39 @@ export function BookingForm({
               {dialog.details && (
                 <div className="mt-2 text-sm space-y-1">
                   {dialog.details.ownerName && (
-                    <div><strong>Owner:</strong> {dialog.details.ownerName}</div>
+                    <div>
+                      <strong>Owner:</strong> {dialog.details.ownerName}
+                    </div>
                   )}
                   {dialog.details.meetingRoom && (
-                    <div><strong>Room:</strong> {dialog.details.meetingRoom}</div>
+                    <div>
+                      <strong>Room:</strong> {dialog.details.meetingRoom}
+                    </div>
                   )}
                   {(dialog.details.timeStart || dialog.details.timeEnd) && (
                     <div>
-                      <strong>Time:</strong> {dialog.details.timeStart ? new Date(dialog.details.timeStart).toLocaleString() : ""}
-                      {dialog.details.timeEnd ? ` - ${new Date(dialog.details.timeEnd).toLocaleString()}` : ""}
+                      <strong>Time:</strong>{" "}
+                      {dialog.details.timeStart
+                        ? new Date(dialog.details.timeStart).toLocaleString()
+                        : ""}
+                      {dialog.details.timeEnd
+                        ? ` - ${new Date(
+                            dialog.details.timeEnd
+                          ).toLocaleString()}`
+                        : ""}
                     </div>
                   )}
                 </div>
               )}
               <AlertDialogFooter>
-                <AlertDialogAction onClick={() => { setDialog({ type: "none" }); focusChairmanField(); }}>Back to Edit</AlertDialogAction>
+                <AlertDialogAction
+                  onClick={() => {
+                    setDialog({ type: "none" });
+                    focusChairmanField();
+                  }}
+                >
+                  Back to Edit
+                </AlertDialogAction>
               </AlertDialogFooter>
             </>
           )}
@@ -1984,8 +2286,15 @@ export function BookingForm({
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel onClick={() => setDialog({ type: "none" })}>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={() => { setDialog({ type: "none" }); }} className="hidden" />
+                <AlertDialogCancel onClick={() => setDialog({ type: "none" })}>
+                  Cancel
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => {
+                    setDialog({ type: "none" });
+                  }}
+                  className="hidden"
+                />
                 <AlertDialogAction
                   disabled={!canRetryNow() || isSubmitting}
                   onClick={async () => {
@@ -1997,7 +2306,13 @@ export function BookingForm({
                 >
                   Retry
                 </AlertDialogAction>
-                <AlertDialogAction onClick={() => { setDialog({ type: "none" }); }}>Edit</AlertDialogAction>
+                <AlertDialogAction
+                  onClick={() => {
+                    setDialog({ type: "none" });
+                  }}
+                >
+                  Edit
+                </AlertDialogAction>
               </AlertDialogFooter>
             </>
           )}
@@ -2007,12 +2322,15 @@ export function BookingForm({
               <AlertDialogHeader>
                 <AlertDialogTitle>No Interpreter Available</AlertDialogTitle>
                 <AlertDialogDescription>
-                  {dialog.message || "No interpreter available in your environment. Would you like to forward this request to other environments?"}
+                  {dialog.message ||
+                    "No interpreter available in your environment. Would you like to forward this request to other environments?"}
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel onClick={() => setDialog({ type: "none" })}>Cancel</AlertDialogCancel>
-                <AlertDialogAction 
+                <AlertDialogCancel onClick={() => setDialog({ type: "none" })}>
+                  Cancel
+                </AlertDialogCancel>
+                <AlertDialogAction
                   onClick={() => {
                     if (dialog.bookingId) {
                       handleDeleteBooking(dialog.bookingId);
