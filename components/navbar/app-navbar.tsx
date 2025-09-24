@@ -11,11 +11,9 @@ import {
   LogOut,
   BarChart2,
   Inbox,
-  Calendar as CalendarIcon,
   Settings,
   Cog,
   Star,
-  Languages,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -32,10 +30,8 @@ import {
 const ADMIN_MENU_ALL = [
   { title: "Overview", url: "/AdminPage/overview-workload-page", icon: BarChart2 },
   { title: "Bookings management", url: "/AdminPage/booking-manage-page", icon: Inbox },
-  { title: "Interpreters management", url: "/AdminPage/interpreter-manage-page", icon: CalendarIcon },
+  { title: "System Management", url: "/AdminPage/management-page", icon: Settings },
   { title: "User management", url: "/AdminPage/user-manage-page", icon: Settings },
-  { title: "Language management", url: "/AdminPage/language-manage-page", icon: Languages },
-  { title: "Environment management", url: "/AdminPage/environment-manage-page", icon: Cog },
   { title: "Auto-Assignment Config", url: "/AdminPage/auto-assign-config", icon: Cog },
 ] as const
 

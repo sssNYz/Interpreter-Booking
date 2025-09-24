@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { Inbox, Calendar, Cog, Users, TestTube, Languages } from "lucide-react"
+import { Inbox, Calendar, Cog, Users, TestTube, Settings } from "lucide-react"
 
 const adminMenuItems = [
   {
@@ -19,6 +19,13 @@ const adminMenuItems = [
     color: "bg-green-500"
   },
   {
+    title: "System Management",
+    description: "Manage environments, interpreters, and languages",
+    url: "/AdminPage/management-page",
+    icon: Settings,
+    color: "bg-gradient-to-r from-blue-500 to-purple-500"
+  },
+  {
     title: "Auto-Assignment Config",
     description: "Configure interpreter auto-assignment system",
     url: "/AdminPage/auto-assign-config",
@@ -33,18 +40,11 @@ const adminMenuItems = [
     color: "bg-indigo-500"
   },
   {
-    title: "Interpreters Management",
-    description: "Manage interpreter profiles and availability",
-    url: "#",
+    title: "Workload Overview",
+    description: "View interpreter workload and assignment analytics",
+    url: "/AdminPage/overview-workload-page",
     icon: Calendar,
     color: "bg-orange-500"
-  },
-  {
-    title: "Language Management",
-    description: "Manage system languages and language codes",
-    url: "/AdminPage/language-manage-page",
-    icon: Languages,
-    color: "bg-teal-500"
   }
 ]
 
@@ -65,9 +65,7 @@ export default function AdminPage() {
           <Link
             key={item.title}
             href={item.url}
-            className={`block p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-200 ${
-              item.url === "#" ? "opacity-50 cursor-not-allowed" : "hover:scale-105 transition-transform duration-200"
-            }`}
+            className="block p-6 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 hover:scale-105 bg-white border border-gray-100"
           >
             <div className="flex items-center space-x-4">
               <div className={`p-3 rounded-lg ${item.color}`}>

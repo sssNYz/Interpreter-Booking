@@ -654,12 +654,7 @@ export default function BookingHistory({ renderEmpty, startDate, endDate }: Book
            <DialogHeader className="sr-only">
              <DialogTitle>Meeting Detail</DialogTitle>  
            </DialogHeader>
-          <motion.div
-            initial={{ opacity: 0, scale: 0 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.4, scale: { type: "spring", visualDuration: 0.4, bounce: 0.5 } }}
-            className="h-full overflow-hidden"
-          >
+          <div className="h-full overflow-hidden">
              {/* Header with Date and Status */}
              <div className="bg-gradient-to-r from-primary/5 to-primary/10 px-4 py-3 border-b">
                {dialogBooking ? (
@@ -767,7 +762,7 @@ export default function BookingHistory({ renderEmpty, startDate, endDate }: Book
                 </div>
               )}
             </div>
-          </motion.div>
+          </div>
         </DialogContent>
        </Dialog>
     
