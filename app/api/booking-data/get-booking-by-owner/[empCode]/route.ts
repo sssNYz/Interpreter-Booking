@@ -108,6 +108,11 @@ export async function GET(
       : {}),
   };
 
+  // Keep Prisma session in UTC to ensure TIMESTAMPs map to proper UTC instants
+  try {
+    await prisma.$executeRaw`SET time_zone = '+00:00'`;
+  } catch {}
+
   const [total, rows] = await Promise.all([
     prisma.bookingPlan.count({ where }),
     prisma.bookingPlan.findMany({
@@ -210,8 +215,8 @@ export async function GET(
       : "",
     inviteEmails: (b.inviteEmails || []).map((ie) => ie.email),
     bookingStatus: b.bookingStatus,
-    createdAt: formatDateTime(b.createdAt),
-    updatedAt: formatDateTime(b.updatedAt),
+    createdAt: b.createdAt.toISOString(),
+    updatedAt: b.updatedAt.toISOString(),
   }));
 
   const responseBody: BookingApiResponse = { items, total, page, pageSize };

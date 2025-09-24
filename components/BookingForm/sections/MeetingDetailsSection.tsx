@@ -10,8 +10,32 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Presentation } from "lucide-react";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Button } from "@/components/ui/button";
+import { Presentation, Check, ChevronsUpDown } from "lucide-react";
 import type { DRType } from "@/prisma/prisma";
+import { useState, useEffect } from "react";
+import { cn } from "@/lib/utils";
+
+interface Room {
+  id: string;
+  name: string;
+  location: string | null;
+  capacity: number;
+  isActive: boolean;
+}
 
 interface MeetingDetailsSectionProps {
   meetingRoom: string;
@@ -84,6 +108,30 @@ export function MeetingDetailsSection({
   dayObj,
   selectedSlot,
 }: MeetingDetailsSectionProps) {
+  const [rooms, setRooms] = useState<Room[]>([]);
+  const [loadingRooms, setLoadingRooms] = useState(false);
+  const [roomComboboxOpen, setRoomComboboxOpen] = useState(false);
+
+  // Fetch rooms from API
+  useEffect(() => {
+    const fetchRooms = async () => {
+      setLoadingRooms(true);
+      try {
+        const response = await fetch("/api/admin/add-room?isActive=true");
+        const data = await response.json();
+        if (data.success) {
+          setRooms(data.data.rooms);
+        }
+      } catch (error) {
+        console.error("Error fetching rooms:", error);
+      } finally {
+        setLoadingRooms(false);
+      }
+    };
+
+    fetchRooms();
+  }, []);
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-2 border-b border-border pb-3">
@@ -102,20 +150,70 @@ export function MeetingDetailsSection({
           >
             Meeting Room <span className="text-destructive">*</span>
           </Label>
-          <Input
-            id="meetingRoom"
-            placeholder="Enter meeting room"
-            value={meetingRoom}
-            onChange={(e) => setMeetingRoom(e.target.value)}
-            className={
-              errors.meetingRoom
-                ? "border-destructive focus:border-destructive"
-                : ""
-            }
-            aria-describedby={
-              errors.meetingRoom ? "meetingRoom-error" : undefined
-            }
-          />
+          <Popover open={roomComboboxOpen} onOpenChange={setRoomComboboxOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                role="combobox"
+                aria-expanded={roomComboboxOpen}
+                className={`w-full justify-between ${
+                  errors.meetingRoom
+                    ? "border-destructive focus:border-destructive"
+                    : ""
+                }`}
+                disabled={loadingRooms}
+                aria-describedby={
+                  errors.meetingRoom ? "meetingRoom-error" : undefined
+                }
+              >
+                {meetingRoom
+                  ? rooms.find((room) => room.name === meetingRoom)?.name
+                  : loadingRooms
+                  ? "Loading..."
+                  : "Select room"}
+                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-full p-0" align="start">
+              <Command>
+                <CommandInput placeholder="Search rooms..." className="h-9" />
+                <CommandList>
+                  <CommandEmpty>No room found.</CommandEmpty>
+                  <CommandGroup>
+                    {rooms.map((room) => (
+                      <CommandItem
+                        key={room.id}
+                        value={room.name}
+                        onSelect={(currentValue) => {
+                          setMeetingRoom(
+                            currentValue === meetingRoom ? "" : currentValue
+                          );
+                          setRoomComboboxOpen(false);
+                        }}
+                      >
+                        <Check
+                          className={cn(
+                            "mr-2 h-4 w-4",
+                            meetingRoom === room.name
+                              ? "opacity-100"
+                              : "opacity-0"
+                          )}
+                        />
+                        <div className="flex flex-col">
+                          <span className="font-medium">{room.name}</span>
+                          {room.location && (
+                            <span className="text-sm text-muted-foreground">
+                              Floor {room.location}
+                            </span>
+                          )}
+                        </div>
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
         </div>
 
         <div className="space-y-2">

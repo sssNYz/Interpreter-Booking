@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
+import { extractHHMM } from "@/utils/time";
 import type { AssignmentPolicy } from "@/types/assignment";
 
 // Types for API responses to avoid usage of 'any'
@@ -121,9 +122,13 @@ export default function ModeTestSimulator() {
         const transformedBookings = bookingsArray.map((booking: ApiBooking, index: number) => {
           const id = String(booking.id ?? booking.bookingId ?? `booking-${index}`);
           const type = String(booking.meetingType ?? booking.type ?? "General");
-          const date = String(booking.date ?? booking.dateTime ?? booking.meetingDate ?? "Unknown");
-          const start = booking.startTime;
-          const end = booking.endTime;
+          const isoStart = (booking as any).timeStart as string | undefined;
+          const isoEnd = (booking as any).timeEnd as string | undefined;
+          const date = String(
+            booking.date ?? booking.dateTime ?? booking.meetingDate ?? (isoStart ? new Date(isoStart).toISOString().split("T")[0] : "Unknown")
+          );
+          const start = booking.startTime ?? (isoStart ? extractHHMM(isoStart) : undefined);
+          const end = booking.endTime ?? (isoEnd ? extractHHMM(isoEnd) : undefined);
           const combined = start && end ? `${start}-${end}` : undefined;
           const time = String(booking.time ?? combined ?? booking.meetingTime ?? "00:00-00:00");
           return {

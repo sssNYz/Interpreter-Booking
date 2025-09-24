@@ -28,8 +28,14 @@ export async function GET(
     });
   }
 
-  const startDate = new Date(yearNum, monthNum - 1, 1);
-  const endDate = new Date(yearNum, monthNum, 0, 23, 59, 59);
+  // Keep API session in UTC so Prisma Dates are true UTC
+  try {
+    await prisma.$executeRaw`SET time_zone = '+00:00'`;
+  } catch {}
+
+  // Use UTC month boundaries to match UTC storage
+  const startDate = new Date(Date.UTC(yearNum, monthNum - 1, 1, 0, 0, 0));
+  const endDate = new Date(Date.UTC(yearNum, monthNum, 0, 23, 59, 59));
 
   const bookings = await prisma.bookingPlan.findMany({
     where: {
@@ -170,7 +176,8 @@ export async function GET(
 
   const asOwnerGroup = (v: unknown): OwnerGroupUI => {
     const s = String(v || "").toLowerCase();
-    if (s === "software" || s === "iot" || s === "hardware" || s === "other") return s as OwnerGroupUI;
+    if (s === "software" || s === "iot" || s === "hardware" || s === "other")
+      return s as OwnerGroupUI;
     return "other";
   };
 
@@ -201,15 +208,17 @@ export async function GET(
     meetingDetail: b.meetingDetail ?? "",
     meetingType: b.meetingType,
     // highPriority removed from API response
-    timeStart: formatDateTime(b.timeStart),
-    timeEnd: formatDateTime(b.timeEnd),
+    timeStart: b.timeStart.toISOString(),
+    timeEnd: b.timeEnd.toISOString(),
     interpreterId: b.interpreterEmployee?.empCode ?? null,
     interpreterName: b.interpreterEmployee
-    ?`${b.interpreterEmployee.firstNameEn ?? ""} ${b.interpreterEmployee.lastNameEn ?? ""}`.trim()  
-    : "",
+      ? `${b.interpreterEmployee.firstNameEn ?? ""} ${
+          b.interpreterEmployee.lastNameEn ?? ""
+        }`.trim()
+      : "",
     bookingStatus: b.bookingStatus,
-    createdAt: formatDateTime(b.createdAt),
-    updatedAt: formatDateTime(b.updatedAt),
+    createdAt: b.createdAt.toISOString(),
+    updatedAt: b.updatedAt.toISOString(),
   }));
 
   return new Response(JSON.stringify(result), {

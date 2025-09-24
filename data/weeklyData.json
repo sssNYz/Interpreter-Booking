@@ -1,9 +1,0 @@
-[
-  { "day": "Mon", "value": 2 },
-  { "day": "Tue", "value": 4 },
-  { "day": "Wed", "value": 3 },
-  { "day": "Thu", "value": 6 },
-  { "day": "Fri", "value": 8 },
-  { "day": "Sat", "value": 1 },
-  { "day": "Sun", "value": 2 }
-]

@@ -22,7 +22,20 @@ SET bft.`ENVIRONMENT_ID` = ec.`ENVIRONMENT_ID`;
 --      (forward targets are ephemeral; admins can re-forward if needed)
 DELETE FROM `BOOKING_FORWARD_TARGET` WHERE `ENVIRONMENT_ID` IS NULL;
 
--- 3) Drop existing PK and DEPT_PATH index
+-- 3) Prepare to change PK safely (FK on BOOKING_ID needs an index)
+-- 3) Ensure a standalone index on BOOKING_ID exists before dropping PRIMARY
+SET @has_bk_idx = (
+  SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'BOOKING_FORWARD_TARGET'
+    AND INDEX_NAME = 'BOOKING_FORWARD_TARGET_BOOKING_ID_tmp_idx'
+);
+SET @sql_create_bk_idx = IF(@has_bk_idx = 0,
+  'CREATE INDEX `BOOKING_FORWARD_TARGET_BOOKING_ID_tmp_idx` ON `BOOKING_FORWARD_TARGET`(`BOOKING_ID`)',
+  'SELECT 1'
+);
+PREPARE sbki FROM @sql_create_bk_idx; EXECUTE sbki; DEALLOCATE PREPARE sbki;
+
 -- 3) Drop existing PK and legacy index (if present)
 SET @has_pk = (
   SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS
@@ -53,6 +66,19 @@ ALTER TABLE `BOOKING_FORWARD_TARGET` MODIFY `ENVIRONMENT_ID` INT NOT NULL;
 -- 5) Add new PK and index + FK
 ALTER TABLE `BOOKING_FORWARD_TARGET`
   ADD PRIMARY KEY (`BOOKING_ID`, `ENVIRONMENT_ID`);
+
+-- Drop the temporary BOOKING_ID index if it exists
+SET @has_bk_idx2 = (
+  SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'BOOKING_FORWARD_TARGET'
+    AND INDEX_NAME = 'BOOKING_FORWARD_TARGET_BOOKING_ID_tmp_idx'
+);
+SET @sql_drop_bk_idx = IF(@has_bk_idx2 > 0,
+  'DROP INDEX `BOOKING_FORWARD_TARGET_BOOKING_ID_tmp_idx` ON `BOOKING_FORWARD_TARGET`',
+  'SELECT 1'
+);
+PREPARE sdbki FROM @sql_drop_bk_idx; EXECUTE sdbki; DEALLOCATE PREPARE sdbki;
 
 -- Create envId index if missing
 SET @has_env_idx = (
