@@ -1,0 +1,179 @@
+import { PrismaClient } from '@prisma/client'
+
+const prisma = new PrismaClient()
+
+async function main() {
+  console.log('Starting seed...')
+
+  // Clear existing data (optional - remove if you want to keep existing data)
+  await prisma.userRole.deleteMany()
+  await prisma.interpreterLanguage.deleteMany()
+  await prisma.environmentInterpreter.deleteMany()
+  await prisma.environmentAdmin.deleteMany()
+  await prisma.environmentCenter.deleteMany()
+  await prisma.environment.deleteMany()
+  await prisma.language.deleteMany()
+  await prisma.employee.deleteMany()
+
+  // Insert Languages
+  console.log('Inserting languages...')
+  await prisma.language.createMany({
+    data: [
+      { id: 1, code: 'TH', name: 'Thai', isActive: true },
+      { id: 2, code: 'JP', name: 'Japanese', isActive: true },
+      { id: 3, code: 'EN', name: 'English', isActive: true },
+      { id: 4, code: 'ZH', name: 'Chinese', isActive: false },
+      { id: 5, code: 'HI', name: 'Hindi', isActive: false },
+    ],
+  })
+
+  // Insert Employees
+  console.log('Inserting employees...')
+  const employees = [
+    { id: 111, empCode: 'A0001', prefixEn: 'MR.', firstNameEn: 'Alexander', lastNameEn: 'Anderson', prefixTh: 'นาย', firstNameTh: 'อเล็กซานเดอร์', lastNameTh: 'แอนเดอร์สัน', fno: 'DIT', deptPath: 'R&D \\ AAAA \\ TEST', positionTitle: 'EN', email: 'A0001@gmail.com', telExt: '0001', isActive: true, lastLoginAt: new Date('2025-09-17 08:00:00'), syncedAt: new Date('2025-09-17 08:00:00') },
+    { id: 112, empCode: 'A0002', prefixEn: 'MRS.', firstNameEn: 'Amanda', lastNameEn: 'Adams', prefixTh: 'นาง', firstNameTh: 'อแมนดา', lastNameTh: 'อดัมส์', fno: 'DIT', deptPath: 'R&D \\ AAAA \\ TEST', positionTitle: 'EN', email: 'A0002@gmail.com', telExt: '0002', isActive: true, lastLoginAt: new Date('2025-09-17 08:00:00'), syncedAt: new Date('2025-09-17 08:00:00') },
+    { id: 113, empCode: 'A0003', prefixEn: 'MR.', firstNameEn: 'Anthony', lastNameEn: 'Allen', prefixTh: 'นาย', firstNameTh: 'แอนโธนี', lastNameTh: 'อัลเลน', fno: 'DIT', deptPath: 'R&D \\ AAAA \\ TEST', positionTitle: 'EN', email: 'A0003@gmail.com', telExt: '0003', isActive: true, lastLoginAt: new Date('2025-09-17 08:00:00'), syncedAt: new Date('2025-09-17 08:00:00') },
+    { id: 114, empCode: 'A0004', prefixEn: 'MRS.', firstNameEn: 'Angela', lastNameEn: 'Arnold', prefixTh: 'นาง', firstNameTh: 'แอนเจลา', lastNameTh: 'อาร์โนลด์', fno: 'DIT', deptPath: 'R&D \\ AAAA \\ TEST', positionTitle: 'EN', email: 'A0004@gmail.com', telExt: '0004', isActive: true, lastLoginAt: new Date('2025-09-17 08:00:00'), syncedAt: new Date('2025-09-17 08:00:00') },
+    { id: 115, empCode: 'A0005', prefixEn: 'MR.', firstNameEn: 'Andrew', lastNameEn: 'Austin', prefixTh: 'นาย', firstNameTh: 'แอนดรูว์', lastNameTh: 'ออสติน', fno: 'DIT', deptPath: 'R&D \\ AAAA \\ TEST', positionTitle: 'EN', email: 'A0005@gmail.com', telExt: '0005', isActive: true, lastLoginAt: new Date('2025-09-17 08:00:00'), syncedAt: new Date('2025-09-17 08:00:00') },
+    { id: 116, empCode: 'A0006', prefixEn: 'MRS.', firstNameEn: 'Anna', lastNameEn: 'Armstrong', prefixTh: 'นาง', firstNameTh: 'แอนนา', lastNameTh: 'อาร์มสตรอง', fno: 'DIT', deptPath: 'R&D \\ AAAA \\ TEST', positionTitle: 'EN', email: 'A0006@gmail.com', telExt: '0006', isActive: true, lastLoginAt: new Date('2025-09-17 08:00:00'), syncedAt: new Date('2025-09-17 08:00:00') },
+    { id: 117, empCode: 'A0007', prefixEn: 'MR.', firstNameEn: 'Aaron', lastNameEn: 'Abbott', prefixTh: 'นาย', firstNameTh: 'แอรอน', lastNameTh: 'แอบบอต', fno: 'DIT', deptPath: 'R&D \\ AAAA \\ TEST', positionTitle: 'EN', email: 'A0007@gmail.com', telExt: '0007', isActive: true, lastLoginAt: new Date('2025-09-17 08:00:00'), syncedAt: new Date('2025-09-17 08:00:00') },
+    { id: 118, empCode: 'A0008', prefixEn: 'MRS.', firstNameEn: 'Amy', lastNameEn: 'Archer', prefixTh: 'นาง', firstNameTh: 'เอมี่', lastNameTh: 'อาร์เชอร์', fno: 'DIT', deptPath: 'R&D \\ AAAA \\ TEST', positionTitle: 'EN', email: 'A0008@gmail.com', telExt: '0008', isActive: true, lastLoginAt: new Date('2025-09-17 08:00:00'), syncedAt: new Date('2025-09-17 08:00:00') },
+    { id: 119, empCode: 'A0009', prefixEn: 'MR.', firstNameEn: 'Alan', lastNameEn: 'Avery', prefixTh: 'นาย', firstNameTh: 'อลัน', lastNameTh: 'เอเวอรี่', fno: 'DIT', deptPath: 'R&D \\ AAAA \\ TEST', positionTitle: 'EN', email: 'A0009@gmail.com', telExt: '0009', isActive: true, lastLoginAt: new Date('2025-09-17 08:00:00'), syncedAt: new Date('2025-09-17 08:00:00') },
+    { id: 120, empCode: 'A0010', prefixEn: 'MRS.', firstNameEn: 'Alice', lastNameEn: 'Ashton', prefixTh: 'นาง', firstNameTh: 'อลิส', lastNameTh: 'แอชตัน', fno: 'DIT', deptPath: 'R&D \\ AAAA \\ TEST', positionTitle: 'EN', email: 'A0010@gmail.com', telExt: '0010', isActive: true, lastLoginAt: new Date('2025-09-17 08:00:00'), syncedAt: new Date('2025-09-17 08:00:00') },
+    { id: 121, empCode: 'B0001', prefixEn: 'MR.', firstNameEn: 'Benjamin', lastNameEn: 'Baker', prefixTh: 'นาย', firstNameTh: 'เบนจามิน', lastNameTh: 'เบเกอร์', fno: 'DIT', deptPath: 'R&D \\ BBBB \\ TEST', positionTitle: 'EN', email: 'B0001@gmail.com', telExt: '0011', isActive: true, lastLoginAt: new Date('2025-09-17 08:00:00'), syncedAt: new Date('2025-09-17 08:00:00') },
+    { id: 122, empCode: 'B0002', prefixEn: 'MRS.', firstNameEn: 'Barbara', lastNameEn: 'Bell', prefixTh: 'นาง', firstNameTh: 'บาร์บาร่า', lastNameTh: 'เบลล์', fno: 'DIT', deptPath: 'R&D \\ BBBB \\ TEST', positionTitle: 'EN', email: 'B0002@gmail.com', telExt: '0012', isActive: true, lastLoginAt: new Date('2025-09-17 08:00:00'), syncedAt: new Date('2025-09-17 08:00:00') },
+    { id: 123, empCode: 'B0003', prefixEn: 'MR.', firstNameEn: 'Brian', lastNameEn: 'Brown', prefixTh: 'นาย', firstNameTh: 'ไบรอัน', lastNameTh: 'บราวน์', fno: 'DIT', deptPath: 'R&D \\ BBBB \\ TEST', positionTitle: 'EN', email: 'B0003@gmail.com', telExt: '0013', isActive: true, lastLoginAt: new Date('2025-09-17 08:00:00'), syncedAt: new Date('2025-09-17 08:00:00') },
+    { id: 124, empCode: 'B0004', prefixEn: 'MRS.', firstNameEn: 'Brenda', lastNameEn: 'Brooks', prefixTh: 'นาง', firstNameTh: 'เบรนดา', lastNameTh: 'บรูคส์', fno: 'DIT', deptPath: 'R&D \\ BBBB \\ TEST', positionTitle: 'EN', email: 'B0004@gmail.com', telExt: '0014', isActive: true, lastLoginAt: new Date('2025-09-17 08:00:00'), syncedAt: new Date('2025-09-17 08:00:00') },
+    { id: 125, empCode: 'B0005', prefixEn: 'MR.', firstNameEn: 'Bruce', lastNameEn: 'Barnes', prefixTh: 'นาย', firstNameTh: 'บรูซ', lastNameTh: 'บาร์นส์', fno: 'DIT', deptPath: 'R&D \\ BBBB \\ TEST', positionTitle: 'EN', email: 'B0005@gmail.com', telExt: '0015', isActive: true, lastLoginAt: new Date('2025-09-17 08:00:00'), syncedAt: new Date('2025-09-17 08:00:00') },
+    { id: 126, empCode: 'B0006', prefixEn: 'MRS.', firstNameEn: 'Betty', lastNameEn: 'Bishop', prefixTh: 'นาง', firstNameTh: 'เบตตี้', lastNameTh: 'บิชอป', fno: 'DIT', deptPath: 'R&D \\ BBBB \\ TEST', positionTitle: 'EN', email: 'B0006@gmail.com', telExt: '0016', isActive: true, lastLoginAt: new Date('2025-09-17 08:00:00'), syncedAt: new Date('2025-09-17 08:00:00') },
+    { id: 127, empCode: 'B0007', prefixEn: 'MR.', firstNameEn: 'Bobby', lastNameEn: 'Butler', prefixTh: 'นาย', firstNameTh: 'บ็อบบี้', lastNameTh: 'บัทเลอร์', fno: 'DIT', deptPath: 'R&D \\ BBBB \\ TEST', positionTitle: 'EN', email: 'B0007@gmail.com', telExt: '0017', isActive: true, lastLoginAt: new Date('2025-09-17 08:00:00'), syncedAt: new Date('2025-09-17 08:00:00') },
+    { id: 128, empCode: 'B0008', prefixEn: 'MRS.', firstNameEn: 'Beverly', lastNameEn: 'Bennett', prefixTh: 'นาง', firstNameTh: 'เบเวอร์ลี่', lastNameTh: 'เบนเนต', fno: 'DIT', deptPath: 'R&D \\ BBBB \\ TEST', positionTitle: 'EN', email: 'B0008@gmail.com', telExt: '0018', isActive: true, lastLoginAt: new Date('2025-09-17 08:00:00'), syncedAt: new Date('2025-09-17 08:00:00') },
+    { id: 129, empCode: 'B0009', prefixEn: 'MR.', firstNameEn: 'Bradley', lastNameEn: 'Blake', prefixTh: 'นาย', firstNameTh: 'แบรดลี่', lastNameTh: 'เบลค', fno: 'DIT', deptPath: 'R&D \\ BBBB \\ TEST', positionTitle: 'EN', email: 'B0009@gmail.com', telExt: '0019', isActive: true, lastLoginAt: new Date('2025-09-17 08:00:00'), syncedAt: new Date('2025-09-17 08:00:00') },
+    { id: 130, empCode: 'B0010', prefixEn: 'MRS.', firstNameEn: 'Bonnie', lastNameEn: 'Boyd', prefixTh: 'นาง', firstNameTh: 'บอนนี่', lastNameTh: 'บอยด์', fno: 'DIT', deptPath: 'R&D \\ BBBB \\ TEST', positionTitle: 'EN', email: 'B0010@gmail.com', telExt: '0020', isActive: true, lastLoginAt: new Date('2025-09-17 08:00:00'), syncedAt: new Date('2025-09-17 08:00:00') },
+    { id: 131, empCode: 'C0001', prefixEn: 'MR.', firstNameEn: 'Christopher', lastNameEn: 'Clark', prefixTh: 'นาย', firstNameTh: 'คริสโตเฟอร์', lastNameTh: 'คลาร์ก', fno: 'DIT', deptPath: 'R&D \\ CCCC \\ TEST', positionTitle: 'EN', email: 'C0001@gmail.com', telExt: '0021', isActive: true, lastLoginAt: new Date('2025-09-17 08:00:00'), syncedAt: new Date('2025-09-17 08:00:00') },
+    { id: 132, empCode: 'C0002', prefixEn: 'MRS.', firstNameEn: 'Catherine', lastNameEn: 'Cooper', prefixTh: 'นาง', firstNameTh: 'แคทเธอรีน', lastNameTh: 'คูเปอร์', fno: 'DIT', deptPath: 'R&D \\ CCCC \\ TEST', positionTitle: 'EN', email: 'C0002@gmail.com', telExt: '0022', isActive: true, lastLoginAt: new Date('2025-09-17 08:00:00'), syncedAt: new Date('2025-09-17 08:00:00') },
+    { id: 133, empCode: 'C0003', prefixEn: 'MR.', firstNameEn: 'Charles', lastNameEn: 'Carter', prefixTh: 'นาย', firstNameTh: 'ชาร์ลส์', lastNameTh: 'คาร์เตอร์', fno: 'DIT', deptPath: 'R&D \\ CCCC \\ TEST', positionTitle: 'EN', email: 'C0003@gmail.com', telExt: '0023', isActive: true, lastLoginAt: new Date('2025-09-17 08:00:00'), syncedAt: new Date('2025-09-17 08:00:00') },
+    { id: 134, empCode: 'C0004', prefixEn: 'MRS.', firstNameEn: 'Carol', lastNameEn: 'Collins', prefixTh: 'นาง', firstNameTh: 'แครอล', lastNameTh: 'คอลลินส์', fno: 'DIT', deptPath: 'R&D \\ CCCC \\ TEST', positionTitle: 'EN', email: 'C0004@gmail.com', telExt: '0024', isActive: true, lastLoginAt: new Date('2025-09-17 08:00:00'), syncedAt: new Date('2025-09-17 08:00:00') },
+    { id: 135, empCode: 'C0005', prefixEn: 'MR.', firstNameEn: 'Craig', lastNameEn: 'Campbell', prefixTh: 'นาย', firstNameTh: 'เครก', lastNameTh: 'แคมป์เบลล์', fno: 'DIT', deptPath: 'R&D \\ CCCC \\ TEST', positionTitle: 'EN', email: 'C0005@gmail.com', telExt: '0025', isActive: true, lastLoginAt: new Date('2025-09-17 08:00:00'), syncedAt: new Date('2025-09-17 08:00:00') },
+    { id: 136, empCode: 'C0006', prefixEn: 'MRS.', firstNameEn: 'Christina', lastNameEn: 'Cox', prefixTh: 'นาง', firstNameTh: 'คริสติน่า', lastNameTh: 'ค็อกซ์', fno: 'DIT', deptPath: 'R&D \\ CCCC \\ TEST', positionTitle: 'EN', email: 'C0006@gmail.com', telExt: '0026', isActive: true, lastLoginAt: new Date('2025-09-17 08:00:00'), syncedAt: new Date('2025-09-17 08:00:00') },
+    { id: 137, empCode: 'C0007', prefixEn: 'MR.', firstNameEn: 'Carl', lastNameEn: 'Cole', prefixTh: 'นาย', firstNameTh: 'คาร์ล', lastNameTh: 'โคล', fno: 'DIT', deptPath: 'R&D \\ CCCC \\ TEST', positionTitle: 'EN', email: 'C0007@gmail.com', telExt: '0027', isActive: true, lastLoginAt: new Date('2025-09-17 08:00:00'), syncedAt: new Date('2025-09-17 08:00:00') },
+    { id: 138, empCode: 'C0008', prefixEn: 'MRS.', firstNameEn: 'Cynthia', lastNameEn: 'Chapman', prefixTh: 'นาง', firstNameTh: 'ซินเธีย', lastNameTh: 'แชปแมน', fno: 'DIT', deptPath: 'R&D \\ CCCC \\ TEST', positionTitle: 'EN', email: 'C0008@gmail.com', telExt: '0028', isActive: true, lastLoginAt: new Date('2025-09-17 08:00:00'), syncedAt: new Date('2025-09-17 08:00:00') },
+    { id: 139, empCode: 'C0009', prefixEn: 'MR.', firstNameEn: 'Connor', lastNameEn: 'Cruz', prefixTh: 'นาย', firstNameTh: 'คอนเนอร์', lastNameTh: 'ครูซ', fno: 'DIT', deptPath: 'R&D \\ CCCC \\ TEST', positionTitle: 'EN', email: 'C0009@gmail.com', telExt: '0029', isActive: true, lastLoginAt: new Date('2025-09-17 08:00:00'), syncedAt: new Date('2025-09-17 08:00:00') },
+    { id: 140, empCode: 'C0010', prefixEn: 'MRS.', firstNameEn: 'Christine', lastNameEn: 'Chandler', prefixTh: 'นาง', firstNameTh: 'คริสติน', lastNameTh: 'แชนเดลอร์', fno: 'DIT', deptPath: 'R&D \\ CCCC \\ TEST', positionTitle: 'EN', email: 'C0010@gmail.com', telExt: '0030', isActive: true, lastLoginAt: new Date('2025-09-17 08:00:00'), syncedAt: new Date('2025-09-17 08:00:00') },
+    { id: 141, empCode: 'D0001', prefixEn: 'MR.', firstNameEn: 'David', lastNameEn: 'Davis', prefixTh: 'นาย', firstNameTh: 'เดวิด', lastNameTh: 'เดวิส', fno: 'DIT', deptPath: 'R&D \\ DDDD \\ TEST', positionTitle: 'EN', email: 'D0001@gmail.com', telExt: '0031', isActive: true, lastLoginAt: new Date('2025-09-17 08:00:00'), syncedAt: new Date('2025-09-17 08:00:00') },
+    { id: 142, empCode: 'D0002', prefixEn: 'MRS.', firstNameEn: 'Diana', lastNameEn: 'Dixon', prefixTh: 'นาง', firstNameTh: 'ไดอาน่า', lastNameTh: 'ดิกสัน', fno: 'DIT', deptPath: 'R&D \\ DDDD \\ TEST', positionTitle: 'EN', email: 'D0002@gmail.com', telExt: '0032', isActive: true, lastLoginAt: new Date('2025-09-17 08:00:00'), syncedAt: new Date('2025-09-17 08:00:00') },
+    { id: 143, empCode: 'D0003', prefixEn: 'MR.', firstNameEn: 'Daniel', lastNameEn: 'Duncan', prefixTh: 'นาย', firstNameTh: 'แดเนียล', lastNameTh: 'ดันแคน', fno: 'DIT', deptPath: 'R&D \\ DDDD \\ TEST', positionTitle: 'EN', email: 'D0003@gmail.com', telExt: '0033', isActive: true, lastLoginAt: new Date('2025-09-17 08:00:00'), syncedAt: new Date('2025-09-17 08:00:00') },
+    { id: 144, empCode: 'D0004', prefixEn: 'MRS.', firstNameEn: 'Deborah', lastNameEn: 'Dunn', prefixTh: 'นาง', firstNameTh: 'เดโบราห์', lastNameTh: 'ดันน์', fno: 'DIT', deptPath: 'R&D \\ DDDD \\ TEST', positionTitle: 'EN', email: 'D0004@gmail.com', telExt: '0034', isActive: true, lastLoginAt: new Date('2025-09-17 08:00:00'), syncedAt: new Date('2025-09-17 08:00:00') },
+    { id: 145, empCode: 'D0005', prefixEn: 'MR.', firstNameEn: 'Derek', lastNameEn: 'Douglas', prefixTh: 'นาย', firstNameTh: 'เดเร็ก', lastNameTh: 'ดักลาส', fno: 'DIT', deptPath: 'R&D \\ DDDD \\ TEST', positionTitle: 'EN', email: 'D0005@gmail.com', telExt: '0035', isActive: true, lastLoginAt: new Date('2025-09-17 08:00:00'), syncedAt: new Date('2025-09-17 08:00:00') },
+    { id: 146, empCode: 'D0006', prefixEn: 'MRS.', firstNameEn: 'Dorothy', lastNameEn: 'Dean', prefixTh: 'นาง', firstNameTh: 'โดโรธี', lastNameTh: 'ดีน', fno: 'DIT', deptPath: 'R&D \\ DDDD \\ TEST', positionTitle: 'EN', email: 'D0006@gmail.com', telExt: '0036', isActive: true, lastLoginAt: new Date('2025-09-17 08:00:00'), syncedAt: new Date('2025-09-17 08:00:00') },
+    { id: 147, empCode: 'D0007', prefixEn: 'MR.', firstNameEn: 'Dennis', lastNameEn: 'Day', prefixTh: 'นาย', firstNameTh: 'เดนนิส', lastNameTh: 'เดย์', fno: 'DIT', deptPath: 'R&D \\ DDDD \\ TEST', positionTitle: 'EN', email: 'D0007@gmail.com', telExt: '0037', isActive: true, lastLoginAt: new Date('2025-09-17 08:00:00'), syncedAt: new Date('2025-09-17 08:00:00') },
+    { id: 148, empCode: 'D0008', prefixEn: 'MRS.', firstNameEn: 'Donna', lastNameEn: 'Daniels', prefixTh: 'นาง', firstNameTh: 'ดอนน่า', lastNameTh: 'แดเนียลส์', fno: 'DIT', deptPath: 'R&D \\ DDDD \\ TEST', positionTitle: 'EN', email: 'D0008@gmail.com', telExt: '0038', isActive: true, lastLoginAt: new Date('2025-09-17 08:00:00'), syncedAt: new Date('2025-09-17 08:00:00') },
+    { id: 149, empCode: 'D0009', prefixEn: 'MR.', firstNameEn: 'Douglas', lastNameEn: 'Drake', prefixTh: 'นาย', firstNameTh: 'ดักลาส', lastNameTh: 'เดรค', fno: 'DIT', deptPath: 'R&D \\ DDDD \\ TEST', positionTitle: 'EN', email: 'D0009@gmail.com', telExt: '0039', isActive: true, lastLoginAt: new Date('2025-09-17 08:00:00'), syncedAt: new Date('2025-09-17 08:00:00') },
+    { id: 150, empCode: 'D0010', prefixEn: 'MRS.', firstNameEn: 'Diane', lastNameEn: 'Dawson', prefixTh: 'นาง', firstNameTh: 'ไดแอน', lastNameTh: 'ดอว์สัน', fno: 'DIT', deptPath: 'R&D \\ DDDD \\ TEST', positionTitle: 'EN', email: 'D0010@gmail.com', telExt: '0040', isActive: true, lastLoginAt: new Date('2025-09-17 08:00:00'), syncedAt: new Date('2025-09-17 08:00:00') },
+    { id: 151, empCode: 'E0001', prefixEn: 'MR.', firstNameEn: 'Edward', lastNameEn: 'Edwards', prefixTh: 'นาย', firstNameTh: 'เอ็ดเวิร์ด', lastNameTh: 'เอ็ดเวิร์ดส์', fno: 'DIT', deptPath: 'R&D \\ EEEE \\ TEST', positionTitle: 'EN', email: 'E0001@gmail.com', telExt: '0041', isActive: true, lastLoginAt: new Date('2025-09-17 08:00:00'), syncedAt: new Date('2025-09-17 08:00:00') },
+    { id: 152, empCode: 'E0002', prefixEn: 'MRS.', firstNameEn: 'Elizabeth', lastNameEn: 'Evans', prefixTh: 'นาง', firstNameTh: 'อลิซาเบธ', lastNameTh: 'อีแวนส์', fno: 'DIT', deptPath: 'R&D \\ EEEE \\ TEST', positionTitle: 'EN', email: 'E0002@gmail.com', telExt: '0042', isActive: true, lastLoginAt: new Date('2025-09-17 08:00:00'), syncedAt: new Date('2025-09-17 08:00:00') },
+    { id: 153, empCode: 'E0003', prefixEn: 'MR.', firstNameEn: 'Eric', lastNameEn: 'Ellis', prefixTh: 'นาย', firstNameTh: 'เอริค', lastNameTh: 'เอลลิส', fno: 'DIT', deptPath: 'R&D \\ EEEE \\ TEST', positionTitle: 'EN', email: 'E0003@gmail.com', telExt: '0043', isActive: true, lastLoginAt: new Date('2025-09-17 08:00:00'), syncedAt: new Date('2025-09-17 08:00:00') },
+    { id: 154, empCode: 'E0004', prefixEn: 'MRS.', firstNameEn: 'Emily', lastNameEn: 'Elliott', prefixTh: 'นาง', firstNameTh: 'เอมิลี่', lastNameTh: 'เอลเลียต', fno: 'DIT', deptPath: 'R&D \\ EEEE \\ TEST', positionTitle: 'EN', email: 'E0004@gmail.com', telExt: '0044', isActive: true, lastLoginAt: new Date('2025-09-17 08:00:00'), syncedAt: new Date('2025-09-17 08:00:00') },
+    { id: 155, empCode: 'E0005', prefixEn: 'MR.', firstNameEn: 'Eugene', lastNameEn: 'Erickson', prefixTh: 'นาย', firstNameTh: 'ยูจีน', lastNameTh: 'เอริคสัน', fno: 'DIT', deptPath: 'R&D \\ EEEE \\ TEST', positionTitle: 'EN', email: 'E0005@gmail.com', telExt: '0045', isActive: true, lastLoginAt: new Date('2025-09-17 08:00:00'), syncedAt: new Date('2025-09-17 08:00:00') },
+    { id: 156, empCode: 'E0006', prefixEn: 'MRS.', firstNameEn: 'Emma', lastNameEn: 'Ewing', prefixTh: 'นาง', firstNameTh: 'เอ็มมา', lastNameTh: 'เอ็วอิ่ง', fno: 'DIT', deptPath: 'R&D \\ EEEE \\ TEST', positionTitle: 'EN', email: 'E0006@gmail.com', telExt: '0046', isActive: true, lastLoginAt: new Date('2025-09-17 08:00:00'), syncedAt: new Date('2025-09-17 08:00:00') },
+    { id: 157, empCode: 'E0007', prefixEn: 'MR.', firstNameEn: 'Ernest', lastNameEn: 'Estrada', prefixTh: 'นาย', firstNameTh: 'เออเนสต์', lastNameTh: 'เอสตราดา', fno: 'DIT', deptPath: 'R&D \\ EEEE \\ TEST', positionTitle: 'EN', email: 'E0007@gmail.com', telExt: '0047', isActive: true, lastLoginAt: new Date('2025-09-17 08:00:00'), syncedAt: new Date('2025-09-17 08:00:00') },
+    { id: 158, empCode: 'E0008', prefixEn: 'MRS.', firstNameEn: 'Evelyn', lastNameEn: 'Elder', prefixTh: 'นาง', firstNameTh: 'อีฟลิน', lastNameTh: 'เอลเดอร์', fno: 'DIT', deptPath: 'R&D \\ EEEE \\ TEST', positionTitle: 'EN', email: 'E0008@gmail.com', telExt: '0048', isActive: true, lastLoginAt: new Date('2025-09-17 08:00:00'), syncedAt: new Date('2025-09-17 08:00:00') },
+    { id: 159, empCode: 'E0009', prefixEn: 'MR.', firstNameEn: 'Ethan', lastNameEn: 'English', prefixTh: 'นาย', firstNameTh: 'อีธาน', lastNameTh: 'อิงลิช', fno: 'DIT', deptPath: 'R&D \\ EEEE \\ TEST', positionTitle: 'EN', email: 'E0009@gmail.com', telExt: '0049', isActive: true, lastLoginAt: new Date('2025-09-17 08:00:00'), syncedAt: new Date('2025-09-17 08:00:00') },
+    { id: 160, empCode: 'E0010', prefixEn: 'MRS.', firstNameEn: 'Ellen', lastNameEn: 'Everett', prefixTh: 'นาง', firstNameTh: 'เอลเลน', lastNameTh: 'เอเวอเร็ต', fno: 'DIT', deptPath: 'R&D \\ EEEE \\ TEST', positionTitle: 'EN', email: 'E0010@gmail.com', telExt: '0050', isActive: true, lastLoginAt: new Date('2025-09-17 08:00:00'), syncedAt: new Date('2025-09-17 08:00:00') },
+    { id: 161, empCode: '00000', prefixEn: 'Mr.', firstNameEn: 'Sunny', lastNameEn: 'Jojo', prefixTh: 'นาย', firstNameTh: 'ซันนี่', lastNameTh: 'โจ๊ๆ', fno: 'DIT', deptPath: 'R&D / AAAA / TEST', positionTitle: 'EN', email: '00000@gmail.com', telExt: '00000', isActive: true, lastLoginAt: new Date('2025-09-22 03:03:49'), syncedAt: new Date('2025-09-22 03:03:49') },
+  ]
+
+  await prisma.employee.createMany({ data: employees })
+
+  // Insert Environments
+  console.log('Inserting environments...')
+  await prisma.environment.createMany({
+    data: [
+      { id: 1, name: 'Chan 3', isActive: true },
+      { id: 2, name: 'Chan 4', isActive: true },
+      { id: 3, name: 'Chan Rak Ter', isActive: true },
+    ],
+  })
+
+  // Insert Environment Centers
+  console.log('Inserting environment centers...')
+  await prisma.environmentCenter.createMany({
+    data: [
+      { id: 1, environmentId: 1, center: 'DDDD' },
+      { id: 2, environmentId: 1, center: 'CCCC' },
+      { id: 3, environmentId: 2, center: 'AAAA' },
+      { id: 4, environmentId: 2, center: 'BBBB' },
+      { id: 5, environmentId: 3, center: 'EEEE' },
+    ],
+  })
+
+  // Insert Environment Admins
+  console.log('Inserting environment admins...')
+  await prisma.environmentAdmin.createMany({
+    data: [
+      { id: 8, environmentId: 3, adminEmpCode: 'E0001' },
+      { id: 9, environmentId: 2, adminEmpCode: 'B0001' },
+      { id: 10, environmentId: 2, adminEmpCode: 'A0001' },
+      { id: 11, environmentId: 1, adminEmpCode: 'C0001' },
+      { id: 12, environmentId: 1, adminEmpCode: 'D0001' },
+    ],
+  })
+
+  // Insert Environment Interpreters
+  console.log('Inserting environment interpreters...')
+  await prisma.environmentInterpreter.createMany({
+    data: [
+      { id: 1, environmentId: 1, interpreterEmpCode: 'C0002' },
+      { id: 2, environmentId: 1, interpreterEmpCode: 'D0002' },
+      { id: 3, environmentId: 2, interpreterEmpCode: 'A0002' },
+      { id: 4, environmentId: 2, interpreterEmpCode: 'B0002' },
+      { id: 5, environmentId: 3, interpreterEmpCode: 'E0002' },
+    ],
+  })
+
+  // Insert Interpreter Languages
+  console.log('Inserting interpreter languages...')
+  await prisma.interpreterLanguage.createMany({
+    data: [
+      { id: 1, empCode: 'E0002', languageCode: 'TH' },
+      { id: 2, empCode: 'E0002', languageCode: 'JP' },
+      { id: 3, empCode: 'E0002', languageCode: 'EN' },
+      { id: 4, empCode: 'D0002', languageCode: 'JP' },
+      { id: 5, empCode: 'C0002', languageCode: 'EN' },
+      { id: 6, empCode: 'C0002', languageCode: 'JP' },
+      { id: 7, empCode: 'B0002', languageCode: 'EN' },
+      { id: 8, empCode: 'A0002', languageCode: 'JP' },
+      { id: 9, empCode: 'A0002', languageCode: 'EN' },
+      { id: 10, empCode: 'A0002', languageCode: 'TH' },
+    ],
+  })
+
+  // Insert User Roles
+  console.log('Inserting user roles...')
+  await prisma.userRole.createMany({
+    data: [
+      { userId: 111, roleCode: 'ADMIN' },
+      { userId: 112, roleCode: 'INTERPRETER' },
+      { userId: 121, roleCode: 'ADMIN' },
+      { userId: 122, roleCode: 'INTERPRETER' },
+      { userId: 131, roleCode: 'ADMIN' },
+      { userId: 132, roleCode: 'INTERPRETER' },
+      { userId: 141, roleCode: 'ADMIN' },
+      { userId: 142, roleCode: 'INTERPRETER' },
+      { userId: 151, roleCode: 'ADMIN' },
+      { userId: 152, roleCode: 'INTERPRETER' },
+      { userId: 161, roleCode: 'SUPER_ADMIN' },
+    ],
+  })
+
+  console.log('Seed completed successfully!')
+}
+
+main()
+  .catch((e) => {
+    console.error(e)
+    process.exit(1)
+  })
+  .finally(async () => {
+    await prisma.$disconnect()
+  })

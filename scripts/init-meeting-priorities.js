@@ -16,7 +16,8 @@ const defaultPriorities = [
   { meetingType: 'VIP', priorityValue: 4, urgentThresholdDays: 2, generalThresholdDays: 14 },
   { meetingType: 'Weekly', priorityValue: 3, urgentThresholdDays: 3, generalThresholdDays: 30 },
   { meetingType: 'General', priorityValue: 2, urgentThresholdDays: 3, generalThresholdDays: 30 },
-  { meetingType: 'Augent', priorityValue: 2, urgentThresholdDays: 3, generalThresholdDays: 30 },
+  { meetingType: 'Urgent', priorityValue: 2, urgentThresholdDays: 3, generalThresholdDays: 30 },
+  { meetingType: 'President', priorityValue: 2, urgentThresholdDays: 3, generalThresholdDays: 30 },
   { meetingType: 'Other', priorityValue: 1, urgentThresholdDays: 5, generalThresholdDays: 45 }
 ];
 

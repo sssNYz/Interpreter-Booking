@@ -1,8 +1,8 @@
 export const BUSINESS_HOURS_START = 8; // 08:00
-export const BUSINESS_HOURS_END = 17; // 17:00 (exclusive for starts)
+export const BUSINESS_HOURS_END = 21; // 21:00 (exclusive for starts)
 export const SLOT_STEP_MINUTES = 30; // minutes
 export const START_OF_DAY = "08:00";
-export const END_OF_DAY = "17:00"; // allowed as end time only
+export const END_OF_DAY = "21:00"; // allowed as end time only
 
 export const VALID_START_SLOTS: readonly string[] = (() => {
   const slots: string[] = [];

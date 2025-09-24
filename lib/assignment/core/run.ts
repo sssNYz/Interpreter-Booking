@@ -1,10 +1,12 @@
 import prisma from "@/prisma/prisma";
 import type { RunResult, CandidateResult, AssignmentPolicy } from "@/types/assignment";
 import { loadPolicy, getDRPolicy } from "../config/policy";
+import { getEffectivePolicyForEnvironment } from "../config/env-policy";
 import { getActiveInterpreters, getInterpreterHours } from "../scoring/fairness";
 import { computeEnhancedUrgencyScore, shouldAssignImmediately } from "../scoring/urgency";
 import { rankByScore } from "../scoring/scoring";
 import { isDRMeeting } from "../utils/dr-history";
+import { centerPart } from "@/utils/users";
 import {
   filterAvailableInterpreters,
   validateAssignmentSafety,
@@ -124,7 +126,8 @@ export async function runAssignment(bookingId: number): Promise<RunResult> {
         timeEnd: true,
         meetingType: true,
         interpreterEmpCode: true,
-        meetingDetail: true
+        meetingDetail: true,
+        employee: { select: { deptPath: true } }
       }
     });
 
@@ -146,8 +149,37 @@ export async function runAssignment(bookingId: number): Promise<RunResult> {
       };
     }
 
-    // Urgent-only approval: assign only if within urgent threshold; otherwise skip (manual)
-    const isUrgent = await shouldAssignImmediately(booking.timeStart, booking.meetingType);
+  // Determine environment of this booking (first forward target if any)
+  const forward = await prisma.bookingForwardTarget.findFirst({
+    where: { bookingId },
+    select: { environmentId: true },
+    orderBy: { createdAt: 'desc' }
+  });
+  let environmentId = forward?.environmentId ?? null;
+  if (environmentId == null) {
+    const center = centerPart(booking.employee?.deptPath ?? null);
+    if (center) {
+      const envCenter = await prisma.environmentCenter.findUnique({ where: { center }, select: { environmentId: true } });
+      environmentId = envCenter?.environmentId ?? null;
+    }
+  }
+
+  // Load effective policy: per-environment if available, else global fallback
+  const effectivePolicy: AssignmentPolicy = environmentId != null
+    ? await getEffectivePolicyForEnvironment(environmentId)
+    : await loadPolicy();
+
+  // Respect environment auto-assign toggle
+  if (!effectivePolicy.autoAssignEnabled) {
+    console.log("❌ Auto-assignment is disabled for this environment");
+    return {
+      status: "escalated",
+      reason: "auto-assign disabled"
+    };
+  }
+
+  // Urgent-only approval: assign only if within urgent threshold; otherwise skip (manual)
+  const isUrgent = await shouldAssignImmediately(booking.timeStart, booking.meetingType, environmentId ?? undefined);
 
     if (!isUrgent) {
       console.log(`⏸️ Booking ${bookingId} is not urgent. Skipping auto-assign (no pool).`);
@@ -161,11 +193,11 @@ export async function runAssignment(bookingId: number): Promise<RunResult> {
     console.log(`⚡ Booking ${bookingId} is urgent !!!, proceeding with immediate assignment`);
 
     // Optional dynamic recalibration remains for fairness only (not booking pool)
-    const poolManagement = await checkAndAdjustDynamicPool(policy);
+  const poolManagement = await checkAndAdjustDynamicPool(effectivePolicy);
     if (poolManagement.shouldRecalculate) {
       console.log(`🔄 Interpreter list changes require fairness recalculation for assignment`);
     }
-    return await performAssignment(booking, policy, poolManagement, isUrgent);
+  return await performAssignment(booking, effectivePolicy, poolManagement, isUrgent, environmentId);
 
   } catch (error) {
     console.error(`❌ Error in assignment for booking ${bookingId}:`, error);
@@ -204,14 +236,32 @@ async function performAssignment(booking: {
   poolAdjustment: DynamicPoolAdjustment;
   fairnessAdjustments: FairnessAdjustment[];
   shouldRecalculate: boolean;
-}, isUrgent: boolean = false): Promise<RunResult> {
+}, isUrgent: boolean = false, environmentId: number | null = null): Promise<RunResult> {
   const startTime = Date.now();
   const logger = getAssignmentLogger();
   const monitor = getAssignmentMonitor();
   const isDR = isDRMeeting(booking.meetingType);
 
   // Get active interpreters
-  const interpreters = await getActiveInterpreters();
+  let interpreters = await getActiveInterpreters();
+
+  // Rule: auto-assign can choose interpreters only inside the booking owner's environment
+  if (environmentId != null) {
+    const envLinks = await prisma.environmentInterpreter.findMany({
+      where: { environmentId },
+      select: { interpreterEmpCode: true }
+    });
+    const allowedSet = new Set(envLinks.map((l) => l.interpreterEmpCode));
+    interpreters = interpreters.filter((i) => allowedSet.has(i.empCode));
+
+    if (interpreters.length === 0) {
+      console.log("⏸️ No interpreters linked to user's environment; skipping auto-assign");
+      return {
+        status: "escalated",
+        reason: "no interpreters in user's environment — suggest forward"
+      };
+    }
+  }
   if (interpreters.length === 0) {
     console.log("❌ No active interpreters found");
 
