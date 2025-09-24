@@ -7,7 +7,9 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Plus, Building2, Users, Shield } from "lucide-react";
 
 type Env = {
   id: number;
@@ -18,10 +20,8 @@ type Env = {
   interpreters: { interpreterEmpCode: string }[];
 };
 
-export default function EnvironmentManagePage() {
-  const [allowed, setAllowed] = useState<boolean | null>(null);
+export default function EnvironmentManagement() {
   const [envs, setEnvs] = useState<Env[]>([]);
-  // removed old inline create name
   
   const [adminOptions, setAdminOptions] = useState<Array<{ id: string; name: string }>>([]);
   const [interpreterOptions, setInterpreterOptions] = useState<Array<{ id: string; name: string }>>([]);
@@ -40,18 +40,6 @@ export default function EnvironmentManagePage() {
   const [editCenters, setEditCenters] = useState<string[]>([]);
   const [editBusy, setEditBusy] = useState(false);
 
-  useEffect(() => {
-    let alive = true;
-    fetch('/api/user/me', { cache: 'no-store' })
-      .then(r => r.ok ? r.json() : null)
-      .then(d => {
-        if (!alive) return;
-        const roles: string[] = d?.user?.roles || [];
-        setAllowed(roles.includes('ADMIN') || roles.includes('SUPER_ADMIN'));
-      }).catch(() => setAllowed(false));
-    return () => { alive = false };
-  }, []);
-
   const load = () => {
     fetch('/api/environments', { cache: 'no-store' })
       .then(r => r.json())
@@ -60,12 +48,11 @@ export default function EnvironmentManagePage() {
   };
 
   useEffect(() => {
-    if (allowed) load();
-  }, [allowed]);
+    load();
+  }, []);
 
   // Load option lists
   useEffect(() => {
-    if (!allowed) return;
     let alive = true;
     (async () => {
       try {
@@ -86,10 +73,7 @@ export default function EnvironmentManagePage() {
       }
     })();
     return () => { alive = false };
-  }, [allowed]);
-
-  if (allowed === null) return null;
-  if (!allowed) return <div className="p-6 text-sm text-muted-foreground">Forbidden</div>;
+  }, []);
 
   // Compute used items across all environments for create filtering
   const usedAdminSet = new Set(envs.flatMap(e => e.admins.map(a => a.adminEmpCode)));
@@ -104,8 +88,8 @@ export default function EnvironmentManagePage() {
       const d = await res.json().catch(() => ({}));
       if (!res.ok || !d?.ok) {
         alert(d?.error || 'Create failed');
-      return;
-    }
+        return;
+      }
       const envId = d.id as number;
       // Bulk add selected items
       await Promise.all([
@@ -118,7 +102,7 @@ export default function EnvironmentManagePage() {
       setCreateCenters([]);
       setCreateAdmins([]);
       setCreateInterpreters([]);
-    load();
+      load();
     } finally {
       setCreateBusy(false);
     }
@@ -168,26 +152,72 @@ export default function EnvironmentManagePage() {
 
       setEditOpen(false);
       setEditingEnvId(null);
-    load();
+      load();
     } finally {
       setEditBusy(false);
     }
   };
 
-  // Inline add/remove actions removed; all edits are via Edit dialog
-
   return (
-    <div className="max-w-5xl mx-auto p-6 space-y-6">
-      <h1 className="text-xl font-semibold">Environment Management</h1>
+    <div className="space-y-6">
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <Card className="shadow-sm rounded-xl">
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-500">Total Environments</p>
+                <p className="text-3xl font-bold">{envs.length}</p>
+              </div>
+              <div className="h-12 w-12 rounded-full bg-blue-100 grid place-items-center">
+                <Building2 className="h-6 w-6 text-blue-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="shadow-sm rounded-xl">
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-500">Total Admins</p>
+                <p className="text-3xl font-bold">{adminOptions.length}</p>
+              </div>
+              <div className="h-12 w-12 rounded-full bg-green-100 grid place-items-center">
+                <Shield className="h-6 w-6 text-green-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="shadow-sm rounded-xl">
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-500">Total Interpreters</p>
+                <p className="text-3xl font-bold">{interpreterOptions.length}</p>
+              </div>
+              <div className="h-12 w-12 rounded-full bg-purple-100 grid place-items-center">
+                <Users className="h-6 w-6 text-purple-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
-      <div className="flex gap-2 items-center">
-        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-          <DialogTrigger asChild>
-            <Button>Add environment</Button>
-          </DialogTrigger>
-          <DialogContent>
+      {/* Environments Section */}
+      <Card className="shadow-sm rounded-xl">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle>Environments</CardTitle>
+            <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+              <DialogTrigger asChild>
+                <Button className="flex items-center gap-2">
+                  <Plus className="h-4 w-4" />
+                  Add Environment
+                </Button>
+              </DialogTrigger>
+          <DialogContent className="max-w-md">
             <DialogHeader>
-              <DialogTitle>Create environment</DialogTitle>
+              <DialogTitle>Create New Environment</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
               <div className="space-y-2">
@@ -313,65 +343,73 @@ export default function EnvironmentManagePage() {
               <Button onClick={createEnv} disabled={createBusy || !createName.trim()}>Create</Button>
             </DialogFooter>
           </DialogContent>
-        </Dialog>
-      </div>
-
-      <div className="space-y-4">
-        {envs.map(env => (
-          <Card key={env.id} className="py-4">
-            <CardHeader>
-              <CardTitle className="text-base">{env.name}</CardTitle>
-              <CardDescription>Environment #{env.id}</CardDescription>
-              <CardAction>
-                <Button size="sm" onClick={() => openEdit(env)}>Edit</Button>
-              </CardAction>
+            </Dialog>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4">
+            {envs.map(env => (
+              <Card key={env.id} className="hover:shadow-md transition-shadow border border-gray-200">
+            <CardHeader className="pb-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-lg">{env.name}</CardTitle>
+                  <CardDescription>Environment #{env.id}</CardDescription>
+                </div>
+                <Button size="sm" onClick={() => openEdit(env)} variant="outline">
+                  Edit
+                </Button>
+              </div>
             </CardHeader>
-            <CardContent className="space-y-2">
-              <div className="text-xs sm:text-sm">
-                <span className="font-medium">Departments:</span>{' '}
-              {env.centers.length === 0 ? '-' : (
-                  <span className="inline-flex flex-wrap gap-1.5">
-                  {env.centers.map(c => (
-                      <span key={c.id} className="inline-flex items-center gap-1 rounded border px-1.5 py-0">{c.center}</span>
-                  ))}
-                </span>
-              )}
+            <CardContent className="space-y-3">
+              <div className="flex flex-wrap gap-2 items-center">
+                <span className="text-sm font-medium text-gray-600">Departments:</span>
+                {env.centers.length === 0 ? (
+                  <Badge variant="secondary">None</Badge>
+                ) : (
+                  env.centers.map(c => (
+                    <Badge key={c.id} variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                      {c.center}
+                    </Badge>
+                  ))
+                )}
               </div>
-              <div className="text-xs sm:text-sm">
-              <span className="font-medium">Admins:</span>{' '}
-              {env.admins.length === 0 ? '-' : (
-                  <span className="inline-flex flex-wrap gap-1.5">
-                  {env.admins.map(a => (
-                      <span key={a.adminEmpCode} className="inline-flex items-center gap-1 rounded border px-1.5 py-0">
-                        {adminOptions.find(o => o.id === a.adminEmpCode)?.name ?? a.adminEmpCode}
-                    </span>
-                  ))}
-                </span>
-              )}
+              <div className="flex flex-wrap gap-2 items-center">
+                <span className="text-sm font-medium text-gray-600">Admins:</span>
+                {env.admins.length === 0 ? (
+                  <Badge variant="secondary">None</Badge>
+                ) : (
+                  env.admins.map(a => (
+                    <Badge key={a.adminEmpCode} variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                      {adminOptions.find(o => o.id === a.adminEmpCode)?.name ?? a.adminEmpCode}
+                    </Badge>
+                  ))
+                )}
               </div>
-              <div className="text-xs sm:text-sm">
-              <span className="font-medium">Interpreters:</span>{' '}
-              {env.interpreters.length === 0 ? '-' : (
-                  <span className="inline-flex flex-wrap gap-1.5">
-                  {env.interpreters.map(i => (
-                      <span key={i.interpreterEmpCode} className="inline-flex items-center gap-1 rounded border px-1.5 py-0">
-                        {interpreterOptions.find(o => o.id === i.interpreterEmpCode)?.name ?? i.interpreterEmpCode}
-                    </span>
-                  ))}
-                </span>
-              )}
+              <div className="flex flex-wrap gap-2 items-center">
+                <span className="text-sm font-medium text-gray-600">Interpreters:</span>
+                {env.interpreters.length === 0 ? (
+                  <Badge variant="secondary">None</Badge>
+                ) : (
+                  env.interpreters.map(i => (
+                    <Badge key={i.interpreterEmpCode} variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
+                      {interpreterOptions.find(o => o.id === i.interpreterEmpCode)?.name ?? i.interpreterEmpCode}
+                    </Badge>
+                  ))
+                )}
               </div>
-            </CardContent>
-            {/* Single Edit button kept in header; footer button removed */}
-          </Card>
-        ))}
-      </div>
+              </CardContent>
+            </Card>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
 
-      {/* Edit dialog (reuses create selectors, prefilled) */}
+      {/* Edit Dialog */}
       <Dialog open={editOpen} onOpenChange={(v) => { if (!v) setEditOpen(false); }}>
-        <DialogContent>
+        <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Edit environment</DialogTitle>
+            <DialogTitle>Edit Environment</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
@@ -443,7 +481,7 @@ export default function EnvironmentManagePage() {
                           >
                             <div className="mr-2">
                               <Checkbox checked={editAdmins.includes(o.id)} aria-label={o.id} />
-                </div>
+                            </div>
                             <span className="tabular-nums">{o.id}</span>
                             <span className="ml-2 text-muted-foreground">- {o.name}</span>
                           </CommandItem>
@@ -452,7 +490,7 @@ export default function EnvironmentManagePage() {
                   </Command>
                 </PopoverContent>
               </Popover>
-                </div>
+            </div>
             <div className="space-y-2">
               <div className="text-sm font-medium">Interpreters</div>
               <Popover>
@@ -481,7 +519,7 @@ export default function EnvironmentManagePage() {
                           >
                             <div className="mr-2">
                               <Checkbox checked={editInterpreters.includes(o.id)} aria-label={o.id} />
-              </div>
+                            </div>
                             <span className="tabular-nums">{o.id}</span>
                             <span className="ml-2 text-muted-foreground">- {o.name}</span>
                           </CommandItem>

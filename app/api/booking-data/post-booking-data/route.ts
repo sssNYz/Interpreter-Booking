@@ -8,11 +8,12 @@ import prisma, {
   RecurrenceType,
   EndType,
   WeekOrder,
-  DRType,
 } from "@/prisma/prisma";
 import type { CreateBookingRequest } from "@/types/booking-requests";
 import type { ApiResponse } from "@/types/api";
 import type { RunResult } from "@/types/assignment";
+import { getEffectivePolicyForEnvironment } from "@/lib/assignment/config/env-policy";
+import { centerPart } from "@/utils/users";
 
 // Interface moved to '@/types/booking-requests'
 
@@ -839,6 +840,19 @@ export async function POST(request: NextRequest) {
 
         // 3) Insert parent booking (capacity still enforced by the global lock + check)
           const isPresident = body.meetingType === "President" && body.selectedInterpreterEmpCode;
+          // Determine environment for policy gate
+          let envId: number | null = null;
+          const owner = await tx.employee.findUnique({ where: { empCode: ownerEmpCode }, select: { deptPath: true } });
+          const center = centerPart(owner?.deptPath ?? null);
+          if (center) {
+            const envCenter = await tx.environmentCenter.findUnique({ where: { center }, select: { environmentId: true } });
+            envId = envCenter?.environmentId ?? null;
+          }
+          let allowAutoApprove = true;
+          if (envId != null) {
+            const eff = await getEffectivePolicyForEnvironment(envId);
+            allowAutoApprove = !!eff.autoAssignEnabled;
+          }
           await tx.$executeRaw`
             INSERT INTO BOOKING_PLAN (
               \`OWNER_GROUP\`, \`MEETING_ROOM\`, \`MEETING_DETAIL\`, \`TIME_START\`, \`TIME_END\`, \`BOOKING_STATUS\`, \`created_at\`, \`updated_at\`,
@@ -850,12 +864,12 @@ export async function POST(request: NextRequest) {
               ${body.ownerGroup}, ${body.meetingRoom.trim()}, ${
             body.meetingDetail ?? null
           }, ${timeStart}, ${timeEnd}, ${
-            isPresident ? 'approve' : (body.bookingStatus || BookingStatus.waiting)
+            isPresident && allowAutoApprove ? 'approve' : (body.bookingStatus || BookingStatus.waiting)
           }, NOW(), NOW(),
               ${body.drType ?? null}, ${body.otherType ?? null}, ${
             body.otherTypeScope ?? null
           }, ${body.applicableModel ?? null}, ${
-            isPresident ? body.selectedInterpreterEmpCode : body.interpreterEmpCode ?? null
+            isPresident && allowAutoApprove ? body.selectedInterpreterEmpCode : body.interpreterEmpCode ?? null
           }, ${body.isRecurring ? 1 : 0}, ${
             body.meetingType ?? null
           }, ${ownerEmpCode},
@@ -1020,7 +1034,7 @@ export async function POST(request: NextRequest) {
                 meetingRoom: body.meetingRoom.trim(),
                 timeStart,
                 timeEnd,
-                bookingStatus: isPresident ? 'approve' : (body.bookingStatus || BookingStatus.waiting),
+                bookingStatus: isPresident && allowAutoApprove ? 'approve' : (body.bookingStatus || BookingStatus.waiting),
                 inviteEmailsSaved: Array.isArray(body.inviteEmails)
                   ? body.inviteEmails.length
                   : 0,
@@ -1124,8 +1138,68 @@ export async function POST(request: NextRequest) {
 
         // Update the response with auto-assignment result
         if (result.body.data) {
-          result.body.data.autoAssignment =
-            autoAssignmentResult as RunResult | null;
+          result.body.data.autoAssignment = autoAssignmentResult as RunResult | null;
+
+          // If auto-assign escalated (no interpreter), compute forward suggestion for UI
+          if (autoAssignmentResult && autoAssignmentResult.status !== 'assigned') {
+            try {
+              const savedId = result.body.data.bookingId as number;
+              // Find user's environment by owner center
+              const bk = await prisma.bookingPlan.findUnique({
+                where: { bookingId: savedId },
+                select: { timeStart: true, timeEnd: true, meetingType: true, employee: { select: { deptPath: true } } }
+              });
+              let environmentId: number | null = null;
+              if (bk?.employee?.deptPath) {
+                const c = centerPart(bk.employee.deptPath);
+                if (c) {
+                  const envC = await prisma.environmentCenter.findUnique({ where: { center: c }, select: { environmentId: true } });
+                  environmentId = envC?.environmentId ?? null;
+                }
+              }
+
+              // Capacity full in user's environment
+              let capacityFull = false;
+              if (environmentId != null && bk?.timeStart && bk?.timeEnd) {
+                const rows = await prisma.$queryRaw<Array<{ cnt: bigint | number }>>`
+                  SELECT COUNT(DISTINCT bp.INTERPRETER_EMP_CODE) AS cnt
+                  FROM BOOKING_PLAN bp
+                  JOIN ENVIRONMENT_INTERPRETER ei ON ei.INTERPRETER_EMP_CODE = bp.INTERPRETER_EMP_CODE AND ei.ENVIRONMENT_ID = ${environmentId}
+                  WHERE bp.INTERPRETER_EMP_CODE IS NOT NULL
+                    AND bp.BOOKING_STATUS IN ('approve','waiting')
+                    AND (bp.TIME_START < ${bk.timeEnd} AND bp.TIME_END > ${bk.timeStart})
+                `;
+                const busy = rows?.[0]?.cnt != null ? Number(rows[0].cnt) : 0;
+                const total = await prisma.environmentInterpreter.count({ where: { environmentId } });
+                capacityFull = total <= 0 ? true : (total - busy) <= 0;
+              }
+
+              // Urgent threshold day check
+              let urgent = false;
+              if (environmentId != null && bk?.meetingType && bk?.timeStart) {
+                const pri = await prisma.meetingTypePriority.findFirst({
+                  where: { environmentId, meetingType: bk.meetingType as MeetingType },
+                  orderBy: { updatedAt: 'desc' }
+                });
+                const urgentDays = pri?.urgentThresholdDays ?? 1;
+                const now = new Date();
+                const d = Math.floor((bk.timeStart.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+                urgent = d <= urgentDays;
+              }
+
+              const suggestion = {
+                eligible: capacityFull || urgent,
+                capacityFull,
+                urgent,
+                environmentId
+              };
+
+              // Do not auto-forward here. UI will decide. Only return suggestion.
+              (result.body.data as unknown as Record<string, unknown>).forwardSuggestion = suggestion;
+            } catch (e) {
+              console.warn('Forward suggestion computation failed', e);
+            }
+          }
         }
       } catch (error) {
         console.error("❌ Auto-assignment failed:", error);
@@ -1151,9 +1225,7 @@ export async function POST(request: NextRequest) {
       },
       { status: 500 }
     );
-  } finally {
-    await prisma.$disconnect();
-  }
+    }
 }
 
 // Optional: Add a GET method to retrieve bookings
@@ -1193,7 +1265,5 @@ export async function GET(request: NextRequest) {
       },
       { status: 500 }
     );
-  } finally {
-    await prisma.$disconnect();
-  }
+    }
 }

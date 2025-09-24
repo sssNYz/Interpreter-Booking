@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -36,6 +37,7 @@ import {
   sortByPriority 
 } from "@/utils/priority";
 import BookingDetailDialog from "@/components/AdminForm/booking-manage-form";
+import ForwardBookingDialog from "./ForwardBookingDialog";
 
 const PAGE_WRAPPER = "min-h-screen bg-[#f7f7f7] font-sans text-gray-900";
 const TIME_SLOTS = generateStandardTimeSlots();
@@ -50,7 +52,8 @@ export default function BookingManagement(): React.JSX.Element {
   const [bookings, setBookings] = useState<BookingManage[]>([]);
   const [forwarded, setForwarded] = useState<{
     bookingId: number;
-    deptPath: string;
+    environmentId: number;
+    environmentName: string;
     meetingRoom: string;
     meetingType: string;
     timeStart: string;
@@ -59,6 +62,7 @@ export default function BookingManagement(): React.JSX.Element {
     owner: { empCode: string | null; name: string; deptPath: string | null };
     languageCode?: string | null;
     selectedInterpreterEmpCode?: string | null;
+    createdAt?: string;
   }[]>([]);
   const [error, setError] = useState<string | null>(null);
 
@@ -86,6 +90,10 @@ export default function BookingManagement(): React.JSX.Element {
   const [showBookingDetailDialog, setShowBookingDetailDialog] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<BookingManage | null>(null);
   const [showPast, setShowPast] = useState(false);
+  
+  // Forward dialog state
+  const [showForwardDialog, setShowForwardDialog] = useState(false);
+  const [forwardingBookingId, setForwardingBookingId] = useState<number | null>(null);
 
   // Data fetching
   const fetchBookings = useCallback(async () => {
@@ -562,286 +570,287 @@ export default function BookingManagement(): React.JSX.Element {
           </CardContent>
         </Card>
 
-        {/* Forwarded to me */}
-        <Card className="mb-6 bg-white rounded-xl shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-base">Forwarded To Me</CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            {forwarded.length === 0 ? (
-              <div className="p-6 text-gray-500">No forwarded requests</div>
-            ) : (
-              <table className="w-full text-sm table-fixed">
-                <thead className="bg-white">
-                  <tr className="border-b border-gray-200">
-                    <th className="w-20 px-4 py-3 text-center font-semibold text-gray-900 bg-gray-50 text-sm">Meeting Type</th>
-                    <th className="w-32 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Date Meeting</th>
-                    <th className="w-36 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Meeting Time</th>
-                    <th className="w-32 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">User</th>
-                    <th className="w-32 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Interpreter</th>
-                    <th className="w-24 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Room</th>
-                    <th className="w-28 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Status</th>
-                    <th className="w-48 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Date Request</th>
-                    <th className="w-32 px-6 py-3 text-center font-semibold text-gray-900 bg-gray-50 text-sm">Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {forwarded.map((r, index) => (
-                    <tr key={`${r.bookingId}-${r.deptPath}`} className={`border-b border-gray-100 hover:bg-blue-50 transition-colors ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'}`}>
-                      <td className="px-4 py-4 text-center">
-                        {getMeetingTypeBadge(r.meetingType as any, undefined, undefined)}
-                      </td>
-                      <td className="px-4 py-4">
-                        <div className="flex items-start gap-2">
-                          <div className="group relative flex-1">
-                            <span className="font-semibold text-gray-900 text-sm cursor-help break-words">
-                              {formatDate(new Date(r.timeStart).toISOString().split('T')[0])}
-                            </span>
-                            <div className="absolute top-full left-0 mt-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50">
-                              {new Date(r.timeStart).toLocaleString()}
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-4">
-                        <div className="flex items-center gap-1 text-gray-800 font-mono text-sm">
-                          <Clock className="h-4 w-4 text-gray-500 flex-shrink-0" />
-                          <span className="whitespace-nowrap">{new Date(r.timeStart).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})} - {new Date(r.timeEnd).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-4">
-                        <span className="font-semibold text-gray-900 text-sm break-words">{r.owner.name || '-'}</span>
-                      </td>
-                      <td className="px-4 py-4">
-                        <span className="text-gray-800 text-sm break-words">-</span>
-                      </td>
-                      <td className="px-4 py-4">
-                        <div className="flex items-center justify-center h-full">
-                          <span className="px-2 py-1 bg-gray-100 text-gray-800 rounded-md text-sm font-semibold break-words">{r.meetingRoom}</span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        {(() => { const ui = mapForwardStatus(r.status); return (
-                          <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-semibold ${getStatusColor(ui)}`}>
-                            {getStatusIcon(ui)}
-                            <span className="truncate">{ui}</span>
-                          </span>
-                        ); })()}
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className="text-sm text-gray-600 whitespace-nowrap">{formatRequestedTime(new Date((r as any).createdAt ?? r.timeStart).toISOString().replace('T',' ').slice(0,16)+':00')}</span>
-                      </td>
-                      <td className="px-6 py-4 text-center">
-                        <div className="flex items-center gap-2 justify-center">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              const match = bookings.find(b => b.id === r.bookingId);
-                              if (match) {
-                                setSelectedBooking(match);
-                                setShowBookingDetailDialog(true);
-                                return;
-                              }
-                              const ymd = new Date(r.timeStart).toISOString().split('T')[0];
-                              const hh = (d: string) => new Date(d).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
-                              const fallback: any = {
-                                id: r.bookingId,
-                                dateTime: ymd,
-                                interpreter: "",
-                                room: r.meetingRoom,
-                                group: 'other',
-                                meetingDetail: '',
-                                topic: '',
-                                bookedBy: r.owner.name || '',
-                                status: 'Wait',
-                                startTime: hh(r.timeStart),
-                                endTime: hh(r.timeEnd),
-                                requestedTime: new Date((r as any).createdAt ?? r.timeStart).toISOString(),
-                                isDR: false,
-                                meetingType: r.meetingType,
-                              };
-                              setSelectedBooking(fallback);
-                              setShowBookingDetailDialog(true);
-                            }}
-                          >Edit</Button>
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={async () => {
-                              const reason = prompt("Reject reason?");
-                              if (!reason || !reason.trim()) return;
-                              const res = await fetch(`/api/admin/bookings/${r.bookingId}/cancel`, {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ note: reason.trim() }),
-                              });
-                              if (!res.ok) {
-                                const j = await res.json().catch(() => null);
-                                alert(`Reject failed: ${j?.message || res.status}`);
-                                return;
-                              }
-                              await fetchForwarded();
-                            }}
-                          >Reject</Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </CardContent>
-        </Card>
-
-        {error && (
-          <div className="mb-6 p-4 rounded-md bg-red-50 border border-red-200 text-red-700">
-            Failed to load data: {error}
-          </div>
-        )}
-
-        <Card className="mb-6 bg-white rounded-xl shadow-sm">
-          <CardContent className="p-0">
-            <table className="w-full text-sm table-fixed">
-                  <thead className="bg-white">
-                    <tr className="border-b border-gray-200">
-                      <th className="w-20 px-4 py-3 text-center font-semibold text-gray-900 bg-gray-50 text-sm">Meeting Type</th>
-                      <th className="w-32 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">
-                        <button
-                          onClick={handleDateSortToggle}
-                          className="flex items-center gap-2 hover:bg-gray-100 px-2 py-1 rounded transition-colors w-full justify-start"
-                          title={`Sort by ${sortByDateAsc ? "newest" : "oldest"} first`}
-                        >
-                          <span>Date Meeting</span>
-                          {sortByDateAsc ? (
-                            <ChevronUp className="h-4 w-4 text-gray-600" />
-                          ) : (
-                            <ChevronDown className="h-4 w-4 text-gray-600" />
-                          )}
-                        </button>
-                      </th>
-                      <th className="w-36 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Meeting Time</th>
-                      <th className="w-32 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">User</th>
-                      <th className="w-32 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Interpreter</th>
-                      <th className="w-24 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Room</th>
-                      <th className="w-28 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Status</th>
-                      <th className="w-48 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Date Request</th>
-                      <th className="w-32 px-6 py-3 text-center font-semibold text-gray-900 bg-gray-50 text-sm">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {paginatedBookings.bookings.map((booking, index) => (
-                      <tr
-                        key={booking.id}
-                        className={`border-b border-gray-100 hover:bg-blue-50 transition-colors ${index % 2 === 0 ? "bg-white" : "bg-gray-50/30"}`}
-                      >
-                        <td className="px-4 py-4 text-center">
-                          {getMeetingTypeBadge(booking.meetingType, booking.drType, booking.otherType)}
-                        </td>
-                        <td className="px-4 py-4">
-                          <div className="flex items-start gap-2">
-                            <div className="group relative flex-1">
-                              <span className="font-semibold text-gray-900 text-sm cursor-help break-words">
-                                {formatDate(booking.dateTime)}
-                              </span>
-                              {isClient && (
-                                <div className="absolute top-full left-0 mt-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50">
-                                  {getFullDate(booking.dateTime, isClient)}
+        <Accordion
+          type="multiple"
+          defaultValue={["forwarded", "all"]}
+          className="space-y-6"
+        >
+          <AccordionItem value="forwarded" className="border-none">
+            <div className="rounded-xl shadow-sm">
+              <AccordionTrigger className="px-6 border border-gray-200 bg-white rounded-t-xl data-[state=open]:rounded-b-none">
+                Forwarded To Me
+              </AccordionTrigger>
+              <AccordionContent className="px-0 pb-0 border border-gray-200 border-t-0 rounded-b-xl bg-white">
+                {forwarded.length === 0 ? (
+                  <div className="p-6 text-gray-500">No forwarded requests</div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm table-fixed">
+                      <thead className="bg-white">
+                        <tr className="border-b border-gray-200">
+                          <th className="w-20 px-4 py-3 text-center font-semibold text-gray-900 bg-gray-50 text-sm">Meeting Type</th>
+                          <th className="w-32 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Date Meeting</th>
+                          <th className="w-36 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Meeting Time</th>
+                          <th className="w-32 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">User</th>
+                          <th className="w-32 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Interpreter</th>
+                          <th className="w-24 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Room</th>
+                          <th className="w-28 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Status</th>
+                          <th className="w-48 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Date Request</th>
+                          <th className="w-32 px-6 py-3 text-center font-semibold text-gray-900 bg-gray-50 text-sm">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {forwarded.map((r, index) => (
+                          <tr
+                            key={`${r.bookingId}-${r.environmentId}`}
+                            className={`border-b border-gray-100 hover:bg-blue-50 transition-colors ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'}`}
+                          >
+                            <td className="px-4 py-4 text-center">
+                              {getMeetingTypeBadge(r.meetingType, undefined, undefined)}
+                            </td>
+                            <td className="px-4 py-4">
+                              <div className="flex items-start gap-2">
+                                <div className="group relative flex-1">
+                                  <span className="font-semibold text-gray-900 text-sm cursor-help break-words">
+                                    {formatDate(new Date(r.timeStart).toISOString().split('T')[0])}
+                                  </span>
+                                  <div className="absolute top-full left-0 mt-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50">
+                                    {new Date(r.timeStart).toLocaleString()}
+                                  </div>
                                 </div>
-                              )}
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-4 py-4">
-                          <div className="flex items-center gap-1 text-gray-800 font-mono text-sm">
-                            <Clock className="h-4 w-4 text-gray-500 flex-shrink-0" />
-                            <span className="whitespace-nowrap">{booking.startTime} - {booking.endTime}</span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-4">
-                          <span className="font-semibold text-gray-900 text-sm break-words">{booking.bookedBy}</span>
-                        </td>
-                        <td className="px-4 py-4">
-                          <span className="text-gray-800 text-sm break-words">{booking.interpreter}</span>
-                        </td>
-                        <td className="px-4 py-4">
-                          <div className="flex items-center justify-center h-full">
-                            <span className="px-2 py-1 bg-gray-100 text-gray-800 rounded-md text-sm font-semibold break-words">{booking.room}</span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-semibold ${getStatusColor(booking.status)}`}>
-                            {getStatusIcon(booking.status)}
-                            <span className="truncate">{booking.status}</span>
-                          </span>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className="text-sm text-gray-600 whitespace-nowrap">{formatRequestedTime(booking.requestedTime)}</span>
-                        </td>
-                        <td className="px-6 py-4 text-center">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-8 px-3"
-                            onClick={() => {
-                              setSelectedBooking(booking);
-                              setShowBookingDetailDialog(true);
-                            }}
+                              </div>
+                            </td>
+                            <td className="px-4 py-4">
+                              <div className="flex items-center gap-1 text-gray-800 font-mono text-sm">
+                                <Clock className="h-4 w-4 text-gray-500 flex-shrink-0" />
+                                <span className="whitespace-nowrap">
+                                  {new Date(r.timeStart).toISOString().split('T')[1].slice(0,5)} - {new Date(r.timeEnd).toISOString().split('T')[1].slice(0,5)}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-4">
+                              <span className="font-semibold text-gray-900 text-sm break-words">{r.owner.name || '-'}</span>
+                            </td>
+                            <td className="px-4 py-4">
+                              <span className="text-gray-800 text-sm break-words">-</span>
+                            </td>
+                            <td className="px-4 py-4">
+                              <div className="flex items-center justify-center h-full">
+                                <span className="px-2 py-1 bg-gray-100 text-gray-800 rounded-md text-sm font-semibold break-words">
+                                  {r.meetingRoom}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4">
+                              {(() => {
+                                const ui = mapForwardStatus(r.status);
+                                return (
+                                  <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-semibold ${getStatusColor(ui)}`}>
+                                    {getStatusIcon(ui)}
+                                    <span className="truncate">{ui}</span>
+                                  </span>
+                                );
+                              })()}
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className="text-sm text-gray-600 whitespace-nowrap">
+                                {formatRequestedTime(
+                                  new Date((r.createdAt ?? r.timeStart))
+                                    .toISOString()
+                                    .replace('T', ' ')
+                                    .slice(0, 16) + ':00'
+                                )}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 text-center">
+                              <div className="flex items-center gap-2 justify-center">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    const match = bookings.find((b) => b.id === r.bookingId);
+                                    if (match) {
+                                      setSelectedBooking(match);
+                                      setShowBookingDetailDialog(true);
+                                      return;
+                                    }
+                                    const ymd = new Date(r.timeStart).toISOString().split('T')[0];
+                              const hh = (d: string) => new Date(d).toISOString().split('T')[1].slice(0,5);
+                                    const fallback: BookingManage = {
+                                      id: r.bookingId,
+                                      dateTime: ymd,
+                                      interpreter: "",
+                                      room: r.meetingRoom,
+                                      group: 'other',
+                                      meetingDetail: '',
+                                      topic: '',
+                                      bookedBy: r.owner.name || '',
+                                      status: 'Wait',
+                                      startTime: hh(r.timeStart),
+                                      endTime: hh(r.timeEnd),
+                                      requestedTime: new Date((r.createdAt ?? r.timeStart)).toISOString(),
+                                      isDR: false,
+                                      meetingType: r.meetingType as BookingManage['meetingType'],
+                                    };
+                                    setSelectedBooking(fallback);
+                                    setShowBookingDetailDialog(true);
+                                  }}
+                                >
+                                  Edit
+                                </Button>
+                                <Button
+                                  variant="destructive"
+                                  size="sm"
+                                  onClick={async () => {
+                                    const reason = prompt("Reject reason?");
+                                    if (!reason || !reason.trim()) return;
+                                    const res = await fetch(`/api/admin/bookings/${r.bookingId}/cancel`, {
+                                      method: 'POST',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({ note: reason.trim() }),
+                                    });
+                                    if (!res.ok) {
+                                      const j = await res.json().catch(() => null);
+                                      alert(`Reject failed: ${j?.message || res.status}`);
+                                      return;
+                                    }
+                                    await fetchForwarded();
+                                  }}
+                                >
+                                  Reject
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </AccordionContent>
+            </div>
+          </AccordionItem>
+          <AccordionItem value="all" className="border-none">
+            <div className="rounded-xl shadow-sm">
+              <AccordionTrigger className="px-6 border border-gray-200 bg-white rounded-t-xl data-[state=open]:rounded-b-none">
+                All
+              </AccordionTrigger>
+              <AccordionContent className="px-0 pb-0 border border-gray-200 border-t-0 rounded-b-xl bg-white">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm table-fixed">
+                    <thead className="bg-white">
+                      <tr className="border-b border-gray-200">
+                        <th className="w-20 px-4 py-3 text-center font-semibold text-gray-900 bg-gray-50 text-sm">Meeting Type</th>
+                        <th className="w-32 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">
+                          <button
+                            onClick={handleDateSortToggle}
+                            className="flex items-center gap-2 hover:bg-gray-100 px-2 py-1 rounded transition-colors w-full justify-start"
+                            title={`Sort by ${sortByDateAsc ? "newest" : "oldest"} first`}
                           >
-                            <SquarePen className="h-4 w-4 mr-1" />
-                            Edit
-                          </Button>
-                          {booking.status === 'Wait' && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-8 px-3 ml-2"
-                            onClick={async () => {
-                              try {
-                                const envRes = await fetch('/api/environments', { cache: 'no-store' });
-                                if (!envRes.ok) throw new Error('Load environments failed');
-                                const envs = await envRes.json();
-                                const meRes = await fetch('/api/user/me', { cache: 'no-store' });
-                                if (!meRes.ok) throw new Error('Load me failed');
-                                const me = await meRes.json();
-                                const myCenters = (me?.user?.adminEnvCenters ?? []) as string[];
-                                const allCenters = envs.flatMap((e: any) => e.centers.map((c: any) => c.center)) as string[];
-                                const candidates = allCenters.filter((c: string) => !myCenters.includes(c));
-                                if (candidates.length === 0) { alert('No other environments to forward.'); return; }
-                                const input = prompt(`Forward to centers (comma separated, or type 'all'):\n${candidates.join(', ')}`);
-                                if (!input) return;
-                                let targets = input.split(',').map(s => s.trim()).filter(Boolean);
-                                const useAll = targets.length === 1 && targets[0].toLowerCase() === 'all';
-                                if (useAll) {
-                                  targets = candidates;
-                                } else if (targets.map(t => t.toLowerCase()).includes('all')) {
-                                  const others = targets.filter(t => t.toLowerCase() !== 'all');
-                                  targets = Array.from(new Set([...candidates, ...others]));
-                                }
-                                const invalid = targets.filter(t => !candidates.includes(t));
-                                if (invalid.length > 0) { alert(`Invalid centers: ${invalid.join(', ')}`); return; }
-                                const note = prompt('Reason to forward? (required)')?.trim();
-                                if (!note) return;
-                                const res = await fetch(`/api/admin/bookings/${booking.id}/forward`, {
-                                  method: 'POST',
-                                  headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({ targets, note }),
-                                });
-                                if (!res.ok) { const j = await res.json().catch(()=>null); throw new Error(j?.message || `Forward failed (${res.status})`); }
-                                await refreshData();
-                              } catch (e) {
-                                alert((e as Error).message);
-                              }
-                            }}
-                          >
-                            Forward
-                          </Button>
-                          )}
-                        </td>
+                            <span>Date Meeting</span>
+                            {sortByDateAsc ? (
+                              <ChevronUp className="h-4 w-4 text-gray-600" />
+                            ) : (
+                              <ChevronDown className="h-4 w-4 text-gray-600" />
+                            )}
+                          </button>
+                        </th>
+                        <th className="w-36 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Meeting Time</th>
+                        <th className="w-32 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">User</th>
+                        <th className="w-32 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Interpreter</th>
+                        <th className="w-24 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Room</th>
+                        <th className="w-28 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Status</th>
+                        <th className="w-48 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Date Request</th>
+                        <th className="w-32 px-6 py-3 text-center font-semibold text-gray-900 bg-gray-50 text-sm">Action</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {paginatedBookings.bookings.map((booking, index) => (
+                        <tr
+                          key={booking.id}
+                          className={`border-b border-gray-100 hover:bg-blue-50 transition-colors ${index % 2 === 0 ? "bg-white" : "bg-gray-50/30"}`}
+                        >
+                          <td className="px-4 py-4 text-center">
+                            {getMeetingTypeBadge(booking.meetingType, booking.drType, booking.otherType)}
+                          </td>
+                          <td className="px-4 py-4">
+                            <div className="flex items-start gap-2">
+                              <div className="group relative flex-1">
+                                <span className="font-semibold text-gray-900 text-sm cursor-help break-words">
+                                  {formatDate(booking.dateTime)}
+                                </span>
+                                {isClient && (
+                                  <div className="absolute top-full left-0 mt-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50">
+                                    {getFullDate(booking.dateTime, isClient)}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-4 py-4">
+                            <div className="flex items-center gap-1 text-gray-800 font-mono text-sm">
+                              <Clock className="h-4 w-4 text-gray-500 flex-shrink-0" />
+                              <span className="whitespace-nowrap">
+                                {booking.startTime} - {booking.endTime}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-4">
+                            <span className="font-semibold text-gray-900 text-sm break-words">{booking.bookedBy}</span>
+                          </td>
+                          <td className="px-4 py-4">
+                            <span className="text-gray-800 text-sm break-words">{booking.interpreter}</span>
+                          </td>
+                          <td className="px-4 py-4">
+                            <div className="flex items-center justify-center h-full">
+                              <span className="px-2 py-1 bg-gray-100 text-gray-800 rounded-md text-sm font-semibold break-words">
+                                {booking.room}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-semibold ${getStatusColor(booking.status)}`}>
+                              {getStatusIcon(booking.status)}
+                              <span className="truncate">{booking.status}</span>
+                            </span>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className="text-sm text-gray-600 whitespace-nowrap">
+                              {formatRequestedTime(booking.requestedTime)}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 text-center">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-8 px-3"
+                              onClick={() => {
+                                setSelectedBooking(booking);
+                                setShowBookingDetailDialog(true);
+                              }}
+                            >
+                              <SquarePen className="h-4 w-4 mr-1" />
+                              Edit
+                            </Button>
+                            {booking.status === 'Wait' && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-8 px-3 ml-2"
+                                onClick={() => {
+                                  setForwardingBookingId(booking.id);
+                                  setShowForwardDialog(true);
+                                }}
+                              >
+                                Forward
+                              </Button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
 
                 {!error && filteredBookings.length === 0 && (
                   <div className="p-6 text-center text-gray-500">No bookings found</div>
@@ -859,8 +868,55 @@ export default function BookingManagement(): React.JSX.Element {
                     </Button>
                   </div>
                 </div>
-          </CardContent>
-        </Card>
+
+                <div className="flex flex-col gap-4 border-t border-gray-200 px-6 py-6 md:flex-row md:items-center md:justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base text-gray-800">Rows per page:</span>
+                    <Select value={pagination.rowsPerPage.toString()} onValueChange={handleRowsPerPageChange}>
+                      <SelectTrigger className="w-20">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {[10, 20, 50, 100].map((v) => (
+                          <SelectItem key={v} value={v.toString()}>
+                            {v}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="flex items-center gap-2 md:justify-end">
+                    <span className="text-base text-gray-800">
+                      {paginatedBookings.startIndex + 1}-
+                      {Math.min(
+                        paginatedBookings.startIndex + pagination.rowsPerPage,
+                        filteredBookings.length
+                      )}{' '}
+                      of {filteredBookings.length}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handlePageChange(pagination.currentPage - 1)}
+                      disabled={pagination.currentPage === 1}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handlePageChange(pagination.currentPage + 1)}
+                      disabled={pagination.currentPage === paginatedBookings.totalPages}
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </AccordionContent>
+            </div>
+          </AccordionItem>
+        </Accordion>
 
         <BookingDetailDialog
           open={showBookingDetailDialog}
@@ -870,58 +926,18 @@ export default function BookingManagement(): React.JSX.Element {
           }}
           editData={selectedBooking}
           isEditing
-          onActionComplete={fetchBookings}
+          onActionComplete={refreshData}
         />
 
-        <Card className="bg-white rounded-xl shadow-sm">
-          <CardContent className="flex items-center justify-between pt-6">
-            <div className="flex items-center space-x-2">
-              <span className="text-base text-gray-800">Rows per page:</span>
-              <Select
-                value={pagination.rowsPerPage.toString()}
-                onValueChange={handleRowsPerPageChange}
-              >
-                <SelectTrigger className="w-20">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {[10, 20, 50, 100].map((v) => (
-                    <SelectItem key={v} value={v.toString()}>
-                      {v}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex items-center space-x-2">
-              <span className="text-base text-gray-800">
-                {paginatedBookings.startIndex + 1}-
-                {Math.min(
-                  paginatedBookings.startIndex + pagination.rowsPerPage,
-                  filteredBookings.length
-                )}{" "}
-                of {filteredBookings.length}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handlePageChange(pagination.currentPage - 1)}
-                disabled={pagination.currentPage === 1}
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handlePageChange(pagination.currentPage + 1)}
-                disabled={pagination.currentPage === paginatedBookings.totalPages}
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+        <ForwardBookingDialog
+          open={showForwardDialog}
+          onOpenChange={(open: boolean) => {
+            setShowForwardDialog(open);
+            if (!open) setForwardingBookingId(null);
+          }}
+          bookingId={forwardingBookingId || 0}
+          onForwardComplete={refreshData}
+        />
       </div>
     </div>
   );

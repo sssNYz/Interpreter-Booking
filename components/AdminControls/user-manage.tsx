@@ -408,7 +408,6 @@ export default function UsersManagement() {
                             email: u.email ?? "",
                             roles: (u.roles ?? []) as Role[],
                             languages: [], // Will be fetched by the dialog
-                            adminScopes: [], // Will be fetched by the dialog
                           }}
                           onSave={(roles) => saveUserRoles(u.id, roles)}
                           trigger={
