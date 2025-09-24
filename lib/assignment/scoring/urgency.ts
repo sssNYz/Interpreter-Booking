@@ -1,4 +1,5 @@
 import { getMeetingTypePriority } from "../config/policy";
+import { getEnvMeetingTypePriority } from "../config/env-policy";
 
 /**
  * Calculate how urgent a booking is
@@ -6,10 +7,13 @@ import { getMeetingTypePriority } from "../config/policy";
  */
 export async function computeEnhancedUrgencyScore(
   startTime: Date,
-  meetingType: string
+  meetingType: string,
+  environmentId?: number | null
 ): Promise<number> {
   const daysUntil = getDaysUntil(startTime);
-  const priority = await getMeetingTypePriority(meetingType);
+  const priority = environmentId != null
+    ? (await getEnvMeetingTypePriority(environmentId, meetingType)) ?? (await getMeetingTypePriority(meetingType))
+    : await getMeetingTypePriority(meetingType);
   const priorityValue = priority?.priorityValue || 1;
   const urgentThreshold = priority?.urgentThresholdDays || 1;
   
@@ -42,10 +46,13 @@ export async function computeEnhancedUrgencyScore(
  */
 export async function computeUrgencyScore(
   startTime: Date,
-  meetingType: string
+  meetingType: string,
+  environmentId?: number | null
 ): Promise<number> {
   const daysUntil = getDaysUntil(startTime);
-  const priority = await getMeetingTypePriority(meetingType);
+  const priority = environmentId != null
+    ? (await getEnvMeetingTypePriority(environmentId, meetingType)) ?? (await getMeetingTypePriority(meetingType))
+    : await getMeetingTypePriority(meetingType);
   const urgentThreshold = priority?.urgentThresholdDays || 1;
   
   // If already past start time, maximum urgency
@@ -75,8 +82,10 @@ export function getDaysUntil(startTime: Date): number {
 /**
  * Check if booking is urgent (within urgent threshold days)
  */
-export async function isUrgent(startTime: Date, meetingType: string): Promise<boolean> {
-  const priority = await getMeetingTypePriority(meetingType);
+export async function isUrgent(startTime: Date, meetingType: string, environmentId?: number | null): Promise<boolean> {
+  const priority = environmentId != null
+    ? (await getEnvMeetingTypePriority(environmentId, meetingType)) ?? (await getMeetingTypePriority(meetingType))
+    : await getMeetingTypePriority(meetingType);
   const urgentThreshold = priority?.urgentThresholdDays || 1;
   return getDaysUntil(startTime) <= urgentThreshold;
 }
@@ -86,9 +95,12 @@ export async function isUrgent(startTime: Date, meetingType: string): Promise<bo
  */
 export async function shouldAssignImmediately(
   startTime: Date,
-  meetingType: string
+  meetingType: string,
+  environmentId?: number | null
 ): Promise<boolean> {
-  const priority = await getMeetingTypePriority(meetingType);
+  const priority = environmentId != null
+    ? (await getEnvMeetingTypePriority(environmentId, meetingType)) ?? (await getMeetingTypePriority(meetingType))
+    : await getMeetingTypePriority(meetingType);
   if (!priority) return false;
   
   const daysUntil = getDaysUntil(startTime);
