@@ -19,14 +19,17 @@ export async function POST(request: NextRequest) {
 
     const emp = await prisma.employee.findUnique({
       where: { empCode: ownerEmpCode },
-      select: { deptPath: true }
+      select: { deptPath: true },
     });
 
     let environmentId: number | null = null;
     if (emp?.deptPath) {
       const c = centerPart(emp.deptPath);
       if (c) {
-        const envC = await prisma.environmentCenter.findUnique({ where: { center: c }, select: { environmentId: true } });
+        const envC = await prisma.environmentCenter.findUnique({
+          where: { center: c },
+          select: { environmentId: true },
+        });
         environmentId = envC?.environmentId ?? null;
       }
     }
@@ -44,8 +47,8 @@ export async function POST(request: NextRequest) {
             capacityFull: false,
             urgent: false,
             environmentId: null,
-          }
-        }
+          },
+        },
       });
     }
 
@@ -61,36 +64,28 @@ export async function POST(request: NextRequest) {
           AND (bp.TIME_START < ${timeEnd} AND bp.TIME_END > ${timeStart})
       `;
       const busy = rows?.[0]?.cnt != null ? Number(rows[0].cnt) : 0;
-      const total = await prisma.environmentInterpreter.count({ where: { environmentId } });
-      capacityFull = total <= 0 ? true : (total - busy) <= 0;
+      const total = await prisma.environmentInterpreter.count({
+        where: { environmentId },
+      });
+      capacityFull = total <= 0 ? true : total - busy <= 0;
     }
-
-    // Urgent threshold day check
-    let urgent = false;
-    const pri = await prisma.meetingTypePriority.findFirst({
-      where: { environmentId, meetingType: meetingType as unknown as import("@/prisma/prisma").MeetingType },
-      orderBy: { updatedAt: 'desc' }
-    });
-    const urgentDays = pri?.urgentThresholdDays ?? 1;
-    const now = new Date();
-    const d = Math.floor((timeStart.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-    urgent = d <= urgentDays;
 
     return NextResponse.json({
       success: true,
       data: {
         forwardSuggestion: {
-          eligible: capacityFull || urgent,
+          eligible: capacityFull,
           capacityFull,
-          urgent,
+          urgent: false,
           environmentId,
-        }
-      }
+        },
+      },
     });
   } catch (error) {
-    console.error('Preflight failed', error);
-    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });
+    console.error("Preflight failed", error);
+    return NextResponse.json(
+      { success: false, error: "Internal server error" },
+      { status: 500 }
+    );
   }
 }
-
-

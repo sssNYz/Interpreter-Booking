@@ -30,12 +30,37 @@ import {
 
 // Admin submenu items
 const ADMIN_MENU_ALL = [
-  { title: "Overview", url: "/AdminPage/overview-workload-page", icon: BarChart2 },
-  { title: "Bookings management", url: "/AdminPage/booking-manage-page", icon: Inbox },
-  { title: "System Management", url: "/AdminPage/management-page", icon: Settings },
-  { title: "User management", url: "/AdminPage/user-manage-page", icon: Settings },
-  { title: "Auto-Assignment Config", url: "/AdminPage/auto-assign-config", icon: Cog },
-] as const
+  {
+    title: "Overview",
+    url: "/AdminPage/overview-workload-page",
+    icon: BarChart2,
+  },
+  {
+    title: "Bookings management",
+    url: "/AdminPage/booking-manage-page",
+    icon: Inbox,
+  },
+  {
+    title: "System Management",
+    url: "/AdminPage/management-page",
+    icon: Settings,
+  },
+  {
+    title: "User management",
+    url: "/AdminPage/user-manage-page",
+    icon: Settings,
+  },
+  {
+    title: "Room management",
+    url: "/AdminPage/room-management",
+    icon: DoorOpen,
+  },
+  {
+    title: "Auto-Assignment Config",
+    url: "/AdminPage/auto-assign-config",
+    icon: Cog,
+  },
+] as const;
 
 // A clean segmented-control style navbar that:
 // - Animates the active highlight to the exact width of the active button
@@ -57,9 +82,9 @@ export function AppNavbar() {
     admin: null,
   });
 
-  const [pill, setPill] = useState({ left: 0, width: 0, ready: false })
-  const [canAdmin, setCanAdmin] = useState<boolean>(false)
-  const [isSuper, setIsSuper] = useState<boolean>(false)
+  const [pill, setPill] = useState({ left: 0, width: 0, ready: false });
+  const [canAdmin, setCanAdmin] = useState<boolean>(false);
+  const [isSuper, setIsSuper] = useState<boolean>(false);
 
   // Update active based on the URL
   useEffect(() => {
@@ -84,27 +109,29 @@ export function AppNavbar() {
   useEffect(() => {
     updatePill();
     // Only reposition on window resize, not on content changes
-    const handle = () => updatePill()
-    window.addEventListener("resize", handle)
+    const handle = () => updatePill();
+    window.addEventListener("resize", handle);
     return () => {
-      window.removeEventListener("resize", handle)
-    }
-  }, [active, updatePill])
+      window.removeEventListener("resize", handle);
+    };
+  }, [active, updatePill]);
 
   // Determine if current user can see Admin menu
   useEffect(() => {
-    let alive = true
+    let alive = true;
     fetch("/api/user/me", { cache: "no-store" })
-      .then(res => res.ok ? res.json() : null)
-      .then(data => {
-        if (!alive || !data?.user) return
-        const roles: string[] = data.user.roles || []
-        setCanAdmin(roles.includes("ADMIN") || roles.includes("SUPER_ADMIN"))
-        setIsSuper(roles.includes("SUPER_ADMIN"))
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!alive || !data?.user) return;
+        const roles: string[] = data.user.roles || [];
+        setCanAdmin(roles.includes("ADMIN") || roles.includes("SUPER_ADMIN"));
+        setIsSuper(roles.includes("SUPER_ADMIN"));
       })
-      .catch(() => {})
-    return () => { alive = false }
-  }, [])
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const handleLogout = async () => {
     try {
@@ -191,10 +218,14 @@ export function AppNavbar() {
 
               {/* Admin dropdown */}
               {canAdmin && (
-                <DropdownMenu onOpenChange={(open) => open && setActive("admin")}>
+                <DropdownMenu
+                  onOpenChange={(open) => open && setActive("admin")}
+                >
                   <DropdownMenuTrigger asChild>
                     <button
-                      ref={(el) => { btnRefs.current.admin = el }}
+                      ref={(el) => {
+                        btnRefs.current.admin = el;
+                      }}
                       className={itemClass(active === "admin")}
                     >
                       <Star className="h-4 w-4" />
@@ -204,12 +235,15 @@ export function AppNavbar() {
                   <DropdownMenuContent align="end" className="w-72">
                     <DropdownMenuLabel>Admin</DropdownMenuLabel>
                     <DropdownMenuSeparator />
-                    {(ADMIN_MENU_ALL.filter(item => {
+                    {ADMIN_MENU_ALL.filter((item) => {
                       // Admin and Super Admin can see all admin items
                       return true;
-                    })).map((item) => (
+                    }).map((item) => (
                       <DropdownMenuItem key={item.title} asChild>
-                        <Link href={item.url} className="flex items-center gap-2 py-2">
+                        <Link
+                          href={item.url}
+                          className="flex items-center gap-2 py-2"
+                        >
                           <item.icon className="h-4 w-4" />
                           <span>{item.title}</span>
                         </Link>

@@ -214,20 +214,6 @@ export function MeetingDetailsSection({
               </Command>
             </PopoverContent>
           </Popover>
-          <Input
-            id="meetingRoom"
-            placeholder="Enter meeting room"
-            value={meetingRoom}
-            onChange={(e) => setMeetingRoom(e.target.value)}
-            className={
-              errors.meetingRoom
-                ? "border-destructive focus:border-destructive"
-                : ""
-            }
-            aria-describedby={
-              errors.meetingRoom ? "meetingRoom-error" : undefined
-            }
-          />
         </div>
 
         <div className="space-y-2">
