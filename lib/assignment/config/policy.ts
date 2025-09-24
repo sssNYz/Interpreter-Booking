@@ -167,8 +167,10 @@ export async function createDefaultMeetingTypePriorities(): Promise<void> {
  */
   export async function getMeetingTypePriority(meetingType: string): Promise<MeetingTypePriority | null> {
   try {
-    const priority = await prisma.meetingTypePriority.findUnique({
-      where: { meetingType: meetingType as "DR" | "VIP" | "Weekly" | "General" | "Augent" | "Other" }
+    // Fallback to global priority (environmentId null) in the new composite-unique world
+    const priority = await prisma.meetingTypePriority.findFirst({
+      where: { meetingType: meetingType as any, environmentId: null },
+      orderBy: { updatedAt: 'desc' }
     });
     return priority;
   } catch (error) {

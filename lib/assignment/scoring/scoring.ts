@@ -16,16 +16,9 @@ export function computeTotalScore(
   mode: string,
   customWeights?: { w_fair: number; w_urgency: number; w_lrs: number }
 ): number {
-  let weights: { w_fair: number; w_urgency: number; w_lrs: number };
-  
-  if (mode === 'CUSTOM' && customWeights) {
-    // Use custom weights from config for CUSTOM mode
-    weights = customWeights;
-  } else {
-    // Use predefined weights for other modes
-    weights = getScoringWeights(mode);
-  }
-  
+  // If explicit weights are provided, prefer them (honor config in all modes)
+  const weights = customWeights ?? getScoringWeights(mode);
+
   return (
     weights.w_fair * fairnessScore +
     weights.w_urgency * urgencyScore +

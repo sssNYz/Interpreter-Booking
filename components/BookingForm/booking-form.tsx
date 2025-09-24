@@ -22,6 +22,16 @@ import {
 import { Calendar, Clock, AlertTriangle } from "lucide-react";
 import type { MeetingType, DRType } from "@/prisma/prisma";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import type { OwnerGroup } from "@/types/booking";
 import type { BookingFormProps } from "@/types/props";
@@ -133,6 +143,98 @@ export function BookingForm({
   // Dropdown state management - only one dropdown can be open at a time
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
 
+  // Centralized modal state for confirmations/errors
+  type DialogState =
+    | { type: "none" }
+    | { type: "weekend"; message?: string }
+    | { type: "overlap"; message?: string }
+    | { type: "chairman"; message?: string; details?: { ownerName?: string; meetingRoom?: string; timeStart?: string; timeEnd?: string } }
+    | { type: "apiError"; message?: string }
+    | { type: "preflight"; message?: string }
+    | { type: "forward"; bookingId?: number; message?: string };
+  const [dialog, setDialog] = useState<DialogState>({ type: "none" });
+
+  // Retry throttle for generic errors
+  const COOLDOWN_MS = 5000;
+  const WINDOW_MS = 30000;
+  const MAX_RETRIES = 2;
+  const [retryInfo, setRetryInfo] = useState<{ lastAttempt: number; windowStart: number; retries: number }>({
+    lastAttempt: 0,
+    windowStart: 0,
+    retries: 0,
+  });
+
+  const canRetryNow = () => {
+    const now = Date.now();
+    if (now - retryInfo.lastAttempt < COOLDOWN_MS) return false;
+    const withinWindow = now - retryInfo.windowStart < WINDOW_MS;
+    const count = withinWindow ? retryInfo.retries : 0;
+    return count < MAX_RETRIES;
+  };
+
+  const markRetryAttempt = () => {
+    const now = Date.now();
+    setRetryInfo((prev) => {
+      const withinWindow = now - prev.windowStart < WINDOW_MS;
+      return withinWindow
+        ? { lastAttempt: now, windowStart: prev.windowStart, retries: prev.retries + 1 }
+        : { lastAttempt: now, windowStart: now, retries: 1 };
+    });
+  };
+
+  // Forward booking handler
+  const handleForwardBooking = async (bookingId: number) => {
+    try {
+      const response = await fetch(`/api/booking-data/forward/${bookingId}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({}), // Empty body - server will auto-select targets
+      });
+      
+      const result = await response.json();
+      
+      if (result.ok) {
+        toast.success("Booking forwarded successfully!");
+        onOpenChange(false);
+        try {
+          window.dispatchEvent(new CustomEvent("booking:updated"));
+        } catch {}
+      } else {
+        toast.error(result.error || "Failed to forward booking");
+      }
+    } catch (error) {
+      console.error("Error forwarding booking:", error);
+      toast.error("An error occurred while forwarding the booking");
+    }
+  };
+
+  // Delete booking handler (for Edit button)
+  const handleDeleteBooking = async (bookingId: number) => {
+    try {
+      const response = await fetch(`/api/booking-data/${bookingId}`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        toast.success("Booking cancelled. You can now edit your request.");
+        // Keep form open so user can edit
+        setDialog({ type: "none" });
+      } else {
+        toast.error(result.message || "Failed to cancel booking");
+      }
+    } catch (error) {
+      console.error("Error deleting booking:", error);
+      toast.error("An error occurred while cancelling the booking");
+    }
+  };
+
   // Set default start time based on selected slot
   useEffect(() => {
     setStartTime(selectedSlot?.slot || "");
@@ -199,6 +301,32 @@ export function BookingForm({
       } catch {}
     }
   }, [open]);
+
+  // Helper: focus/scroll utilities for edit actions
+  const focusRecurrenceControls = () => {
+    try {
+      setOpenDropdown("repeatSchedule");
+      const el = document.getElementById("repeatSelect") as HTMLElement | null;
+      el?.scrollIntoView({ behavior: "smooth", block: "center" });
+      el?.focus();
+    } catch {}
+  };
+
+  const focusTimeOrRoom = () => {
+    try {
+      const room = document.getElementById("meetingRoom") as HTMLInputElement | null;
+      room?.scrollIntoView({ behavior: "smooth", block: "center" });
+      room?.focus();
+    } catch {}
+  };
+
+  const focusChairmanField = () => {
+    try {
+      const ce = document.getElementById("chairmanEmail") as HTMLInputElement | null;
+      ce?.scrollIntoView({ behavior: "smooth", block: "center" });
+      ce?.focus();
+    } catch {}
+  };
 
   // Load languages when form opens
   useEffect(() => {
@@ -878,74 +1006,14 @@ export function BookingForm({
     return Object.keys(newErrors).length === 0;
   };
 
-  // Form submission
-  const handleSubmit = async () => {
-    if (!validateForm()) return;
-    if (!dayObj) return;
-
-    // Phase 4: Preview weekends for non-occurrence flows and prompt user
-    let applySkipWeekends = false;
-    if (repeatChoice !== "none") {
-      const preview = previewRecurringDates();
-      const hasWeekend = preview.some((d) => isWeekend(d));
-      if (hasWeekend) {
-        const choice = await new Promise<"skip" | "cancel">((resolve) => {
-          toast.custom(
-            (t) => (
-              <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm w-full max-w-sm">
-                <Alert className="border-none p-0">
-                  <AlertTitle className="text-gray-900">
-                    <span className="text-amber-600 font-semibold">
-                      Weekend included
-                    </span>
-                    <span className="ml-1">
-                      {" "}
-                      Some occurrences fall on Sat/Sun.
-                    </span>
-                  </AlertTitle>
-                  <AlertDescription className="text-gray-700">
-                    Choose an option.
-                  </AlertDescription>
-                </Alert>
-                <div className="flex justify-end gap-2 mt-4">
-                  <button
-                    onClick={() => {
-                      toast.dismiss(t);
-                      resolve("cancel");
-                    }}
-                    className="bg-gray-200 text-gray-900 px-3 py-1 rounded text-xs"
-                  >
-                    Cancel All
-                  </button>
-                  <button
-                    onClick={() => {
-                      toast.dismiss(t);
-                      resolve("skip");
-                    }}
-                    className="bg-blue-600 text-white px-3 py-1 rounded text-xs"
-                  >
-                    Cancel weekend
-                  </button>
-                </div>
-              </div>
-            ),
-            { duration: 12000 }
-          );
-        });
-        if (choice === "cancel") return;
-        if (choice === "skip") applySkipWeekends = true;
-      }
-    }
-
+  // Form submission (real create call)
+  const proceedSubmit = async (opts?: { skipWeekends?: boolean, autoForward?: boolean }) => {
     setIsSubmitting(true);
-
     try {
-      // Create the datetime strings (plain strings YYYY-MM-DD HH:mm:ss)
-      const localDate = getLocalDateString(dayObj.fullDate);
+      const localDate = getLocalDateString(dayObj!.fullDate);
       const startDateTime = buildDateTimeString(localDate, startTime);
       const endDateTime = buildDateTimeString(localDate, endTime);
 
-      // Get empCode from localStorage
       const raw = localStorage.getItem("booking.user");
       if (!raw) {
         alert("User session expired. Please login again.");
@@ -971,17 +1039,15 @@ export function BookingForm({
         inviteEmails: inviteEmails.length > 0 ? inviteEmails : undefined,
       } as const;
 
-      // NEW — add the 3 fields in a way that matches server rules
       const typeExtras: Record<string, unknown> = {};
       if (meetingType === "DR") {
-        // Map Prisma enum values to database enum values for raw SQL
         const drTypeMap: Record<DRType, string> = {
-          'DR_PR': 'DR-PR',
-          'DR_k': 'DR-k', 
-          'DR_II': 'DR-II',
-          'DR_I': 'DR-I',
-          'Other': 'Other'
-        };  
+          DR_PR: "DR-PR",
+          DR_k: "DR-k",
+          DR_II: "DR-II",
+          DR_I: "DR-I",
+          Other: "Other",
+        };
         typeExtras.drType = drType ? drTypeMap[drType] : null;
         if (drType === "Other") {
           typeExtras.otherType = otherType.trim();
@@ -1000,15 +1066,15 @@ export function BookingForm({
         typeExtras.otherTypeScope = null;
       }
 
-      const bookingData = { 
-        ...bookingDataBase, 
+      const bookingData = {
+        ...bookingDataBase,
         ...typeExtras,
         languageCode: selectedLanguageCodes[0] || null,
         chairmanEmail: meetingType === "DR" ? chairmanEmail.trim() : null,
-        selectedInterpreterEmpCode: meetingType === "President" ? selectedInterpreterEmpCode : null,
+        selectedInterpreterEmpCode:
+          meetingType === "President" ? selectedInterpreterEmpCode : null,
       };
 
-      // Merge recurrence into payload
       let recurrencePayload: Record<string, unknown> = {};
       if (repeatChoice !== "none") {
         recurrencePayload = {
@@ -1033,12 +1099,13 @@ export function BookingForm({
               : recurrenceWeekdays || null,
           recurrenceMonthday:
             recurrenceType === "monthly" || repeatChoice === "monthly"
-              ? recurrenceMonthday ??
+              ?
+                recurrenceMonthday ??
                 (selectedSlot?.day || dayObj?.fullDate.getDate() || 1)
               : null,
           recurrenceWeekOrder:
             recurrenceType === "monthly" ? recurrenceWeekOrder || null : null,
-          skipWeekends: applySkipWeekends || undefined,
+          skipWeekends: opts?.skipWeekends || undefined,
         };
       }
 
@@ -1058,103 +1125,44 @@ export function BookingForm({
         return { response, result } as const;
       };
 
-      // First attempt without force
-      let { response, result } = await submitOnce(false);
+      const { response, result } = await submitOnce(false);
 
-      // If overlap warning, show themed confirm toast and then force submit on OK
       if (response.status === 409 && result?.code === "OVERLAP_WARNING") {
-        const proceed = await new Promise<boolean>((resolve) => {
-          toast.custom(
-            (t) => (
-              <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm w-full max-w-sm">
-                <Alert className="border-none p-0">
-                  <AlertTitle className="text-gray-900">
-                    <span className="text-amber-600 font-semibold">
-                      Same room warning
-                    </span>
-                    <span className="ml-1">
-                      {result?.message ||
-                        "This room already has a booking overlapping this time."}
-                    </span>
-                  </AlertTitle>
-                  <AlertDescription className="text-gray-700">
-                    Do you want to continue?
-                  </AlertDescription>
-                </Alert>
-                <div className="flex justify-end gap-2 mt-4">
-                  <button
-                    onClick={() => {
-                      toast.dismiss(t);
-                      resolve(false);
-                    }}
-                    className="bg-gray-200 text-gray-900 px-3 py-1 rounded text-xs"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={() => {
-                      toast.dismiss(t);
-                      resolve(true);
-                    }}
-                    className="bg-gray-900 text-white px-3 py-1 rounded text-xs"
-                  >
-                    OK
-                  </button>
-                </div>
-              </div>
-            ),
-            { duration: 10000 }
-          );
+        setDialog({
+          type: "overlap",
+          message:
+            result?.message ||
+            "This room already has a booking overlapping this time.",
         });
-
-        if (proceed) {
-          ({ response, result } = await submitOnce(true));
-        } else {
-          return; // user cancelled
-        }
+        return;
       }
 
-      // If chairman conflict detected, show error and stop
       if (response.status === 409 && result?.code === "CHAIRMAN_CONFLICT") {
-        toast.custom(
-          (t) => (
-            <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm w-full max-w-sm">
-              <Alert className="border-none p-0">
-                <AlertTitle className="text-gray-900">
-                  <span className="text-red-600 font-semibold">
-                    Chairman Conflict
-                  </span>
-                  <span className="ml-1">
-                    {result?.message || "Chairman is already booked for this time"}
-                  </span>
-                </AlertTitle>
-                <AlertDescription className="text-gray-700">
-                  {result?.conflictDetails && (
-                    <div className="mt-2 text-sm">
-                      <p><strong>Conflicting booking:</strong></p>
-                      <p>• Owner: {result.conflictDetails.ownerName}</p>
-                      <p>• Room: {result.conflictDetails.meetingRoom}</p>
-                      <p>• Time: {new Date(result.conflictDetails.timeStart).toLocaleString()} - {new Date(result.conflictDetails.timeEnd).toLocaleString()}</p>
-                    </div>
-                  )}
-                </AlertDescription>
-              </Alert>
-              <div className="flex justify-end mt-4">
-                <button
-                  onClick={() => toast.dismiss(t)}
-                  className="bg-gray-900 text-white px-3 py-1 rounded text-xs"
-                >
-                  OK
-                </button>
-              </div>
-            </div>
-          ),
-          { duration: 10000 }
-        );
-        return; // Stop submission
+        setDialog({
+          type: "chairman",
+          message:
+            result?.message || "Chairman is already booked for this time",
+          details: result?.conflictDetails ?? undefined,
+        });
+        return;
       }
 
       if (result.success) {
+        // Check if auto-assignment failed and forwarding is eligible
+        if (result.data?.autoAssignment?.status === "escalated" && result.data?.forwardSuggestion?.eligible) {
+          if (opts?.autoForward && result.data?.bookingId) {
+            await handleForwardBooking(result.data.bookingId);
+            return;
+          } else {
+            setDialog({
+              type: "forward",
+              bookingId: result.data.bookingId,
+              message: "No interpreter available in your environment. Would you like to forward this request to other environments?"
+            });
+            return;
+          }
+        }
+
         const bookingDate = dayObj?.fullDate.toLocaleDateString("en-US", {
           weekday: "long",
           year: "numeric",
@@ -1186,70 +1194,80 @@ export function BookingForm({
           ),
           { duration: 5000 }
         );
-        // Close the form
         onOpenChange(false);
-        // Notify other components that bookings have changed
         try {
           window.dispatchEvent(new CustomEvent("booking:updated"));
         } catch {}
       } else {
-        toast.custom(
-          (t) => (
-            <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm w-full max-w-sm">
-              <Alert className="border-none p-0">
-                <AlertTitle className="text-gray-900">
-                  <span className="text-red-600 font-semibold">Error</span>
-                  <span className="ml-1">Unable to create booking</span>
-                </AlertTitle>
-                <AlertDescription className="text-gray-700">
-                  {result.message || result.error || "Please try again"}
-                </AlertDescription>
-              </Alert>
-              <div className="flex justify-end mt-4">
-                <button
-                  onClick={() => toast.dismiss(t)}
-                  className="bg-gray-900 text-white px-3 py-1 rounded text-xs"
-                >
-                  OK
-                </button>
-              </div>
-            </div>
-          ),
-          { duration: 5000 }
-        );
+        setDialog({
+          type: "apiError",
+          message: result.message || result.error || "Please try again",
+        });
         if (result.details) {
           console.error("Validation errors:", result.details);
         }
       }
     } catch (error) {
       console.error("Error creating booking:", error);
-      toast.custom(
-        (t) => (
-          <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm w-full max-w-sm">
-            <Alert className="border-none p-0">
-              <AlertTitle className="text-gray-900">
-                <span className="text-red-600 font-semibold">Error</span>
-                <span className="ml-1">Unable to create booking</span>
-              </AlertTitle>
-              <AlertDescription className="text-gray-700">
-                An error occurred while creating the booking
-              </AlertDescription>
-            </Alert>
-            <div className="flex justify-end mt-4">
-              <button
-                onClick={() => toast.dismiss(t)}
-                className="bg-gray-900 text-white px-3 py-1 rounded text-xs"
-              >
-                OK
-              </button>
-            </div>
-          </div>
-        ),
-        { duration: 5000 }
-      );
+      setDialog({
+        type: "apiError",
+        message: "An error occurred while creating the booking",
+      });
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleSubmit = async () => {
+    // mark attempt timestamp for retry cooldown visibility
+    setRetryInfo((prev) => ({ ...prev, lastAttempt: Date.now() }));
+    if (!validateForm()) return;
+    if (!dayObj) return;
+
+    // Phase 4: Preview weekends for non-occurrence flows and prompt user
+    if (repeatChoice !== "none") {
+      const preview = previewRecurringDates();
+      const hasWeekend = preview.some((d) => isWeekend(d));
+      if (hasWeekend) {
+        setDialog({ type: "weekend", message: "Some occurrences fall on Sat/Sun." });
+        return;
+      }
+    }
+
+    // Preflight: ask server if forward is eligible before saving
+    try {
+      const localDate = getLocalDateString(dayObj!.fullDate);
+      const startDateTime = buildDateTimeString(localDate, startTime);
+      const endDateTime = buildDateTimeString(localDate, endTime);
+
+      const raw = localStorage.getItem("booking.user");
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      const empCode = parsed.empCode;
+      if (!empCode) return;
+
+      const preRes = await fetch('/api/booking-data/preflight', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ownerEmpCode: empCode,
+          timeStart: startDateTime,
+          timeEnd: endDateTime,
+          meetingType,
+        })
+      });
+      const preJson = await preRes.json();
+      const eligible = preJson?.data?.forwardSuggestion?.eligible === true;
+
+      if (eligible) {
+        setDialog({ type: 'preflight', message: 'No interpreter in your environment at this time. Do you want to forward?' });
+        return;
+      }
+    } catch (e) {
+      // if preflight fails, continue normal submit
+    }
+
+    await proceedSubmit();
   };
 
   return (
@@ -1740,6 +1758,7 @@ export function BookingForm({
                     Chairman Email <span className="text-red-500">*</span>
                   </label>
                   <Input
+                    id="chairmanEmail"
                     type="email"
                     value={chairmanEmail}
                     onChange={(e) => setChairmanEmail(e.target.value)}
@@ -1833,8 +1852,146 @@ export function BookingForm({
               {isSubmitting ? "Creating..." : "Create Booking"}
             </Button>
           </div>
-        </SheetFooter>
+      </SheetFooter>
       </SheetContent>
+      {/* Centralized Modal Renderer */}
+      <AlertDialog open={dialog.type !== "none"} onOpenChange={(o) => { if (!o) setDialog({ type: "none" }); }}>
+        <AlertDialogContent>
+          {dialog.type === "preflight" && (
+            <>
+              <AlertDialogHeader>
+                <AlertDialogTitle>No Interpreter Available</AlertDialogTitle>
+                <AlertDialogDescription>
+                  {dialog.message || "No interpreter in your environment at this time."}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel onClick={() => setDialog({ type: "none" })}>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={() => { setDialog({ type: "none" }); focusTimeOrRoom(); }}>Edit</AlertDialogAction>
+                <AlertDialogAction onClick={async () => { setDialog({ type: "none" }); await proceedSubmit({ autoForward: true }); }}>Forward</AlertDialogAction>
+              </AlertDialogFooter>
+            </>
+          )}
+          {dialog.type === "weekend" && (
+            <>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Weekend included</AlertDialogTitle>
+                <AlertDialogDescription>
+                  {dialog.message || "Some occurrences fall on Sat/Sun. Adjust your recurrence settings."}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogAction onClick={() => { setDialog({ type: "none" }); focusRecurrenceControls(); }}>Back to Edit</AlertDialogAction>
+                <AlertDialogAction onClick={() => { setDialog({ type: "none" }); proceedSubmit({ skipWeekends: true }); }}>Skip weekend</AlertDialogAction>
+              </AlertDialogFooter>
+            </>
+          )}
+
+          {dialog.type === "overlap" && (
+            <>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Same room conflict</AlertDialogTitle>
+                <AlertDialogDescription>
+                  {dialog.message || "This room already has a booking overlapping this time."}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogAction onClick={() => { setDialog({ type: "none" }); focusTimeOrRoom(); }}>Back to Edit</AlertDialogAction>
+              </AlertDialogFooter>
+            </>
+          )}
+
+          {dialog.type === "chairman" && (
+            <>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Chairman conflict</AlertDialogTitle>
+                <AlertDialogDescription>
+                  {dialog.message}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              {dialog.details && (
+                <div className="mt-2 text-sm space-y-1">
+                  {dialog.details.ownerName && (
+                    <div><strong>Owner:</strong> {dialog.details.ownerName}</div>
+                  )}
+                  {dialog.details.meetingRoom && (
+                    <div><strong>Room:</strong> {dialog.details.meetingRoom}</div>
+                  )}
+                  {(dialog.details.timeStart || dialog.details.timeEnd) && (
+                    <div>
+                      <strong>Time:</strong> {dialog.details.timeStart ? new Date(dialog.details.timeStart).toLocaleString() : ""}
+                      {dialog.details.timeEnd ? ` - ${new Date(dialog.details.timeEnd).toLocaleString()}` : ""}
+                    </div>
+                  )}
+                </div>
+              )}
+              <AlertDialogFooter>
+                <AlertDialogAction onClick={() => { setDialog({ type: "none" }); focusChairmanField(); }}>Back to Edit</AlertDialogAction>
+              </AlertDialogFooter>
+            </>
+          )}
+
+          {dialog.type === "apiError" && (
+            <>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Error</AlertDialogTitle>
+                <AlertDialogDescription>
+                  {dialog.message || "Unable to create booking"}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel onClick={() => setDialog({ type: "none" })}>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={() => { setDialog({ type: "none" }); }} className="hidden" />
+                <AlertDialogAction
+                  disabled={!canRetryNow() || isSubmitting}
+                  onClick={async () => {
+                    if (!canRetryNow() || isSubmitting) return;
+                    markRetryAttempt();
+                    setDialog({ type: "none" });
+                    await handleSubmit();
+                  }}
+                >
+                  Retry
+                </AlertDialogAction>
+                <AlertDialogAction onClick={() => { setDialog({ type: "none" }); }}>Edit</AlertDialogAction>
+              </AlertDialogFooter>
+            </>
+          )}
+
+          {dialog.type === "forward" && (
+            <>
+              <AlertDialogHeader>
+                <AlertDialogTitle>No Interpreter Available</AlertDialogTitle>
+                <AlertDialogDescription>
+                  {dialog.message || "No interpreter available in your environment. Would you like to forward this request to other environments?"}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel onClick={() => setDialog({ type: "none" })}>Cancel</AlertDialogCancel>
+                <AlertDialogAction 
+                  onClick={() => {
+                    if (dialog.bookingId) {
+                      handleDeleteBooking(dialog.bookingId);
+                    }
+                  }}
+                >
+                  Edit
+                </AlertDialogAction>
+                <AlertDialogAction
+                  onClick={() => {
+                    if (dialog.bookingId) {
+                      handleForwardBooking(dialog.bookingId);
+                    }
+                    setDialog({ type: "none" });
+                  }}
+                >
+                  Forward
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </>
+          )}
+        </AlertDialogContent>
+      </AlertDialog>
     </Sheet>
   );
 }
