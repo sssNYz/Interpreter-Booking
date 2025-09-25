@@ -3,9 +3,10 @@ import prisma from "@/prisma/prisma";
 
 export async function GET(
   _req: NextRequest,
-  context: { params: { empCode: string } }
+  context: { params: Promise<{ empCode: string }> }
 ) {
-  const empCode = (context.params.empCode || "").trim();
+  const { empCode: empCodeRaw } = await context.params;
+  const empCode = (empCodeRaw || "").trim();
   if (!empCode) {
     return NextResponse.json({ error: "Missing empCode" }, { status: 400 });
   }
