@@ -10,7 +10,7 @@ export async function GET(
   request: Request,
   context: { params: { year: string; month: string } }
 ) {
-  const { year, month } = await context.params;
+  const { year, month } = context.params;
 
   const yearNum = parseInt(year);
   const monthNum = parseInt(month);
@@ -54,10 +54,11 @@ export async function GET(
         select: { firstNameEn: true, lastNameEn: true, email: true, telExt: true, deptPath: true },
       },
       interpreterEmployee: {
-        select: { empCode: true,
-                firstNameEn: true,
-                lastNameEn: true,
-                                                  },
+        select: {
+          empCode: true,
+          firstNameEn: true,
+          lastNameEn: true,
+        },
       },
     },
   });
@@ -74,20 +75,29 @@ export async function GET(
   if (parsed) {
     const me = await prisma.employee.findUnique({
       where: { empCode: parsed.empCode },
-      include: { userRoles: true, adminVisions: true },
     });
     if (me) {
-      roles = (me.userRoles ?? []).map(r => r.roleCode);
+      // Get user roles
+      const userRoles = await prisma.userRole.findMany({
+        where: { userId: me.id },
+      });
+      roles = userRoles.map(r => r.roleCode);
+
       myCenter = centerPart(me.deptPath);
-      adminCenters = (me.adminVisions ?? [])
-        .map(v => centerPart(v.deptPath))
-        .filter((x): x is string => Boolean(x));
+
+      // Get admin visions
+      const adminVisions = await prisma.adminVision.findMany({
+        where: { adminEmpCode: me.empCode },
+      });
+      adminCenters = adminVisions
+        .map((v: { deptPath: string }) => centerPart(v.deptPath))
+        .filter((x: string | null): x is string => Boolean(x));
     }
   }
   const hasAdmin = roles.includes('ADMIN') || roles.includes('SUPER_ADMIN');
   const isSuper = roles.includes('SUPER_ADMIN');
-  const view: 'user'|'admin'|'all' = viewRaw === 'user' || viewRaw === 'admin' || viewRaw === 'all'
-    ? (viewRaw as 'user'|'admin'|'all')
+  const view: 'user' | 'admin' | 'all' = viewRaw === 'user' || viewRaw === 'admin' || viewRaw === 'all'
+    ? (viewRaw as 'user' | 'admin' | 'all')
     : (hasAdmin ? 'admin' : 'user');
 
   let filtered = bookings;
@@ -135,7 +145,7 @@ export async function GET(
     updatedAt: Date;
     employee?: { firstNameEn: string | null; lastNameEn: string | null; email: string | null; telExt: string | null; deptPath?: string | null } | null;
     interpreterEmployee?: { empCode: string | null; firstNameEn: string | null; lastNameEn: string | null } | null;
-    
+
   }>).map((b) => ({
     bookingId: b.bookingId,
     ownerEmpCode: b.ownerEmpCode,
@@ -152,8 +162,8 @@ export async function GET(
     timeEnd: formatDateTime(b.timeEnd),
     interpreterId: b.interpreterEmployee?.empCode ?? null,
     interpreterName: b.interpreterEmployee
-    ?`${b.interpreterEmployee.firstNameEn ?? ""} ${b.interpreterEmployee.lastNameEn ?? ""}`.trim()  
-    : "",
+      ? `${b.interpreterEmployee.firstNameEn ?? ""} ${b.interpreterEmployee.lastNameEn ?? ""}`.trim()
+      : "",
     bookingStatus: b.bookingStatus,
     createdAt: formatDateTime(b.createdAt),
     updatedAt: formatDateTime(b.updatedAt),

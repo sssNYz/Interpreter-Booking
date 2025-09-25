@@ -70,12 +70,16 @@ export async function PATCH(
     },
   });
 
-  // fire-and-forget approval email when status transitions to approve
+  // fire-and-forget notifications when status transitions
   try {
-    if (to === 'approve' && from !== 'approve') {
-      const { sendApprovalEmailForBooking } = await import('@/lib/mail/sender')
-      // do not await; non-blocking
-      sendApprovalEmailForBooking(updated.bookingId).catch(() => {})
+    if ((to === 'approve' && from !== 'approve') || (to === 'cancel' && from !== 'cancel')) {
+      const { sendApprovalEmailForBooking, sendCancellationEmailForBooking } = await import('@/lib/mail/sender')
+      if (to === 'approve' && from !== 'approve') {
+        sendApprovalEmailForBooking(updated.bookingId).catch(() => {})
+      }
+      if (to === 'cancel' && from !== 'cancel') {
+        sendCancellationEmailForBooking(updated.bookingId).catch(() => {})
+      }
     }
   } catch {}
 
