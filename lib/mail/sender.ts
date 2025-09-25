@@ -5,17 +5,12 @@ import { getFormattedTemplateForBooking, buildTemplateVariablesFromBooking, gene
 import { generateCalendarInvite, createCalendarEvent, createCancelledCalendarEvent } from './calendar'
 
 function createTransporter() {
-  if (process.env.NODE_ENV === 'production') {
-    return nodemailer.createTransport({
-      host: process.env.SMTP_HOST || '10.240.42.47',
-      port: Number(process.env.SMTP_PORT || 25),
-      secure: false,
-      tls: { rejectUnauthorized: false }
-    })
-  }
+  const host = (process.env.SMTP_HOST ?? '').trim() || '192.168.212.220'
+  const port = Number(process.env.SMTP_PORT || 25)
+
   return nodemailer.createTransport({
-    host: process.env.SMTP_HOST || '127.0.0.1',
-    port: Number(process.env.SMTP_PORT || 1025),
+    host,
+    port,
     secure: false,
     tls: { rejectUnauthorized: false }
   })
@@ -236,3 +231,4 @@ export async function sendCancellationEmailForBooking(bookingId: number, reason?
     transporter.close()
   }
 }
+
