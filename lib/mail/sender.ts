@@ -6,12 +6,21 @@ import { generateCalendarInvite, createCalendarEvent, createCancelledCalendarEve
 
 function createTransporter() {
   const host = (process.env.SMTP_HOST ?? '').trim() || '192.168.212.220'
-  const port = Number(process.env.SMTP_PORT || 25)
+  const port = parseInt(process.env.SMTP_PORT ?? '25', 10)
+  const secure = process.env.SMTP_SECURE === 'true'
+  const authMethod = (process.env.SMTP_AUTH_METHOD ?? 'none').toLowerCase()
+  const auth = authMethod === 'none'
+    ? undefined
+    : {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS
+      }
 
   return nodemailer.createTransport({
     host,
     port,
-    secure: false,
+    secure,
+    auth,
     tls: { rejectUnauthorized: false }
   })
 }
@@ -231,4 +240,3 @@ export async function sendCancellationEmailForBooking(bookingId: number, reason?
     transporter.close()
   }
 }
-
