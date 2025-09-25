@@ -6,10 +6,11 @@ import prisma from "@/prisma/prisma";
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const roomId = parseInt(params.id);
+    const { id } = await params;
+    const roomId = parseInt(id);
 
     if (isNaN(roomId)) {
       return NextResponse.json(
@@ -23,16 +24,6 @@ export async function GET(
 
     const room = await prisma.room.findUnique({
       where: { id: roomId },
-      include: {
-        bookings: {
-          select: {
-            bookingId: true,
-            timeStart: true,
-            timeEnd: true,
-            bookingStatus: true,
-          },
-        },
-      },
     });
 
     if (!room) {
@@ -66,10 +57,11 @@ export async function GET(
  */
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const roomId = parseInt(params.id);
+    const { id } = await params;
+    const roomId = parseInt(id);
     const body = await request.json();
     const { name, location, capacity, isActive } = body;
 
@@ -176,10 +168,11 @@ export async function PUT(
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const roomId = parseInt(params.id);
+    const { id } = await params;
+    const roomId = parseInt(id);
 
     if (isNaN(roomId)) {
       return NextResponse.json(
@@ -194,13 +187,14 @@ export async function DELETE(
     // Check if room exists
     const existingRoom = await prisma.room.findUnique({
       where: { id: roomId },
-      include: {
-        bookings: {
-          where: {
-            bookingStatus: {
-              in: ["approve", "waiting"],
-            },
-          },
+    });
+
+    // Check for active bookings separately
+    const activeBookings = await prisma.bookingPlan.findMany({
+      where: {
+        meetingRoom: existingRoom?.name,
+        bookingStatus: {
+          in: ["approve", "waiting"],
         },
       },
     });
@@ -216,7 +210,7 @@ export async function DELETE(
     }
 
     // Check if room has active bookings
-    if (existingRoom.bookings.length > 0) {
+    if (activeBookings.length > 0) {
       return NextResponse.json(
         {
           success: false,

@@ -16,7 +16,7 @@ const modeSpecificThresholds = [
   // BALANCE mode
   { meetingType: 'DR', assignmentMode: 'BALANCE', urgentThresholdDays: 7, generalThresholdDays: 30 },
   { meetingType: 'VIP', assignmentMode: 'BALANCE', urgentThresholdDays: 7, generalThresholdDays: 15 },
-  { meetingType: 'Augent', assignmentMode: 'BALANCE', urgentThresholdDays: 7, generalThresholdDays: 15 },
+  { meetingType: 'Urgent', assignmentMode: 'BALANCE', urgentThresholdDays: 7, generalThresholdDays: 15 },
   { meetingType: 'Weekly', assignmentMode: 'BALANCE', urgentThresholdDays: 3, generalThresholdDays: 15 },
   { meetingType: 'General', assignmentMode: 'BALANCE', urgentThresholdDays: 7, generalThresholdDays: 15 },
   { meetingType: 'Other', assignmentMode: 'BALANCE', urgentThresholdDays: 3, generalThresholdDays: 7 },
@@ -24,7 +24,7 @@ const modeSpecificThresholds = [
   // NORMAL mode
   { meetingType: 'DR', assignmentMode: 'NORMAL', urgentThresholdDays: 10, generalThresholdDays: 30 },
   { meetingType: 'VIP', assignmentMode: 'NORMAL', urgentThresholdDays: 7, generalThresholdDays: 15 },
-  { meetingType: 'Augent', assignmentMode: 'NORMAL', urgentThresholdDays: 10, generalThresholdDays: 15 },
+  { meetingType: 'Urgent', assignmentMode: 'NORMAL', urgentThresholdDays: 10, generalThresholdDays: 15 },
   { meetingType: 'Weekly', assignmentMode: 'NORMAL', urgentThresholdDays: 7, generalThresholdDays: 15 },
   { meetingType: 'General', assignmentMode: 'NORMAL', urgentThresholdDays: 10, generalThresholdDays: 15 },
   { meetingType: 'Other', assignmentMode: 'NORMAL', urgentThresholdDays: 7, generalThresholdDays: 10 },
@@ -32,7 +32,7 @@ const modeSpecificThresholds = [
   // URGENT mode
   { meetingType: 'DR', assignmentMode: 'URGENT', urgentThresholdDays: 14, generalThresholdDays: 45 },
   { meetingType: 'VIP', assignmentMode: 'URGENT', urgentThresholdDays: 7, generalThresholdDays: 15 },
-  { meetingType: 'Augent', assignmentMode: 'URGENT', urgentThresholdDays: 14, generalThresholdDays: 30 },
+  { meetingType: 'Urgent', assignmentMode: 'URGENT', urgentThresholdDays: 14, generalThresholdDays: 30 },
   { meetingType: 'Weekly', assignmentMode: 'URGENT', urgentThresholdDays: 14, generalThresholdDays: 30 },
   { meetingType: 'General', assignmentMode: 'URGENT', urgentThresholdDays: 14, generalThresholdDays: 30 },
   { meetingType: 'Other', assignmentMode: 'URGENT', urgentThresholdDays: 7, generalThresholdDays: 15 }
@@ -54,18 +54,16 @@ async function initializeModeSpecificThresholds() {
       
       // Update existing configurations
       for (const threshold of modeSpecificThresholds) {
-        await prisma.meetingTypeModeThreshold.upsert({
+        await prisma.meetingTypeModeThreshold.updateMany({
           where: {
-            meetingType_assignmentMode: {
-              meetingType: threshold.meetingType,
-              assignmentMode: threshold.assignmentMode
-            }
+            meetingType: threshold.meetingType,
+            assignmentMode: threshold.assignmentMode,
+            environmentId: null
           },
-          update: {
+          data: {
             urgentThresholdDays: threshold.urgentThresholdDays,
             generalThresholdDays: threshold.generalThresholdDays
-          },
-          create: threshold
+          }
         });
         console.log(`   ✅ Updated ${threshold.meetingType} (${threshold.assignmentMode})`);
       }
