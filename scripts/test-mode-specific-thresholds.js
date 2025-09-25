@@ -15,7 +15,7 @@ async function testModeSpecificThresholds() {
   try {
     console.log('🧪 Testing mode-specific threshold configurations...\n');
     
-    const meetingTypes = ['DR', 'VIP', 'Augent', 'Weekly', 'General', 'Other'];
+    const meetingTypes = ['DR', 'VIP', 'Urgent', 'Weekly', 'General', 'Other'];
     const modes = ['BALANCE', 'NORMAL', 'URGENT'];
     
     // Expected values based on your specifications
@@ -23,7 +23,7 @@ async function testModeSpecificThresholds() {
       BALANCE: {
         DR: { urgentThresholdDays: 7, generalThresholdDays: 30 },
         VIP: { urgentThresholdDays: 7, generalThresholdDays: 15 },
-        Augent: { urgentThresholdDays: 7, generalThresholdDays: 15 },
+        Urgent: { urgentThresholdDays: 7, generalThresholdDays: 15 },
         Weekly: { urgentThresholdDays: 3, generalThresholdDays: 15 },
         General: { urgentThresholdDays: 7, generalThresholdDays: 15 },
         Other: { urgentThresholdDays: 3, generalThresholdDays: 7 }
@@ -31,7 +31,7 @@ async function testModeSpecificThresholds() {
       NORMAL: {
         DR: { urgentThresholdDays: 10, generalThresholdDays: 30 },
         VIP: { urgentThresholdDays: 7, generalThresholdDays: 15 },
-        Augent: { urgentThresholdDays: 10, generalThresholdDays: 15 },
+        Urgent: { urgentThresholdDays: 10, generalThresholdDays: 15 },
         Weekly: { urgentThresholdDays: 7, generalThresholdDays: 15 },
         General: { urgentThresholdDays: 10, generalThresholdDays: 15 },
         Other: { urgentThresholdDays: 7, generalThresholdDays: 10 }
@@ -39,7 +39,7 @@ async function testModeSpecificThresholds() {
       URGENT: {
         DR: { urgentThresholdDays: 14, generalThresholdDays: 45 },
         VIP: { urgentThresholdDays: 7, generalThresholdDays: 15 },
-        Augent: { urgentThresholdDays: 14, generalThresholdDays: 30 },
+        Urgent: { urgentThresholdDays: 14, generalThresholdDays: 30 },
         Weekly: { urgentThresholdDays: 14, generalThresholdDays: 30 },
         General: { urgentThresholdDays: 14, generalThresholdDays: 30 },
         Other: { urgentThresholdDays: 7, generalThresholdDays: 15 }
