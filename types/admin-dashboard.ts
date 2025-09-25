@@ -130,7 +130,7 @@ export const MONTH_LABELS: MonthName[] = [
 
 export const MEETING_TYPES: MeetingType[] = ["DR", "VIP", "Weekly", "General", "Augent", "Other"];
 
-export const DR_TYPES: DRType[] = ["PR_PR", "DR_k", "DR_II", "DR_I", "Other"];
+export const DR_TYPES: DRType[] = ["DR_PR", "DR_k", "DR_II", "DR_I", "Other"];
 
 export const OWNER_GROUPS: OwnerGroup[] = ["iot", "hardware", "software", "other"];
 

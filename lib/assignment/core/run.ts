@@ -842,6 +842,12 @@ async function attemptAssignmentWithRetry(
           });
         });
 
+        // send approval email asynchronously (non-blocking)
+        try {
+          const { sendApprovalEmailForBooking } = await import('@/lib/mail/sender')
+          sendApprovalEmailForBooking(booking.bookingId).catch(() => {})
+        } catch {}
+
         return { success: true, assignedCandidate: candidate };
 
       } catch (error) {
