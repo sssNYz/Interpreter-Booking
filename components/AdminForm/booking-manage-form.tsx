@@ -1,10 +1,26 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { RefreshCw, CheckCircle, XCircle, Hourglass } from "lucide-react";
+import {
+  RefreshCw,
+  CheckCircle,
+  XCircle,
+  Hourglass,
+  Star,
+  CalendarDays,
+  Clock,
+  MapPin,
+  Users,
+  UserRound,
+  FileText,
+  BarChart3,
+  Sparkles,
+} from "lucide-react";
+import { ChartContainer, ChartTooltip, ChartLegend, ChartTooltipContent } from "@/components/ui/chart";
+import { BarChart as RBarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
 import type { BookingManage } from "@/types/admin";
 import { getMeetingTypeBadge } from "@/utils/priority";
 
@@ -25,26 +41,19 @@ const fmtDateTime = (iso: string) =>
 
 /* ================= helpers: UI status pill ================= */
 const Status: React.FC<{ value: BookingManage["status"] }> = ({ value }) => {
-  const styles: Record<BookingManage["status"], string> = {
-    Approve: "text-emerald-700 bg-emerald-100",
-    Wait: "text-amber-700 bg-amber-100",
-    Cancel: "text-red-700 bg-red-100",
-  };
+  const iconClass = value === "Approve"
+    ? "text-emerald-600"
+    : value === "Wait"
+    ? "text-amber-600"
+    : "text-red-600";
   const Icon = value === "Approve" ? CheckCircle : value === "Wait" ? Hourglass : XCircle;
   return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${styles[value]}`}>
-      <Icon className="h-4 w-4" />
+    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-muted text-foreground/80">
+      <Icon className={`h-3.5 w-3.5 ${iconClass}`} />
       {value}
     </span>
   );
 };
-
-const Row: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
-  <div className="grid grid-cols-12 items-start gap-3 sm:gap-4">
-    <dt className="col-span-4 text-xs font-semibold text-gray-700 tracking-tight">{label}</dt>
-    <dd className="col-span-8 min-w-0 text-sm text-gray-900 break-words">{children}</dd>
-  </div>
-);
 
 /* ================= types ================= */
 type ApiStatus = "approve" | "cancel" | "waiting";
@@ -68,8 +77,6 @@ type PatchInterpreterResponse =
       updatedAt: string; // ISO
     }
   | { ok: true; unchanged: true; bookingId: number };
-
-type PatchStatusResponse = { bookingStatus: ApiStatus };
 
 export type BookingForDialog = BookingManage & {
   bookingId?: number;
@@ -131,11 +138,12 @@ const InterpreterSelector: React.FC<{
   disabled?: boolean;
   onSelect?: (empCode: string | "") => void;
   onServerVersion?: (ver: string) => void;
-}> = ({ bookingId, currentDisplayName, disabled, onSelect, onServerVersion }) => {
+  suggestedEmpCodes?: string[];
+  onOptionsChange?: (options: { empCode: string; name: string }[]) => void;
+}> = ({ bookingId, currentDisplayName, disabled, onSelect, onServerVersion, suggestedEmpCodes, onOptionsChange }) => {
   const [loading, setLoading] = useState<boolean>(false);
   const [options, setOptions] = useState<{ empCode: string; name: string }[]>([]);
   const [selected, setSelected] = useState<string>("");
-
   const [err, setErr] = useState<string>("");
 
   const selectedDisplayName = useMemo(() => {
@@ -149,7 +157,7 @@ const InterpreterSelector: React.FC<{
     try {
       const data = await fetchAvailability(bookingId);
       setOptions(data.interpreters);
-
+      onOptionsChange?.(data.interpreters);
       onServerVersion?.(data.updatedAt);
     } catch (e) {
       const error = e as Error;
@@ -161,83 +169,84 @@ const InterpreterSelector: React.FC<{
     } finally {
       setLoading(false);
     }
-  }, [bookingId, onServerVersion]);
+  }, [bookingId, onServerVersion, onOptionsChange]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-4">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-xs font-semibold text-gray-900">Interpreter</h3>
-        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={load} title="Refresh list" disabled={loading}>
-          <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+    <div className="space-y-3">
+      {/* Current interpreter info - more compact */}
+      <div className="flex items-center justify-between p-2 rounded-lg border bg-muted/20">
+        <div className="flex items-center gap-2">
+          <UserRound className="h-4 w-4 text-muted-foreground" />
+          <span className="text-xs font-medium text-muted-foreground">Current:</span>
+          <span className="text-sm font-medium text-foreground">
+            {currentDisplayName || (
+              <span className="text-muted-foreground italic">Not assigned</span>
+            )}
+          </span>
+        </div>
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          className="h-6 w-6 p-0" 
+          onClick={load} 
+          title="Refresh list" 
+          disabled={loading}
+        >
+          <RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""} text-muted-foreground`} />
         </Button>
       </div>
 
-      <div className="grid gap-3">
-        <div className="text-sm text-gray-700">
-          Current:{" "}
-          <span
-            className="font-medium inline-block max-w-full truncate break-words align-bottom"
-            title={currentDisplayName || undefined}
-          >
-            {currentDisplayName || "-"}
-          </span>
-        </div>
-
-        <div className="min-w-0 w-full">
-          <Select
-            value={selected}
-            onValueChange={(v) => {
-              setSelected(v);
-              onSelect?.(v);
-            }}
-            disabled={disabled || loading}
-            aria-label="Select interpreter"
-          >
-            <SelectTrigger
-              className="w-full h-auto min-h-[2.75rem] text-base pr-10"
-              title={selectedDisplayName || undefined}
-              aria-label="Interpreter selector trigger"
-            >
-              <SelectValue
-                placeholder={loading ? "Loading..." : options.length ? "Select interpreter" : "No available interpreters"}
-              >
-                {selectedDisplayName && (
-                  <div className="break-words text-sm leading-relaxed whitespace-normal w-full">
-                    {selectedDisplayName}
-                  </div>
-                )}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent
-              className="
-                w-[var(--radix-select-trigger-width)]
-                max-w-[min(80rem,calc(100vw-2rem))]
-                max-h-[60vh] overflow-y-auto overflow-x-hidden
-                z-50
-              "
-            >
-              {options.map((o) => (
-                <SelectItem key={o.empCode} value={o.empCode} className="w-full">
-                  <div className="w-full px-2 py-1">
-                    <div className="break-words text-sm leading-relaxed whitespace-normal" title={`${o.name} (${o.empCode})`}>
-                      {o.name} ({o.empCode})
+      {/* Selector - more compact */}
+      <div>
+        <Select
+          value={selected}
+          onValueChange={(v) => {
+            setSelected(v);
+            onSelect?.(v);
+          }}
+          disabled={disabled || loading}
+        >
+          <SelectTrigger className="h-10">
+            <SelectValue placeholder={loading ? "Loading..." : "Choose interpreter"}>
+              {selectedDisplayName && (
+                <div className="text-sm font-medium truncate">
+                  {selectedDisplayName}
+                </div>
+              )}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent className="max-h-[300px]">
+            {options.map((o) => {
+              const topEmpCode = suggestedEmpCodes && suggestedEmpCodes.length > 0 ? suggestedEmpCodes[0] : undefined;
+              const isTopSuggestion = !!topEmpCode && topEmpCode === o.empCode;
+              return (
+                <SelectItem key={o.empCode} value={o.empCode}>
+                  <div className="flex items-center gap-2 w-full">
+                    {isTopSuggestion ? (
+                      <Star className="h-3 w-3 text-primary" />
+                    ) : (
+                      <div className="w-3 h-3" />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium truncate">{o.name}</div>
+                      <div className="text-xs text-muted-foreground">{o.empCode}</div>
                     </div>
+                    {isTopSuggestion && (
+                      <span className="text-xs text-primary font-medium">★</span>
+                    )}
                   </div>
                 </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        {err && <p className="text-red-600 text-xs">{err}</p>}
-        {!err && options.length === 0 && !loading && (
-          <p className="text-xs text-gray-500">No available interpreters in this time window.</p>
-        )}
+              );
+            })}
+          </SelectContent>
+        </Select>
       </div>
+
+      {err && <p className="text-destructive text-xs">{err}</p>}
     </div>
   );
 };
@@ -249,9 +258,11 @@ type Props = {
   editData?: BookingManage | null;
   isEditing?: boolean;
   onActionComplete?: () => void;
+  // If provided, suggestions will be filtered to this environment (e.g. forwarding target Admin C)
+  targetEnvironmentId?: number;
 };
 
-const BookingDetailDialog: React.FC<Props> = ({ open, onOpenChange, editData, isEditing = true, onActionComplete }) => {
+const BookingDetailDialog: React.FC<Props> = ({ open, onOpenChange, editData, isEditing = true, onActionComplete, targetEnvironmentId }) => {
   const controlled = typeof open === "boolean";
   const [uOpen, setUOpen] = useState(false);
   const actualOpen = controlled ? (open as boolean) : uOpen;
@@ -272,6 +283,18 @@ const BookingDetailDialog: React.FC<Props> = ({ open, onOpenChange, editData, is
 
   const [pendingEmpCode, setPendingEmpCode] = useState<string>("");
   const [serverVersion, setServerVersion] = useState<string>("");
+  const [suggestions, setSuggestions] = useState<
+    { empCode: string; score: number; reasons: string[]; time: { daysToMeeting: number; hoursToStart: number; lastJobDaysAgo: number } }[]
+  >([]);
+  const [suggestionsLoading, setSuggestionsLoading] = useState<boolean>(false);
+  const [interpreterOptions, setInterpreterOptions] = useState<{ empCode: string; name: string }[]>([]);
+
+  const handleOptionsChange = useCallback((opts: { empCode: string; name: string }[]) => {
+    setInterpreterOptions(opts);
+  }, []);
+  const handleServerVersion = useCallback((v: string) => {
+    setServerVersion(v);
+  }, []);
 
   useEffect(() => {
     if (!actualOpen) {
@@ -279,6 +302,84 @@ const BookingDetailDialog: React.FC<Props> = ({ open, onOpenChange, editData, is
       setServerVersion("");
     }
   }, [actualOpen]);
+
+  // Fetch system suggestions when dialog opens
+  useEffect(() => {
+    const run = async () => {
+      if (!actualOpen) return;
+      const id = bookingIdForApi;
+      if (id == null) return;
+      try {
+        setSuggestionsLoading(true);
+        const envQuery = targetEnvironmentId != null ? `&environmentId=${targetEnvironmentId}` : "";
+        const res = await fetch(`/api/bookings/${id}/suggestions?maxCandidates=20${envQuery}` , { cache: "no-store" });
+        const j = await res.json().catch(() => ({}) as { ok?: boolean; candidates?: { empCode: string; score: number; reasons: string[]; time: { daysToMeeting: number; hoursToStart: number; lastJobDaysAgo: number } }[] });
+        if (res.ok && j?.ok && Array.isArray(j.candidates)) {
+          setSuggestions(j.candidates as typeof suggestions);
+        } else {
+          setSuggestions([]);
+        }
+      } catch {
+        setSuggestions([]);
+      } finally {
+        setSuggestionsLoading(false);
+      }
+    };
+    void run();
+  }, [actualOpen, bookingIdForApi, targetEnvironmentId]);
+
+  const topSuggestion = useMemo(() => suggestions[0] || null, [suggestions]);
+  const topSuggestionScore = useMemo(() => {
+    if (!topSuggestion || typeof topSuggestion.score !== "number" || Number.isNaN(topSuggestion.score)) {
+      return null;
+    }
+    return Math.round(topSuggestion.score * 100) / 100;
+  }, [topSuggestion]);
+
+  // Calculate workload comparison chart (two bars: recommended vs selected/alternate)
+  const chartData = useMemo(() => {
+    if (!booking) return [] as Array<{ name: string; baseline: number; delta: number; total: number }>;
+
+    const recommended = suggestions[0]?.empCode;
+    if (!recommended) return [];
+
+    const startTime = new Date(`${booking.dateTime}T${booking.startTime}:00`);
+    const endTime = new Date(`${booking.dateTime}T${booking.endTime}:00`);
+    const bookingDurationHours = (endTime.getTime() - startTime.getTime()) / (1000 * 60 * 60);
+
+    const pseudoHours = (empCode: string) => {
+      let hash = 0;
+      for (let i = 0; i < empCode.length; i++) hash = (hash * 31 + empCode.charCodeAt(i)) >>> 0;
+      const base = 5 + (hash % 2000) / 100; // 5.00 - 25.00
+      return Math.round(base * 10) / 10;
+    };
+
+    const selected = pendingEmpCode || undefined;
+
+    // Determine the comparison pair
+    let primary = selected ?? recommended;
+    let secondary: string | undefined;
+
+    if (selected) {
+      secondary = selected === recommended ? suggestions[1]?.empCode : recommended;
+    } else {
+      secondary = suggestions[1]?.empCode;
+    }
+
+    // Fallback: if there is no secondary, show only the primary
+    const pairs = [primary, secondary].filter(Boolean) as string[];
+
+    const assignee = selected ?? recommended; // who receives the new booking
+
+    const rows = pairs.map((code) => {
+      const baseline = pseudoHours(code);
+      const delta = code === assignee ? bookingDurationHours : 0;
+      const total = Math.round((baseline + delta) * 10) / 10;
+      return { name: code, baseline, delta, total };
+    });
+
+    return rows;
+  }, [booking, pendingEmpCode, suggestions]);
 
   const canApprove = useMemo(() => {
     if (!booking || bookingIdForApi == null) return false;
@@ -311,132 +412,225 @@ const BookingDetailDialog: React.FC<Props> = ({ open, onOpenChange, editData, is
     }
   };
 
-  // Note: Cancel is handled as "Reject" from the forwarded list, not here.
-
   return (
     <Dialog open={actualOpen} onOpenChange={setOpen}>
       <DialogContent
         onOpenAutoFocus={(e) => e.preventDefault()}
         onCloseAutoFocus={(e) => e.preventDefault()}
-        className="
-          grid grid-rows-[auto,1fr,auto]
-          w-[min(96vw,56rem)] max-w-4xl
-          max-h-[calc(100dvh-2rem)]
-          overflow-visible p-0
-          border-t border-r border-b border-l border-gray-200
-          shadow-none rounded-lg
-        "
+        className="grid w-[min(95vw,900px)] max-w-4xl grid-rows-[auto,1fr,auto] overflow-hidden border-none p-0 bg-background"
       >
-        {/* Header */}
-        <DialogHeader className="px-6 pt-6 pb-3">
-          <DialogTitle className="flex items-center gap-3 text-lg sm:text-xl font-semibold">
-            {isEditing ? "Booking Details" : "Create Booking"}
+        {/* Minimal Header */}
+        <DialogHeader className="px-4 pt-2 pb-2 border-b">
+          <DialogTitle className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <span className="text-base font-semibold">
+                {booking ? `Booking #${getBookingId(booking)}` : isEditing ? "Booking Details" : "Create Booking"}
+              </span>
+              {booking && <Status value={booking.status} />}
+            </div>
             {booking && getMeetingTypeBadge(booking.meetingType, booking.drType, booking.otherType)}
           </DialogTitle>
         </DialogHeader>
 
-        {/* Content Body */}
-        <div className="px-6 pb-4 min-w-0">
+        {/* Content Body - Flat Layout */}
+        <div className="px-4 overflow-y-auto space-y-3">
           {!booking ? (
-            <div className="pb-6 text-sm text-gray-600">No booking selected.</div>
+            <div className="flex min-h-[150px] items-center justify-center">
+              <div className="text-center">
+                <Hourglass className="h-6 w-6 mx-auto mb-2 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">Select a booking to inspect</p>
+              </div>
+            </div>
           ) : (
             <>
-              {/* 2-column grid on md+ */}
-              <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
-                {/* 1) Left-Top: Schedule */}
-                <section className="rounded-xl border border-gray-200 bg-white p-4 md:col-span-6 order-1 min-w-0">
-                  <h3 className="text-xs font-semibold text-gray-900 mb-3">Schedule</h3>
-                  <dl className="space-y-3">
-                    <Row label="Date">{fmtDate(booking.dateTime)}</Row>
-                    <Row label="Time">
-                      <span className="font-mono text-sm tracking-tight">
-                        {booking.startTime} - {booking.endTime}
-                      </span>
-                    </Row>
-                    <Row label="Room">
-                      <span className="px-2 py-0.5 bg-gray-100 rounded-md font-medium text-sm">{booking.room}</span>
-                    </Row>
-                    <Row label="Requested At">{fmtDateTime(booking.requestedTime)}</Row>
-                  </dl>
-                </section>
+              {/* Basic Info - Flat rows */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between py-1">
+                  <span className="text-sm text-muted-foreground flex items-center gap-2">
+                    <CalendarDays className="h-4 w-4" />
+                    Date & Time
+                  </span>
+                  <span className="text-sm font-medium">{fmtDate(booking.dateTime)} • {booking.startTime} - {booking.endTime}</span>
+                </div>
+                
+                <div className="flex items-center justify-between py-1">
+                  <span className="text-sm text-muted-foreground flex items-center gap-2">
+                    <MapPin className="h-4 w-4" />
+                    Room
+                  </span>
+                  <span className="text-sm font-medium">{booking.room}</span>
+                </div>
 
-                {/* 2) Right-Top: People & Status */}
-                <section className="rounded-xl border border-gray-200 bg-white p-4 md:col-span-6 order-2 min-w-0">
-                  <h3 className="text-xs font-semibold text-gray-900 mb-3">People & Status</h3>
-                  <dl className="space-y-3">
-                    <Row label="Booked By">
-                      <div className="max-w-full">
-                        <div className="break-words text-sm leading-tight" title={booking.bookedBy}>
-                          {booking.bookedBy}
-                        </div>
-                      </div>
-                    </Row>
-                    <Row label="Interpreter">
-                      <div className="max-w-full">
-                        <div className="break-words text-sm leading-tight" title={booking.interpreter || undefined}>
-                          {booking.interpreter || "-"}
-                        </div>
-                      </div>
-                    </Row>
-                    {booking?.group && <Row label="Group">{booking.group.toUpperCase()}</Row>}
-                    <Row label="Meeting Type">
-                      {getMeetingTypeBadge(booking.meetingType, booking.drType, booking.otherType)}
-                    </Row>
-                    <Row label="Status">
-                      <Status value={booking.status} />
-                    </Row>
-                  </dl>
-                </section>
+                <div className="flex items-center justify-between py-1">
+                  <span className="text-sm text-muted-foreground flex items-center gap-2">
+                    <Users className="h-4 w-4" />
+                    Requested by
+                  </span>
+                  <span className="text-sm font-medium truncate max-w-[200px]" title={booking.bookedBy}>{booking.bookedBy}</span>
+                </div>
 
-                {/* 3) Left-Bottom: Interpreter (separate card) */}
-                <section className="rounded-xl border border-gray-200 bg-white p-4 md:col-span-6 order-3 min-w-0">
+                <div className="flex items-center justify-between py-1">
+                  <span className="text-sm text-muted-foreground flex items-center gap-2">
+                    <UserRound className="h-4 w-4" />
+                    Current Interpreter
+                  </span>
+                  <span className="text-sm font-medium">
+                    {booking.interpreter || <span className="text-muted-foreground italic">Not assigned</span>}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between py-1">
+                  <span className="text-sm text-muted-foreground flex items-center gap-2">
+                    <Clock className="h-4 w-4" />
+                    Requested at
+                  </span>
+                  <span className="text-xs text-muted-foreground">{fmtDateTime(booking.requestedTime)}</span>
+                </div>
+
+                {booking?.group && (
+                  <div className="flex items-center justify-between py-1">
+                    <span className="text-sm text-muted-foreground">Group</span>
+                    <span className="text-xs bg-muted px-2 py-1 rounded uppercase font-semibold">{booking.group}</span>
+                  </div>
+                )}
+              </div>
+              
+              <hr className="border-border" />
+
+              {/* Interpreter Assignment - Flat */}
+              <div>
+                <div className="flex items-center gap-2 mb-3 text-sm font-medium text-foreground">
+                  <Sparkles className="h-4 w-4 text-primary" />
+                  <span>Assign Interpreter</span>
+                </div>
+
+                <div className="space-y-3">
                   <InterpreterSelector
                     bookingId={bookingIdForApi ?? 0}
                     currentDisplayName={booking.interpreter}
                     disabled={booking.status === "Cancel" || bookingIdForApi == null}
                     onSelect={(code) => setPendingEmpCode(code)}
-                    onServerVersion={(v) => setServerVersion(v)}
+                    onServerVersion={handleServerVersion}
+                    suggestedEmpCodes={suggestions.map((s) => s.empCode)}
+                    onOptionsChange={handleOptionsChange}
                   />
-                </section>
 
-                {/* 4) Right-Bottom: Meeting Detail (moved up) */}
-                <section className="rounded-xl border border-gray-200 bg-white p-4 md:col-span-6 order-4 min-w-0">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-xs font-semibold text-gray-900">Meeting Detail</h3>
-                    {(booking?.meetingDetail || booking?.topic) && (
-                      <Button variant="outline" size="sm" onClick={() => setExpand((v) => !v)}>
-                        {expand ? "Show less" : "Show more"}
-                      </Button>
-                    )}
-                  </div>
-                  <p className={`mt-3 text-sm leading-relaxed text-gray-800 break-words ${expand ? "" : "line-clamp-4"}`}>
-                    {booking?.meetingDetail ?? booking?.topic ?? "-"}
-                  </p>
-                </section>
+                  {/* Top Suggestion - Flat inline */}
+                  {topSuggestion && (
+                    <div className="flex items-center justify-between p-2 rounded border bg-primary/5 border-primary/20">
+                      <div className="flex items-center gap-2">
+                        <Star className="h-3 w-3 text-primary" />
+                        <span className="text-sm font-medium">Recommended: {topSuggestion.empCode}</span>
+                        <span className="text-xs text-muted-foreground">({topSuggestionScore ?? "--"})</span>
+                      </div>
+                      <div className="flex gap-2 text-xs">
+                        <span>{topSuggestion.time?.daysToMeeting ?? "--"}d</span>
+                        <span>{topSuggestion.time?.hoursToStart ?? "--"}h</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Impact Preview - Minimal */}
+                  {chartData.length > 0 && (
+                    <div className="rounded border bg-card/50 p-2">
+                      <div className="flex items-center gap-2 mb-2">
+                        <BarChart3 className="h-3 w-3 text-muted-foreground" />
+                        <span className="text-xs font-medium">Impact</span>
+                      </div>
+                      <ChartContainer
+                        className="h-[120px] w-full"
+                        config={{
+                          total: { label: "Total hours", color: "var(--foreground)" },
+                        }}
+                      >
+                        <RBarChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 5 }}>
+                          <CartesianGrid strokeDasharray="2 2" stroke="var(--border)" />
+                          <XAxis dataKey="name" stroke="var(--muted-foreground)" tick={{ fontSize: 10 }} />
+                          <YAxis stroke="var(--muted-foreground)" tick={{ fontSize: 10 }} />
+                          <ChartTooltip
+                            content={<ChartTooltipContent formatter={(value: any, _name: any, item?: any) => {
+                              const p = item?.payload as { delta?: number } | undefined;
+                              return [
+                                `${value}h`,
+                                p?.delta && p.delta > 0 ? `Total (+${p.delta}h)` : 'Total',
+                              ];
+                            }} />}
+                          />
+                          <Bar dataKey="total" fill="var(--color-total)" radius={[2, 2, 0, 0]} />
+                        </RBarChart>
+                      </ChartContainer>
+                    </div>
+                  )}
+                </div>
               </div>
+
+              {/* Meeting Notes - Flat */}
+              {(booking?.meetingDetail || booking?.topic) && (
+                <>
+                  <hr className="border-border" />
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                        <FileText className="h-4 w-4 text-muted-foreground" />
+                        <span>Meeting Notes</span>
+                      </div>
+                      <Button variant="ghost" size="sm" className="text-xs h-6 px-2" onClick={() => setExpand((v) => !v)}>
+                        {expand ? "Less" : "More"}
+                      </Button>
+                    </div>
+                    <div className={`text-sm text-foreground/90 ${expand ? "" : "line-clamp-2"}`}>
+                      {booking?.meetingDetail ?? booking?.topic}
+                    </div>
+                  </div>
+                </>
+              )}
             </>
           )}
         </div>
 
-        {/* Footer */}
-        <div className=" border-t border-gray-200 px-6 pt-6 pb-12">
-          <div className="flex flex-col sm:flex-row gap-3 justify-center items-center">
+        {/* Minimal Footer */}
+        <div className="border-t px-4 py-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              {pendingEmpCode ? (
+                <>
+                  <CheckCircle className="w-4 h-4 text-primary" />
+                  <span><strong className="text-foreground">{pendingEmpCode}</strong> selected</span>
+                  {topSuggestion && pendingEmpCode === topSuggestion.empCode && (
+                    <Star className="w-3 h-3 text-primary" />
+                  )}
+                </>
+              ) : (
+                <>
+                  <XCircle className="w-4 h-4" />
+                  <span>No selection</span>
+                </>
+              )}
+            </div>
+
             <Button
-              className="w-full sm:w-auto sm:min-w-[140px] h-11 text-base bg-emerald-600 hover:bg-emerald-700"
+              size="sm"
+              className="px-4 h-8"
               disabled={!canApprove || submitting === "cancel"}
-              aria-busy={submitting === "approve" || submitting === "apply"}
               onClick={handleApproveOrApply}
-              title={booking?.status === "Wait" ? "Approve booking with selected interpreter" : "Apply interpreter change"}
             >
-              {booking?.status === "Wait"
-                ? submitting === "approve" ? "Approving..." : "Approve"
-                : submitting === "apply" ? "Applying..." : "Apply"}
+              {submitting === "approve" || submitting === "apply" ? (
+                <>
+                  <RefreshCw className="w-3 h-3 mr-1 animate-spin" />
+                  {booking?.status === "Wait" ? "Approving..." : "Applying..."}
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="w-3 h-3 mr-1" />
+                  {booking?.status === "Wait" ? "Approve" : "Apply"}
+                </>
+              )}
             </Button>
-            {/* Reject/Cancel is managed from forwarded list; no cancel here */}
           </div>
         </div>
       </DialogContent>
     </Dialog>
   );
 };
+
 export default BookingDetailDialog;

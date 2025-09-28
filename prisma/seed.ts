@@ -6,11 +6,19 @@ async function main() {
   console.log("Starting seed...");
 
   // Clear existing data (optional - remove if you want to keep existing data)
+  // Delete in order to respect foreign key constraints
+  await prisma.assignmentLog.deleteMany();
+  await prisma.bookingForwardTarget.deleteMany();
+  await prisma.inviteEmailList.deleteMany();
+  await prisma.bookingPlan.deleteMany();
   await prisma.userRole.deleteMany();
   await prisma.interpreterLanguage.deleteMany();
   await prisma.environmentInterpreter.deleteMany();
   await prisma.environmentAdmin.deleteMany();
   await prisma.environmentCenter.deleteMany();
+  await prisma.meetingTypePriority.deleteMany();
+  await prisma.meetingTypeModeThreshold.deleteMany();
+  await prisma.environmentAssignmentConfig.deleteMany();
   await prisma.environment.deleteMany();
   await prisma.language.deleteMany();
   await prisma.employee.deleteMany();
