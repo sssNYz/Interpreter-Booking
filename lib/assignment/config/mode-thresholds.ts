@@ -40,12 +40,11 @@ export async function getModeSpecificThreshold(
   //meetingTypeModeThreshold
   try {
     // Try to get mode-specific threshold first
-    const modeThreshold = await prisma.meetingTypeModeThreshold.findUnique({
+    const modeThreshold = await prisma.meetingTypeModeThreshold.findFirst({
       where: {
-        meetingType_assignmentMode: {
-          meetingType: meetingType as MeetingType,
-          assignmentMode,
-        },
+        meetingType: meetingType as MeetingType,
+        assignmentMode,
+        environmentId: null,
       },
     });
 
@@ -72,8 +71,11 @@ export async function getModeSpecificThreshold(
     }
 
     // Fallback to default meeting type priority if mode-specific not found
-    const defaultPriority = await prisma.meetingTypePriority.findUnique({
-      where: { meetingType: meetingType as MeetingType },
+    const defaultPriority = await prisma.meetingTypePriority.findFirst({
+      where: { 
+        meetingType: meetingType as MeetingType,
+        environmentId: null,
+      },
     });
 
     if (defaultPriority) {
@@ -137,21 +139,28 @@ export async function updateModeThreshold(
   generalThresholdDays: number
 ): Promise<MeetingTypeModeThreshold> {
   try {
-    const updated = await prisma.meetingTypeModeThreshold.upsert({
+    // First try to update existing record
+    const existing = await prisma.meetingTypeModeThreshold.findFirst({
       where: {
-        meetingType_assignmentMode: {
-          meetingType: meetingType as MeetingType,
-          assignmentMode,
-        },
-      },
-      update: { urgentThresholdDays, generalThresholdDays },
-      create: {
         meetingType: meetingType as MeetingType,
         assignmentMode,
-        urgentThresholdDays,
-        generalThresholdDays,
+        environmentId: null,
       },
     });
+
+    const updated = existing 
+      ? await prisma.meetingTypeModeThreshold.update({
+          where: { id: existing.id },
+          data: { urgentThresholdDays, generalThresholdDays },
+        })
+      : await prisma.meetingTypeModeThreshold.create({
+          data: {
+            meetingType: meetingType as MeetingType,
+            assignmentMode,
+            urgentThresholdDays,
+            generalThresholdDays,
+          },
+        });
 
     // Clear cache to force refresh
     clearThresholdCache();
@@ -194,34 +203,38 @@ function getDefaultThresholds(
     BALANCE: {
       DR: { urgentThresholdDays: 7, generalThresholdDays: 30 },
       VIP: { urgentThresholdDays: 7, generalThresholdDays: 15 },
-      Augent: { urgentThresholdDays: 7, generalThresholdDays: 15 },
+      Urgent: { urgentThresholdDays: 7, generalThresholdDays: 15 },
       Weekly: { urgentThresholdDays: 3, generalThresholdDays: 15 },
       General: { urgentThresholdDays: 7, generalThresholdDays: 15 },
+      President: { urgentThresholdDays: 7, generalThresholdDays: 15 },
       Other: { urgentThresholdDays: 3, generalThresholdDays: 7 },
     },
     NORMAL: {
       DR: { urgentThresholdDays: 10, generalThresholdDays: 30 },
       VIP: { urgentThresholdDays: 7, generalThresholdDays: 15 },
-      Augent: { urgentThresholdDays: 10, generalThresholdDays: 15 },
+      Urgent: { urgentThresholdDays: 10, generalThresholdDays: 15 },
       Weekly: { urgentThresholdDays: 7, generalThresholdDays: 15 },
       General: { urgentThresholdDays: 10, generalThresholdDays: 15 },
+      President: { urgentThresholdDays: 10, generalThresholdDays: 15 },
       Other: { urgentThresholdDays: 7, generalThresholdDays: 10 },
     },
     URGENT: {
       DR: { urgentThresholdDays: 14, generalThresholdDays: 45 },
       VIP: { urgentThresholdDays: 7, generalThresholdDays: 15 },
-      Augent: { urgentThresholdDays: 14, generalThresholdDays: 30 },
+      Urgent: { urgentThresholdDays: 14, generalThresholdDays: 30 },
       Weekly: { urgentThresholdDays: 14, generalThresholdDays: 30 },
       General: { urgentThresholdDays: 14, generalThresholdDays: 30 },
+      President: { urgentThresholdDays: 14, generalThresholdDays: 30 },
       Other: { urgentThresholdDays: 7, generalThresholdDays: 15 },
     },
     CUSTOM: {
       // CUSTOM mode falls back to original values
       DR: { urgentThresholdDays: 1, generalThresholdDays: 7 },
       VIP: { urgentThresholdDays: 2, generalThresholdDays: 14 },
-      Augent: { urgentThresholdDays: 3, generalThresholdDays: 30 },
+      Urgent: { urgentThresholdDays: 3, generalThresholdDays: 30 },
       Weekly: { urgentThresholdDays: 3, generalThresholdDays: 30 },
       General: { urgentThresholdDays: 3, generalThresholdDays: 30 },
+      President: { urgentThresholdDays: 3, generalThresholdDays: 30 },
       Other: { urgentThresholdDays: 5, generalThresholdDays: 45 },
     },
   };
