@@ -290,7 +290,7 @@ const BookingDetailDialog: React.FC<Props> = ({ open, onOpenChange, editData, is
   const [pendingEmpCode, setPendingEmpCode] = useState<string>("");
   const [serverVersion, setServerVersion] = useState<string>("");
   const [suggestions, setSuggestions] = useState<
-    { empCode: string; score: number; reasons: string[]; time: { daysToMeeting: number; hoursToStart: number; lastJobDaysAgo: number } }[]
+    { empCode: string; score: number; reasons: string[]; time: { daysToMeeting: number; hoursToStart: number; lastJobDaysAgo: number }; currentHours?: number; afterAssignHours?: number }[]
   >([]);
   const [suggestionsLoading, setSuggestionsLoading] = useState<boolean>(false);
   const [interpreterOptions, setInterpreterOptions] = useState<{ empCode: string; name: string }[]>([]);
@@ -319,7 +319,7 @@ const BookingDetailDialog: React.FC<Props> = ({ open, onOpenChange, editData, is
         setSuggestionsLoading(true);
         const envQuery = targetEnvironmentId != null ? `&environmentId=${targetEnvironmentId}` : "";
         const res = await fetch(`/api/bookings/${id}/suggestions?maxCandidates=20${envQuery}` , { cache: "no-store" });
-        const j = await res.json().catch(() => ({}) as { ok?: boolean; candidates?: { empCode: string; score: number; reasons: string[]; time: { daysToMeeting: number; hoursToStart: number; lastJobDaysAgo: number } }[] });
+        const j = await res.json().catch(() => ({}) as { ok?: boolean; candidates?: { empCode: string; score: number; reasons: string[]; time: { daysToMeeting: number; hoursToStart: number; lastJobDaysAgo: number }; currentHours?: number; afterAssignHours?: number }[] });
         if (res.ok && j?.ok && Array.isArray(j.candidates)) {
           setSuggestions(j.candidates as typeof suggestions);
         } else {
@@ -352,12 +352,10 @@ const BookingDetailDialog: React.FC<Props> = ({ open, onOpenChange, editData, is
     const startTime = new Date(`${booking.dateTime}T${booking.startTime}:00`);
     const endTime = new Date(`${booking.dateTime}T${booking.endTime}:00`);
     const bookingDurationHours = (endTime.getTime() - startTime.getTime()) / (1000 * 60 * 60);
-
-    const pseudoHours = (empCode: string) => {
-      let hash = 0;
-      for (let i = 0; i < empCode.length; i++) hash = (hash * 31 + empCode.charCodeAt(i)) >>> 0;
-      const base = 5 + (hash % 2000) / 100; // 5.00 - 25.00
-      return Math.round(base * 10) / 10;
+    const getBaselineHours = (code: string) => {
+      const found = suggestions.find((s) => s.empCode === code) as unknown as { currentHours?: number } | undefined;
+      const baseline = typeof found?.currentHours === 'number' ? found!.currentHours : 0;
+      return Math.round(baseline * 10) / 10;
     };
 
     const selected = pendingEmpCode || undefined;
@@ -378,7 +376,7 @@ const BookingDetailDialog: React.FC<Props> = ({ open, onOpenChange, editData, is
     const assignee = selected ?? recommended; // who receives the new booking
 
     const rows = pairs.map((code) => {
-      const baseline = pseudoHours(code);
+      const baseline = getBaselineHours(code);
       const delta = code === assignee ? bookingDurationHours : 0;
       const total = Math.round((baseline + delta) * 10) / 10;
       return { name: code, baseline, delta, total };
@@ -532,12 +530,10 @@ const BookingDetailDialog: React.FC<Props> = ({ open, onOpenChange, editData, is
                     <div className="flex items-center justify-between p-2 rounded border bg-primary/5 border-primary/20">
                       <div className="flex items-center gap-2">
                         <Star className="h-3 w-3 text-primary" />
-                        <span className="text-sm font-medium">Recommended: {topSuggestion.empCode}</span>
-                        <span className="text-xs text-muted-foreground">({topSuggestionScore ?? "--"})</span>
+                        <span className="text-sm font-medium">Best choice: {topSuggestion.empCode}</span>
                       </div>
                       <div className="flex gap-2 text-xs">
-                        <span>{topSuggestion.time?.daysToMeeting ?? "--"}d</span>
-                        <span>{topSuggestion.time?.hoursToStart ?? "--"}h</span>
+                        <span>Meeting in: {topSuggestion.time?.daysToMeeting ?? "--"}d {topSuggestion.time?.hoursToStart ?? "--"}h</span>
                       </div>
                     </div>
                   )}
