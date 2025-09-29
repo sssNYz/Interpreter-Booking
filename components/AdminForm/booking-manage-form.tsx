@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState, useCallback } from "react";
+import { useMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -267,6 +268,11 @@ const BookingDetailDialog: React.FC<Props> = ({ open, onOpenChange, editData, is
   const [uOpen, setUOpen] = useState(false);
   const actualOpen = controlled ? (open as boolean) : uOpen;
   const setOpen = (v: boolean) => (controlled ? onOpenChange?.(v) : setUOpen(v));
+  
+  // Responsive design
+  const { isMobile, screenSize } = useMobile();
+  const isTablet = screenSize === 'md' || screenSize === 'lg';
+  const isLargeScreen = screenSize === 'xl';
 
   const [booking, setBooking] = useState<BookingForDialog | null>(null);
   useEffect(() => {
@@ -417,7 +423,13 @@ const BookingDetailDialog: React.FC<Props> = ({ open, onOpenChange, editData, is
       <DialogContent
         onOpenAutoFocus={(e) => e.preventDefault()}
         onCloseAutoFocus={(e) => e.preventDefault()}
-        className="grid w-[min(95vw,900px)] max-w-4xl grid-rows-[auto,1fr,auto] overflow-hidden border-none p-0 bg-background"
+        className={`grid overflow-hidden border-none p-0 bg-background grid-rows-[auto,1fr,auto] ${
+          isMobile 
+            ? "w-[95vw] max-w-sm h-[90vh]" 
+            : isTablet 
+            ? "w-[90vw] max-w-2xl" 
+            : "w-[min(85vw,900px)] max-w-4xl"
+        }`}
       >
         {/* Minimal Header */}
         <DialogHeader className="px-4 pt-2 pb-2 border-b">
@@ -530,33 +542,55 @@ const BookingDetailDialog: React.FC<Props> = ({ open, onOpenChange, editData, is
                     </div>
                   )}
 
-                  {/* Impact Preview - Minimal */}
+                  {/* Impact Preview - Responsive */}
                   {chartData.length > 0 && (
-                    <div className="rounded border bg-card/50 p-2">
+                    <div className="rounded border bg-card/50 p-2 sm:p-3">
                       <div className="flex items-center gap-2 mb-2">
-                        <BarChart3 className="h-3 w-3 text-muted-foreground" />
-                        <span className="text-xs font-medium">Impact</span>
+                        <BarChart3 className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
+                        <span className="text-xs sm:text-sm font-medium">Workload Impact</span>
                       </div>
                       <ChartContainer
-                        className="h-[120px] w-full"
+                        className="h-[70px] sm:h-[80px] md:h-[90px] lg:h-[100px] w-full"
                         config={{
                           total: { label: "Total hours", color: "var(--foreground)" },
                         }}
                       >
-                        <RBarChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 5 }}>
+                        <RBarChart 
+                          data={chartData} 
+                          layout="vertical"
+                          margin={{ 
+                            top: 5, 
+                            right: isMobile ? 10 : isTablet ? 20 : isLargeScreen ? 30 : 25, 
+                            left: isMobile ? 30 : isTablet ? 40 : isLargeScreen ? 60 : 50, 
+                            bottom: 5 
+                          }}
+                        >
                           <CartesianGrid strokeDasharray="2 2" stroke="var(--border)" />
-                          <XAxis dataKey="name" stroke="var(--muted-foreground)" tick={{ fontSize: 10 }} />
-                          <YAxis stroke="var(--muted-foreground)" tick={{ fontSize: 10 }} />
-                          <ChartTooltip
-                            content={<ChartTooltipContent formatter={(value: any, _name: any, item?: any) => {
-                              const p = item?.payload as { delta?: number } | undefined;
-                              return [
-                                `${value}h`,
-                                p?.delta && p.delta > 0 ? `Total (+${p.delta}h)` : 'Total',
-                              ];
-                            }} />}
+                          <XAxis type="number" dataKey="total" hide />
+                          <YAxis 
+                            dataKey="name" 
+                            type="category"
+                            tickLine={false}
+                            tickMargin={isMobile ? 4 : isTablet ? 6 : 8}
+                            axisLine={false}
+                            stroke="var(--muted-foreground)" 
+                            tick={{ fontSize: isMobile ? 8 : isTablet ? 9 : isLargeScreen ? 11 : 10 }} 
+                            width={isMobile ? 25 : isTablet ? 35 : isLargeScreen ? 55 : 45}
                           />
-                          <Bar dataKey="total" fill="var(--color-total)" radius={[2, 2, 0, 0]} />
+                          <ChartTooltip
+                            cursor={false}
+                            content={<ChartTooltipContent 
+                              hideLabel
+                              formatter={(value: any, _name: any, item?: any) => {
+                                const p = item?.payload as { delta?: number } | undefined;
+                                return [
+                                  `${value}h`,
+                                  p?.delta && p.delta > 0 ? `Total (+${p.delta}h)` : 'Total',
+                                ];
+                              }} 
+                            />}
+                          />
+                          <Bar dataKey="total" fill="var(--color-total)" radius={5} />
                         </RBarChart>
                       </ChartContainer>
                     </div>
