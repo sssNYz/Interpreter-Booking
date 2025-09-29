@@ -363,7 +363,7 @@ const BookingDetailDialog: React.FC<Props> = ({ open, onOpenChange, editData, is
     const selected = pendingEmpCode || undefined;
 
     // Determine the comparison pair
-    let primary = selected ?? recommended;
+    const primary = selected ?? recommended;
     let secondary: string | undefined;
 
     if (selected) {
@@ -581,7 +581,7 @@ const BookingDetailDialog: React.FC<Props> = ({ open, onOpenChange, editData, is
                             cursor={false}
                             content={<ChartTooltipContent 
                               hideLabel
-                              formatter={(value: any, _name: any, item?: any) => {
+                              formatter={(value: unknown, _name: unknown, item?: { payload?: { delta?: number } }) => {
                                 const p = item?.payload as { delta?: number } | undefined;
                                 return [
                                   `${value}h`,
