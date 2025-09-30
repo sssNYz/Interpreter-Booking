@@ -20,6 +20,7 @@ import {
   isValidTimeRange,
 } from "@/utils/time";
 import { Calendar, Clock, AlertTriangle } from "lucide-react";
+import { client as featureFlags } from "@/lib/feature-flags";
 import type { MeetingType, DRType } from "@/prisma/prisma";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
@@ -1506,7 +1507,7 @@ export function BookingForm({
         ?.forwardSuggestion as Record<string, unknown> | undefined;
       const eligible = sugg?.eligible === true;
 
-      if (eligible) {
+      if (eligible && featureFlags.enableForwardUser) {
         let msg = "Do you want to forward?";
         if (sugg?.capacityFull) {
           msg = "No interpreter free in your center at this time. Forward?";

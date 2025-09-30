@@ -38,6 +38,7 @@ import {
 } from "@/utils/priority";
 import BookingDetailDialog from "@/components/AdminForm/booking-manage-form";
 import ForwardBookingDialog from "./ForwardBookingDialog";
+import { client as featureFlags } from "@/lib/feature-flags";
 
 const PAGE_WRAPPER = "min-h-screen bg-[#f7f7f7] font-sans text-gray-900";
 const TIME_SLOTS = generateStandardTimeSlots();
@@ -137,7 +138,9 @@ export default function BookingManagement(): React.JSX.Element {
     setCurrentMonth(months[now.getMonth()]);
     setCurrentYear(now.getFullYear());
     fetchBookings();
-    fetchForwarded();
+    if (featureFlags.enableForwardAdmin) {
+      fetchForwarded();
+    }
   }, [fetchBookings, fetchForwarded]);
 
   const yearOptions = useMemo(() => {
@@ -575,6 +578,7 @@ export default function BookingManagement(): React.JSX.Element {
           defaultValue={["forwarded", "all"]}
           className="space-y-6"
         >
+          {featureFlags.enableForwardAdmin && (
           <AccordionItem value="forwarded" className="border-none">
             <div className="rounded-xl shadow-sm">
               <AccordionTrigger className="px-6 border border-gray-200 bg-white rounded-t-xl data-[state=open]:rounded-b-none">
@@ -730,6 +734,7 @@ export default function BookingManagement(): React.JSX.Element {
               </AccordionContent>
             </div>
           </AccordionItem>
+        )}
           <AccordionItem value="all" className="border-none">
             <div className="rounded-xl shadow-sm">
               <AccordionTrigger className="px-6 border border-gray-200 bg-white rounded-t-xl data-[state=open]:rounded-b-none">
@@ -832,7 +837,7 @@ export default function BookingManagement(): React.JSX.Element {
                               <SquarePen className="h-4 w-4 mr-1" />
                               Edit
                             </Button>
-                            {booking.status === 'Wait' && (
+                            {featureFlags.enableForwardAdmin && booking.status === 'Wait' && (
                               <Button
                                 variant="outline"
                                 size="sm"
@@ -929,16 +934,19 @@ export default function BookingManagement(): React.JSX.Element {
           onActionComplete={refreshData}
         />
 
-        <ForwardBookingDialog
-          open={showForwardDialog}
-          onOpenChange={(open: boolean) => {
-            setShowForwardDialog(open);
-            if (!open) setForwardingBookingId(null);
-          }}
-          bookingId={forwardingBookingId || 0}
-          onForwardComplete={refreshData}
-        />
+        {featureFlags.enableForwardAdmin && (
+          <ForwardBookingDialog
+            open={showForwardDialog}
+            onOpenChange={(open: boolean) => {
+              setShowForwardDialog(open);
+              if (!open) setForwardingBookingId(null);
+            }}
+            bookingId={forwardingBookingId || 0}
+            onForwardComplete={refreshData}
+          />
+        )}
       </div>
     </div>
   );
 }
+

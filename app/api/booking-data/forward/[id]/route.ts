@@ -7,6 +7,7 @@ import {
 } from "@/lib/auth/session";
 import { centerPart } from "@/utils/users";
 import { getEnvMeetingTypePriority } from "@/lib/assignment/config/env-policy";
+import { server as featureFlags } from "@/lib/feature-flags";
 import type { Prisma } from "@prisma/client";
 
 type PostBody = {
@@ -78,6 +79,9 @@ export async function POST(
   req: NextRequest,
   ctx: { params: Promise<{ id: string }> }
 ) {
+  if (!featureFlags.enableForwardUser) {
+    return NextResponse.json({ ok: false, error: "FORWARD_DISABLED" }, { status: 403 });
+  }
   const me = await getCurrentUser();
   if (!me)
     return NextResponse.json(
@@ -231,6 +235,9 @@ export async function GET(
   _req: NextRequest,
   ctx: { params: Promise<{ id: string }> }
 ) {
+  if (!featureFlags.enableForwardUser) {
+    return NextResponse.json({ ok: true, data: { eligible: false, capacityFull: false, urgent: false, environmentId: null } });
+  }
   const me = await getCurrentUser();
   if (!me)
     return NextResponse.json(
