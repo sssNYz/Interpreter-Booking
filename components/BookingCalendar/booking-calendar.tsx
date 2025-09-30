@@ -112,25 +112,7 @@ useEffect(() => {
   fetchInterpretersAndColors();
 }, []);
 
-  // Admin vision toggle
-  const [isAdminUser, setIsAdminUser] = useState(false);
-  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
-  const [myDeptOnly, setMyDeptOnly] = useState(false); // toggle: when true, force 'user' view
-
-  useEffect(() => {
-    let alive = true;
-    fetch('/api/user/me', { cache: 'no-store' })
-      .then(res => res.ok ? res.json() : null)
-      .then(data => {
-        if (!alive || !data?.user) return;
-        const roles: string[] = data.user.roles || [];
-        const admin = roles.includes('ADMIN') || roles.includes('SUPER_ADMIN');
-        setIsAdminUser(admin);
-        setIsSuperAdmin(roles.includes('SUPER_ADMIN'));
-      })
-      .catch(() => {});
-    return () => { alive = false };
-  }, []);
+  // Admin vision toggle removed: rely on API defaults per role/environment
 
   // Debounce currentDate → debouncedDate by 1s
   useEffect(() => {
@@ -138,9 +120,8 @@ useEffect(() => {
     return () => window.clearTimeout(id);
   }, [currentDate]);
 
-  // Fetch all bookings for the debounced month
-  const view = isAdminUser ? (myDeptOnly ? 'user' : 'admin') : 'user';
-  const { bookings, refetch, loading } = useBookings(debouncedDate, view);
+  // Fetch all bookings for the debounced month (use API role-based defaults)
+  const { bookings, refetch, loading } = useBookings(debouncedDate);
 
   /**
    * Check if a time slot is in the past (for today only)
@@ -610,15 +591,7 @@ useEffect(() => {
             />
             {loading ? "Refreshing..." : "Refresh"}
           </Button>
-          {isAdminUser && (
-            <Button
-              onClick={() => setMyDeptOnly(v => !v)}
-              variant={myDeptOnly ? "default" : "outline"}
-              className="h-10"
-            >
-              {myDeptOnly ? "My dept only" : (isSuperAdmin ? "All (Admin)" : "Admin vision")}
-            </Button>
-          )}
+          {/* Admin vision toggle removed */}
           <BookingRules />
         </div>
 

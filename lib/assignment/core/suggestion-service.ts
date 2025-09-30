@@ -18,6 +18,8 @@ export interface SuggestionCandidate {
     hoursToStart: number;
     lastJobDaysAgo: number;
   };
+  currentHours: number;
+  afterAssignHours: number;
 }
 
 export interface SuggestionResult {
@@ -231,7 +233,9 @@ export async function buildSuggestions(
         empCode: result.empCode,
         score: Math.round(result.scores.total * 100) / 100,
         reasons: buildReasons(result),
-        time: calculateTiming(result, booking)
+        time: calculateTiming(result, booking),
+        currentHours: preHoursSnapshot[result.empCode] || 0,
+        afterAssignHours: (preHoursSnapshot[result.empCode] || 0) + bookingDuration
       }));
 
     return {
@@ -278,8 +282,9 @@ function calculateTiming(result: CandidateResult, booking: {
 }) {
   const now = new Date();
   const meetingStart = booking.timeStart;
-  const daysToMeeting = Math.ceil((meetingStart.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-  const hoursToStart = Math.ceil((meetingStart.getTime() - now.getTime()) / (1000 * 60 * 60));
+  const totalHours = Math.ceil((meetingStart.getTime() - now.getTime()) / (1000 * 60 * 60));
+  const daysToMeeting = Math.floor(totalHours / 24);  // Full days only
+  const hoursToStart = totalHours % 24;               // Remaining hours
 
   return {
     daysToMeeting: Math.max(0, daysToMeeting),

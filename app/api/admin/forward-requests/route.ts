@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import prisma from "@/prisma/prisma";
 import { SESSION_COOKIE_NAME, verifySessionCookieValue } from "@/lib/auth/session";
+import { server as featureFlags } from "@/lib/feature-flags";
 export const runtime = "nodejs";
 
 async function getRequester() {
@@ -22,6 +23,9 @@ async function getRequester() {
 
 export async function GET() {
   try {
+    if (!featureFlags.enableForwardAdmin) {
+      return NextResponse.json({ ok: true, data: [] });
+    }
     const auth = await getRequester();
     if (!auth?.isAdmin) {
       return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
