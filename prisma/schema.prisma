@@ -34,12 +34,12 @@ model BookingPlan {
   recurrenceType             RecurrenceType?        @map("RECURRENCE_TYPE")
   recurrenceWeekdays         String?                @map("RECURRENCE_WEEKDAYS") @db.VarChar(32)
   recurrenceWeekOrder        WeekOrder?             @map("RECURRENCE_WEEK_ORDER")
-  forwardedByEmpCode         String?                @map("FORWARDED_BY_EMP_CODE") @db.VarChar(64)
-  isForwarded                Boolean                @default(false) @map("IS_FORWARDED")
-  forwardActions             Json                   @map("FORWARD_ACTIONS")
   languageCode               String?                @map("LANGUAGE_CODE") @db.VarChar(16)
   chairmanEmail              String?                @map("CHAIRMAN_EMAIL") @db.VarChar(255)
   selectedInterpreterEmpCode String?                @map("SELECTED_INTERPRETER_EMP_CODE") @db.VarChar(64)
+  isForwarded                Boolean                @default(false) @map("IS_FORWARDED")
+  forwardedByEmpCode         String?                @map("FORWARDED_BY_EMP_CODE") @db.VarChar(64)
+  forwardActions             Json                   @map("FORWARD_ACTIONS")
   assignmentLogs             AssignmentLog[]
   forwardTargets             BookingForwardTarget[]
   forwardedByEmployee        Employee?              @relation("ForwardedByEmployee", fields: [forwardedByEmpCode], references: [empCode])
@@ -64,15 +64,14 @@ model BookingPlan {
 }
 
 model BookingForwardTarget {
-  bookingId     Int         @map("BOOKING_ID")
-  createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamp(0)
-  updatedAt     DateTime    @default(now()) @updatedAt @map("updated_at") @db.Timestamp(0)
-  environmentId Int         @map("ENVIRONMENT_ID")
-  booking       BookingPlan @relation(fields: [bookingId], references: [bookingId], onDelete: Cascade)
-  environment   Environment @relation(fields: [environmentId], references: [id], onDelete: Cascade)
+  bookingId Int         @map("BOOKING_ID")
+  DEPT_PATH String      @db.VarChar(512)
+  createdAt DateTime    @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt DateTime    @default(now()) @updatedAt @map("updated_at") @db.Timestamp(0)
+  booking   BookingPlan @relation(fields: [bookingId], references: [bookingId], onDelete: Cascade)
 
-  @@id([bookingId, environmentId])
-  @@index([environmentId])
+  @@id([bookingId, DEPT_PATH])
+  @@index([DEPT_PATH])
   @@map("BOOKING_FORWARD_TARGET")
 }
 
@@ -133,6 +132,7 @@ model Employee {
   syncedAt                      DateTime?                @map("SYNCED_AT")
   createdAt                     DateTime                 @default(now()) @map("created_at") @db.Timestamp(0)
   updatedAt                     DateTime                 @default(now()) @updatedAt @map("updated_at") @db.Timestamp(0)
+  ADMIN_VISION                  ADMIN_VISION[]
   assignmentLogs                AssignmentLog[]          @relation("AssignmentLogInterpreter")
   bookingsForwarded             BookingPlan[]            @relation("ForwardedByEmployee")
   bookingsAsInterpreter         BookingPlan[]            @relation("InterpreterEmployee")
@@ -174,7 +174,7 @@ model AutoAssignmentConfig {
 
 model MeetingTypePriority {
   id                   Int          @id @default(autoincrement()) @map("ID")
-  meetingType          MeetingType  @map("MEETING_TYPE")
+  meetingType          MeetingType  @unique @map("MEETING_TYPE")
   priorityValue        Int          @map("PRIORITY_VALUE")
   urgentThresholdDays  Int          @map("URGENT_THRESHOLD_DAYS")
   generalThresholdDays Int          @map("GENERAL_THRESHOLD_DAYS")
@@ -183,7 +183,6 @@ model MeetingTypePriority {
   environmentId        Int?         @map("ENVIRONMENT_ID")
   environment          Environment? @relation(fields: [environmentId], references: [id])
 
-  @@unique([environmentId, meetingType])
   @@index([environmentId], map: "MEETING_TYPE_PRIORITY_ENVIRONMENT_ID_fkey")
   @@map("MEETING_TYPE_PRIORITY")
 }
@@ -197,31 +196,24 @@ model MeetingTypeModeThreshold {
   createdAt            DateTime    @default(now()) @map("created_at") @db.Timestamp(0)
   updatedAt            DateTime    @updatedAt @map("updated_at") @db.Timestamp(0)
 
-  // Optional per-environment override support
-  environmentId Int?         @map("ENVIRONMENT_ID")
-  environment   Environment? @relation(fields: [environmentId], references: [id])
-
-  @@unique([environmentId, meetingType, assignmentMode])
+  @@unique([meetingType, assignmentMode])
   @@map("MEETING_TYPE_MODE_THRESHOLD")
 }
 
-// Per-environment overrides for assignment policy (mode remains global)
 model EnvironmentAssignmentConfig {
-  id                   Int      @id @default(autoincrement()) @map("ID")
-  environmentId        Int      @unique @map("ENVIRONMENT_ID")
-  // Optional per-environment overrides
-  mode                 String?  @map("MODE") @db.VarChar(32)
-  autoAssignEnabled    Boolean? @map("AUTO_ASSIGN_ENABLED")
-  fairnessWindowDays   Int?     @map("FAIRNESS_WINDOW_DAYS")
-  maxGapHours          Int?     @map("MAX_GAP_HOURS")
-  w_fair               Float?   @map("W_FAIR")
-  w_urgency            Float?   @map("W_URGENCY")
-  w_lrs                Float?   @map("W_LRS")
-  drConsecutivePenalty Float?   @map("DR_CONSECUTIVE_PENALTY")
-  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamp(0)
-  updatedAt            DateTime @updatedAt @map("updated_at") @db.Timestamp(0)
-
-  environment Environment @relation(fields: [environmentId], references: [id])
+  id                   Int         @id @default(autoincrement()) @map("ID")
+  environmentId        Int         @unique @map("ENVIRONMENT_ID")
+  mode                 String?     @map("MODE") @db.VarChar(32)
+  autoAssignEnabled    Boolean?    @map("AUTO_ASSIGN_ENABLED")
+  fairnessWindowDays   Int?        @map("FAIRNESS_WINDOW_DAYS")
+  maxGapHours          Int?        @map("MAX_GAP_HOURS")
+  w_fair               Float?      @map("W_FAIR")
+  w_urgency            Float?      @map("W_URGENCY")
+  w_lrs                Float?      @map("W_LRS")
+  drConsecutivePenalty Float?      @map("DR_CONSECUTIVE_PENALTY")
+  createdAt            DateTime    @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt            DateTime    @default(now()) @updatedAt @map("updated_at") @db.Timestamp(0)
+  environment          Environment @relation(fields: [environmentId], references: [id])
 
   @@map("ENVIRONMENT_ASSIGNMENT_CONFIG")
 }
@@ -315,18 +307,16 @@ model SystemErrorLog {
 }
 
 model Environment {
-  id                Int                           @id @default(autoincrement()) @map("ID")
-  name              String                        @unique @map("NAME") @db.VarChar(128)
-  isActive          Boolean                       @default(true) @map("IS_ACTIVE")
-  createdAt         DateTime                      @default(now()) @map("created_at") @db.Timestamp(0)
-  updatedAt         DateTime                      @updatedAt @map("updated_at") @db.Timestamp(0)
-  forwardTargets    BookingForwardTarget[]
+  id                Int                          @id @default(autoincrement()) @map("ID")
+  name              String                       @unique @map("NAME") @db.VarChar(128)
+  isActive          Boolean                      @default(true) @map("IS_ACTIVE")
+  createdAt         DateTime                     @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt         DateTime                     @updatedAt @map("updated_at") @db.Timestamp(0)
   admins            EnvironmentAdmin[]
+  assignmentConfigs EnvironmentAssignmentConfig?
   centers           EnvironmentCenter[]
   interpreters      EnvironmentInterpreter[]
   priorities        MeetingTypePriority[]
-  modeThresholds    MeetingTypeModeThreshold[]
-  assignmentConfigs EnvironmentAssignmentConfig[]
 
   @@map("ENVIRONMENT")
 }
@@ -370,14 +360,25 @@ model EnvironmentInterpreter {
 
 model Room {
   id        Int      @id @default(autoincrement()) @map("ID")
-  name      String   @unique @map("NAME") @db.VarChar(128)
+  name      String   @unique(map: "UK_ROOM_NAME") @map("NAME") @db.VarChar(128)
   location  String?  @map("LOCATION") @db.VarChar(255)
   capacity  Int      @default(1) @map("CAPACITY")
   isActive  Boolean  @default(true) @map("IS_ACTIVE")
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(0)
-  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(0)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamp(0)
 
   @@map("ROOM")
+}
+
+model ADMIN_VISION {
+  ID             Int      @id @default(autoincrement())
+  ADMIN_EMP_CODE String   @db.VarChar(64)
+  DEPT_PATH      String   @db.VarChar(512)
+  created_at     DateTime @default(now()) @db.Timestamp(0)
+  EMPLOYEE       Employee @relation(fields: [ADMIN_EMP_CODE], references: [empCode])
+
+  @@unique([ADMIN_EMP_CODE, DEPT_PATH])
+  @@index([ADMIN_EMP_CODE])
 }
 
 enum DRType {
