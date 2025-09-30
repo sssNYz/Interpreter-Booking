@@ -42,7 +42,7 @@ export async function getInterpreterHours(
     const bookings = await prisma.bookingPlan.findMany({
       where: {
         AND: [
-          { createdAt: { gte: cutoffDate } },
+          { timeStart: { gte: cutoffDate } },
           { bookingStatus: { not: 'cancel' } },
           { interpreterEmpCode: { not: null } }
         ]
@@ -95,7 +95,7 @@ export async function getRollingHours(fairnessWindowDays: number): Promise<Hours
     const bookings = await prisma.bookingPlan.findMany({
       where: {
         AND: [
-          { createdAt: { gte: cutoffDate } },
+          { timeStart: { gte: cutoffDate } },
           { bookingStatus: { not: 'cancel' } },
           { interpreterEmpCode: { not: null } }
         ]

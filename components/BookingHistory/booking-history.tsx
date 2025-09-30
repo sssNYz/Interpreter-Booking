@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious, PaginationEllipsis } from "@/components/ui/pagination";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { FilterIcon, UserSearchIcon, XIcon,ArrowUpLeft, ArrowUpDown, ChevronDown } from "lucide-react";
+import { client as featureFlags } from "@/lib/feature-flags";
 import { Skeleton } from "@/components/ui/skeleton";
 import Image from "next/image";
 
@@ -468,9 +469,17 @@ export default function BookingHistory({ renderEmpty, startDate, endDate }: Book
                               >
                                 SEE DETAIL
                               </Button>
-                              <Button size="sm" variant="outline" className="px-3 py-1 text-xs bg-neutral-50 text-neutral-700 border-neutral-700 hover:bg-neutral-700 hover:text-neutral-50 rounded-full" onClick={() => handleJumpToCalendar(b)} aria-label="Open in calendar">
-                                <ArrowUpLeft />
-                              </Button>
+                              {featureFlags.enableJumpToCalendar && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="px-3 py-1 text-xs bg-neutral-50 text-neutral-700 border-neutral-700 hover:bg-neutral-700 hover:text-neutral-50 rounded-full"
+                                  onClick={() => handleJumpToCalendar(b)}
+                                  aria-label="Open in calendar"
+                                >
+                                  <ArrowUpLeft />
+                                </Button>
+                              )}
                             </div>
                           </div>
                         </div>

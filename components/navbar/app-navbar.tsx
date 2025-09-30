@@ -188,19 +188,21 @@ export function AppNavbar() {
                 </button>
               </Link>
 
-              {/* Room */}
-              <Link href="/BookingRoomPage" className="contents">
-                <button
-                  ref={(el) => {
-                    btnRefs.current.room = el;
-                  }}
-                  className={itemClass(active === "room")}
-                  onClick={() => setActive("room")}
-                >
-                  <DoorOpen className="h-4 w-4" />
-                  <span>Room</span>
-                </button>
-              </Link>
+              {/* Room (hidden by feature flag) */}
+              {process.env.NEXT_PUBLIC_ENABLE_ROOM_BOOKING === "1" || process.env.NEXT_PUBLIC_ENABLE_ROOM_BOOKING === "true" ? (
+                <Link href="/BookingRoomPage" className="contents">
+                  <button
+                    ref={(el) => {
+                      btnRefs.current.room = el;
+                    }}
+                    className={itemClass(active === "room")}
+                    onClick={() => setActive("room")}
+                  >
+                    <DoorOpen className="h-4 w-4" />
+                    <span>Room</span>
+                  </button>
+                </Link>
+              ) : null}
 
               {/* My Bookings */}
               <Link href="/MyBookings" className="contents">

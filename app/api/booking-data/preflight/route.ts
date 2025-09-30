@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/prisma/prisma";
+import { server as featureFlags } from "@/lib/feature-flags";
 import { centerPart } from "@/utils/users";
 
 export async function POST(request: NextRequest) {
@@ -36,6 +37,21 @@ export async function POST(request: NextRequest) {
 
     const timeStart = new Date(timeStartRaw);
     const timeEnd = new Date(timeEndRaw);
+
+    // If forwarding is disabled, always indicate not eligible
+    if (!featureFlags.enableForwardUser) {
+      return NextResponse.json({
+        success: true,
+        data: {
+          forwardSuggestion: {
+            eligible: false,
+            capacityFull: false,
+            urgent: false,
+            environmentId,
+          },
+        },
+      });
+    }
 
     // If we cannot detect environment, play it safe and ask user first
     if (environmentId == null) {
