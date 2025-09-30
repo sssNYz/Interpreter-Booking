@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { DayPilot, DayPilotCalendar } from "@daypilot/daypilot-lite-react";
 import { toast } from "sonner";
+import { client as featureFlags } from "@/lib/feature-flags";
 
 const BookingRoom = () => {
   const [calendar, setCalendar] = useState<DayPilot.Calendar>();
@@ -86,6 +87,19 @@ const BookingRoom = () => {
       barColor: "#e69138",
     },
   ];
+
+  if (!featureFlags.enableRoomBooking) {
+    return (
+      <div className="flex flex-col gap-4 px-4 mx-auto w-full max-w-full">
+        <div className="flex items-center justify-between py-2">
+          <h1 className="text-2xl font-bold">Room Booking</h1>
+        </div>
+        <div className="rounded-xl border bg-white p-6 text-gray-700">
+          This feature is coming soon.
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-4 px-4 mx-auto w-full max-w-full">

@@ -13,6 +13,7 @@ import type { CreateBookingRequest } from "@/types/booking-requests";
 import type { ApiResponse } from "@/types/api";
 import type { RunResult } from "@/types/assignment";
 import { getEffectivePolicyForEnvironment } from "@/lib/assignment/config/env-policy";
+import { server as featureFlags } from "@/lib/feature-flags";
 import { centerPart } from "@/utils/users";
 
 // Interface moved to '@/types/booking-requests'
@@ -1164,6 +1165,7 @@ export async function POST(request: NextRequest) {
 
           // If auto-assign escalated (no interpreter), compute forward suggestion for UI
           if (
+            featureFlags.enableForwardUser &&
             autoAssignmentResult &&
             autoAssignmentResult.status !== "assigned"
           ) {
