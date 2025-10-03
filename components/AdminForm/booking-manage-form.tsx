@@ -421,6 +421,7 @@ const BookingDetailDialog: React.FC<Props> = ({ open, onOpenChange, editData, is
       <DialogContent
         onOpenAutoFocus={(e) => e.preventDefault()}
         onCloseAutoFocus={(e) => e.preventDefault()}
+        showCloseButton={false}
         className={`grid overflow-hidden border-none p-0 bg-background grid-rows-[auto,1fr,auto] ${
           isMobile 
             ? "w-[95vw] max-w-sm h-[90vh]" 
