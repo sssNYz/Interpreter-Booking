@@ -659,120 +659,237 @@ export default function BookingHistory({ renderEmpty, startDate, endDate }: Book
 
        {/* Meeting Detail Dialog */}
        <Dialog open={meetingDetailDialogOpen} onOpenChange={setMeetingDetailDialogOpen}>
-         <DialogContent className="w-[min(96vw,1280px)] max-h-[92dvh] overflow-hidden p-0 rounded-2xl shadow-2xl">
+         <DialogContent className="w-[min(96vw,1200px)] max-w-[1200px] max-h-[92vh] overflow-hidden p-0 rounded-3xl shadow-2xl border-2 border-primary/10">
            <DialogHeader className="sr-only">
              <DialogTitle>Meeting Detail</DialogTitle>  
            </DialogHeader>
-          <div className="h-full overflow-hidden">
-             {/* Header with Date and Status */}
-             <div className="bg-gradient-to-r from-primary/5 to-primary/10 px-4 py-3 border-b">
-               {dialogBooking ? (
-                 <div className="flex items-center justify-between flex-wrap gap-4">
-                   <div className="flex items-center gap-4">
-                     <div className="bg-white rounded-2xl p-4 shadow-sm">
+           
+           {dialogBooking ? (
+             <div className="flex flex-col h-full max-h-[92vh]">
+               {/* Hero Section: Date, Time, and Status - Fixed */}
+               <div className="relative bg-gradient-to-br from-primary/15 via-primary/8 to-background px-8 py-8 border-b-2 border-primary/10 overflow-hidden">
+                 {/* Decorative background shapes */}
+                 <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
+                 <div className="absolute bottom-0 left-0 w-48 h-48 bg-primary/5 rounded-full translate-y-1/2 -translate-x-1/2 blur-3xl" />
+                 
+                 <div className="relative z-10 flex items-start justify-between gap-6 flex-wrap">
+                   {/* Date Card + Time */}
+                   <div className="flex items-center gap-6">
+                     <motion.div 
+                       initial={{ scale: 0.9, opacity: 0 }}
+                       animate={{ scale: 1, opacity: 1 }}
+                       transition={{ duration: 0.3 }}
+                       className="bg-gradient-to-br from-white to-primary/5 rounded-3xl px-7 py-5 shadow-xl border-2 border-primary/20 backdrop-blur-sm"
+                     >
                        <div className="text-center">
-                         <div className="text-3xl font-bold text-foreground">
+                         <div className="text-6xl font-black text-primary leading-none bg-gradient-to-br from-primary to-primary/70 bg-clip-text text-transparent">
                            {new Date(dialogBooking.timeStart as unknown as string).getDate()}
                          </div>
-                         <div className="text-sm font-medium text-muted-foreground">
+                         <div className="text-sm font-black text-muted-foreground mt-2 tracking-widest">
                            {new Date(dialogBooking.timeStart as unknown as string).toLocaleDateString('en', { month: 'short' }).toUpperCase()}
                          </div>
                        </div>
-                     </div>
-                     <div>
-                       <div className="text-2xl md:text-3xl font-bold text-foreground mb-1">
-                        {extractHHMM(dialogBooking.timeStart as unknown as string)} - {extractHHMM(dialogBooking.timeEnd as unknown as string)}
-                      </div>
-                       <div className="text-sm text-muted-foreground">
-                         {new Date(dialogBooking.timeStart as unknown as string).toLocaleDateString('en', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                     </motion.div>
+                     
+                     <motion.div
+                       initial={{ x: -20, opacity: 0 }}
+                       animate={{ x: 0, opacity: 1 }}
+                       transition={{ duration: 0.3, delay: 0.1 }}
+                     >
+                       <div className="text-4xl md:text-5xl font-black text-foreground tracking-tight mb-2 bg-gradient-to-br from-foreground to-foreground/70 bg-clip-text text-transparent">
+                         {extractHHMM(dialogBooking.timeStart as unknown as string)} - {extractHHMM(dialogBooking.timeEnd as unknown as string)}
                        </div>
-                     </div>
+                       <div className="text-base text-muted-foreground font-medium">
+                         {new Date(dialogBooking.timeStart as unknown as string).toLocaleDateString('en', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+                       </div>
+                     </motion.div>
                    </div>
+                   
+                   {/* Status Badge */}
                    {dialogStatusStyle && (
-                     <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold ${dialogStatusStyle.bg} ${dialogStatusStyle.text}`}>
-                       {dialogStatusStyle.icon}
-                       <span>{dialogStatusLabel}</span>
-                     </div>
+                     <motion.div
+                       initial={{ scale: 0.9, opacity: 0 }}
+                       animate={{ scale: 1, opacity: 1 }}
+                       transition={{ duration: 0.3, delay: 0.2 }}
+                       className={`inline-flex items-center gap-2.5 px-6 py-3 rounded-full text-base font-black shadow-lg border-2 ${dialogStatusStyle.bg} ${dialogStatusStyle.text} backdrop-blur-sm`}
+                     >
+                       <span className="text-xl">{dialogStatusStyle.icon}</span>
+                       <span className="tracking-wide">{dialogStatusLabel}</span>
+                     </motion.div>
                    )}
                  </div>
-               ) : (
-                 <div className="flex items-center gap-4">
-                   <Skeleton className="h-16 w-16 rounded-2xl" />
-                   <div className="space-y-2">
-                     <Skeleton className="h-6 w-32" />
-                     <Skeleton className="h-4 w-48" />
+               </div>
+
+               {/* Scrollable Content Section */}
+               <div className="flex-1 overflow-y-auto px-8 py-8 bg-gradient-to-b from-background to-muted/20">
+                 <div className="grid grid-cols-1 lg:grid-cols-[1fr,420px] gap-8">
+                   {/* Left Column */}
+                   <div className="space-y-6">
+                     {/* Room */}
+                     <motion.div
+                       initial={{ y: 20, opacity: 0 }}
+                       animate={{ y: 0, opacity: 1 }}
+                       transition={{ duration: 0.3, delay: 0.1 }}
+                       className="group bg-gradient-to-br from-card to-card/50 rounded-3xl p-6 border-2 border-primary/10 shadow-md hover:shadow-xl hover:border-primary/25 transition-all duration-300 hover:-translate-y-1"
+                     >
+                       <div className="flex items-start gap-4">
+                         <div className="p-3 rounded-2xl bg-primary/10 group-hover:bg-primary/15 transition-colors">
+                           <svg className="w-6 h-6 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                           </svg>
+                         </div>
+                         <div className="flex-1 min-w-0">
+                           <div className="text-xs font-black text-muted-foreground uppercase tracking-widest mb-2">MEETING ROOM</div>
+                           <div className="text-3xl font-bold text-foreground group-hover:text-primary transition-colors">
+                             {dialogBooking.meetingRoom || 'No room assigned'}
+                           </div>
+                         </div>
+                       </div>
+                     </motion.div>
+                     
+                     {/* Interpreter */}
+                     <motion.div
+                       initial={{ y: 20, opacity: 0 }}
+                       animate={{ y: 0, opacity: 1 }}
+                       transition={{ duration: 0.3, delay: 0.2 }}
+                       className="group bg-gradient-to-br from-card to-card/50 rounded-3xl p-6 border-2 border-primary/10 shadow-md hover:shadow-xl hover:border-primary/25 transition-all duration-300 hover:-translate-y-1"
+                     >
+                       <div className="flex items-start gap-4">
+                         <div className="p-3 rounded-2xl bg-primary/10 group-hover:bg-primary/15 transition-colors">
+                           <svg className="w-6 h-6 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                           </svg>
+                         </div>
+                         <div className="flex-1 min-w-0">
+                           <div className="text-xs font-black text-muted-foreground uppercase tracking-widest mb-2">INTERPRETER</div>
+                           <div className="text-3xl font-bold text-foreground group-hover:text-primary transition-colors">
+                             {dialogBooking.interpreterName || dialogBooking.interpreterId || 'Not assigned'}
+                           </div>
+                         </div>
+                       </div>
+                     </motion.div>
+                     
+                     {/* Application Model */}
+                     <motion.div
+                       initial={{ y: 20, opacity: 0 }}
+                       animate={{ y: 0, opacity: 1 }}
+                       transition={{ duration: 0.3, delay: 0.3 }}
+                       className="group bg-gradient-to-br from-card to-card/50 rounded-3xl p-6 border-2 border-primary/10 shadow-md hover:shadow-xl hover:border-primary/25 transition-all duration-300 hover:-translate-y-1"
+                     >
+                       <div className="flex items-start gap-4">
+                         <div className="p-3 rounded-2xl bg-primary/10 group-hover:bg-primary/15 transition-colors">
+                           <svg className="w-6 h-6 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                           </svg>
+                         </div>
+                         <div className="flex-1 min-w-0">
+                           <div className="text-xs font-black text-muted-foreground uppercase tracking-widest mb-2">APPLICATION MODEL</div>
+                           <div className="text-xl font-semibold text-foreground break-words leading-relaxed">
+                             {dialogBooking.applicableModel || 'No model specified'}
+                           </div>
+                         </div>
+                       </div>
+                     </motion.div>
+                     
+                     {/* Meeting Detail */}
+                     <motion.div
+                       initial={{ y: 20, opacity: 0 }}
+                       animate={{ y: 0, opacity: 1 }}
+                       transition={{ duration: 0.3, delay: 0.4 }}
+                       className="group bg-gradient-to-br from-card to-card/50 rounded-3xl p-6 border-2 border-primary/10 shadow-md hover:shadow-xl hover:border-primary/25 transition-all duration-300"
+                     >
+                       <div className="flex items-start gap-4 mb-4">
+                         <div className="p-3 rounded-2xl bg-primary/10 group-hover:bg-primary/15 transition-colors">
+                           <svg className="w-6 h-6 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                           </svg>
+                         </div>
+                         <div className="flex-1 min-w-0">
+                           <div className="text-xs font-black text-muted-foreground uppercase tracking-widest">MEETING DETAILS</div>
+                         </div>
+                       </div>
+                       <div className="text-base text-foreground/90 leading-relaxed whitespace-pre-wrap break-words max-h-[320px] overflow-y-auto pr-3 pl-14 scrollbar-thin scrollbar-thumb-primary/20 scrollbar-track-transparent hover:scrollbar-thumb-primary/30">
+                         {dialogBooking.meetingDetail || (
+                           <span className="text-muted-foreground italic">No meeting details provided...</span>
+                         )}
+                       </div>
+                     </motion.div>
+                   </div>
+                   
+                   {/* Right Column - Email */}
+                   <div className="lg:sticky lg:top-0 lg:self-start">
+                     <motion.div
+                       initial={{ y: 20, opacity: 0 }}
+                       animate={{ y: 0, opacity: 1 }}
+                       transition={{ duration: 0.3, delay: 0.5 }}
+                       className="bg-gradient-to-br from-card to-card/50 rounded-3xl p-6 border-2 border-primary/10 shadow-md hover:shadow-xl transition-all duration-300"
+                     >
+                       <div className="flex items-center gap-3 mb-5">
+                         <div className="p-3 rounded-2xl bg-primary/10">
+                           <svg className="w-6 h-6 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                           </svg>
+                         </div>
+                         <div>
+                           <div className="text-xs font-black text-muted-foreground uppercase tracking-widest">EMAIL INVITES</div>
+                           {dialogBooking.inviteEmails && dialogBooking.inviteEmails.length > 0 && (
+                             <div className="text-sm text-primary font-bold mt-0.5">
+                               {dialogBooking.inviteEmails.length} {dialogBooking.inviteEmails.length === 1 ? 'recipient' : 'recipients'}
+                             </div>
+                           )}
+                         </div>
+                       </div>
+                       
+                       {dialogBooking.inviteEmails && dialogBooking.inviteEmails.length > 0 ? (
+                         <div className="space-y-3 max-h-[520px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-primary/20 scrollbar-track-transparent hover:scrollbar-thumb-primary/30">
+                           {dialogBooking.inviteEmails.map((email, idx) => (
+                             <motion.div
+                               key={idx}
+                               initial={{ x: 20, opacity: 0 }}
+                               animate={{ x: 0, opacity: 1 }}
+                               transition={{ duration: 0.2, delay: 0.05 * idx }}
+                               className="group flex items-start gap-3 p-4 rounded-2xl bg-gradient-to-br from-muted/60 to-muted/40 hover:from-primary/10 hover:to-primary/5 border border-primary/5 hover:border-primary/20 transition-all duration-200 hover:shadow-md"
+                             >
+                               <div className="h-3 w-3 rounded-full bg-primary/60 mt-1.5 flex-shrink-0 group-hover:bg-primary group-hover:scale-125 transition-all" />
+                               <span className="text-sm text-foreground/90 break-all leading-relaxed font-medium group-hover:text-foreground transition-colors">{email}</span>
+                             </motion.div>
+                           ))}
+                         </div>
+                       ) : (
+                         <div className="flex flex-col items-center justify-center py-16 text-center">
+                           <div className="h-20 w-20 rounded-full bg-gradient-to-br from-muted to-muted/50 flex items-center justify-center mb-4 shadow-inner">
+                             <svg className="w-10 h-10 text-muted-foreground/40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                             </svg>
+                           </div>
+                           <p className="text-base font-semibold text-muted-foreground mb-1">No email invites</p>
+                           <p className="text-sm text-muted-foreground/60">This meeting has no email recipients</p>
+                         </div>
+                       )}
+                     </motion.div>
                    </div>
                  </div>
-               )}
+               </div>
              </div>
-
-             {/* Content Area */}
-             <div className="p-3 md:p-4 overflow-y-auto md:overflow-visible max-h-[calc(92dvh-140px)]">
-               {dialogBooking ? (
-                <div className="grid grid-cols-1 md:[grid-template-columns:minmax(0,3fr)_minmax(0,2fr)] gap-4 items-start">
-                  {/* Left column: room, interpreter, model, detail */}
-                  <div className="space-y-4 min-w-0">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      <div className="rounded-xl border border-border/50 bg-background/80 p-4 shadow-sm">
-                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Room</p>
-                        <p className="mt-2 text-lg font-semibold text-foreground">{dialogBooking.meetingRoom || 'No room assigned'}</p>
-                      </div>
-                      <div className="rounded-xl border border-border/50 bg-background/80 p-4 shadow-sm">
-                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Interpreter</p>
-                        <p className="mt-2 text-lg font-semibold text-foreground">{dialogBooking.interpreterName || dialogBooking.interpreterId || 'Not assigned'}</p>
-                      </div>
-                    </div>
-                    <div className="rounded-xl border border-border/50 bg-background/80 p-4 shadow-sm">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Applicable Model</p>
-                      <p className="mt-2 text-base text-foreground break-words">{dialogBooking.applicableModel || 'No model specified'}</p>
-                    </div>
-                    <div className="rounded-xl border border-border/50 bg-background/80 p-4 shadow-sm">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Meeting Details</p>
-                      <div className="mt-2 max-h-[48vh] overflow-y-auto pr-1">
-                        <p className="text-sm leading-6 text-foreground whitespace-pre-wrap break-words">{dialogBooking.meetingDetail || 'No meeting details provided...'}</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Right column: emails */}
-                  <div className="space-y-4 min-w-0">
-                    <div className="rounded-xl border border-border/50 bg-background/80 p-4 shadow-sm">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Email Invites</p>
-                      {dialogBooking.inviteEmails && dialogBooking.inviteEmails.length > 0 ? (
-                        <ul className="mt-3 space-y-2 max-h-[48vh] overflow-y-auto pr-1">
-                          {dialogBooking.inviteEmails.map((email, idx) => (
-                            <li key={idx} className="flex items-center gap-2 rounded-lg bg-muted/30 px-3 py-2 text-sm text-foreground break-words">
-                              <span className="h-2 w-2 rounded-full bg-primary/70" />
-                              <span className="flex-1 leading-5">{email}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <div className="mt-8 flex flex-col items-center justify-center text-center text-muted-foreground">
-                          <div className="mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-muted">
-                            <Image src="/illustrations/47718920_9169204.svg" alt="No email invites" width={32} height={32} className="opacity-60" />
-                          </div>
-                          <p className="text-sm">No email invites for this meeting</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <Skeleton className="h-20 rounded-xl" />
-                    <Skeleton className="h-20 rounded-xl" />
-                  </div>
-                  <Skeleton className="h-24 rounded-xl" />
-                  <Skeleton className="h-32 rounded-xl" />
-                  <Skeleton className="h-40 rounded-xl" />
-                </div>
-              )}
-            </div>
-          </div>
-        </DialogContent>
+           ) : (
+             <div className="p-10 space-y-8">
+               <div className="flex items-center gap-8">
+                 <Skeleton className="h-24 w-24 rounded-3xl" />
+                 <div className="space-y-4 flex-1">
+                   <Skeleton className="h-10 w-64" />
+                   <Skeleton className="h-6 w-80" />
+                 </div>
+                 <Skeleton className="h-12 w-32 rounded-full" />
+               </div>
+               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                 <Skeleton className="h-32 rounded-3xl" />
+                 <Skeleton className="h-32 rounded-3xl" />
+                 <Skeleton className="h-32 rounded-3xl" />
+                 <Skeleton className="h-32 rounded-3xl" />
+               </div>
+             </div>
+           )}
+         </DialogContent>
        </Dialog>
     
     </div>
