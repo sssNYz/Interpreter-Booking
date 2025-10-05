@@ -42,6 +42,7 @@ export async function GET(
     const environmentId = searchParams.get('environmentId') ? Number(searchParams.get('environmentId')) : undefined;
     const mode = searchParams.get('mode') || undefined;
     const maxCandidates = searchParams.get('maxCandidates') ? Number(searchParams.get('maxCandidates')) : 10;
+    const w_group = searchParams.get('w_group');
 
     // Parse custom weights if provided
     let customWeights;
@@ -63,7 +64,8 @@ export async function GET(
       environmentId,
       mode,
       customWeights,
-      maxCandidates
+      maxCandidates,
+      w_group ? Number(w_group) : undefined
     );
 
     return NextResponse.json(result);

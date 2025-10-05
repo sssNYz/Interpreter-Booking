@@ -2,7 +2,7 @@ import prisma from "@/prisma/prisma";
 import type { CandidateResult, AssignmentPolicy } from "@/types/assignment";
 import { loadPolicy } from "../config/policy";
 import { getEffectivePolicyForEnvironment } from "../config/env-policy";
-import { getActiveInterpreters, getInterpreterHours } from "../scoring/fairness";
+import { getActiveInterpreters, getInterpreterHours, getInterpreterGroupHours } from "../scoring/fairness";
 import { computeEnhancedUrgencyScore } from "../scoring/urgency";
 import { rankByScore } from "../scoring/scoring";
 import { isDRMeeting } from "../utils/dr-history";
@@ -20,6 +20,8 @@ export interface SuggestionCandidate {
   };
   currentHours: number;
   afterAssignHours: number;
+  groupHours?: { iot: number; hardware: number; software: number; other: number };
+  afterAssignGroupHours?: { iot: number; hardware: number; software: number; other: number };
 }
 
 export interface SuggestionResult {
@@ -40,7 +42,8 @@ export async function buildSuggestions(
   environmentId?: number,
   mode?: string,
   customWeights?: { w_fair?: number; w_urgency?: number; w_lrs?: number },
-  maxCandidates: number = 10
+  maxCandidates: number = 10,
+  wGroup?: number
 ): Promise<SuggestionResult> {
   try {
     // Get booking details
@@ -53,6 +56,7 @@ export async function buildSuggestions(
         meetingType: true,
         interpreterEmpCode: true,
         meetingDetail: true,
+        ownerGroup: true,
         employee: { select: { deptPath: true } }
       }
     });
@@ -165,6 +169,7 @@ export async function buildSuggestions(
 
     // Get interpreter hours
     const preHoursSnapshot = await getInterpreterHours(interpreters, effectivePolicy.fairnessWindowDays);
+    const preGroupHours = await getInterpreterGroupHours(interpreters, effectivePolicy.fairnessWindowDays);
 
     // Compute urgency score
     const urgencyScore = await computeEnhancedUrgencyScore(
@@ -226,17 +231,58 @@ export async function buildSuggestions(
       booking.meetingDetail || undefined
     );
 
-    // Convert to suggestion format
-    const suggestionCandidates: SuggestionCandidate[] = rankedResults
-      .slice(0, maxCandidates)
-      .map((result) => ({
+    // Apply group-balance adjustment (Option A) after ranking
+    const targetGroup = String(booking.ownerGroup || "other").toLowerCase() as 'iot' | 'hardware' | 'software' | 'other';
+    const defaultWGroup = typeof wGroup === 'number' && !Number.isNaN(wGroup)
+      ? wGroup
+      : (typeof process.env.ASSIGN_W_GROUP !== 'undefined' && !Number.isNaN(Number(process.env.ASSIGN_W_GROUP))
+        ? Number(process.env.ASSIGN_W_GROUP)
+        : 0.2);
+
+    // Build normalization range based on ranked candidates
+    const candidateEmpCodes = rankedResults.map(r => r.empCode);
+    const groupVals = candidateEmpCodes.map(code => (preGroupHours[code]?.[targetGroup] ?? 0));
+    const gMin = groupVals.length ? Math.min(...groupVals) : 0;
+    const gMax = groupVals.length ? Math.max(...groupVals) : 0;
+    const gSpan = gMax - gMin;
+
+    const adjusted = rankedResults.map(result => {
+      const gHours = preGroupHours[result.empCode]?.[targetGroup] ?? 0;
+      const balance = gSpan > 0 ? (1 - ((gHours - gMin) / gSpan)) : 0; // lower hours -> higher balance
+      const adjustedScore = result.scores.total + defaultWGroup * balance;
+      return { result, adjustedScore, balance, gHours };
+    });
+
+    // Optional logging for observability
+    try {
+      const sample = adjusted.slice(0, 3).map(a => `${a.result.empCode}:${a.balance.toFixed(2)}`).join(', ');
+      console.log(`GroupBalance target=${targetGroup} w_group=${defaultWGroup} topBalances=${sample}`);
+    } catch {}
+
+    // Sort by adjusted score and take top N
+    adjusted.sort((a, b) => b.adjustedScore - a.adjustedScore);
+    const topAdjusted = adjusted.slice(0, maxCandidates);
+
+    // Convert to suggestion format using adjusted score
+    const suggestionCandidates: SuggestionCandidate[] = topAdjusted.map(({ result, adjustedScore, balance }) => {
+      const reasons = buildReasons(result);
+      if (defaultWGroup > 0 && balance >= 0.5 && gSpan > 0) {
+        reasons.push(`Group balance: low hours in ${targetGroup}`);
+      }
+      return {
         empCode: result.empCode,
-        score: Math.round(result.scores.total * 100) / 100,
-        reasons: buildReasons(result),
+        score: Math.round(adjustedScore * 100) / 100,
+        reasons,
         time: calculateTiming(result, booking),
         currentHours: preHoursSnapshot[result.empCode] || 0,
-        afterAssignHours: (preHoursSnapshot[result.empCode] || 0) + bookingDuration
-      }));
+        afterAssignHours: (preHoursSnapshot[result.empCode] || 0) + bookingDuration,
+        groupHours: preGroupHours[result.empCode] || { iot: 0, hardware: 0, software: 0, other: 0 },
+        afterAssignGroupHours: (() => {
+          const g = preGroupHours[result.empCode] || { iot: 0, hardware: 0, software: 0, other: 0 };
+          return g;
+        })()
+      };
+    });
 
     return {
       ok: true,
