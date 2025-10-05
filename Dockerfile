@@ -20,8 +20,8 @@ RUN apt-get update -y \
  && rm -rf /var/lib/apt/lists/*
 
 COPY package*.json ./
-# Install only production dependencies
-RUN npm ci --omit=dev
+# Install only production dependencies, skip lifecycle scripts (postinstall)
+RUN npm ci --omit=dev --ignore-scripts
 
 # --- Builder (full deps for build) ---
 FROM node:${NODE_VERSION} AS builder
@@ -32,8 +32,8 @@ RUN apt-get update -y \
  && rm -rf /var/lib/apt/lists/*
 
 COPY package*.json ./
-# Install all deps for building Next.js
-RUN npm ci
+# Install all deps for building Next.js, skip lifecycle scripts for now
+RUN npm ci --ignore-scripts
 
 # Copy Prisma schema for generate, and source for build
 COPY prisma ./prisma
@@ -68,4 +68,4 @@ COPY --from=builder /app/prisma ./prisma
 EXPOSE 3000
 
 # Run Prisma migrations then start server (idempotent)
-CMD ["sh", "-c", "npx prisma generate && npx prisma migrate deploy && npm run start -- -p $PORT"]
+CMD ["sh", "-c", "npx prisma migrate deploy && npm run start -- -p $PORT"]
