@@ -405,7 +405,7 @@ export function DeptTab({ year, data: externalData }: DeptTabProps) {
             <ResponsiveContainer width="100%" height="100%" style={{ overflow: "visible" }}>
               <BarChart 
                 data={chartData}
-                margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                margin={{ top: 56, right: 30, left: 20, bottom: 5 }}
               >
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
@@ -452,7 +452,7 @@ export function DeptTab({ year, data: externalData }: DeptTabProps) {
                           const cx = (x as number) + (Number(width) || 0) / 2;
 
                           // place ABOVE bar head and clamp so it never hits the top edge
-                          const LABEL_LIFT = 30;   // tweak 28–35 if you want more gap
+                          const LABEL_LIFT = 48;   // lift label higher to avoid overlap with bars
                           const cyRaw = (y as number) - LABEL_LIFT;
                           const cy = Math.max(cyRaw, 8); // clamp to keep it visible
 
