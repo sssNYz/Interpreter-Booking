@@ -106,7 +106,7 @@ function getDRValue(
 function getMTValue(
   mrow: MonthlyDataRowWithDR | undefined,
   itp: InterpreterName,
-  label: "VIP" | "WEEKLY" | "GENERAL" | "URGENT" | "OTHER"
+  label: "VIP" | "WEEKLY" | "GENERAL" | "URGENT" | "PRESIDENT" | "OTHER"
 ): number {
   const key = MT_LABEL_TO_KEY[label];
   return mrow?.typeByInterpreter?.[itp]?.[key] ?? 0;
@@ -376,7 +376,7 @@ export function TypesTab({ year, data: externalData }: TypesTabProps) {
       months.forEach((m) => {
         const mrow = yearData.find((d) => d.month === m);
         const v = interpreters.reduce((sum, itp) => {
-          if (label === "DR1" || label === "DR2" || label === "DRK" || label === "PDR" || label === "DR_OTHER") {
+          if (label === "DR1" || label === "DR2" || label === "DRK" || label === "DR_PR" || label === "DR_OTHER") {
             return sum + getDRValue(mrow, itp, label);
           }
           return sum + getMTValue(mrow, itp, label);
@@ -533,7 +533,7 @@ export function TypesTab({ year, data: externalData }: TypesTabProps) {
             <ResponsiveContainer width="100%" height="100%" style={{ overflow: "visible" }}>
               <BarChart 
                 data={chartData.length > 0 ? chartData : [{ month: "No Data" }]}
-                margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                margin={{ top: 56, right: 30, left: 20, bottom: 5 }}
               >
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
@@ -580,7 +580,7 @@ export function TypesTab({ year, data: externalData }: TypesTabProps) {
                           const cx = (x as number) + (Number(width) || 0) / 2;
 
                           // place ABOVE bar head and clamp so it never hits the top edge
-                          const LABEL_LIFT = 30;   // tweak 28–35 if you want more gap
+                          const LABEL_LIFT = 48;   // lift label higher to avoid overlap with bars
                           const cyRaw = (y as number) - LABEL_LIFT;
                           const cy = Math.max(cyRaw, 8); // clamp to keep it visible
 
