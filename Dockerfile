@@ -1,0 +1,71 @@
+# syntax=docker/dockerfile:1
+
+# --- Base image for all stages ---
+ARG NODE_VERSION=20-slim
+
+# --- Dev base (pre-installed openssl) ---
+FROM node:${NODE_VERSION} AS devbase
+WORKDIR /app
+RUN apt-get update -y \
+ && apt-get install -y --no-install-recommends openssl \
+ && rm -rf /var/lib/apt/lists/*
+
+# --- Dependencies (production) ---
+FROM node:${NODE_VERSION} AS deps
+WORKDIR /app
+
+# Install minimal OS deps (openssl for Prisma)
+RUN apt-get update -y \
+ && apt-get install -y --no-install-recommends openssl \
+ && rm -rf /var/lib/apt/lists/*
+
+COPY package*.json ./
+# Install only production dependencies
+RUN npm ci --omit=dev
+
+# --- Builder (full deps for build) ---
+FROM node:${NODE_VERSION} AS builder
+WORKDIR /app
+
+RUN apt-get update -y \
+ && apt-get install -y --no-install-recommends openssl \
+ && rm -rf /var/lib/apt/lists/*
+
+COPY package*.json ./
+# Install all deps for building Next.js
+RUN npm ci
+
+# Copy Prisma schema for generate, and source for build
+COPY prisma ./prisma
+RUN npx prisma generate
+
+COPY . .
+# Build Next.js app
+ENV NEXT_TELEMETRY_DISABLED=1
+RUN npm run build
+
+# --- Runner (final minimal image) ---
+FROM node:${NODE_VERSION} AS runner
+WORKDIR /app
+
+# Ensure openssl present for Prisma engines
+RUN apt-get update -y \
+ && apt-get install -y --no-install-recommends openssl \
+ && rm -rf /var/lib/apt/lists/*
+
+ENV NODE_ENV=production \
+    NEXT_TELEMETRY_DISABLED=1 \
+    PORT=3000
+
+# Copy production node_modules and app build
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=builder /app/.next ./.next
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/package*.json ./
+COPY --from=builder /app/next.config.* ./
+COPY --from=builder /app/prisma ./prisma
+
+EXPOSE 3000
+
+# Run Prisma migrations then start server (idempotent)
+CMD ["sh", "-c", "npx prisma generate && npx prisma migrate deploy && npm run start -- -p $PORT"]
