@@ -238,7 +238,7 @@ export function getMeetingTypeBadge(
       "span",
       {
         className: `inline-flex items-center gap-1 text-xs font-semibold ${config.color} group relative cursor-help`,
-        title: `DR Type: ${drTypeLabel}`,
+        'aria-label': `DR Type: ${drTypeLabel}`,
       },
       React.createElement(Icon, { className: "h-3 w-3" }),
       config.label,
@@ -246,7 +246,7 @@ export function getMeetingTypeBadge(
       React.createElement(
         "div",
         {
-          className: "absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50 pointer-events-none",
+          className: "absolute bottom-full left-1/2 -translate-x-1/2 mb-4 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-\[9999\] pointer-events-none transform -translate-y-1",
         },
         `DR Type: ${drTypeLabel}`
       )
@@ -259,7 +259,7 @@ export function getMeetingTypeBadge(
       "span",
       {
         className: `inline-flex items-center gap-1 text-xs font-semibold ${config.color} group relative cursor-help`,
-        title: `Other Type: ${otherType}`,
+        'aria-label': `Other Type: ${otherType}`,
       },
       React.createElement(Icon, { className: "h-3 w-3" }),
       config.label,
@@ -267,7 +267,7 @@ export function getMeetingTypeBadge(
       React.createElement(
         "div",
         {
-          className: "absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50 pointer-events-none",
+          className: "absolute bottom-full left-1/2 -translate-x-1/2 mb-4 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-\[9999\] pointer-events-none transform -translate-y-1",
         },
         `Other Type: ${otherType}`
       )
@@ -297,3 +297,4 @@ export function getPriorityBadge(level: PriorityLevel): React.ReactElement {
     config.label
   );
 }
+
