@@ -35,10 +35,11 @@ type PriorityLabel =
   | "DRK"
   | "DR_OTHER"
   | "VIP"
-  | "PDR"
+  | "DR_PR"
   | "WEEKLY"
   | "GENERAL"
   | "URGENT"
+  | "PRESIDENT"
   | "OTHER";
 
 const TYPE_PRIORITY: readonly PriorityLabel[] = [
@@ -47,10 +48,11 @@ const TYPE_PRIORITY: readonly PriorityLabel[] = [
   "DRK",
   "DR_OTHER",
   "VIP",
-  "PDR",
+  "DR_PR",
   "WEEKLY",
   "GENERAL",
   "URGENT",
+  "PRESIDENT",
   "OTHER",
 ];
 
@@ -60,32 +62,34 @@ const TYPE_COLORS: Record<PriorityLabel, string> = {
   DRK: "#d97706",        // amber
   DR_OTHER: "#92400e",   // brown
   VIP: "#8b5cf6",        // purple
-  PDR: "#10b981",        // emerald
+  DR_PR: "#10b981",      // emerald
   WEEKLY: "#eab308",     // yellow
   GENERAL: "#374151",    // gray
   URGENT: "#059669",     // green
+  PRESIDENT: "#0ea5e9",  // cyan
   OTHER: "#3b82f6",      // blue
 };
 
 const DR_LABEL_TO_KEY: Record<
-  Extract<PriorityLabel, "DR1" | "DR2" | "DRK" | "PDR" | "DR_OTHER">,
+  Extract<PriorityLabel, "DR1" | "DR2" | "DRK" | "DR_PR" | "DR_OTHER">,
   DRType
 > = {
   DR1: "DR_I",
   DR2: "DR_II",
   DRK: "DR_k",
-  PDR: "PR_PR",
+  DR_PR: "DR_PR",
   DR_OTHER: "Other",
 };
 
 const MT_LABEL_TO_KEY: Record<
-  Extract<PriorityLabel, "VIP" | "WEEKLY" | "GENERAL" | "URGENT" | "OTHER">,
+  Extract<PriorityLabel, "VIP" | "WEEKLY" | "GENERAL" | "URGENT" | "PRESIDENT" | "OTHER">,
   MeetingType
 > = {
   VIP: "VIP",
   WEEKLY: "Weekly",
   GENERAL: "General",
-  URGENT: "Augent",
+  URGENT: "Urgent",
+  PRESIDENT: "President",
   OTHER: "Other",
 };
 
@@ -93,7 +97,7 @@ const MT_LABEL_TO_KEY: Record<
 function getDRValue(
   mrow: MonthlyDataRowWithDR | undefined,
   itp: InterpreterName,
-  label: "DR1" | "DR2" | "DRK" | "PDR" | "DR_OTHER"
+  label: "DR1" | "DR2" | "DRK" | "DR_PR" | "DR_OTHER"
 ): number {
   const key = DR_LABEL_TO_KEY[label];
   return mrow?.drTypeByInterpreter?.[itp]?.[key] ?? 0;
@@ -321,7 +325,7 @@ export function TypesTab({ year, data: externalData }: TypesTabProps) {
       interpreters.forEach((interpreter) => {
         TYPE_PRIORITY.forEach((label) => {
           let value = 0;
-          if (label === "DR1" || label === "DR2" || label === "DRK" || label === "PDR" || label === "DR_OTHER") {
+          if (label === "DR1" || label === "DR2" || label === "DRK" || label === "DR_PR" || label === "DR_OTHER") {
             value = getDRValue(mrow, interpreter, label);
           } else {
             value = getMTValue(mrow, interpreter, label);
@@ -405,7 +409,7 @@ export function TypesTab({ year, data: externalData }: TypesTabProps) {
       monthsToRender.reduce((acc, m) => {
         const r = yearData.find((d) => d.month === m);
         const sumThisMonth = TYPE_PRIORITY.reduce((sum, label) => {
-          if (label === "DR1" || label === "DR2" || label === "DRK" || label === "PDR" || label === "DR_OTHER") {
+          if (label === "DR1" || label === "DR2" || label === "DRK" || label === "DR_PR" || label === "DR_OTHER") {
             return sum + getDRValue(r, itp, label);
           }
           return sum + getMTValue(r, itp, label);
@@ -690,7 +694,7 @@ export function TypesTab({ year, data: externalData }: TypesTabProps) {
                   const perItp = interpreters.map((itp) => 
                     monthsToRender.reduce((acc, m) => {
                       const mrow = yearData.find((d) => d.month === m);
-                      if (label === "DR1" || label === "DR2" || label === "DRK" || label === "PDR" || label === "DR_OTHER") {
+                      if (label === "DR1" || label === "DR2" || label === "DRK" || label === "DR_PR" || label === "DR_OTHER") {
                         return acc + getDRValue(mrow, itp, label);
                       }
                       return acc + getMTValue(mrow, itp, label);
