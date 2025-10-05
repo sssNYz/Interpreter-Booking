@@ -109,10 +109,11 @@ type PriorityLabel =
   | "DR2"
   | "DRK"
   | "VIP"
-  | "PDR"
+  | "DR_PR"
   | "WEEKLY"
   | "GENERAL"
   | "URGENT"
+  | "PRESIDENT"
   | "OTHER"
   | "DR_OTHER";
 
@@ -122,32 +123,34 @@ const TYPE_PRIORITY: readonly PriorityLabel[] = [
   "DRK",
   "DR_OTHER",
   "VIP",
-  "PDR",
+  "DR_PR",
   "WEEKLY",
   "GENERAL",
   "URGENT",
+  "PRESIDENT",
   "OTHER",
 ];
 
 const DR_LABEL_TO_KEY: Record<
-  Extract<PriorityLabel, "DR1" | "DR2" | "DRK" | "PDR" | "DR_OTHER">,
+  Extract<PriorityLabel, "DR1" | "DR2" | "DRK" | "DR_PR" | "DR_OTHER">,
   DRType
 > = {
   DR1: "DR_I",
   DR2: "DR_II",
   DRK: "DR_k",
-  PDR: "PR_PR",
+  DR_PR: "DR_PR",
   DR_OTHER: "Other",
 };
 
 const MT_LABEL_TO_KEY: Record<
-  Extract<PriorityLabel, "VIP" | "WEEKLY" | "GENERAL" | "URGENT" | "OTHER">,
+  Extract<PriorityLabel, "VIP" | "WEEKLY" | "GENERAL" | "URGENT" | "PRESIDENT" | "OTHER">,
   MeetingType
 > = {
   VIP: "VIP",
   WEEKLY: "Weekly",
   GENERAL: "General",
-  URGENT: "Augent",
+  URGENT: "Urgent",
+  PRESIDENT: "President",
   OTHER: "Other",
 };
 
@@ -157,7 +160,7 @@ type SingleMonthBar = TypeChartRow & { type: PriorityLabel } & Record<string, nu
 function getDRValue(
   mrow: MonthlyDataRowWithDR | undefined,
   itp: InterpreterName,
-  label: "DR1" | "DR2" | "DRK" | "PDR" | "DR_OTHER"
+  label: "DR1" | "DR2" | "DRK" | "DR_PR" | "DR_OTHER"
 ): number {
   const key = DR_LABEL_TO_KEY[label];
   return mrow?.drTypeByInterpreter?.[itp]?.[key] ?? 0;
@@ -166,7 +169,7 @@ function getDRValue(
 function getMTValue(
   mrow: MonthlyDataRowWithDR | undefined,
   itp: InterpreterName,
-  label: "VIP" | "WEEKLY" | "GENERAL" | "URGENT" | "OTHER"
+  label: "VIP" | "WEEKLY" | "GENERAL" | "URGENT" | "PRESIDENT" | "OTHER"
 ): number {
   const key = MT_LABEL_TO_KEY[label];
   return mrow?.typeByInterpreter?.[itp]?.[key] ?? 0;
@@ -238,7 +241,7 @@ export function TypesTab({ year, data: externalData, selectedMonth: propSelected
       const rec = { type: label } as SingleMonthBar;
       interpreters.forEach((itp) => {
         let v = 0;
-        if (label === "DR1" || label === "DR2" || label === "DRK" || label === "PDR" || label === "DR_OTHER") {
+        if (label === "DR1" || label === "DR2" || label === "DRK" || label === "DR_PR" || label === "DR_OTHER") {
           v = getDRValue(mrow, itp, label);
         } else {
           v = getMTValue(mrow, itp, label);
@@ -278,7 +281,7 @@ export function TypesTab({ year, data: externalData, selectedMonth: propSelected
       months.forEach((m) => {
         const mrow = yearData.find((d) => d.month === m);
         const v = interpreters.reduce((sum, itp) => {
-          if (label === "DR1" || label === "DR2" || label === "DRK" || label === "PDR" || label === "DR_OTHER") {
+          if (label === "DR1" || label === "DR2" || label === "DRK" || label === "DR_PR" || label === "DR_OTHER") {
             return sum + getDRValue(mrow, itp, label);
           }
           return sum + getMTValue(mrow, itp, label);
@@ -307,7 +310,7 @@ export function TypesTab({ year, data: externalData, selectedMonth: propSelected
     const mrow = yearData.find((d) => d.month === selectedMonth);
     const perInterpreter = interpreters.map((itp) =>
       TYPE_PRIORITY.reduce((sum, label) => {
-        if (label === "DR1" || label === "DR2" || label === "DRK" || label === "PDR" || label === "DR_OTHER") {
+          if (label === "DR1" || label === "DR2" || label === "DRK" || label === "DR_PR" || label === "DR_OTHER") {
           return sum + getDRValue(mrow, itp, label);
         }
         return sum + getMTValue(mrow, itp, label);
@@ -448,7 +451,7 @@ export function TypesTab({ year, data: externalData, selectedMonth: propSelected
                   const mrow = yearData.find((d) => d.month === m);
                   return TYPE_PRIORITY.map((label, idx) => {
                     const perItp = interpreters.map((itp) =>
-                      label === "DR1" || label === "DR2" || label === "DRK" || label === "PDR" || label === "DR_OTHER"
+                      label === "DR1" || label === "DR2" || label === "DRK" || label === "DR_PR" || label === "DR_OTHER"
                         ? getDRValue(mrow, itp, label)
                         : getMTValue(mrow, itp, label)
                     );
