@@ -64,14 +64,15 @@ model BookingPlan {
 }
 
 model BookingForwardTarget {
-  bookingId Int         @map("BOOKING_ID")
-  DEPT_PATH String      @db.VarChar(512)
-  createdAt DateTime    @default(now()) @map("created_at") @db.Timestamp(0)
-  updatedAt DateTime    @default(now()) @updatedAt @map("updated_at") @db.Timestamp(0)
-  booking   BookingPlan @relation(fields: [bookingId], references: [bookingId], onDelete: Cascade)
+  bookingId     Int         @map("BOOKING_ID")
+  environmentId Int         @map("ENVIRONMENT_ID")
+  createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt     DateTime    @default(now()) @updatedAt @map("updated_at") @db.Timestamp(0)
+  booking       BookingPlan @relation(fields: [bookingId], references: [bookingId], onDelete: Cascade)
+  environment   Environment @relation(fields: [environmentId], references: [id], onDelete: Cascade)
 
-  @@id([bookingId, DEPT_PATH])
-  @@index([DEPT_PATH])
+  @@id([bookingId, environmentId])
+  @@index([environmentId])
   @@map("BOOKING_FORWARD_TARGET")
 }
 
@@ -317,6 +318,7 @@ model Environment {
   centers           EnvironmentCenter[]
   interpreters      EnvironmentInterpreter[]
   priorities        MeetingTypePriority[]
+  forwardTargets    BookingForwardTarget[]
 
   @@map("ENVIRONMENT")
 }
