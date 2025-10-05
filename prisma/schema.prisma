@@ -40,6 +40,11 @@ model BookingPlan {
   isForwarded                Boolean                @default(false) @map("IS_FORWARDED")
   forwardedByEmpCode         String?                @map("FORWARDED_BY_EMP_CODE") @db.VarChar(64)
   forwardActions             Json                   @map("FORWARD_ACTIONS")
+  autoAssignAt               DateTime?              @map("AUTO_ASSIGN_AT") @db.DateTime(0)
+  autoAssignStatus           String                 @default("pending") @map("AUTO_ASSIGN_STATUS") @db.VarChar(16)
+  autoAssignLockedAt         DateTime?              @map("AUTO_ASSIGN_LOCKED_AT") @db.DateTime(0)
+  autoAssignLockedBy         String?                @map("AUTO_ASSIGN_LOCKED_BY") @db.VarChar(64)
+  autoAssignAttempts         Int                    @default(0) @map("AUTO_ASSIGN_ATTEMPTS")
   assignmentLogs             AssignmentLog[]
   forwardTargets             BookingForwardTarget[]
   forwardedByEmployee        Employee?              @relation("ForwardedByEmployee", fields: [forwardedByEmpCode], references: [empCode])
@@ -60,6 +65,7 @@ model BookingPlan {
   @@index([languageCode])
   @@index([chairmanEmail])
   @@index([selectedInterpreterEmpCode])
+  @@index([autoAssignStatus, autoAssignAt])
   @@map("BOOKING_PLAN")
 }
 
@@ -167,6 +173,9 @@ model AutoAssignmentConfig {
   w_urgency            Float    @default(0.5) @map("W_URGENCY")
   w_lrs                Float    @default(0.3) @map("W_LRS")
   drConsecutivePenalty Float    @default(-0.7) @map("DR_CONSECUTIVE_PENALTY")
+  pollIntervalMinutes  Int      @default(180) @map("POLL_INTERVAL_MINUTES")
+  dailyRunTimes        String?  @map("DAILY_RUN_TIMES") @db.VarChar(255)
+  timezone             String?  @map("TIMEZONE") @db.VarChar(64)
   createdAt            DateTime @default(now()) @map("created_at") @db.Timestamp(0)
   updatedAt            DateTime @updatedAt @map("updated_at") @db.Timestamp(0)
 
