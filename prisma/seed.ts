@@ -7,21 +7,66 @@ async function main() {
 
   // Clear existing data (optional - remove if you want to keep existing data)
   // Delete in order to respect foreign key constraints
-  await prisma.assignmentLog.deleteMany();
-  await prisma.bookingForwardTarget.deleteMany();
-  await prisma.inviteEmailList.deleteMany();
-  await prisma.bookingPlan.deleteMany();
-  await prisma.userRole.deleteMany();
-  await prisma.interpreterLanguage.deleteMany();
-  await prisma.environmentInterpreter.deleteMany();
-  await prisma.environmentAdmin.deleteMany();
-  await prisma.environmentCenter.deleteMany();
-  await prisma.meetingTypePriority.deleteMany();
-  await prisma.meetingTypeModeThreshold.deleteMany();
-  await prisma.environmentAssignmentConfig.deleteMany();
-  await prisma.environment.deleteMany();
-  await prisma.language.deleteMany();
-  await prisma.employee.deleteMany();
+  // Use try-catch to handle missing tables gracefully
+  try {
+    await prisma.assignmentLog.deleteMany();
+  } catch (e) { console.log("Skipping assignmentLog (table doesn't exist)"); }
+  
+  try {
+    await prisma.bookingForwardTarget.deleteMany();
+  } catch (e) { console.log("Skipping bookingForwardTarget (table doesn't exist)"); }
+  
+  try {
+    await prisma.inviteEmailList.deleteMany();
+  } catch (e) { console.log("Skipping inviteEmailList (table doesn't exist)"); }
+  
+  try {
+    await prisma.bookingPlan.deleteMany();
+  } catch (e) { console.log("Skipping bookingPlan (table doesn't exist)"); }
+  
+  try {
+    await prisma.userRole.deleteMany();
+  } catch (e) { console.log("Skipping userRole (table doesn't exist)"); }
+  
+  try {
+    await prisma.interpreterLanguage.deleteMany();
+  } catch (e) { console.log("Skipping interpreterLanguage (table doesn't exist)"); }
+  
+  try {
+    await prisma.environmentInterpreter.deleteMany();
+  } catch (e) { console.log("Skipping environmentInterpreter (table doesn't exist)"); }
+  
+  try {
+    await prisma.environmentAdmin.deleteMany();
+  } catch (e) { console.log("Skipping environmentAdmin (table doesn't exist)"); }
+  
+  try {
+    await prisma.environmentCenter.deleteMany();
+  } catch (e) { console.log("Skipping environmentCenter (table doesn't exist)"); }
+  
+  try {
+    await prisma.meetingTypePriority.deleteMany();
+  } catch (e) { console.log("Skipping meetingTypePriority (table doesn't exist)"); }
+  
+  try {
+    await prisma.meetingTypeModeThreshold.deleteMany();
+  } catch (e) { console.log("Skipping meetingTypeModeThreshold (table doesn't exist)"); }
+  
+  try {
+    await prisma.environmentAssignmentConfig.deleteMany();
+  } catch (e) { console.log("Skipping environmentAssignmentConfig (table doesn't exist)"); }
+  
+  try {
+    await prisma.environment.deleteMany();
+  } catch (e) { console.log("Skipping environment (table doesn't exist)"); }
+  
+  try {
+    await prisma.language.deleteMany();
+  } catch (e) { console.log("Skipping language (table doesn't exist)"); }
+  
+  try {
+    await prisma.employee.deleteMany();
+  } catch (e) { console.log("Skipping employee (table doesn't exist)"); }
 
   // Insert Languages
   console.log("Inserting languages...");
@@ -959,69 +1004,6 @@ async function main() {
   ];
 
   await prisma.employee.createMany({ data: employees });
-
-  // Insert Environments
-  console.log("Inserting environments...");
-  await prisma.environment.createMany({
-    data: [
-      { id: 1, name: "Chan 3", isActive: true },
-      { id: 2, name: "Chan 4", isActive: true },
-      { id: 3, name: "Chan Rak Ter", isActive: true },
-    ],
-  });
-
-  // Insert Environment Centers
-  console.log("Inserting environment centers...");
-  await prisma.environmentCenter.createMany({
-    data: [
-      { id: 1, environmentId: 1, center: "DDDD" },
-      { id: 2, environmentId: 1, center: "CCCC" },
-      { id: 3, environmentId: 2, center: "AAAA" },
-      { id: 4, environmentId: 2, center: "BBBB" },
-      { id: 5, environmentId: 3, center: "EEEE" },
-    ],
-  });
-
-  // Insert Environment Admins
-  console.log("Inserting environment admins...");
-  await prisma.environmentAdmin.createMany({
-    data: [
-      { id: 8, environmentId: 3, adminEmpCode: "E0001" },
-      { id: 9, environmentId: 2, adminEmpCode: "B0001" },
-      { id: 10, environmentId: 2, adminEmpCode: "A0001" },
-      { id: 11, environmentId: 1, adminEmpCode: "C0001" },
-      { id: 12, environmentId: 1, adminEmpCode: "D0001" },
-    ],
-  });
-
-  // Insert Environment Interpreters
-  console.log("Inserting environment interpreters...");
-  await prisma.environmentInterpreter.createMany({
-    data: [
-      { id: 1, environmentId: 1, interpreterEmpCode: "C0002" },
-      { id: 2, environmentId: 1, interpreterEmpCode: "D0002" },
-      { id: 3, environmentId: 2, interpreterEmpCode: "A0002" },
-      { id: 4, environmentId: 2, interpreterEmpCode: "B0002" },
-      { id: 5, environmentId: 3, interpreterEmpCode: "E0002" },
-    ],
-  });
-
-  // Insert Interpreter Languages
-  console.log("Inserting interpreter languages...");
-  await prisma.interpreterLanguage.createMany({
-    data: [
-      { id: 1, empCode: "E0002", languageCode: "TH" },
-      { id: 2, empCode: "E0002", languageCode: "JP" },
-      { id: 3, empCode: "E0002", languageCode: "EN" },
-      { id: 4, empCode: "D0002", languageCode: "JP" },
-      { id: 5, empCode: "C0002", languageCode: "EN" },
-      { id: 6, empCode: "C0002", languageCode: "JP" },
-      { id: 7, empCode: "B0002", languageCode: "EN" },
-      { id: 8, empCode: "A0002", languageCode: "JP" },
-      { id: 9, empCode: "A0002", languageCode: "EN" },
-      { id: 10, empCode: "A0002", languageCode: "TH" },
-    ],
-  });
 
   // Insert User Roles
   console.log("Inserting user roles...");
