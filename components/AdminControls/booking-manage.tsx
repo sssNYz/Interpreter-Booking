@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/select";
 import {
   ChevronLeft, ChevronRight, Star, HelpCircle, Info, CheckCircle, XCircle, Hourglass,
-  Calendar, ChevronUp, ChevronDown, SquarePen, Users, Circle, AlertTriangle, Clock,
+  Calendar, ChevronUp, ChevronDown, SquarePen, Users, Circle, AlertTriangle, Clock, Crown,
   RotateCcw, CircleDot, Filter, X, ChevronDown as ChevronDownIcon,
 } from "lucide-react";
 import { Label } from "@/components/ui/label";
@@ -309,11 +309,15 @@ export default function BookingManagement(): React.JSX.Element {
           </div>
           <div className="flex items-center gap-2">
             <CircleDot className="h-4 w-4 text-red-500" />
-            <span className="text-sm text-gray-700">PDR</span>
+            <span className="text-sm text-gray-700">DR-PR</span>
           </div>
           <div className="flex items-center gap-2">
             <Users className="h-4 w-4 text-purple-600" />
             <span className="text-sm text-gray-700">VIP</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Crown className="h-4 w-4 text-yellow-600" />
+            <span className="text-sm text-gray-700">President</span>
           </div>
           <div className="flex items-center gap-2">
             <Calendar className="h-4 w-4 text-green-600" />

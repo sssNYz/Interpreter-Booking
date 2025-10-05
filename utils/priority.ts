@@ -1,8 +1,8 @@
 import React from "react";
-import { Circle, Star, Users, Calendar, HelpCircle, AlertTriangle, CircleDot } from "lucide-react";
+import { Circle, Star, Users, Calendar, HelpCircle, AlertTriangle, Crown } from "lucide-react";
 
-export type PriorityLevel = "VIP" | "DR_I" | "DR_II" | "DR_k" | "PDR" | "General";
-export type MeetingType = "DR" | "PDR" | "VIP" | "Weekly" | "General" | "Urgent" | "Other" | "Augent";
+export type PriorityLevel = "VIP" | "DR_I" | "DR_II" | "DR_k" | "General";
+export type MeetingType = "DR" | "VIP" | "Weekly" | "General" | "Urgent" | "President" | "Other";
 
 export interface PriorityConfig {
   level: PriorityLevel;
@@ -59,15 +59,6 @@ export const PRIORITY_CONFIGS: Record<PriorityLevel, PriorityConfig> = {
     borderColor: "",
     order: 4,
   },
-  PDR: {
-    level: "PDR",
-    label: "PDR",
-    icon: CircleDot,
-    color: "text-red-500",
-    bgColor: "",
-    borderColor: "",
-    order: 5,
-  },
   General: {
     level: "General",
     label: "General",
@@ -75,7 +66,7 @@ export const PRIORITY_CONFIGS: Record<PriorityLevel, PriorityConfig> = {
     color: "text-gray-500",
     bgColor: "",
     borderColor: "",
-    order: 6,
+    order: 5,
   },
 };
 
@@ -86,13 +77,6 @@ export const MEETING_TYPE_CONFIGS: Record<MeetingType, MeetingTypeConfig> = {
     icon: Star,
     color: "text-red-600", // High priority red
     priority: "DR_I", // Default, will be overridden by drType
-  },
-  PDR: {
-    type: "PDR",
-    label: "PDR",
-    icon: Star,
-    color: "text-red-600",
-    priority: "DR_I",
   },
   VIP: {
     type: "VIP",
@@ -122,18 +106,18 @@ export const MEETING_TYPE_CONFIGS: Record<MeetingType, MeetingTypeConfig> = {
     color: "text-orange-600", // Urgent orange
     priority: "DR_II", // High priority
   },
+  President: {
+    type: "President",
+    label: "President",
+    icon: Crown,
+    color: "text-yellow-600",
+    priority: "VIP",
+  },
   Other: {
     type: "Other",
     label: "Other",
     icon: HelpCircle,
     color: "text-slate-600", // Neutral slate
-    priority: "General",
-  },
-  Augent: {
-    type: "Augent",
-    label: "Augent",
-    icon: Calendar,
-    color: "text-blue-600", // Blue for Augent
     priority: "General",
   },
 };
@@ -144,8 +128,6 @@ export function getPriorityLevel(
 ): PriorityLevel {
   // VIP meetings have highest priority
   if (meetingType === "VIP") return "VIP";
-  // PDR lower priority than all DR variants
-  if (meetingType === "PDR") return "PDR";
   
   // DR meetings based on drType
   if (meetingType === "DR" && drType) {
@@ -188,20 +170,69 @@ export function getMeetingTypeBadge(
   drType?: string,
   otherType?: string
 ): React.ReactElement {
-  const type = (meetingType as MeetingType) || "General";
-  const config = getMeetingTypeConfig(type);
+  // Normalize meetingType and drType to canonical values used across the app
+  const rawMt = (meetingType || "").trim();
+  const mtUpper = rawMt.toLowerCase();
+
+  let normalizedType: MeetingType;
+  let normalizedDr: string | undefined = drType || undefined;
+
+  switch (mtUpper) {
+    case "dr":
+      normalizedType = "DR";
+      break;
+    case "pdr":
+      // Legacy: treat PDR as DR with subtype DR_PR
+      normalizedType = "DR";
+      normalizedDr = normalizedDr || "DR_PR";
+      break;
+    case "vip":
+      normalizedType = "VIP";
+      break;
+    case "weekly":
+      normalizedType = "Weekly";
+      break;
+    case "general":
+      normalizedType = "General";
+      break;
+    case "urgent":
+    case "augent": // legacy spelling
+      normalizedType = "Urgent";
+      break;
+    case "president":
+      normalizedType = "President";
+      break;
+    case "other":
+      normalizedType = "Other";
+      break;
+    default:
+      // If DR subtype is present but meetingType missing/unknown, treat as DR
+      normalizedType = normalizedDr ? "DR" : "General";
+  }
+
+  // Normalize DR type spellings/aliases
+  if (normalizedType === "DR" && normalizedDr) {
+    const dt = normalizedDr.trim();
+    const dtLower = dt.toLowerCase();
+    if (dtLower === "pr_pr" || dtLower === "pr-pr" || dtLower === "dr-pr") normalizedDr = "DR_PR";
+    else if (dtLower === "dr-i" || dtLower === "dr_i") normalizedDr = "DR_I";
+    else if (dtLower === "dr-ii" || dtLower === "dr_ii") normalizedDr = "DR_II";
+    else if (dtLower === "dr-k" || dtLower === "dr_k") normalizedDr = "DR_k";
+  }
+
+  const config = getMeetingTypeConfig(normalizedType);
   
   // Safety check to ensure config exists
   if (!config) {
-    console.warn(`No config found for meeting type: ${type}`);
+    console.warn(`No config found for meeting type: ${normalizedType}`);
     return React.createElement("span", { className: "text-xs text-gray-500" }, "Unknown");
   }
   
   const Icon = config.icon;
   
   // For DR meetings, show tooltip with DR type
-  if (type === "DR" && drType) {
-    const drTypeLabel = drType.replace("_", "-"); // DR_I -> DR-I
+  if (normalizedType === "DR" && normalizedDr) {
+    const drTypeLabel = normalizedDr.replace("_", "-"); // DR_I -> DR-I
     
     return React.createElement(
       "span",
@@ -223,7 +254,7 @@ export function getMeetingTypeBadge(
   }
   
   // For Other meetings, show tooltip with other type details
-  if (type === "Other" && otherType) {
+  if (normalizedType === "Other" && otherType) {
     return React.createElement(
       "span",
       {
