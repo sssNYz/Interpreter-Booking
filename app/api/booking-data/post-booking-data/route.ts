@@ -1121,6 +1121,13 @@ export async function POST(request: NextRequest) {
         console.log(
           `🚀 Starting auto-assignment for booking ${result.body.data?.bookingId} (after transaction)`
         );
+        // Compute and persist auto-assign scheduling fields for the parent booking
+        try {
+          const { scheduleAutoAssignForBooking } = await import("@/lib/assignment/scheduler/compute");
+          await scheduleAutoAssignForBooking(result.body.data!.bookingId);
+        } catch (e) {
+          console.warn("⚠️ Failed to compute auto-assign schedule for parent:", e);
+        }
         const { run } = await import("@/lib/assignment/core/run");
 
         // If this is a recurring booking, assign parent and all children individually
@@ -1145,12 +1152,19 @@ export async function POST(request: NextRequest) {
             `📋 Found ${childBookings.length} child bookings to assign individually`
           );
 
-          // 3. Run auto-assignment for each child booking
+          // 3. Compute schedule and run auto-assignment for each child booking
           let successfulChildAssignments = 0;
           const childResults = [];
 
           for (const childBooking of childBookings) {
             try {
+              // Compute and persist auto-assign schedule for child
+              try {
+                const { scheduleAutoAssignForBooking } = await import("@/lib/assignment/scheduler/compute");
+                await scheduleAutoAssignForBooking(childBooking.bookingId);
+              } catch (e) {
+                console.warn(`⚠️ Failed to compute auto-assign schedule for child ${childBooking.bookingId}:`, e);
+              }
               console.log(
                 `🔄 Running auto-assignment for child booking ${childBooking.bookingId}`
               );

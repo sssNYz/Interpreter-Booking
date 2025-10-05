@@ -406,7 +406,8 @@ async function performAssignment(booking: {
   // Compute urgency score using enhanced algorithm
   const urgencyScore = await computeEnhancedUrgencyScore(
     booking.timeStart,
-    booking.meetingType
+    booking.meetingType,
+    environmentId ?? undefined
   );
 
   console.log(`📊 Urgency score for ${booking.meetingType}: ${urgencyScore.toFixed(3)}`);
