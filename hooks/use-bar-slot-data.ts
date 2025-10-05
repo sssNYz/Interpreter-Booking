@@ -44,7 +44,8 @@ export function useSlotDataForBars({
       const date = String(day.date).padStart(2, "0");
       const dayLocalStr = `${year}-${month}-${date}`;
 
-      const dayBookings = bookings.filter((b) => {
+      const safeBookings = bookings || [];
+      const dayBookings = safeBookings.filter((b) => {
         const src = b.timeStart;
         const startDateISO = src.includes("T")
           ? src.split("T")[0]
