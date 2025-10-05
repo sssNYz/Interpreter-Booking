@@ -169,7 +169,7 @@ function getDRValue(
 function getMTValue(
   mrow: MonthlyDataRowWithDR | undefined,
   itp: InterpreterName,
-  label: "VIP" | "WEEKLY" | "GENERAL" | "URGENT" | "OTHER"
+  label: "VIP" | "WEEKLY" | "GENERAL" | "URGENT" | "PRESIDENT" | "OTHER"
 ): number {
   const key = MT_LABEL_TO_KEY[label];
   return mrow?.typeByInterpreter?.[itp]?.[key] ?? 0;
@@ -281,7 +281,7 @@ export function TypesTab({ year, data: externalData, selectedMonth: propSelected
       months.forEach((m) => {
         const mrow = yearData.find((d) => d.month === m);
         const v = interpreters.reduce((sum, itp) => {
-          if (label === "DR1" || label === "DR2" || label === "DRK" || label === "PDR" || label === "DR_OTHER") {
+          if (label === "DR1" || label === "DR2" || label === "DRK" || label === "DR_PR" || label === "DR_OTHER") {
             return sum + getDRValue(mrow, itp, label);
           }
           return sum + getMTValue(mrow, itp, label);
