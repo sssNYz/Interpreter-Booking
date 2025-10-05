@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { Users, Clock, BarChart2, RefreshCw, ChevronDown } from "lucide-react";
+import { Clock, BarChart2, RefreshCw, ChevronDown } from "lucide-react";
 
 import { JobsTab as JobsTabMonth } from "@/components/AdminDashboards/TotalMonth/jobs-total-month";
 import { HoursTab as HoursTabMonth } from "@/components/AdminDashboards/TotalMonth/timejobs-total-month";
@@ -158,27 +158,7 @@ export default function Page() {
           return monthIndex >= 0 ? hoursData.totalHoursLineMinutes[monthIndex]?.total || 0 : 0;
         })();
 
-  const kpiDept =
-    agg === "totalAll"
-      ? deptData?.deptMGIFooter?.grand || 0
-      : (() => {
-          if (!deptData?.months || !deptData?.yearData) return 0;
-          const monthIndex = deptData.months.indexOf(selectedMonth);
-          if (monthIndex < 0) return 0;
-          const monthData = deptData.yearData[monthIndex];
-          return monthData
-            ? Object.values(monthData.deptMeetings).reduce((sum: number, val: number) => sum + (val || 0), 0)
-            : 0;
-        })();
-
-  // Get selected month data for types KPI
-  const kpiTypes =
-    agg === "totalAll"
-      ? typesData?.typesMGIFooter?.grand || 0
-      : (() => {
-          if (!typesData?.months || !typesData?.typesMGIFooter) return 0;
-          return typesData.typesMGIFooter.grand || 0;
-        })();
+  // Removed kpiDept and kpiTypes KPIs per request
 
   // year options
   const yearOptions = years.map((y) => (
@@ -401,7 +381,7 @@ export default function Page() {
         </div>
 
         {/* KPI cards */}
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-2 gap-4 mb-6">
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-base">
@@ -420,22 +400,6 @@ export default function Page() {
             </CardHeader>
             <CardContent>
               <Stat icon={Clock} label="Total Time" value={formatMinutes(kpiHours)} />
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base">Meetings by Dept ({agg === "totalAll" ? "Year" : "Month"})</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Stat icon={Users} label="Meetings by Dept" value={kpiDept} />
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base">Meeting Types ({agg === "totalAll" ? "Year" : "Month"})</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Stat icon={BarChart2} label="Meeting Types" value={kpiTypes} />
             </CardContent>
           </Card>
         </div>
