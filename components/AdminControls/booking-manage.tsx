@@ -302,40 +302,40 @@ export default function BookingManagement(): React.JSX.Element {
             <Info className="h-5 w-5 text-blue-600" />
             <span className="font-semibold text-blue-800">Legend:</span>
           </div>
-                  <div className="flex items-center gap-4 flex-wrap">
-          <div className="flex items-center gap-2">
-            <Star className="h-4 w-4 text-red-600" />
-            <span className="text-sm text-gray-700">DR (hover for type)</span>
+          <div className="flex items-center gap-4 flex-wrap">
+            <div className="flex items-center gap-2">
+              <Crown className="h-4 w-4 text-yellow-600" />
+              <span className="text-sm text-gray-700">President</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Users className="h-4 w-4 text-purple-600" />
+              <span className="text-sm text-gray-700">VIP</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Star className="h-4 w-4 text-red-600" />
+              <span className="text-sm text-gray-700">DR (hover for type)</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <CircleDot className="h-4 w-4 text-red-500" />
+              <span className="text-sm text-gray-700">DR-PR</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Calendar className="h-4 w-4 text-green-600" />
+              <span className="text-sm text-gray-700">Weekly</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Circle className="h-4 w-4 text-gray-500" />
+              <span className="text-sm text-gray-700">General</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-orange-600" />
+              <span className="text-sm text-gray-700">Urgent</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <HelpCircle className="h-4 w-4 text-slate-600" />
+              <span className="text-sm text-gray-700">Other</span>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <CircleDot className="h-4 w-4 text-red-500" />
-            <span className="text-sm text-gray-700">DR-PR</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Users className="h-4 w-4 text-purple-600" />
-            <span className="text-sm text-gray-700">VIP</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Crown className="h-4 w-4 text-yellow-600" />
-            <span className="text-sm text-gray-700">President</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Calendar className="h-4 w-4 text-green-600" />
-            <span className="text-sm text-gray-700">Weekly</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Circle className="h-4 w-4 text-gray-500" />
-            <span className="text-sm text-gray-700">General</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="h-4 w-4 text-orange-600" />
-            <span className="text-sm text-gray-700">Urgent</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <HelpCircle className="h-4 w-4 text-slate-600" />
-            <span className="text-sm text-gray-700">Other</span>
-          </div>
-        </div>
         </div>
 
         {/* Summary Cards with View Toggle */}
@@ -592,7 +592,7 @@ export default function BookingManagement(): React.JSX.Element {
                 {forwarded.length === 0 ? (
                   <div className="p-6 text-gray-500">No forwarded requests</div>
                 ) : (
-                  <div className="overflow-x-auto">
+                  <div className="overflow-visible">
                     <table className="w-full text-sm table-fixed">
                       <thead className="bg-white">
                         <tr className="border-b border-gray-200">
@@ -745,7 +745,7 @@ export default function BookingManagement(): React.JSX.Element {
                 All
               </AccordionTrigger>
               <AccordionContent className="px-0 pb-0 border border-gray-200 border-t-0 rounded-b-xl bg-white">
-                <div className="overflow-x-auto">
+                <div className="overflow-visible">
                   <table className="w-full text-sm table-fixed">
                     <thead className="bg-white">
                       <tr className="border-b border-gray-200">
@@ -953,4 +953,7 @@ export default function BookingManagement(): React.JSX.Element {
     </div>
   );
 }
+
+
+
 
