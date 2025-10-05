@@ -189,39 +189,34 @@ model MeetingTypePriority {
 }
 
 model MeetingTypeModeThreshold {
-  id                   Int         @id @default(autoincrement()) @map("ID")
-  meetingType          MeetingType @map("MEETING_TYPE")
-  assignmentMode       String      @map("ASSIGNMENT_MODE") @db.VarChar(20)
-  urgentThresholdDays  Int         @map("URGENT_THRESHOLD_DAYS")
-  generalThresholdDays Int         @map("GENERAL_THRESHOLD_DAYS")
-  createdAt            DateTime    @default(now()) @map("created_at") @db.Timestamp(0)
-  updatedAt            DateTime    @updatedAt @map("updated_at") @db.Timestamp(0)
-
-  // Optional per-environment override support
-  environmentId Int?         @map("ENVIRONMENT_ID")
-  environment   Environment? @relation(fields: [environmentId], references: [id])
+  id                   Int          @id @default(autoincrement()) @map("ID")
+  meetingType          MeetingType  @map("MEETING_TYPE")
+  assignmentMode       String       @map("ASSIGNMENT_MODE") @db.VarChar(20)
+  urgentThresholdDays  Int          @map("URGENT_THRESHOLD_DAYS")
+  generalThresholdDays Int          @map("GENERAL_THRESHOLD_DAYS")
+  createdAt            DateTime     @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt            DateTime     @updatedAt @map("updated_at") @db.Timestamp(0)
+  environmentId        Int?         @map("ENVIRONMENT_ID")
+  environment          Environment? @relation(fields: [environmentId], references: [id])
 
   @@unique([environmentId, meetingType, assignmentMode])
   @@map("MEETING_TYPE_MODE_THRESHOLD")
 }
 
-// Per-environment overrides for assignment policy (mode remains global)
 model EnvironmentAssignmentConfig {
-  id                   Int      @id @default(autoincrement()) @map("ID")
-  environmentId        Int      @unique @map("ENVIRONMENT_ID")
-  // Optional per-environment overrides
-  mode                 String?  @map("MODE") @db.VarChar(32)
-  autoAssignEnabled    Boolean? @map("AUTO_ASSIGN_ENABLED")
-  fairnessWindowDays   Int?     @map("FAIRNESS_WINDOW_DAYS")
-  maxGapHours          Int?     @map("MAX_GAP_HOURS")
-  w_fair               Float?   @map("W_FAIR")
-  w_urgency            Float?   @map("W_URGENCY")
-  w_lrs                Float?   @map("W_LRS")
-  drConsecutivePenalty Float?   @map("DR_CONSECUTIVE_PENALTY")
-  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamp(0)
-  updatedAt            DateTime @updatedAt @map("updated_at") @db.Timestamp(0)
-
-  environment Environment @relation(fields: [environmentId], references: [id])
+  id                   Int         @id @default(autoincrement()) @map("ID")
+  environmentId        Int         @unique @map("ENVIRONMENT_ID")
+  mode                 String?     @map("MODE") @db.VarChar(32)
+  autoAssignEnabled    Boolean?    @map("AUTO_ASSIGN_ENABLED")
+  fairnessWindowDays   Int?        @map("FAIRNESS_WINDOW_DAYS")
+  maxGapHours          Int?        @map("MAX_GAP_HOURS")
+  w_fair               Float?      @map("W_FAIR")
+  w_urgency            Float?      @map("W_URGENCY")
+  w_lrs                Float?      @map("W_LRS")
+  drConsecutivePenalty Float?      @map("DR_CONSECUTIVE_PENALTY")
+  createdAt            DateTime    @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt            DateTime    @updatedAt @map("updated_at") @db.Timestamp(0)
+  environment          Environment @relation(fields: [environmentId], references: [id])
 
   @@map("ENVIRONMENT_ASSIGNMENT_CONFIG")
 }
@@ -315,18 +310,18 @@ model SystemErrorLog {
 }
 
 model Environment {
-  id                Int                           @id @default(autoincrement()) @map("ID")
-  name              String                        @unique @map("NAME") @db.VarChar(128)
-  isActive          Boolean                       @default(true) @map("IS_ACTIVE")
-  createdAt         DateTime                      @default(now()) @map("created_at") @db.Timestamp(0)
-  updatedAt         DateTime                      @updatedAt @map("updated_at") @db.Timestamp(0)
+  id                Int                          @id @default(autoincrement()) @map("ID")
+  name              String                       @unique @map("NAME") @db.VarChar(128)
+  isActive          Boolean                      @default(true) @map("IS_ACTIVE")
+  createdAt         DateTime                     @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt         DateTime                     @updatedAt @map("updated_at") @db.Timestamp(0)
   forwardTargets    BookingForwardTarget[]
   admins            EnvironmentAdmin[]
+  assignmentConfigs EnvironmentAssignmentConfig?
   centers           EnvironmentCenter[]
   interpreters      EnvironmentInterpreter[]
-  priorities        MeetingTypePriority[]
   modeThresholds    MeetingTypeModeThreshold[]
-  assignmentConfigs EnvironmentAssignmentConfig[]
+  priorities        MeetingTypePriority[]
 
   @@map("ENVIRONMENT")
 }
