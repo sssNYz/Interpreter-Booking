@@ -1,6 +1,10 @@
 import prisma from "@/prisma/prisma";
 import type { HoursSnapshot } from "@/types/assignment";
 
+// Owner groups used across booking plans
+const OWNER_GROUPS = ["iot", "hardware", "software", "other"] as const;
+export type OwnerGroupKey = typeof OWNER_GROUPS[number];
+
 /**
  * Get active interpreters with INTERPRETER role
  */
@@ -123,6 +127,72 @@ export async function getRollingHours(fairnessWindowDays: number): Promise<Hours
     return hoursMap;
   } catch (error) {
     console.error("Error getting rolling hours:", error);
+    return {};
+  }
+}
+
+/**
+ * Get interpreter hours split by owner group within the specified window
+ */
+export async function getInterpreterGroupHours(
+  interpreters: Array<{ empCode: string }>,
+  fairnessWindowDays: number
+): Promise<Record<string, Record<OwnerGroupKey, number>>> {
+  const cutoffDate = new Date();
+  cutoffDate.setDate(cutoffDate.getDate() - fairnessWindowDays);
+
+  try {
+    const activeEmpCodes = new Set(interpreters.map((i) => i.empCode));
+
+    // Initialize zero structure
+    const base: Record<OwnerGroupKey, number> = {
+      iot: 0,
+      hardware: 0,
+      software: 0,
+      other: 0,
+    };
+    const result: Record<string, Record<OwnerGroupKey, number>> = {};
+    for (const { empCode } of interpreters) {
+      result[empCode] = { ...base };
+    }
+
+    const bookings = await prisma.bookingPlan.findMany({
+      where: {
+        AND: [
+          { timeStart: { gte: cutoffDate } },
+          { bookingStatus: { not: "cancel" } },
+          { interpreterEmpCode: { not: null } },
+        ],
+      },
+      select: {
+        interpreterEmpCode: true,
+        ownerGroup: true,
+        timeStart: true,
+        timeEnd: true,
+      },
+    });
+
+    for (const b of bookings) {
+      const emp = b.interpreterEmpCode as string | null;
+      if (!emp || !activeEmpCodes.has(emp)) continue;
+      const og = String(b.ownerGroup || "other").toLowerCase() as OwnerGroupKey;
+      const start = new Date(b.timeStart);
+      const end = new Date(b.timeEnd);
+      const durationHours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+      (result[emp] ||= { ...base });
+      result[emp][og] = Math.max(0, (result[emp][og] || 0) + durationHours);
+    }
+
+    // Round to 0.1h for stability
+    for (const emp of Object.keys(result)) {
+      for (const k of OWNER_GROUPS) {
+        result[emp][k] = Math.round((result[emp][k] || 0) * 10) / 10;
+      }
+    }
+
+    return result;
+  } catch (error) {
+    console.error("Error getting interpreter group hours:", error);
     return {};
   }
 }

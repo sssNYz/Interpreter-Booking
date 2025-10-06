@@ -1,4 +1,5 @@
 import { initializeAssignmentSystem } from "./startup";
+import { startScheduler, stopScheduler } from "@/lib/assignment/scheduler/db-polling-scheduler";
 
 /**
  * Server startup service that initializes all assignment system components
@@ -62,6 +63,14 @@ export class ServerStartupService {
       }
 
       console.log("🎯 Assignment system is ready for operation");
+
+      // Start DB-polling scheduler (interval + daily triggers)
+      try {
+        await startScheduler();
+        console.log("🗓️  DB scheduler started");
+      } catch (e) {
+        console.error("❌ Failed to start DB scheduler:", e);
+      }
 
     } catch (error) {
       console.error("❌ Initialization step failed:", error);
@@ -160,6 +169,12 @@ export class ServerStartupService {
       const { shutdownAssignmentSystem } = await import("./startup");
       await shutdownAssignmentSystem();
       console.log("✅ Core assignment system shutdown");
+
+      // Stop scheduler
+      try {
+        stopScheduler();
+        console.log("🛑 DB scheduler stopped");
+      } catch {}
 
       this.initialized = false;
       this.initializationPromise = null;
