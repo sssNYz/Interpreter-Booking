@@ -1079,15 +1079,16 @@ export default function BookingManagement(): React.JSX.Element {
                               )}
                             </td>
                           </tr>
-                        ))}
+                        );
+                        })}
                       </tbody>
                     </table>
                   </div>
-                )}
+                
               </AccordionContent>
             </div>
           </AccordionItem>
-        )}
+        
           {/* Auto-approve soon */}
           <AccordionItem value="auto-approve" className="border-none">
             <div className="rounded-xl shadow-sm">
