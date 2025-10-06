@@ -22,13 +22,15 @@ import {
   fetchActiveInterpreters,
   createInterpreterMapping,
   createApiResponseHeaders,
+  createZeroMeetingTypes,
+  createZeroOwnerGroups,
 } from "@/utils/admin-dashboard";
 
 type Params = { year?: string };
 
 export async function GET(
   req: NextRequest,
-  ctx: { params: Promise<Params> } 
+  ctx: { params: Promise<Params> }
 ) {
   try {
     const { year: paramYear } = await ctx.params;
@@ -94,14 +96,17 @@ export async function GET(
     const activeInterpreters = await fetchActiveInterpreters(prisma, dateRange);
     const { empCodeToName, interpreters } = createInterpreterMapping(activeInterpreters);
 
+    // Create interpreter ID mapping for consistent colors
+    const interpreterIdMapping: Record<string, string> = {};
+    for (const interpreter of activeInterpreters) {
+      const name = empCodeToName.get(interpreter.empCode);
+      if (name) {
+        interpreterIdMapping[name] = interpreter.empCode;
+      }
+    }
 
-    const zeroOwnerGroup = (): Record<OwnerGroup, number> => ({
-      iot: 0, hardware: 0, software: 0, other: 0,
-    });
 
-    const zeroMeetingType = (): Record<MeetingType, number> => ({
-      DR: 0, VIP: 0, Weekly: 0, General: 0, Augent: 0, PDR: 0, Other: 0,
-    });
+
 
 
     const yearData: MonthlyDataRow[] = MONTH_LABELS.map((m): MonthlyDataRow => {
@@ -113,8 +118,8 @@ export async function GET(
       for (const itp of interpreters) {
         jobsByInterpreter[itp] = 0;
         hoursByInterpreter[itp] = 0;
-        deptByInterpreter[itp] = zeroOwnerGroup();
-        typeByInterpreter[itp] = zeroMeetingType();
+        deptByInterpreter[itp] = createZeroOwnerGroups();
+        typeByInterpreter[itp] = createZeroMeetingTypes();
       }
 
       return {
@@ -122,7 +127,7 @@ export async function GET(
         month: m,
         jobsByInterpreter,
         hoursByInterpreter,
-        deptMeetings: zeroOwnerGroup(),
+        deptMeetings: createZeroOwnerGroups(),
         deptByInterpreter,
         typeByInterpreter,
       };
@@ -142,7 +147,7 @@ export async function GET(
       }
     }
 
-    
+
     const perInterpreter: number[] = interpreters.map((itp) =>
       yearData.reduce((sumMonths, r) => {
         let perMonthSum = 0;
@@ -154,13 +159,14 @@ export async function GET(
     );
 
     const grand = perInterpreter.reduce((a, b) => a + b, 0);
-    const diff  = perInterpreter.length ? Math.max(...perInterpreter) - Math.min(...perInterpreter) : 0;
+    const diff = perInterpreter.length ? Math.max(...perInterpreter) - Math.min(...perInterpreter) : 0;
 
     const footer: FooterByInterpreter = { perInterpreter, grand, diff };
 
     const result = {
       months: MONTH_LABELS,
       interpreters,
+      interpreterIdMapping,
       departments: OWNER_GROUPS,
       year: yearNum,
       yearData,
