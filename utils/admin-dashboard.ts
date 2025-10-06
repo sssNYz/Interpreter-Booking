@@ -30,18 +30,18 @@ export function getMonthLabel(date: Date): MonthName {
 export function createZeroMeetingTypes(): Record<MeetingType, number> {
   return {
     DR: 0,
-    PDR: 0,
     VIP: 0,
     Weekly: 0,
     General: 0,
-    Augent: 0,
+    Urgent: 0,
+    President: 0,
     Other: 0,
   };
 }
 
 export function createZeroDRTypes(): Record<DRType, number> {
   return {
-    PR_PR: 0,
+    DR_PR: 0,
     DR_k: 0,
     DR_II: 0,
     DR_I: 0,
@@ -222,11 +222,11 @@ export function transformEmployeeData(employee: EmployeeInput | null) {
 
 // ===== Constants =====
 export const NON_DR_TYPES: ReadonlyArray<MeetingType> = [
-  "VIP", "Weekly", "General", "Augent", "Other",
+  "VIP", "Weekly", "General", "Urgent", "President", "Other",
 ];
 
 export const DR_SUBTYPES: ReadonlyArray<DRType> = [
-  "DR_I", "DR_II", "DR_k", "PR_PR", "Other"
+  "DR_I", "DR_II", "DR_k", "DR_PR", "Other"
 ];
 
 export const DEFAULT_PAGE_SIZE = 20;

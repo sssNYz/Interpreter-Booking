@@ -37,7 +37,7 @@ const toLocalDateTime = (iso: string) => new Date(iso).toLocaleString();
 const formatDR = (v?: string | null) => {
   switch (v) {
     case "PR_PR":
-      return "PDR";
+      return "DR_PR";
     case "DR_k":
       return "DR-k";
     case "DR_II":
@@ -89,9 +89,7 @@ const MEETING_TYPES_WITH_ALL = ["All", ...MEETING_TYPES];
 export function AssignmentLogsTab() {
   const [allLogs, setAllLogs] = React.useState<LogItem[]>([]);
   const [selectedDate, setSelectedDate] = React.useState<string>("");
-  const [selectedMeetingTypes, setSelectedMeetingTypes] = React.useState<
-    string[]
-  >(["all"]);
+  const [selectedMeetingTypes, setSelectedMeetingTypes] = React.useState<string[]>(["All"]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [page, setPage] = React.useState(1);
@@ -149,10 +147,10 @@ export function AssignmentLogsTab() {
   const filtered = React.useMemo(() => {
     let filteredLogs = allLogs.filter((l) => {
       const meetingTypeOk =
-        selectedMeetingTypes.includes("all") ||
+        selectedMeetingTypes.includes("All") ||
         selectedMeetingTypes.includes(l.bookingPlan.meetingType);
-      const statusOk = l.status === "assigned";
-      return meetingTypeOk && statusOk;
+      // Show all statuses by default (assigned, escalated, etc.)
+      return meetingTypeOk;
     });
 
     // Apply sorting by  Requeste(createdAt)
@@ -179,11 +177,11 @@ export function AssignmentLogsTab() {
 
   const toggleMeetingType = (type: string) => {
     setSelectedMeetingTypes((prev) => {
-      if (type === "all") return ["all"];
+      if (type === "All") return ["All"];
       const next = prev.includes(type)
         ? prev.filter((t) => t !== type)
-        : [...prev.filter((t) => t !== "all"), type];
-      return next.length === 0 ? ["all"] : next;
+        : [...prev.filter((t) => t !== "All"), type];
+      return next.length === 0 ? ["All"] : next;
     });
   };
 

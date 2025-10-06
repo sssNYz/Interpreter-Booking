@@ -10,6 +10,7 @@ import {
   CartesianGrid,
   Legend,
   Tooltip,
+  ReferenceLine,
 } from "recharts";
 
 import {
@@ -188,6 +189,8 @@ export function HoursTab({ year, data: externalData }: HoursTabProps) {
                 width={56}
                 tickMargin={6}
               />
+              {/* Dashed baseline for readability */}
+              <ReferenceLine y={0} stroke="#e5e7eb" strokeDasharray="3 3" />
               <Tooltip
                 content={<HoursTooltip />}
                 offset={12}

@@ -124,6 +124,12 @@ const mapStatus = (
         // คงไว้เพื่อ compatibility กับโค้ดเดิม
         topic: b.meetingDetail ?? "",
 
+        // Meeting type fields for correct badge rendering in UI
+        meetingType: b.meetingType,
+        drType: b.drType ?? undefined,
+        otherType: b.otherType ?? undefined,
+        isDR: b.meetingType === "DR",
+
       bookedBy, // ชื่อผู้จอง
       status: mapStatus(b.bookingStatus), // 'Approve' | 'Wait' | 'Cancel'
       startTime: extractHHMM(b.timeStart.toISOString()), // "HH:mm"

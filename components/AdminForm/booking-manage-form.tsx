@@ -149,7 +149,7 @@ const InterpreterSelector: React.FC<{
 
   const selectedDisplayName = useMemo(() => {
     const found = options.find((o) => o.empCode === selected);
-    return found ? `${found.name} (${found.empCode})` : "";
+    return found ? found.name : "";
   }, [options, selected]);
 
   const load = React.useCallback(async () => {
@@ -234,7 +234,6 @@ const InterpreterSelector: React.FC<{
                     )}
                     <div className="flex-1 min-w-0">
                       <div className="font-medium truncate">{o.name}</div>
-                      <div className="text-xs text-muted-foreground">{o.empCode}</div>
                     </div>
                     {isTopSuggestion && (
                       <span className="text-xs text-primary font-medium">★</span>
@@ -290,7 +289,7 @@ const BookingDetailDialog: React.FC<Props> = ({ open, onOpenChange, editData, is
   const [pendingEmpCode, setPendingEmpCode] = useState<string>("");
   const [serverVersion, setServerVersion] = useState<string>("");
   const [suggestions, setSuggestions] = useState<
-    { empCode: string; score: number; reasons: string[]; time: { daysToMeeting: number; hoursToStart: number; lastJobDaysAgo: number }; currentHours?: number; afterAssignHours?: number }[]
+    { empCode: string; score: number; reasons: string[]; time: { daysToMeeting: number; hoursToStart: number; lastJobDaysAgo: number }; currentHours?: number; afterAssignHours?: number; groupHours?: { iot: number; hardware: number; software: number; other: number } }[]
   >([]);
   const [suggestionsLoading, setSuggestionsLoading] = useState<boolean>(false);
   const [interpreterOptions, setInterpreterOptions] = useState<{ empCode: string; name: string }[]>([]);
@@ -301,6 +300,12 @@ const BookingDetailDialog: React.FC<Props> = ({ open, onOpenChange, editData, is
   const handleServerVersion = useCallback((v: string) => {
     setServerVersion(v);
   }, []);
+
+  const getDisplayName = useCallback((code?: string | null) => {
+    if (!code) return "";
+    const f = interpreterOptions.find(o => o.empCode === code);
+    return f?.name || code;
+  }, [interpreterOptions]);
 
   useEffect(() => {
     if (!actualOpen) {
@@ -319,7 +324,7 @@ const BookingDetailDialog: React.FC<Props> = ({ open, onOpenChange, editData, is
         setSuggestionsLoading(true);
         const envQuery = targetEnvironmentId != null ? `&environmentId=${targetEnvironmentId}` : "";
         const res = await fetch(`/api/bookings/${id}/suggestions?maxCandidates=20${envQuery}` , { cache: "no-store" });
-        const j = await res.json().catch(() => ({}) as { ok?: boolean; candidates?: { empCode: string; score: number; reasons: string[]; time: { daysToMeeting: number; hoursToStart: number; lastJobDaysAgo: number }; currentHours?: number; afterAssignHours?: number }[] });
+        const j = await res.json().catch(() => ({}) as { ok?: boolean; candidates?: { empCode: string; score: number; reasons: string[]; time: { daysToMeeting: number; hoursToStart: number; lastJobDaysAgo: number }; currentHours?: number; afterAssignHours?: number; groupHours?: { iot: number; hardware: number; software: number; other: number } }[] });
         if (res.ok && j?.ok && Array.isArray(j.candidates)) {
           setSuggestions(j.candidates as typeof suggestions);
         } else {
@@ -342,9 +347,9 @@ const BookingDetailDialog: React.FC<Props> = ({ open, onOpenChange, editData, is
     return Math.round(topSuggestion.score * 100) / 100;
   }, [topSuggestion]);
 
-  // Calculate workload comparison chart (two bars: recommended vs selected/alternate)
-  const chartData = useMemo(() => {
-    if (!booking) return [] as Array<{ name: string; baseline: number; delta: number; total: number }>;
+  // Build stacked data per interpreter with group split (iot/hardware/software/other)
+  const stackedData = useMemo(() => {
+    if (!booking) return [] as Array<{ name: string; iot: number; hardware: number; software: number; other: number; total: number }>;
 
     const recommended = suggestions[0]?.empCode;
     if (!recommended) return [];
@@ -352,38 +357,30 @@ const BookingDetailDialog: React.FC<Props> = ({ open, onOpenChange, editData, is
     const startTime = new Date(`${booking.dateTime}T${booking.startTime}:00`);
     const endTime = new Date(`${booking.dateTime}T${booking.endTime}:00`);
     const bookingDurationHours = (endTime.getTime() - startTime.getTime()) / (1000 * 60 * 60);
-    const getBaselineHours = (code: string) => {
-      const found = suggestions.find((s) => s.empCode === code) as unknown as { currentHours?: number } | undefined;
-      const baseline = typeof found?.currentHours === 'number' ? found!.currentHours : 0;
-      return Math.round(baseline * 10) / 10;
-    };
 
     const selected = pendingEmpCode || undefined;
+    const second = selected && selected !== recommended ? selected : suggestions[1]?.empCode;
+    // Keep stable ordering: recommended always first, then second candidate (selected or next suggestion)
+    const pairs = [recommended, second].filter(Boolean) as string[];
+    // Deduplicate if selected equals recommended
+    const uniquePairs = pairs.filter((v, i, a) => a.indexOf(v) === i);
 
-    // Determine the comparison pair
-    const primary = selected ?? recommended;
-    let secondary: string | undefined;
+    const safeGroup = String(booking.group || "other").toLowerCase() as "iot" | "hardware" | "software" | "other";
 
-    if (selected) {
-      secondary = selected === recommended ? suggestions[1]?.empCode : recommended;
-    } else {
-      secondary = suggestions[1]?.empCode;
-    }
-
-    // Fallback: if there is no secondary, show only the primary
-    const pairs = [primary, secondary].filter(Boolean) as string[];
-
-    const assignee = selected ?? recommended; // who receives the new booking
-
-    const rows = pairs.map((code) => {
-      const baseline = getBaselineHours(code);
-      const delta = code === assignee ? bookingDurationHours : 0;
-      const total = Math.round((baseline + delta) * 10) / 10;
-      return { name: code, baseline, delta, total };
+    const rows = uniquePairs.map((code) => {
+      const found = suggestions.find((s) => s.empCode === code);
+      const gh = found?.groupHours || { iot: 0, hardware: 0, software: 0, other: 0 };
+      const base = { ...gh };
+      // Preview impact for selected interpreter; if none selected, preview for recommended
+      if ((selected && code === selected) || (!selected && code === recommended)) {
+        base[safeGroup] = Math.round((base[safeGroup] + bookingDurationHours) * 10) / 10;
+      }
+      const total = Math.round((base.iot + base.hardware + base.software + base.other) * 10) / 10;
+      return { name: getDisplayName(code) || code, ...base, total };
     });
 
     return rows;
-  }, [booking, pendingEmpCode, suggestions]);
+  }, [booking, pendingEmpCode, suggestions, getDisplayName]);
 
   const canApprove = useMemo(() => {
     if (!booking || bookingIdForApi == null) return false;
@@ -531,7 +528,7 @@ const BookingDetailDialog: React.FC<Props> = ({ open, onOpenChange, editData, is
                     <div className="flex items-center justify-between p-2 rounded border bg-primary/5 border-primary/20">
                       <div className="flex items-center gap-2">
                         <Star className="h-3 w-3 text-primary" />
-                        <span className="text-sm font-medium">Best choice: {topSuggestion.empCode}</span>
+                        <span className="text-sm font-medium">Best choice: {getDisplayName(topSuggestion.empCode)}</span>
                       </div>
                       <div className="flex gap-2 text-xs">
                         <span>Meeting in: {topSuggestion.time?.daysToMeeting ?? "--"}d {topSuggestion.time?.hoursToStart ?? "--"}h</span>
@@ -539,57 +536,56 @@ const BookingDetailDialog: React.FC<Props> = ({ open, onOpenChange, editData, is
                     </div>
                   )}
 
-                  {/* Impact Preview - Responsive */}
-                  {chartData.length > 0 && (
+                  {/* Impact Preview - Group Stacked Chart */}
+                  {stackedData.length > 0 && (
                     <div className="rounded border bg-card/50 p-2 sm:p-3">
                       <div className="flex items-center gap-2 mb-2">
                         <BarChart3 className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
-                        <span className="text-xs sm:text-sm font-medium">Workload Impact</span>
+                        <span className="text-xs sm:text-sm font-medium">Workload by Group</span>
                       </div>
                       <ChartContainer
-                        className="h-[70px] sm:h-[80px] md:h-[90px] lg:h-[100px] w-full"
+                        className="h-[100px] sm:h-[120px] md:h-[140px] w-full"
                         config={{
-                          total: { label: "Total hours", color: "var(--foreground)" },
+                          iot: { label: "IoT", color: "hsl(210, 70%, 55%)" },
+                          hardware: { label: "HW", color: "hsl(140, 45%, 60%)" },
+                          software: { label: "SW", color: "hsl(0, 55%, 60%)" },
+                          other: { label: "Other", color: "hsl(40, 60%, 65%)" },
                         }}
                       >
                         <RBarChart 
-                          data={chartData} 
+                          data={stackedData} 
                           layout="vertical"
                           margin={{ 
                             top: 5, 
-                            right: isMobile ? 10 : isTablet ? 20 : isLargeScreen ? 30 : 25, 
-                            left: isMobile ? 30 : isTablet ? 40 : isLargeScreen ? 60 : 50, 
+                            right: 10, 
+                            left: isMobile ? 35 : isTablet ? 45 : 55, 
                             bottom: 5 
                           }}
+                          barSize={isMobile ? 28 : isTablet ? 36 : 44}
                         >
-                          <CartesianGrid strokeDasharray="2 2" stroke="var(--border)" />
-                          <XAxis type="number" dataKey="total" hide />
+                          <XAxis type="number" dataKey="total" hide domain={[0, 'dataMax']} />
                           <YAxis 
                             dataKey="name" 
                             type="category"
                             tickLine={false}
-                            tickMargin={isMobile ? 4 : isTablet ? 6 : 8}
+                            tickMargin={8}
                             axisLine={false}
                             stroke="var(--muted-foreground)" 
-                            tick={{ fontSize: isMobile ? 8 : isTablet ? 9 : isLargeScreen ? 11 : 10 }} 
-                            width={isMobile ? 25 : isTablet ? 35 : isLargeScreen ? 55 : 45}
+                            tick={{ fontSize: isMobile ? 9 : isTablet ? 10 : 11, fontWeight: 500 }} 
+                            width={isMobile ? 30 : isTablet ? 40 : 50}
                           />
                           <ChartTooltip
                             cursor={false}
-                            content={<ChartTooltipContent 
-                              hideLabel
-                              formatter={(value: unknown, _name: unknown, item?: { payload?: { delta?: number } }) => {
-                                const p = item?.payload as { delta?: number } | undefined;
-                                return [
-                                  `${value}h`,
-                                  p?.delta && p.delta > 0 ? `Total (+${p.delta}h)` : 'Total',
-                                ];
-                              }} 
-                            />}
+                            content={<ChartTooltipContent hideLabel />}
                           />
-                          <Bar dataKey="total" fill="var(--color-total)" radius={5} />
+                          <Bar dataKey="iot" stackId="hrs" fill="var(--color-iot)" radius={0} />
+                          <Bar dataKey="hardware" stackId="hrs" fill="var(--color-hardware)" radius={0} />
+                          <Bar dataKey="software" stackId="hrs" fill="var(--color-software)" radius={0} />
+                          <Bar dataKey="other" stackId="hrs" fill="var(--color-other)" radius={0} />
                         </RBarChart>
                       </ChartContainer>
+
+                      {/* Removed text preview bars to keep a single chart */}
                     </div>
                   )}
                 </div>
@@ -626,7 +622,7 @@ const BookingDetailDialog: React.FC<Props> = ({ open, onOpenChange, editData, is
               {pendingEmpCode ? (
                 <>
                   <CheckCircle className="w-4 h-4 text-primary" />
-                  <span><strong className="text-foreground">{pendingEmpCode}</strong> selected</span>
+                  <span><strong className="text-foreground">{getDisplayName(pendingEmpCode)}</strong> selected</span>
                   {topSuggestion && pendingEmpCode === topSuggestion.empCode && (
                     <Star className="w-3 h-3 text-primary" />
                   )}

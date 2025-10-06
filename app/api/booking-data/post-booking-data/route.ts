@@ -697,7 +697,7 @@ export async function POST(request: NextRequest) {
             };
           }
 
-          // 2) Same-room overlap warning (informational, requires confirmation)
+          // 2) Same-room overlap: HARD BLOCK with detailed logging
           const sameRoomCounts = await tx.$queryRaw<
             Array<{ cnt: number | bigint }>
           >`
@@ -710,19 +710,57 @@ export async function POST(request: NextRequest) {
           const sameRoomCntVal = sameRoomCounts?.[0]?.cnt;
           const sameRoomOverlap =
             sameRoomCntVal != null ? Number(sameRoomCntVal) : 0;
-          if (sameRoomOverlap > 0 && !body.force) {
+          if (sameRoomOverlap > 0) {
+            // Load conflict details for logs and response
+            const conflictRows = await tx.$queryRaw<
+              Array<{
+                bookingId: number | bigint;
+                timeStart: Date;
+                timeEnd: Date;
+                bookingStatus: string;
+              }>
+            >`
+              SELECT 
+                BOOKING_ID as bookingId,
+                TIME_START as timeStart,
+                TIME_END as timeEnd,
+                BOOKING_STATUS as bookingStatus
+              FROM BOOKING_PLAN
+              WHERE MEETING_ROOM = ${body.meetingRoom}
+                AND BOOKING_STATUS <> 'cancel'
+                AND (TIME_START < ${timeEnd} AND TIME_END > ${timeStart})
+              ORDER BY TIME_START
+            `;
+
+            // Log clear details to help verify if it's a real conflict
+            console.log("ROOM_CONFLICT", {
+              meetingRoom: body.meetingRoom?.toString().trim(),
+              requested: { timeStart, timeEnd },
+              conflicts: conflictRows.map((r) => ({
+                bookingId: Number(r.bookingId),
+                timeStart: r.timeStart,
+                timeEnd: r.timeEnd,
+                bookingStatus: r.bookingStatus,
+              })),
+            });
+
             return {
               success: false as const,
               status: 409,
               body: {
                 success: false,
-                error: "Overlap warning",
-                message:
-                  "This room already has a booking overlapping this time. Do you want to proceed?",
-                code: "OVERLAP_WARNING",
+                error: "Room conflict",
+                message: `Room '${body.meetingRoom?.toString().trim()}' is already booked during this time.`,
+                code: "ROOM_CONFLICT",
                 data: {
-                  meetingRoom: body.meetingRoom.trim(),
+                  meetingRoom: body.meetingRoom?.toString().trim(),
                   overlapCount: sameRoomOverlap,
+                  conflicts: conflictRows.map((r) => ({
+                    bookingId: Number(r.bookingId),
+                    timeStart: r.timeStart,
+                    timeEnd: r.timeEnd,
+                    bookingStatus: r.bookingStatus,
+                  })),
                 },
               },
             };
@@ -970,8 +1008,8 @@ export async function POST(request: NextRequest) {
                 const cCount = cVal != null ? Number(cVal) : 0;
                 if (cCount > 0) continue; // skip conflicting child occurrence
               }
-              // same-room warning: skip check if force is true
-              if (!body.force) {
+              // same-room check for each child: ALWAYS skip conflicting child (no force bypass)
+              {
                 const sameRoomCountsChild = await tx.$queryRaw<
                   Array<{ cnt: number | bigint }>
                 >`
@@ -984,7 +1022,7 @@ export async function POST(request: NextRequest) {
                 const overlapVal = sameRoomCountsChild?.[0]?.cnt;
                 const overlapCount =
                   overlapVal != null ? Number(overlapVal) : 0;
-                if (overlapCount > 0) continue; // skip conflicting child unless forced
+                if (overlapCount > 0) continue; // skip conflicting child
               }
 
               await tx.$executeRaw`
@@ -1083,6 +1121,13 @@ export async function POST(request: NextRequest) {
         console.log(
           `🚀 Starting auto-assignment for booking ${result.body.data?.bookingId} (after transaction)`
         );
+        // Compute and persist auto-assign scheduling fields for the parent booking
+        try {
+          const { scheduleAutoAssignForBooking } = await import("@/lib/assignment/scheduler/compute");
+          await scheduleAutoAssignForBooking(result.body.data!.bookingId);
+        } catch (e) {
+          console.warn("⚠️ Failed to compute auto-assign schedule for parent:", e);
+        }
         const { run } = await import("@/lib/assignment/core/run");
 
         // If this is a recurring booking, assign parent and all children individually
@@ -1107,12 +1152,19 @@ export async function POST(request: NextRequest) {
             `📋 Found ${childBookings.length} child bookings to assign individually`
           );
 
-          // 3. Run auto-assignment for each child booking
+          // 3. Compute schedule and run auto-assignment for each child booking
           let successfulChildAssignments = 0;
           const childResults = [];
 
           for (const childBooking of childBookings) {
             try {
+              // Compute and persist auto-assign schedule for child
+              try {
+                const { scheduleAutoAssignForBooking } = await import("@/lib/assignment/scheduler/compute");
+                await scheduleAutoAssignForBooking(childBooking.bookingId);
+              } catch (e) {
+                console.warn(`⚠️ Failed to compute auto-assign schedule for child ${childBooking.bookingId}:`, e);
+              }
               console.log(
                 `🔄 Running auto-assignment for child booking ${childBooking.bookingId}`
               );
