@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { loadPolicy, updatePolicy, loadMeetingTypePriorities, updateMeetingTypePriority, applyModeThresholds } from "@/lib/assignment/config/policy";
 import { validateAssignmentPolicy, validateMeetingTypePriority, getParameterLockStatus, getModeRecommendations } from "@/lib/assignment/validation/config-validation";
 import prisma from "@/prisma/prisma";
+import { scheduleAutoAssignForBooking, computeETAForBooking } from "@/lib/assignment/scheduler/compute";
+import { runSchedulerPass } from "@/lib/assignment/scheduler/db-polling-scheduler";
 
 export async function GET(request: NextRequest) {
   try {
@@ -273,6 +275,34 @@ export async function POST(request: NextRequest) {
     const finalValidation = validateAssignmentPolicy(updatedPolicy, currentPolicy);
     const lockStatus = getParameterLockStatus(updatedPolicy.mode);
     
+    // Trigger reschedule for waiting bookings (lightweight, capped) and run a manual pass
+    try {
+      const now = new Date();
+      const horizon = new Date(now.getTime() + 90 * 24 * 3600 * 1000);
+      const candidates = await prisma.bookingPlan.findMany({
+        where: { bookingStatus: 'waiting', interpreterEmpCode: null, timeStart: { lte: horizon } },
+        select: { bookingId: true },
+        orderBy: { timeStart: 'asc' },
+        take: 300
+      });
+      for (const c of candidates) {
+        await scheduleAutoAssignForBooking(c.bookingId);
+        try {
+          const eta = await computeETAForBooking(c.bookingId);
+          if (eta.etaSeconds === 0) {
+            await prisma.bookingPlan.update({
+              where: { bookingId: c.bookingId },
+              data: { autoAssignAt: new Date(), autoAssignStatus: 'pending' }
+            });
+          }
+        } catch {}
+      }
+      // Try a manual scheduler pass to process newly urgent bookings
+      await runSchedulerPass('manual');
+    } catch (e) {
+      console.warn('ETA/auto-assign reschedule after config update failed (non-fatal):', e);
+    }
+
     return NextResponse.json({
       success: true,
       data: {

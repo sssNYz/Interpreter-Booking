@@ -68,6 +68,66 @@ export async function computeAutoAssignAt(bookingId: number): Promise<{ autoAssi
 }
 
 /**
+ * Compute ETA-related timestamps for a booking.
+ * - urgentFrom = timeStart - urgentThresholdDays
+ * - schedulerFrom = autoAssignAt (from computeAutoAssignAt for consistency)
+ * - firstAutoAssignAt = max(urgentFrom, schedulerFrom)
+ * - etaSeconds = seconds until firstAutoAssignAt (0 if past)
+ */
+export async function computeETAForBooking(bookingId: number): Promise<{
+  bookingId: number;
+  timeStart: Date;
+  mode: string;
+  environmentId: number | null;
+  urgentThresholdDays: number;
+  generalThresholdDays: number;
+  urgentFrom: Date;
+  schedulerFrom: Date | null;
+  firstAutoAssignAt: Date | null;
+  etaSeconds: number;
+}> {
+  const booking = await prisma.bookingPlan.findUnique({
+    where: { bookingId },
+    select: { bookingId: true, timeStart: true }
+  });
+  if (!booking) {
+    throw new Error("Booking not found");
+  }
+
+  const meta = await computeAutoAssignAt(bookingId);
+  if (!meta) {
+    throw new Error("Unable to compute auto-assign metadata");
+  }
+
+  const now = Date.now();
+  const ts = new Date(booking.timeStart);
+  const urgentFrom = new Date(ts.getTime() - meta.urgentThresholdDays * 24 * 60 * 60 * 1000);
+  const schedulerFrom = meta.autoAssignAt;
+
+  let firstAutoAssignAt: Date | null = null;
+  if (schedulerFrom) {
+    firstAutoAssignAt = urgentFrom > schedulerFrom ? urgentFrom : schedulerFrom;
+  } else {
+    firstAutoAssignAt = urgentFrom;
+  }
+
+  const etaSeconds = Math.max(0, Math.floor(((firstAutoAssignAt?.getTime() ?? now) - now) / 1000));
+
+  return {
+    bookingId: booking.bookingId,
+    timeStart: ts,
+    mode: meta.mode,
+    environmentId: meta.environmentId,
+    urgentThresholdDays: meta.urgentThresholdDays,
+    generalThresholdDays: meta.generalThresholdDays,
+    urgentFrom,
+    schedulerFrom,
+    firstAutoAssignAt,
+    etaSeconds
+  };
+}
+
+/**
  * Compute and persist scheduling fields for a booking.
  * - Sets AUTO_ASSIGN_AT
  * - Sets AUTO_ASSIGN_STATUS: 'pending' if auto-assign enabled and not assigned; otherwise 'skipped' or 'done'
