@@ -65,5 +65,6 @@ export type ApiResponse = {
   users: UserRow[];
   pagination: ApiPagination;
   stats: ApiStats;
+  globalStats?: ApiStats; // Global stats without filters
   tree?: FilterTree;
 };

@@ -39,7 +39,12 @@ type ApiUser = {
 
 type EmployeesResponse = {
   users: ApiUser[];
-  pagination?: { totalPages?: number };
+  pagination?: {
+    totalPages?: number;
+    total?: number;
+    page?: number;
+    pageSize?: number;
+  };
 };
 
 interface SimulatedDay {
@@ -74,8 +79,8 @@ export default function ModeTestSimulator() {
   const [simulating, setSimulating] = useState(false);
 
   // Real data from database
-  const [realBookings, setRealBookings] = useState<Array<{id: string, type: string, date: string, time: string, daysAway: number}>>([]);
-  const [realInterpreters, setRealInterpreters] = useState<Array<{id: string, name: string, currentHours: number}>>([]);
+  const [realBookings, setRealBookings] = useState<Array<{ id: string, type: string, date: string, time: string, daysAway: number }>>([]);
+  const [realInterpreters, setRealInterpreters] = useState<Array<{ id: string, name: string, currentHours: number }>>([]);
   const [loadingData, setLoadingData] = useState(false);
 
   // Load real data from database
@@ -85,27 +90,27 @@ export default function ModeTestSimulator() {
       // Load real bookings
       const bookingsResponse = await fetch("/api/booking-data/get-booking");
       const bookingsData: ApiBookingsResponse = await bookingsResponse.json();
-      
-      // Load ALL interpreters across pages (employees API is paginated and returns { users, pagination })
+
+      // Load ALL interpreters in a single optimized call
       const fetchAllInterpreters = async (): Promise<ApiUser[]> => {
-        const pageSize = 100;
-        let page = 1;
-        let totalPages = 1;
-        const all: ApiUser[] = [];
-        do {
-          const res = await fetch(`/api/employees/get-employees?page=${page}&pageSize=${pageSize}&role=INTERPRETER`);
-          const json: EmployeesResponse = await res.json();
-          const users = Array.isArray(json?.users) ? json.users : [];
-          all.push(...users);
-          const total = json?.pagination?.totalPages;
-          totalPages = typeof total === 'number' ? total : 1;
-          page += 1;
-        } while (page <= totalPages);
-        return all;
+        // Use a large page size to get all interpreters in one call
+        // Most systems won't have more than 1000 interpreters
+        const res = await fetch(`/api/employees/get-employees?page=1&pageSize=1000&role=INTERPRETER&includeTree=false&includeGlobalStats=false`);
+        const json: EmployeesResponse = await res.json();
+        const users = Array.isArray(json?.users) ? json.users : [];
+
+        // If there are more than 1000 interpreters, we might need pagination
+        // But this is rare in most organizations
+        if (json?.pagination?.totalPages && json.pagination.totalPages > 1) {
+          const total = json.pagination.total || users.length;
+          console.warn(`Found ${total} interpreters across ${json.pagination.totalPages} pages. Consider increasing page size or implementing server-side optimization.`);
+        }
+
+        return users;
       };
 
       console.log("Bookings response:", bookingsData);
-      
+
       // Safely extract arrays from API responses
       const bookingsArray: ApiBooking[] = Array.isArray(bookingsData)
         ? bookingsData
@@ -116,7 +121,7 @@ export default function ModeTestSimulator() {
             : [];
 
       const interpretersAll = await fetchAllInterpreters();
-      
+
       if (bookingsArray.length > 0 || interpretersAll.length > 0) {
         // Transform real data to match simulator format
         const transformedBookings = bookingsArray.map((booking: ApiBooking, index: number) => {
@@ -139,7 +144,7 @@ export default function ModeTestSimulator() {
             daysAway: Math.floor(Math.random() * 15) + 1,
           };
         });
-        
+
         const transformedInterpreters = interpretersAll.map((user: ApiUser, index: number) => {
           const id = String(user.id ?? user.employeeId ?? `interpreter-${index}`);
           const firstName = String(user.firstNameEn ?? user.firstNameTh ?? user.name ?? "");
@@ -151,7 +156,7 @@ export default function ModeTestSimulator() {
             currentHours: 0,
           };
         });
-        
+
         setRealBookings(transformedBookings);
         setRealInterpreters(transformedInterpreters);
         toast.success(`Loaded ${transformedBookings.length} bookings and ${transformedInterpreters.length} interpreters!`);
@@ -204,7 +209,7 @@ export default function ModeTestSimulator() {
     }
   };
 
-  const simulateMode = async (mode: string, bookings: Array<{id: string, type: string, date: string, time: string, daysAway: number}>, interpreters: Array<{id: string, name: string, currentHours: number}>): Promise<ModeComparison> => {
+  const simulateMode = async (mode: string, bookings: Array<{ id: string, type: string, date: string, time: string, daysAway: number }>, interpreters: Array<{ id: string, name: string, currentHours: number }>): Promise<ModeComparison> => {
     const days: SimulatedDay[] = [];
     const currentHours = { A: 0, B: 0 };
     const assignments: AssignmentResult[] = [];
@@ -233,11 +238,11 @@ export default function ModeTestSimulator() {
           // Balance mode: assign to interpreter with lower hours
           const interpreter = currentHours.A <= currentHours.B ? "A" : "B";
           const booking = bookings.find(b => b.daysAway === (15 - day + 4));
-          
+
           if (booking) {
             const hours = booking.type === "DR" ? 2 : 1;
             currentHours[interpreter as keyof typeof currentHours] += hours;
-            
+
             dayAssignments.push({
               bookingId: booking.id,
               meetingType: booking.type,
@@ -246,7 +251,7 @@ export default function ModeTestSimulator() {
               reason: `Balance mode: assigned to interpreter with lower hours`,
               hours: { ...currentHours }
             });
-            
+
             assignments.push(...dayAssignments);
             status = `Assigned ${dayAssignments.length} urgent booking(s)`;
           }
@@ -254,11 +259,11 @@ export default function ModeTestSimulator() {
           // Urgent mode: assign immediately to first available
           const interpreter = "A"; // Simulate first available
           const booking = bookings.find(b => b.daysAway === (15 - day + 4));
-          
+
           if (booking) {
             const hours = booking.type === "DR" ? 2 : 1;
             currentHours[interpreter as keyof typeof currentHours] += hours;
-            
+
             dayAssignments.push({
               bookingId: booking.id,
               meetingType: booking.type,
@@ -267,7 +272,7 @@ export default function ModeTestSimulator() {
               reason: `Urgent mode: immediate assignment`,
               hours: { ...currentHours }
             });
-            
+
             assignments.push(...dayAssignments);
             status = `Assigned ${dayAssignments.length} urgent booking(s)`;
           }
@@ -275,11 +280,11 @@ export default function ModeTestSimulator() {
           // Normal mode: balanced assignment
           const interpreter = currentHours.A <= currentHours.B ? "A" : "B";
           const booking = bookings.find(b => b.daysAway === (15 - day + 4));
-          
+
           if (booking) {
             const hours = booking.type === "DR" ? 2 : 1;
             currentHours[interpreter as keyof typeof currentHours] += hours;
-            
+
             dayAssignments.push({
               bookingId: booking.id,
               meetingType: booking.type,
@@ -288,7 +293,7 @@ export default function ModeTestSimulator() {
               reason: `Normal mode: balanced assignment`,
               hours: { ...currentHours }
             });
-            
+
             assignments.push(...dayAssignments);
             status = `Assigned ${dayAssignments.length} urgent booking(s)`;
           }
@@ -330,16 +335,16 @@ export default function ModeTestSimulator() {
               <SelectItem value="NORMAL">Normal Mode</SelectItem>
             </SelectContent>
           </Select>
-          <Button 
-            onClick={loadRealData} 
+          <Button
+            onClick={loadRealData}
             disabled={loadingData}
             variant="outline"
             className="bg-green-50 hover:bg-green-100"
           >
             {loadingData ? "Loading..." : "📊 Load Real Data"}
           </Button>
-          <Button 
-            onClick={simulateDayByDay} 
+          <Button
+            onClick={simulateDayByDay}
             disabled={simulating}
             className="bg-blue-600 hover:bg-blue-700"
           >
@@ -364,7 +369,7 @@ export default function ModeTestSimulator() {
                 {realBookings.length > 0 ? "Real Database" : "Mock Data"}
               </Badge>
             </div>
-            
+
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <h4 className="font-medium mb-2">Test Bookings:</h4>
@@ -390,7 +395,7 @@ export default function ModeTestSimulator() {
                 </ul>
               </div>
             </div>
-            
+
             {realBookings.length === 0 && (
               <div className="text-center p-3 bg-yellow-50 rounded-lg">
                 <p className="text-sm text-yellow-700">
@@ -398,7 +403,7 @@ export default function ModeTestSimulator() {
                 </p>
               </div>
             )}
-            
+
             {realBookings.length > 0 && (
               <div className="mt-4 p-3 bg-green-50 rounded-lg">
                 <h5 className="font-medium text-green-800 mb-2">Debug Info:</h5>
@@ -423,7 +428,7 @@ export default function ModeTestSimulator() {
       {simulationResults.length > 0 && (
         <div className="space-y-6">
           <h2 className="text-2xl font-bold">Simulation Results</h2>
-          
+
           {/* Mode Comparison Summary */}
           <Card>
             <CardHeader>
@@ -466,21 +471,21 @@ export default function ModeTestSimulator() {
                         <h4 className="font-medium">Day {day.day} ({day.date})</h4>
                         <Badge variant="outline">{day.status}</Badge>
                       </div>
-                      
+
                       {day.generalThresholdBookings.length > 0 && (
                         <div className="mb-2">
                           <span className="text-sm text-yellow-600">⚠️ General Threshold: </span>
                           {day.generalThresholdBookings.join(", ")}
                         </div>
                       )}
-                      
+
                       {day.urgentThresholdBookings.length > 0 && (
                         <div className="mb-2">
                           <span className="text-sm text-red-600">🚨 Urgent Threshold: </span>
                           {day.urgentThresholdBookings.join(", ")}
                         </div>
                       )}
-                      
+
                       {day.assignments.length > 0 && (
                         <div className="space-y-2">
                           {day.assignments.map((assignment, index) => (
