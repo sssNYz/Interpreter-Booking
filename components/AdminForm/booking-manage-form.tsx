@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { useMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   RefreshCw,
@@ -429,7 +430,53 @@ const BookingDetailDialog: React.FC<Props> = ({ open, onOpenChange, editData, is
     }
   };
 
+  const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
+  const [cancelError, setCancelError] = useState<string | null>(null);
+
+  const openCancelDialog = () => {
+    if (!booking || bookingIdForApi == null || booking.status === "Cancel") return;
+    setCancelReason("");
+    setCancelError(null);
+    setShowCancelDialog(true);
+  };
+
+  const performCancel = async () => {
+    if (!booking || bookingIdForApi == null) return;
+    const reason = (cancelReason || "").trim();
+    if (!reason) {
+      setCancelError("Reason is required");
+      return;
+    }
+    try {
+      setSubmitting("cancel");
+      setCancelError(null);
+      const res = await fetch(`/api/admin/bookings/${bookingIdForApi}/cancel`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ note: reason }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => null);
+        const msg = (j?.message as string) || `Cancel failed (${res.status})`;
+        throw new Error(msg);
+      }
+      const j = (await res.json().catch(() => ({}))) as { ok?: boolean; status?: string; remainingTargets?: number };
+      if (j?.status === "cancel") {
+        setBooking((prev) => (prev ? { ...prev, status: "Cancel", interpreter: "" } : prev));
+      }
+      setShowCancelDialog(false);
+      setOpen(false);
+      setTimeout(() => onActionComplete?.(), EXIT_MS);
+    } catch (e) {
+      setCancelError((e as Error).message);
+    } finally {
+      setSubmitting(null);
+    }
+  };
+
   return (
+    <>
     <Dialog open={actualOpen} onOpenChange={setOpen}>
       <DialogContent
         onOpenAutoFocus={(e) => e.preventDefault()}
@@ -707,6 +754,22 @@ const BookingDetailDialog: React.FC<Props> = ({ open, onOpenChange, editData, is
               )}
             </div>
 
+            <div className="flex items-center gap-2">
+              {booking && booking.status !== "Cancel" && (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  className="px-4 h-8"
+                  disabled={submitting === "approve" || submitting === "apply" || submitting === "cancel"}
+                  onClick={openCancelDialog}
+                >
+                  <>
+                    <XCircle className="w-3 h-3 mr-1" />
+                    Cancel booking
+                  </>
+                </Button>
+              )}
+
             <Button
               size="sm"
               className="px-4 h-8"
@@ -725,10 +788,45 @@ const BookingDetailDialog: React.FC<Props> = ({ open, onOpenChange, editData, is
                 </>
               )}
             </Button>
+            </div>
           </div>
         </div>
       </DialogContent>
     </Dialog>
+    {/* Cancel reason dialog */}
+    <Dialog open={showCancelDialog} onOpenChange={(v) => { if (!submitting) setShowCancelDialog(v); }}>
+      <DialogContent onOpenAutoFocus={(e) => e.preventDefault()} className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Cancel Booking</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <p className="text-sm text-muted-foreground">Please provide a reason for cancellation.</p>
+          <Textarea
+            value={cancelReason}
+            onChange={(e) => setCancelReason(e.target.value)}
+            placeholder="Enter reason..."
+            rows={4}
+          />
+          {cancelError && <div className="text-xs text-destructive">{cancelError}</div>}
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" size="sm" onClick={() => setShowCancelDialog(false)} disabled={submitting === "cancel"}>
+              Close
+            </Button>
+            <Button variant="destructive" size="sm" onClick={performCancel} disabled={submitting === "cancel"}>
+              {submitting === "cancel" ? (
+                <>
+                  <RefreshCw className="w-3 h-3 mr-1 animate-spin" />
+                  Canceling...
+                </>
+              ) : (
+                <>Confirm Cancel</>
+              )}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 };
 
