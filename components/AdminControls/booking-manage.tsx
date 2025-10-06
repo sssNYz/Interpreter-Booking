@@ -11,7 +11,7 @@ import {
 import {
   ChevronLeft, ChevronRight, Star, HelpCircle, Info, CheckCircle, XCircle, Hourglass,
   Calendar, ChevronUp, ChevronDown, SquarePen, Users, Circle, AlertTriangle, Clock, Crown,
-  RotateCcw, CircleDot, Filter, X, ChevronDown as ChevronDownIcon,
+  RotateCcw, CircleDot, Filter, X, ChevronDown as ChevronDownIcon, Zap, Inbox, List,
 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import type { BookingManage, Stats } from "@/types/admin";
@@ -88,6 +88,9 @@ export default function BookingManagement(): React.JSX.Element {
   const [sortByDateAsc, setSortByDateAsc] = useState(true);
   const [agg, setAgg] = useState<"month" | "year">("month");
 
+  // ETA data map: bookingId -> { etaLabel, category }
+  const [etaMap, setEtaMap] = useState<Record<number, { etaLabel: string; category: 'auto-approve'|'in-coming'|'none'; urgentFrom?: string; schedulerFrom?: string }>>({});
+
   const [showBookingDetailDialog, setShowBookingDetailDialog] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<BookingManage | null>(null);
   const [showPast, setShowPast] = useState(false);
@@ -124,6 +127,22 @@ export default function BookingManagement(): React.JSX.Element {
     }
   }, []);
 
+  const fetchEtaList = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/admin/bookings/eta-list?take=200`, { cache: 'no-store' });
+      if (!res.ok) return setEtaMap({});
+      const j = await res.json();
+      if (!j?.ok || !Array.isArray(j.data)) return setEtaMap({});
+      const m: Record<number, { etaLabel: string; category: 'auto-approve'|'in-coming'|'none'; urgentFrom?: string; schedulerFrom?: string }> = {};
+      for (const it of j.data as Array<{ bookingId: number; etaLabel: string; category: 'auto-approve'|'in-coming'|'none'; urgentFrom?: string; schedulerFrom?: string }>) {
+        m[it.bookingId] = { etaLabel: it.etaLabel, category: it.category, urgentFrom: (it as any).urgentFrom, schedulerFrom: (it as any).schedulerFrom };
+      }
+      setEtaMap(m);
+    } catch {
+      setEtaMap({});
+    }
+  }, []);
+
   const mapForwardStatus = useCallback((s: string): "Approve"|"Cancel"|"Wait" => {
     const low = (s || "").toLowerCase();
     if (low === 'approve') return 'Approve';
@@ -138,10 +157,11 @@ export default function BookingManagement(): React.JSX.Element {
     setCurrentMonth(months[now.getMonth()]);
     setCurrentYear(now.getFullYear());
     fetchBookings();
+    fetchEtaList();
     if (featureFlags.enableForwardAdmin) {
       fetchForwarded();
     }
-  }, [fetchBookings, fetchForwarded]);
+  }, [fetchBookings, fetchForwarded, fetchEtaList]);
 
   const yearOptions = useMemo(() => {
     const baseYear = currentYear ?? new Date().getFullYear();
@@ -190,6 +210,31 @@ export default function BookingManagement(): React.JSX.Element {
     return sortBookings(prioritySorted, sortByDateAsc);
   }, [bookings, passesFieldFilters, passesPastToggle, isInHeaderWindow, sortByDateAsc]);
 
+  // Category views using ETA map
+  const autoApproveBookings = useMemo(() => {
+    const filtered = bookings.filter((b) =>
+      b.status === 'Wait' &&
+      etaMap[b.id]?.category === 'auto-approve' &&
+      passesFieldFilters(b) &&
+      passesPastToggle(b.dateTime, b.endTime) &&
+      isInHeaderWindow(b.dateTime)
+    );
+    const prioritySorted = sortByPriority(filtered);
+    return sortBookings(prioritySorted, sortByDateAsc);
+  }, [bookings, etaMap, passesFieldFilters, passesPastToggle, isInHeaderWindow, sortByDateAsc]);
+
+  const incomingBookings = useMemo(() => {
+    const filtered = bookings.filter((b) =>
+      b.status === 'Wait' &&
+      etaMap[b.id]?.category === 'in-coming' &&
+      passesFieldFilters(b) &&
+      passesPastToggle(b.dateTime, b.endTime) &&
+      isInHeaderWindow(b.dateTime)
+    );
+    const prioritySorted = sortByPriority(filtered);
+    return sortBookings(prioritySorted, sortByDateAsc);
+  }, [bookings, etaMap, passesFieldFilters, passesPastToggle, isInHeaderWindow, sortByDateAsc]);
+
   // Calculate statistics
   const stats = useMemo<Stats>(() => {
     // KPIs depend on header (Month/Year). For Month, respect Past toggle so cards match table.
@@ -223,6 +268,7 @@ export default function BookingManagement(): React.JSX.Element {
     try {
       setError(null);
       await fetchBookings();
+      await fetchEtaList();
       await fetchForwarded();
     } catch (e) {
       setError((e as Error).message);
@@ -579,7 +625,7 @@ export default function BookingManagement(): React.JSX.Element {
 
         <Accordion
           type="multiple"
-          defaultValue={["forwarded", "all"]}
+          defaultValue={["auto-approve", "in-coming"]}
           className="space-y-6"
         >
           {featureFlags.enableForwardAdmin && (
@@ -739,10 +785,146 @@ export default function BookingManagement(): React.JSX.Element {
             </div>
           </AccordionItem>
         )}
+          {/* Auto-approve soon */}
+          <AccordionItem value="auto-approve" className="border-none">
+            <div className="rounded-xl shadow-sm">
+              <AccordionTrigger className="px-6 border border-gray-200 bg-white rounded-t-xl data-[state=open]:rounded-b-none">
+                <div className="flex items-center gap-2">
+                  <Zap className="h-5 w-5 text-amber-600" />
+                  <span>Auto-approve</span>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent className="px-0 pb-0 border border-gray-200 border-t-0 rounded-b-xl bg-white">
+                {autoApproveBookings.length === 0 ? (
+                  <div className="p-6 text-gray-500">No bookings in this bucket</div>
+                ) : (
+                  <div className="overflow-visible">
+                    <table className="w-full text-sm table-fixed">
+                      <thead className="bg-white">
+                        <tr className="border-b border-gray-200">
+                          <th className="w-20 px-4 py-3 text-center font-semibold text-gray-900 bg-gray-50 text-sm">Meeting Type</th>
+                          <th className="w-32 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Date Meeting</th>
+                          <th className="w-36 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Meeting Time</th>
+                          <th className="w-32 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">User</th>
+                          <th className="w-24 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Status</th>
+                          <th className="w-20 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Auto-approve in</th>
+                          <th className="w-32 px-6 py-3 text-center font-semibold text-gray-900 bg-gray-50 text-sm">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {autoApproveBookings.map((booking, index) => (
+                          <tr key={booking.id} className={`border-b border-gray-100 hover:bg-blue-50 transition-colors ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'}`}>
+                            <td className="px-4 py-4 text-center">{getMeetingTypeBadge(booking.meetingType, booking.drType, booking.otherType)}</td>
+                            <td className="px-4 py-4">
+                              <span className="font-semibold text-gray-900 text-sm">{formatDate(booking.dateTime)}</span>
+                            </td>
+                            <td className="px-4 py-4">
+                              <div className="flex items-center gap-1 text-gray-800 font-mono text-sm">
+                                <Clock className="h-4 w-4 text-gray-500 flex-shrink-0" />
+                                <span className="whitespace-nowrap">{booking.startTime} - {booking.endTime}</span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-4"><span className="font-semibold text-gray-900 text-sm break-words">{booking.bookedBy}</span></td>
+                            <td className="px-6 py-4">
+                              <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-semibold ${getStatusColor(booking.status)}`}>
+                                {getStatusIcon(booking.status)}
+                                <span className="truncate">{booking.status}</span>
+                              </span>
+                            </td>
+                            <td className="px-4 py-4">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800">
+                                {etaMap[booking.id]?.etaLabel || '-'}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 text-center">
+                              <Button variant="outline" size="sm" className="h-8 px-3" onClick={() => { setSelectedBooking(booking); setShowBookingDetailDialog(true); }}>
+                                <SquarePen className="h-4 w-4 mr-1" />
+                                Edit
+                              </Button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </AccordionContent>
+            </div>
+          </AccordionItem>
+
+          {/* In-coming bucket */}
+          <AccordionItem value="in-coming" className="border-none">
+            <div className="rounded-xl shadow-sm">
+              <AccordionTrigger className="px-6 border border-gray-200 bg-white rounded-t-xl data-[state=open]:rounded-b-none">
+                <div className="flex items-center gap-2">
+                  <Inbox className="h-5 w-5 text-blue-600" />
+                  <span>In Coming</span>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent className="px-0 pb-0 border border-gray-200 border-t-0 rounded-b-xl bg-white">
+                {incomingBookings.length === 0 ? (
+                  <div className="p-6 text-gray-500">No bookings in this bucket</div>
+                ) : (
+                  <div className="overflow-visible">
+                    <table className="w-full text-sm table-fixed">
+                      <thead className="bg-white">
+                        <tr className="border-b border-gray-200">
+                          <th className="w-20 px-4 py-3 text-center font-semibold text-gray-900 bg-gray-50 text-sm">Meeting Type</th>
+                          <th className="w-32 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Date Meeting</th>
+                          <th className="w-36 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Meeting Time</th>
+                          <th className="w-32 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">User</th>
+                          <th className="w-24 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Status</th>
+                          <th className="w-20 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Auto-approve in</th>
+                          <th className="w-32 px-6 py-3 text-center font-semibold text-gray-900 bg-gray-50 text-sm">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {incomingBookings.map((booking, index) => (
+                          <tr key={booking.id} className={`border-b border-gray-100 hover:bg-blue-50 transition-colors ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'}`}>
+                            <td className="px-4 py-4 text-center">{getMeetingTypeBadge(booking.meetingType, booking.drType, booking.otherType)}</td>
+                            <td className="px-4 py-4"><span className="font-semibold text-gray-900 text-sm">{formatDate(booking.dateTime)}</span></td>
+                            <td className="px-4 py-4">
+                              <div className="flex items-center gap-1 text-gray-800 font-mono text-sm">
+                                <Clock className="h-4 w-4 text-gray-500 flex-shrink-0" />
+                                <span className="whitespace-nowrap">{booking.startTime} - {booking.endTime}</span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-4"><span className="font-semibold text-gray-900 text-sm break-words">{booking.bookedBy}</span></td>
+                            <td className="px-6 py-4">
+                              <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-semibold ${getStatusColor(booking.status)}`}>
+                                {getStatusIcon(booking.status)}
+                                <span className="truncate">{booking.status}</span>
+                              </span>
+                            </td>
+                            <td className="px-4 py-4">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                                {etaMap[booking.id]?.etaLabel || '-'}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 text-center">
+                              <Button variant="outline" size="sm" className="h-8 px-3" onClick={() => { setSelectedBooking(booking); setShowBookingDetailDialog(true); }}>
+                                <SquarePen className="h-4 w-4 mr-1" />
+                                Edit
+                              </Button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </AccordionContent>
+            </div>
+          </AccordionItem>
+
+          {/* All bookings */}
           <AccordionItem value="all" className="border-none">
             <div className="rounded-xl shadow-sm">
               <AccordionTrigger className="px-6 border border-gray-200 bg-white rounded-t-xl data-[state=open]:rounded-b-none">
-                All
+                <div className="flex items-center gap-2">
+                  <List className="h-5 w-5 text-gray-700" />
+                  <span>All</span>
+                </div>
               </AccordionTrigger>
               <AccordionContent className="px-0 pb-0 border border-gray-200 border-t-0 rounded-b-xl bg-white">
                 <div className="overflow-visible">
@@ -769,6 +951,7 @@ export default function BookingManagement(): React.JSX.Element {
                         <th className="w-32 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Interpreter</th>
                         <th className="w-24 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Room</th>
                         <th className="w-28 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Status</th>
+                        <th className="w-20 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Wait</th>
                         <th className="w-48 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Date Request</th>
                         <th className="w-32 px-6 py-3 text-center font-semibold text-gray-900 bg-gray-50 text-sm">Action</th>
                       </tr>
@@ -822,6 +1005,18 @@ export default function BookingManagement(): React.JSX.Element {
                               {getStatusIcon(booking.status)}
                               <span className="truncate">{booking.status}</span>
                             </span>
+                          </td>
+                          <td className="px-4 py-4">
+                            {booking.status === 'Wait' ? (
+                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${
+                                etaMap[booking.id]?.category === 'auto-approve' ? 'bg-amber-100 text-amber-800' :
+                                etaMap[booking.id]?.category === 'in-coming' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-700'
+                              }`}>
+                                {etaMap[booking.id]?.etaLabel || '-'}
+                              </span>
+                            ) : (
+                              <span className="text-gray-400 text-xs">-</span>
+                            )}
                           </td>
                           <td className="px-6 py-4">
                             <span className="text-sm text-gray-600 whitespace-nowrap">

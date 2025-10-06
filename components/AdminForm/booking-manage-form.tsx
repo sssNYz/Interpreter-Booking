@@ -20,9 +20,10 @@ import {
   BarChart3,
   Sparkles,
 } from "lucide-react";
-import { ChartContainer, ChartTooltip, ChartLegend, ChartTooltipContent } from "@/components/ui/chart";
-import { BarChart as RBarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+import { BarChart as RBarChart, Bar, XAxis, YAxis } from "recharts";
 import type { BookingManage } from "@/types/admin";
+import type { BookingData } from "@/types/booking";
 import { getMeetingTypeBadge } from "@/utils/priority";
 
 /* ================= helpers: format ================= */
@@ -85,9 +86,6 @@ export type BookingForDialog = BookingManage & {
   group?: string;
   topic?: string;
 };
-
-const apiToUi = (s: ApiStatus): BookingManage["status"] =>
-  (s === "approve" ? "Approve" : s === "cancel" ? "Cancel" : "Wait");
 
 function getBookingId(b?: BookingForDialog | null): number | undefined {
   if (!b) return undefined;
@@ -271,12 +269,40 @@ const BookingDetailDialog: React.FC<Props> = ({ open, onOpenChange, editData, is
   // Responsive design
   const { isMobile, screenSize } = useMobile();
   const isTablet = screenSize === 'md' || screenSize === 'lg';
-  const isLargeScreen = screenSize === 'xl';
 
   const [booking, setBooking] = useState<BookingForDialog | null>(null);
   useEffect(() => {
     if (actualOpen && editData) setBooking(editData as BookingForDialog);
   }, [actualOpen, editData]);
+
+  // Extra rich detail for admin (applicableModel, language, chairman, invites)
+  const [bookingDetail, setBookingDetail] = useState<BookingData | null>(null);
+  const [bookingDetailLoading, setBookingDetailLoading] = useState(false);
+  const [bookingDetailError, setBookingDetailError] = useState<string | null>(null);
+  useEffect(() => {
+    const run = async () => {
+      setBookingDetail(null);
+      setBookingDetailError(null);
+      if (!actualOpen) return;
+      const id = booking?.id ?? booking?.bookingId;
+      if (!id) return;
+      try {
+        setBookingDetailLoading(true);
+        const res = await fetch(`/api/booking-data/${id}`, { cache: "no-store" });
+        const j = await res.json().catch(() => ({}));
+        if (res.ok && j?.success && j?.data) {
+          setBookingDetail(j.data as BookingData);
+        } else {
+          setBookingDetailError(typeof j?.error === 'string' ? j.error : 'Failed to load booking detail');
+        }
+      } catch (e) {
+        setBookingDetailError((e as Error).message);
+      } finally {
+        setBookingDetailLoading(false);
+      }
+    };
+    void run();
+  }, [actualOpen, booking?.id, booking?.bookingId]);
 
   const [expand, setExpand] = useState(false);
   useEffect(() => setExpand(false), [booking?.bookingId, booking?.id, actualOpen]);
@@ -291,7 +317,6 @@ const BookingDetailDialog: React.FC<Props> = ({ open, onOpenChange, editData, is
   const [suggestions, setSuggestions] = useState<
     { empCode: string; score: number; reasons: string[]; time: { daysToMeeting: number; hoursToStart: number; lastJobDaysAgo: number }; currentHours?: number; afterAssignHours?: number; groupHours?: { iot: number; hardware: number; software: number; other: number } }[]
   >([]);
-  const [suggestionsLoading, setSuggestionsLoading] = useState<boolean>(false);
   const [interpreterOptions, setInterpreterOptions] = useState<{ empCode: string; name: string }[]>([]);
 
   const handleOptionsChange = useCallback((opts: { empCode: string; name: string }[]) => {
@@ -321,7 +346,6 @@ const BookingDetailDialog: React.FC<Props> = ({ open, onOpenChange, editData, is
       const id = bookingIdForApi;
       if (id == null) return;
       try {
-        setSuggestionsLoading(true);
         const envQuery = targetEnvironmentId != null ? `&environmentId=${targetEnvironmentId}` : "";
         const res = await fetch(`/api/bookings/${id}/suggestions?maxCandidates=20${envQuery}` , { cache: "no-store" });
         const j = await res.json().catch(() => ({}) as { ok?: boolean; candidates?: { empCode: string; score: number; reasons: string[]; time: { daysToMeeting: number; hoursToStart: number; lastJobDaysAgo: number }; currentHours?: number; afterAssignHours?: number; groupHours?: { iot: number; hardware: number; software: number; other: number } }[] });
@@ -332,20 +356,12 @@ const BookingDetailDialog: React.FC<Props> = ({ open, onOpenChange, editData, is
         }
       } catch {
         setSuggestions([]);
-      } finally {
-        setSuggestionsLoading(false);
       }
     };
     void run();
   }, [actualOpen, bookingIdForApi, targetEnvironmentId]);
 
   const topSuggestion = useMemo(() => suggestions[0] || null, [suggestions]);
-  const topSuggestionScore = useMemo(() => {
-    if (!topSuggestion || typeof topSuggestion.score !== "number" || Number.isNaN(topSuggestion.score)) {
-      return null;
-    }
-    return Math.round(topSuggestion.score * 100) / 100;
-  }, [topSuggestion]);
 
   // Build stacked data per interpreter with group split (iot/hardware/software/other)
   const stackedData = useMemo(() => {
@@ -441,7 +457,7 @@ const BookingDetailDialog: React.FC<Props> = ({ open, onOpenChange, editData, is
         </DialogHeader>
 
         {/* Content Body - Flat Layout */}
-        <div className="px-4 overflow-y-auto space-y-3">
+        <div className="px-4 py-3 overflow-y-auto space-y-3 max-h-[calc(90vh-140px)]">
           {!booking ? (
             <div className="flex min-h-[150px] items-center justify-center">
               <div className="text-center">
@@ -479,16 +495,6 @@ const BookingDetailDialog: React.FC<Props> = ({ open, onOpenChange, editData, is
 
                 <div className="flex items-center justify-between py-1">
                   <span className="text-sm text-muted-foreground flex items-center gap-2">
-                    <UserRound className="h-4 w-4" />
-                    Current Interpreter
-                  </span>
-                  <span className="text-sm font-medium">
-                    {booking.interpreter || <span className="text-muted-foreground italic">Not assigned</span>}
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-between py-1">
-                  <span className="text-sm text-muted-foreground flex items-center gap-2">
                     <Clock className="h-4 w-4" />
                     Requested at
                   </span>
@@ -501,7 +507,59 @@ const BookingDetailDialog: React.FC<Props> = ({ open, onOpenChange, editData, is
                     <span className="text-xs bg-muted px-2 py-1 rounded uppercase font-semibold">{booking.group}</span>
                   </div>
                 )}
+
+                {bookingDetail?.applicableModel && (
+                  <div className="flex items-center justify-between py-1">
+                    <span className="text-sm text-muted-foreground flex items-center gap-2">
+                      <FileText className="h-4 w-4" />
+                      Model
+                    </span>
+                    <span className="text-sm font-medium truncate max-w-[240px]" title={bookingDetail.applicableModel}>
+                      {bookingDetail.applicableModel}
+                    </span>
+                  </div>
+                )}
+
+                {(bookingDetail?.languageCode || bookingDetail?.chairmanEmail) && (
+                  <>
+                    {bookingDetail.languageCode && (
+                      <div className="flex items-center justify-between py-1">
+                        <span className="text-sm text-muted-foreground">Language</span>
+                        <span className="text-sm font-medium">{bookingDetail.languageCode}</span>
+                      </div>
+                    )}
+                    {bookingDetail.chairmanEmail && (
+                      <div className="flex items-center justify-between py-1">
+                        <span className="text-sm text-muted-foreground">Chairman</span>
+                        <span className="text-sm font-medium truncate max-w-[240px]" title={bookingDetail.chairmanEmail}>
+                          {bookingDetail.chairmanEmail}
+                        </span>
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
+
+              {/* Meeting Notes - Show early so admin knows what meeting is about */}
+              {(booking?.meetingDetail || booking?.topic) && (
+                <>
+                  <hr className="border-border" />
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                        <FileText className="h-4 w-4 text-muted-foreground" />
+                        <span>Meeting Notes</span>
+                      </div>
+                      <Button variant="ghost" size="sm" className="text-xs h-6 px-2" onClick={() => setExpand((v) => !v)}>
+                        {expand ? "Less" : "More"}
+                      </Button>
+                    </div>
+                    <div className={`text-sm text-foreground/90 ${expand ? "" : "line-clamp-3"}`}>
+                      {booking?.meetingDetail ?? booking?.topic}
+                    </div>
+                  </div>
+                </>
+              )}
               
               <hr className="border-border" />
 
@@ -536,12 +594,12 @@ const BookingDetailDialog: React.FC<Props> = ({ open, onOpenChange, editData, is
                     </div>
                   )}
 
-                  {/* Impact Preview - Group Stacked Chart */}
+                  {/* Workload Comparison Chart */}
                   {stackedData.length > 0 && (
                     <div className="rounded border bg-card/50 p-2 sm:p-3">
                       <div className="flex items-center gap-2 mb-2">
                         <BarChart3 className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
-                        <span className="text-xs sm:text-sm font-medium">Workload by Group</span>
+                        <span className="text-xs sm:text-sm font-medium">Compare Workload</span>
                       </div>
                       <ChartContainer
                         className="h-[100px] sm:h-[120px] md:h-[140px] w-full"
@@ -584,30 +642,44 @@ const BookingDetailDialog: React.FC<Props> = ({ open, onOpenChange, editData, is
                           <Bar dataKey="other" stackId="hrs" fill="var(--color-other)" radius={0} />
                         </RBarChart>
                       </ChartContainer>
-
-                      {/* Removed text preview bars to keep a single chart */}
                     </div>
                   )}
                 </div>
               </div>
 
-              {/* Meeting Notes - Flat */}
-              {(booking?.meetingDetail || booking?.topic) && (
+              {/* Email Invites */}
+              {(bookingDetailLoading || bookingDetail?.inviteEmails) && (
                 <>
                   <hr className="border-border" />
                   <div>
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2 text-sm font-medium text-foreground">
                         <FileText className="h-4 w-4 text-muted-foreground" />
-                        <span>Meeting Notes</span>
+                        <span>Email Invites</span>
+                        {bookingDetail?.inviteEmails && bookingDetail.inviteEmails.length > 0 && (
+                          <span className="text-xs text-primary">
+                            {bookingDetail.inviteEmails.length} {bookingDetail.inviteEmails.length === 1 ? 'recipient' : 'recipients'}
+                          </span>
+                        )}
                       </div>
-                      <Button variant="ghost" size="sm" className="text-xs h-6 px-2" onClick={() => setExpand((v) => !v)}>
-                        {expand ? "Less" : "More"}
-                      </Button>
                     </div>
-                    <div className={`text-sm text-foreground/90 ${expand ? "" : "line-clamp-2"}`}>
-                      {booking?.meetingDetail ?? booking?.topic}
-                    </div>
+                    {bookingDetailLoading ? (
+                      <div className="text-xs text-muted-foreground">Loading...</div>
+                    ) : bookingDetail?.inviteEmails && bookingDetail.inviteEmails.length > 0 ? (
+                      <div className="space-y-1.5 max-h-[180px] overflow-y-auto pr-1">
+                        {bookingDetail.inviteEmails.map((email, idx) => (
+                          <div key={idx} className="flex items-start gap-2 p-2 rounded bg-muted/40">
+                            <span className="mt-1 h-1.5 w-1.5 rounded-full bg-primary/60" />
+                            <span className="text-sm leading-relaxed break-all">{email}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-xs text-muted-foreground">No email invites</div>
+                    )}
+                    {bookingDetailError && (
+                      <div className="text-xs text-destructive mt-1">{bookingDetailError}</div>
+                    )}
                   </div>
                 </>
               )}
