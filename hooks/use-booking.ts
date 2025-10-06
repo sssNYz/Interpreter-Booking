@@ -18,7 +18,7 @@ export function useBookings(currentDate: Date, view?: 'user' | 'admin' | 'all') 
         `/api/booking-data/get-booking-byDate/${year}/${month}${qs}`
       );
       const data = await res.json();
-      setBookings(data);
+      setBookings(Array.isArray(data) ? data : []);
     } catch (e) {
       setError(e);
     } finally {

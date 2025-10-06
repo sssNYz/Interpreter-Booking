@@ -327,14 +327,14 @@ function calculateTiming(result: CandidateResult, booking: {
   timeEnd: Date;
 }) {
   const now = new Date();
-  const meetingStart = booking.timeStart;
-  const totalHours = Math.ceil((meetingStart.getTime() - now.getTime()) / (1000 * 60 * 60));
-  const daysToMeeting = Math.floor(totalHours / 24);  // Full days only
-  const hoursToStart = totalHours % 24;               // Remaining hours
+  const meetingStart = new Date(booking.timeStart.getTime() + (now.getTimezoneOffset() * 60000));
+  const totalHours = Math.round((meetingStart.getTime() - now.getTime()) / (1000 * 60 * 60));
+  const daysToMeeting = Math.floor(totalHours / 24);
+  const hoursToStart = totalHours % 24;
 
   return {
     daysToMeeting: Math.max(0, daysToMeeting),
     hoursToStart: Math.max(0, hoursToStart),
     lastJobDaysAgo: result.daysSinceLastAssignment
   };
-}
+} 
