@@ -161,8 +161,8 @@ export function DeptTab({ year, data: externalData, selectedMonth: propSelectedM
   const currentMonth = selectedMonth;
 
   const interpreterColors = React.useMemo<Record<InterpreterName, string>>(() => {
-    return createInterpreterColorPalette(interpreters);
-  }, [interpreters]);
+    return createInterpreterColorPalette(interpreters, currentData?.interpreterIdMapping);
+  }, [interpreters, currentData?.interpreterIdMapping]);
 
   const monthDeptData: SingleMonthDeptBar[] = React.useMemo(() => {
     if (!selectedMonth) return [];

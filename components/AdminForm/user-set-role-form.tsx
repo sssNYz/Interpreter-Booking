@@ -25,6 +25,8 @@ interface UserRoleDialogProps {
   /** ถ้าส่งมา จะใช้แทนการยิง API ภายในคอมโพเนนต์ */
   onSave?: (roles: Role[]) => Promise<void> | void;
   trigger?: ReactNode;
+  /** Current user info to avoid API call */
+  currentUser?: { isSuper: boolean } | null;
 }
 
 const ROLE_META: Record<
@@ -48,23 +50,28 @@ const ROLE_META: Record<
   },
 };
 
-export function UserRoleDialog({ user, onSave, trigger }: UserRoleDialogProps) {
+export function UserRoleDialog({ user, onSave, trigger, currentUser }: UserRoleDialogProps) {
   const [open, setOpen] = useState(false);
   const [roles, setRoles] = useState<Role[]>(user.roles ?? []);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSuper, setIsSuper] = useState(false);
-  
+
   // Language selection state
   const [availableLanguages, setAvailableLanguages] = useState<Language[]>([]);
   const [selectedLanguages, setSelectedLanguages] = useState<string[]>([]);
   const [loadingLanguages, setLoadingLanguages] = useState(false);
-  
+
   // Server baseline state (what's currently on the server)
   const [serverLanguages, setServerLanguages] = useState<string[]>([]);
 
-  // Who am I
+  // Who am I - use provided currentUser or fetch if not provided
   useEffect(() => {
+    if (currentUser !== undefined) {
+      setIsSuper(currentUser?.isSuper ?? false);
+      return;
+    }
+
     let alive = true;
     fetch('/api/user/me', { cache: 'no-store' })
       .then(res => res.ok ? res.json() : null)
@@ -74,7 +81,7 @@ export function UserRoleDialog({ user, onSave, trigger }: UserRoleDialogProps) {
         setIsSuper(myRoles.includes('SUPER_ADMIN'));
       }).catch(() => setIsSuper(false));
     return () => { alive = false };
-  }, []);
+  }, [currentUser]);
 
   // Fetch available languages
   const fetchLanguages = async () => {
@@ -96,8 +103,8 @@ export function UserRoleDialog({ user, onSave, trigger }: UserRoleDialogProps) {
   // Fetch current interpreter languages
   const fetchInterpreterLanguages = useCallback(async () => {
     try {
-      const res = await fetch(`/api/interpreter-language?empCode=${encodeURIComponent(user.empCode)}`, { 
-        cache: 'no-store' 
+      const res = await fetch(`/api/interpreter-language?empCode=${encodeURIComponent(user.empCode)}`, {
+        cache: 'no-store'
       });
       if (!res.ok) return;
       const languages: InterpreterLanguage[] = await res.json();
@@ -126,21 +133,21 @@ export function UserRoleDialog({ user, onSave, trigger }: UserRoleDialogProps) {
         })
       );
     }
-    
+
     for (const code of toAdd) {
       jobs.push(
         fetch('/api/interpreter-language', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            empCode: user.empCode, 
-            languageCode: code 
+          body: JSON.stringify({
+            empCode: user.empCode,
+            languageCode: code
           }),
           cache: 'no-store'
         })
       );
     }
-    
+
     await Promise.all(jobs);
     setServerLanguages(languageCodes); // update baseline
   };
@@ -148,25 +155,25 @@ export function UserRoleDialog({ user, onSave, trigger }: UserRoleDialogProps) {
   // (removed) Admin-vision: save scopes
 
   // ยิง PUT ไป API (กัน html/404, กัน cache dev)
-const saveRolesViaAPI = async (nextRoles: Role[]) => {
-  const res = await fetch(`/api/user/put-user-role/${encodeURIComponent(String(user.id))}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify({ roles: nextRoles }),
-    cache: "no-store",
-  });
+  const saveRolesViaAPI = async (nextRoles: Role[]) => {
+    const res = await fetch(`/api/user/put-user-role/${encodeURIComponent(String(user.id))}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ roles: nextRoles }),
+      cache: "no-store",
+    });
 
-  const ct = res.headers.get("content-type") || "";
-  if (!res.ok) {
-    const text = ct.includes("application/json") ? JSON.stringify(await res.json()) : await res.text();
-    throw new Error(`(${res.status}) ${text.slice(0, 200)}`);
-  }
-  if (!ct.includes("application/json")) {
-    const text = await res.text();
-    throw new Error(`Unexpected non-JSON response: ${text.slice(0, 200)}`);
-  }
-  return res.json();
-};
+    const ct = res.headers.get("content-type") || "";
+    if (!res.ok) {
+      const text = ct.includes("application/json") ? JSON.stringify(await res.json()) : await res.text();
+      throw new Error(`(${res.status}) ${text.slice(0, 200)}`);
+    }
+    if (!ct.includes("application/json")) {
+      const text = await res.text();
+      throw new Error(`Unexpected non-JSON response: ${text.slice(0, 200)}`);
+    }
+    return res.json();
+  };
 
 
   // reset ค่า roles ทุกครั้งที่เปิด dialog หรือ user เปลี่ยน
@@ -182,7 +189,7 @@ const saveRolesViaAPI = async (nextRoles: Role[]) => {
 
   // ใช้เปรียบเทียบก่อน/หลัง
   const initial = useMemo(() => JSON.stringify(user.roles ?? []), [user]);
-  
+
   const dirty = useMemo(() => {
     const rolesChanged = JSON.stringify(roles) !== initial;
     const languagesChanged = JSON.stringify(selectedLanguages) !== JSON.stringify(serverLanguages);
@@ -191,13 +198,13 @@ const saveRolesViaAPI = async (nextRoles: Role[]) => {
 
   const toggleRole = (role: Role) => {
     setRoles((prev) => {
-      const newRoles = prev.includes(role) 
-        ? prev.filter((r) => r !== role) 
+      const newRoles = prev.includes(role)
+        ? prev.filter((r) => r !== role)
         : [...prev, role];
-      
+
       // Don't clear lists when toggling roles - we need them for cleanup on save
       // The UI will hide/show sections based on roles, but data stays for proper diff
-      
+
       return newRoles;
     });
   };
@@ -319,30 +326,30 @@ const saveRolesViaAPI = async (nextRoles: Role[]) => {
               return true;
             })
             .map((r) => {
-            const Meta = ROLE_META[r];
-            const Icon = Meta.icon;
-            const checked = roles.includes(r);
-            return (
-              <label
-                key={r}
-                className="flex items-start gap-3 rounded-lg border p-3 hover:bg-muted/50 transition"
-              >
-                <Checkbox
-                  checked={checked}
-                  onCheckedChange={() => toggleRole(r)}
-                  className="mt-0.5"
-                  aria-label={`Toggle role ${Meta.label}`}
-                />
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <Icon className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm font-medium">{Meta.label}</span>
+              const Meta = ROLE_META[r];
+              const Icon = Meta.icon;
+              const checked = roles.includes(r);
+              return (
+                <label
+                  key={r}
+                  className="flex items-start gap-3 rounded-lg border p-3 hover:bg-muted/50 transition"
+                >
+                  <Checkbox
+                    checked={checked}
+                    onCheckedChange={() => toggleRole(r)}
+                    className="mt-0.5"
+                    aria-label={`Toggle role ${Meta.label}`}
+                  />
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <Icon className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm font-medium">{Meta.label}</span>
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">{Meta.desc}</p>
                   </div>
-                  <p className="mt-1 text-xs text-muted-foreground">{Meta.desc}</p>
-                </div>
-              </label>
-            );
-          })}
+                </label>
+              );
+            })}
 
           {/* Language Selection for INTERPRETER role */}
           {roles.includes('INTERPRETER') && (
@@ -355,7 +362,7 @@ const saveRolesViaAPI = async (nextRoles: Role[]) => {
               <div className="text-xs text-muted-foreground mb-2">
                 Select languages this interpreter can translate (required)
               </div>
-              
+
               {loadingLanguages ? (
                 <div className="text-sm text-muted-foreground">Loading languages...</div>
               ) : availableLanguages.length === 0 ? (
@@ -383,7 +390,7 @@ const saveRolesViaAPI = async (nextRoles: Role[]) => {
                   ))}
                 </div>
               )}
-              
+
               {selectedLanguages.length > 0 && (
                 <div className="flex flex-wrap gap-1 mt-2">
                   {selectedLanguages.map((langCode) => {

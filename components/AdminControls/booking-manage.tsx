@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useEffect, useCallback } from "react";
+import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
@@ -15,30 +15,31 @@ import {
 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import type { BookingManage, Stats } from "@/types/admin";
-import type { 
-  BookingFilters, 
-  PaginationState, 
-  StatusOptionConfig, 
+import type {
+  BookingFilters,
+  PaginationState,
+  StatusOptionConfig,
   SummaryCardConfig,
-  PaginatedBookings 
+  PaginatedBookings
 } from "@/types/booking-management";
 import { generateStandardTimeSlots } from "@/utils/time";
-import { 
-  isPastMeeting, 
-  formatDate, 
-  formatRequestedTime, 
-  getFullDate, 
-  sortBookings, 
-  getStatusColor, 
-  getStatusIcon 
+import {
+  isPastMeeting,
+  formatDate,
+  formatRequestedTime,
+  getFullDate,
+  sortBookings,
+  getStatusColor,
+  getStatusIcon
 } from "@/utils/booking";
-import { 
+import {
   getMeetingTypeBadge,
-  sortByPriority 
+  sortByPriority
 } from "@/utils/priority";
 import BookingDetailDialog from "@/components/AdminForm/booking-manage-form";
 import ForwardBookingDialog from "./ForwardBookingDialog";
 import { client as featureFlags } from "@/lib/feature-flags";
+import { getCurrentFiscalMonthLabel, years } from "@/utils/admin-dashboard";
 
 const PAGE_WRAPPER = "min-h-screen bg-[#f7f7f7] font-sans text-gray-900";
 const TIME_SLOTS = generateStandardTimeSlots();
@@ -76,17 +77,20 @@ export default function BookingManagement(): React.JSX.Element {
   });
   const [dateRangeType, setDateRangeType] = useState<"meeting" | "request">("meeting");
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
-  const [pagination, setPagination] = useState<PaginationState>({ 
-    currentPage: 1, 
-    rowsPerPage: 10, 
-    total: 0, 
-    totalPages: 0 
+  const [pagination, setPagination] = useState<PaginationState>({
+    currentPage: 1,
+    rowsPerPage: 10,
+    total: 0,
+    totalPages: 0
   });
   const [isClient, setIsClient] = useState(false);
-  const [currentMonth, setCurrentMonth] = useState("");
-  const [currentYear, setCurrentYear] = useState<number | null>(null);
+  const [activeYear, setActiveYear] = useState<number>(years[0]);
+  const [agg, setAgg] = useState<"month" | "totalAll">("month");
+  const [selectedMonth, setSelectedMonth] = useState<string>(getCurrentFiscalMonthLabel());
   const [sortByDateAsc, setSortByDateAsc] = useState(true);
-  const [agg, setAgg] = useState<"month" | "year">("month");
+  const [isMonthDropdownOpen, setIsMonthDropdownOpen] = useState(false);
+  const monthWrapperDesktopRef = useRef<HTMLDivElement | null>(null);
+  const monthWrapperMobileRef = useRef<HTMLDivElement | null>(null);
 
   // ETA data map: bookingId -> { etaLabel, category }
   const [etaMap, setEtaMap] = useState<Record<number, { etaLabel: string; category: 'auto-approve'|'in-coming'|'none'; urgentFrom?: string; schedulerFrom?: string }>>({});
@@ -94,7 +98,7 @@ export default function BookingManagement(): React.JSX.Element {
   const [showBookingDetailDialog, setShowBookingDetailDialog] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<BookingManage | null>(null);
   const [showPast, setShowPast] = useState(false);
-  
+
   // Forward dialog state
   const [showForwardDialog, setShowForwardDialog] = useState(false);
   const [forwardingBookingId, setForwardingBookingId] = useState<number | null>(null);
@@ -103,10 +107,10 @@ export default function BookingManagement(): React.JSX.Element {
   const fetchBookings = useCallback(async () => {
     try {
       setError(null);
-      
+
       const res = await fetch("/api/booking-data/get-booking", { cache: "no-store" });
       if (!res.ok) throw new Error(`Failed to load bookings (${res.status})`);
-      
+
       const data = await res.json();
       setBookings(data);
     } catch (e) {
@@ -152,10 +156,6 @@ export default function BookingManagement(): React.JSX.Element {
 
   useEffect(() => {
     setIsClient(true);
-    const now = new Date();
-    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-    setCurrentMonth(months[now.getMonth()]);
-    setCurrentYear(now.getFullYear());
     fetchBookings();
     fetchEtaList();
     if (featureFlags.enableForwardAdmin) {
@@ -163,24 +163,54 @@ export default function BookingManagement(): React.JSX.Element {
     }
   }, [fetchBookings, fetchForwarded, fetchEtaList]);
 
-  const yearOptions = useMemo(() => {
-    const baseYear = currentYear ?? new Date().getFullYear();
-    return [baseYear - 1, baseYear, baseYear + 1];
-  }, [currentYear]);
+  // Month options - show all months
+  const monthOptions = useMemo(() => {
+    return ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  }, []);
+
+  // Ensure selectedMonth is valid when data changes
+  useEffect(() => {
+    if (!monthOptions || monthOptions.length === 0) return;
+    if (!selectedMonth || !monthOptions.includes(selectedMonth)) {
+      const current = getCurrentFiscalMonthLabel();
+      const fallback = monthOptions.includes(current) ? current : monthOptions[0];
+      setSelectedMonth(fallback);
+    }
+  }, [monthOptions, selectedMonth]);
+
+  // Close dropdown when clicking outside the month button group (desktop or mobile)
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (!isMonthDropdownOpen) return;
+      const targetNode = event.target instanceof Node ? event.target : null;
+      const isInsideDesktop = monthWrapperDesktopRef.current?.contains(targetNode as Node);
+      const isInsideMobile = monthWrapperMobileRef.current?.contains(targetNode as Node);
+      if (!isInsideDesktop && !isInsideMobile) setIsMonthDropdownOpen(false);
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isMonthDropdownOpen]);
 
   // ----- Helpers (pure) -----
   const isInHeaderWindow = useCallback((dateISO: string): boolean => {
     const d = new Date(dateISO);
-    if (agg === "year") {
-      return currentYear ? d.getFullYear() === currentYear : true;
+    if (agg === "totalAll") {
+      return d.getFullYear() === activeYear;
     }
-    const now = new Date();
-    return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
-  }, [agg, currentYear]);
+    // For month view, check if the booking is in the selected month and year
+    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const bookingMonth = monthNames[d.getMonth()];
+    return d.getFullYear() === activeYear && bookingMonth === selectedMonth;
+  }, [agg, activeYear, selectedMonth]);
+
+  const isPastRecord = useCallback((dateISO: string, endTime: string): boolean => {
+    return isPastMeeting(dateISO, endTime, 10);
+  }, []);
 
   const passesPastToggle = useCallback((dateISO: string, endTime: string): boolean => {
     if (filters.date) return true;               // explicit date should always be shown
-    if (agg === "year") return true;           // year view ignores past toggle
+    if (agg === "totalAll") return true;           // totalAll view ignores past toggle
     return showPast ? true : !isPastMeeting(dateISO, endTime, 10);
   }, [filters.date, agg, showPast]);
 
@@ -274,17 +304,17 @@ export default function BookingManagement(): React.JSX.Element {
       setError((e as Error).message);
     }
   };
-  
+
   const handlePageChange = (n: number) => {
     setPagination((p) => ({
       ...p,
       currentPage: Math.max(1, Math.min(n, paginatedBookings.totalPages)),
     }));
   };
-  
+
   const handleRowsPerPageChange = (v: string) => {
-    setPagination({ 
-      currentPage: 1, 
+    setPagination({
+      currentPage: 1,
       rowsPerPage: parseInt(v),
       total: 0,
       totalPages: 0
@@ -324,25 +354,173 @@ export default function BookingManagement(): React.JSX.Element {
               </div>
             </div>
             <div className="hidden md:flex items-center gap-3">
-              <span className="text-sm text-gray-600">Data Year:</span>
-              <Select value={(currentYear ?? new Date().getFullYear()).toString()} onValueChange={(v) => setCurrentYear(parseInt(v))}>
+              <Select value={String(activeYear)} onValueChange={(v) => setActiveYear(Number(v))}>
                 <SelectTrigger className="w-[140px]">
                   <SelectValue placeholder="Year" />
                 </SelectTrigger>
                 <SelectContent>
-                  {yearOptions.map((y) => (
-                    <SelectItem key={y} value={y.toString()}>
+                  {years.map((y) => (
+                    <SelectItem key={y} value={String(y)}>
                       {y}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+
+              {/* Custom Button Group with Smooth Transitions */}
+              <div className="relative flex bg-gray-100 rounded-md p-0.5 h-8 w-56">
+                {/* Highlight Bar */}
+                <div
+                  className={`absolute inset-y-0 left-0 w-1/2 bg-gray-900 rounded transition-transform duration-300 ease-in-out z-0 pointer-events-none ${agg === "month" ? "translate-x-0" : "translate-x-full"
+                    }`}
+                />
+
+                {/* Month Dropdown Button */}
+                <div ref={monthWrapperDesktopRef} className="relative basis-1/2 grow-0 shrink-0">
+                  <button
+                    className={`relative z-10 w-full h-full px-3 text-sm font-medium rounded transition-colors duration-200 flex items-center justify-center whitespace-nowrap overflow-hidden text-ellipsis leading-none focus:outline-none focus-visible:outline-none ${agg === "month"
+                      ? "text-white bg-transparent"
+                      : "text-gray-700 bg-transparent"
+                      }`}
+                    onClick={() => {
+                      if (agg !== "month") {
+                        setAgg("month");
+                        setIsMonthDropdownOpen(false);
+                      } else {
+                        setIsMonthDropdownOpen((prev) => !prev);
+                      }
+                    }}
+                  >
+                    {agg === "month" ? selectedMonth : "Month"}
+                    <ChevronDownIcon className={`ml-1 h-3 w-3 transition-transform duration-200 ${isMonthDropdownOpen ? "rotate-180" : ""
+                      }`} />
+                  </button>
+
+                  {/* Month Dropdown */}
+                  {isMonthDropdownOpen && monthOptions && monthOptions.length > 0 && (
+                    <div className="absolute top-full left-0 mt-1 w-full bg-white border border-gray-200 rounded-md shadow-lg z-20 animate-in slide-in-from-top-2 fade-in-0 duration-200">
+                      {monthOptions.map((month) => (
+                        <button
+                          key={month}
+                          className={`w-full text-left px-2 py-1.5 text-xs hover:bg-gray-100 first:rounded-t-md last:rounded-b-md transition-colors ${selectedMonth === month ? "bg-gray-100 font-medium" : ""
+                            }`}
+                          onClick={() => {
+                            setSelectedMonth(month);
+                            setAgg("month");
+                            setIsMonthDropdownOpen(false);
+                          }}
+                        >
+                          {month}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Total All Button */}
+                <div className="basis-1/2 grow-0 shrink-0">
+                  <button
+                    className={`relative z-10 w-full h-full px-3 text-sm font-medium rounded transition-colors duration-200 flex items-center justify-center whitespace-nowrap overflow-hidden text-ellipsis leading-none focus:outline-none focus-visible:outline-none ${agg === "totalAll"
+                      ? "text-white bg-transparent"
+                      : "text-gray-700 bg-transparent"
+                      }`}
+                    onClick={() => {
+                      setAgg("totalAll");
+                      setIsMonthDropdownOpen(false);
+                    }}
+                  >
+                    Total All
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        {/* Controls — mobile */}
+        <div className="md:hidden flex items-center justify-between gap-3 mb-4">
+          <Select value={String(activeYear)} onValueChange={(v) => setActiveYear(Number(v))}>
+            <SelectTrigger className="w-[140px]">
+              <SelectValue placeholder="Year" />
+            </SelectTrigger>
+            <SelectContent>
+              {years.map((y) => (
+                <SelectItem key={y} value={String(y)}>
+                  {y}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {/* Mobile Button Group */}
+          <div className="relative flex bg-gray-100 rounded-md p-0.5 gap-0.5 h-6 w-48">
+            {/* Highlight Bar */}
+            <div
+              className={`absolute top-0.5 bottom-0.5 bg-gray-900 rounded transition-all duration-300 ease-in-out ${agg === "month" ? "left-0.5 right-1/2" : "left-1/2 right-0.5"
+                }`}
+            />
+
+            {/* Month Dropdown Button */}
+            <div ref={monthWrapperMobileRef} className="relative flex-1">
+              <button
+                className={`w-full h-full px-1.5 text-xs rounded transition-colors duration-200 flex items-center justify-center whitespace-nowrap leading-none focus:outline-none focus-visible:outline-none ${agg === "month"
+                  ? "text-white bg-transparent"
+                  : "text-gray-700 bg-transparent"
+                  }`}
+                onClick={() => {
+                  if (agg !== "month") {
+                    setAgg("month");
+                    setIsMonthDropdownOpen(false);
+                  } else {
+                    setIsMonthDropdownOpen((prev) => !prev);
+                  }
+                }}
+              >
+                {agg === "month" ? selectedMonth : "Month"}
+                <ChevronDownIcon className={`ml-1 h-2 w-2 transition-transform duration-200 ${isMonthDropdownOpen ? "rotate-180" : ""
+                  }`} />
+              </button>
+
+              {/* Month Dropdown */}
+              {isMonthDropdownOpen && monthOptions && monthOptions.length > 0 && (
+                <div className="absolute top-full left-0 mt-1 w-full bg-white border border-gray-200 rounded-md shadow-lg z-20 animate-in slide-in-from-top-2 fade-in-0 duration-200">
+                  {monthOptions.map((month) => (
+                    <button
+                      key={month}
+                      className={`w-full text-left px-1.5 py-1 text-xs hover:bg-gray-100 first:rounded-t-md last:rounded-b-md transition-colors ${selectedMonth === month ? "bg-gray-100 font-medium" : ""
+                        }`}
+                      onClick={() => {
+                        setSelectedMonth(month);
+                        setAgg("month");
+                        setIsMonthDropdownOpen(false);
+                      }}
+                    >
+                      {month}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Total All Button */}
+            <div className="flex-1">
+              <button
+                className={`w-full h-full px-1.5 text-xs rounded transition-colors duration-200 flex items-center justify-center whitespace-nowrap leading-none focus:outline-none focus-visible:outline-none ${agg === "totalAll"
+                  ? "text-white bg-transparent"
+                  : "text-gray-700 bg-transparent"
+                  }`}
+                onClick={() => {
+                  setAgg("totalAll");
+                  setIsMonthDropdownOpen(false);
+                }}
+              >
+                Total All
+              </button>
+            </div>
+          </div>
+        </div>
         <div className="mb-6 flex items-center gap-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
           <div className="flex items-center gap-2">
             <Info className="h-5 w-5 text-blue-600" />
@@ -381,36 +559,21 @@ export default function BookingManagement(): React.JSX.Element {
               <HelpCircle className="h-4 w-4 text-slate-600" />
               <span className="text-sm text-gray-700">Other</span>
             </div>
+            {showPast && (
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 bg-gray-200/50 border border-gray-300 rounded"></div>
+                <span className="text-sm text-gray-700">Past Records</span>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Summary Cards with View Toggle */}
+        {/* Summary Cards */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-lg font-semibold text-gray-900">Summary Overview</h2>
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-600">View:</span>
-              <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
-                <Button 
-                  size="sm" 
-                  variant={agg === "month" ? "default" : "ghost"} 
-                  onClick={() => setAgg("month")}
-                  className="h-8 px-3"
-                >
-                  Month
-                </Button>
-                <Button 
-                  size="sm" 
-                  variant={agg === "year" ? "default" : "ghost"} 
-                  onClick={() => setAgg("year")}
-                  className="h-8 px-3"
-                >
-                  Year
-                </Button>
-              </div>
-            </div>
           </div>
-          
+
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
             {([
               { key: "wait", label: "Wait", color: "amber", icon: Hourglass, description: "Bookings awaiting approval" },
@@ -422,7 +585,7 @@ export default function BookingManagement(): React.JSX.Element {
                 <CardHeader className="pb-3">
                   <CardTitle className={`text-base font-semibold text-${color}-800 flex items-center gap-2`}>
                     <Icon className="h-4 w-4" />
-                    {label} {isClient && (agg === "year" ? `- Year ${currentYear}` : `- ${currentMonth} ${currentYear}`)}
+                    {label} {isClient && (agg === "totalAll" ? `- Total All ${activeYear}` : `- ${selectedMonth} ${activeYear}`)}
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -629,48 +792,230 @@ export default function BookingManagement(): React.JSX.Element {
           className="space-y-6"
         >
           {featureFlags.enableForwardAdmin && (
-          <AccordionItem value="forwarded" className="border-none">
-            <div className="rounded-xl shadow-sm">
+            <AccordionItem value="forwarded" className="border-none overflow-visible">
+              <div className="rounded-xl shadow-sm overflow-visible">
+                <AccordionTrigger className="px-6 border border-gray-200 bg-white rounded-t-xl data-[state=open]:rounded-b-none">
+                  Forwarded To Me
+                </AccordionTrigger>
+                <AccordionContent className="px-0 pb-0 border border-gray-200 border-t-0 rounded-b-xl bg-white overflow-visible">
+                  {forwarded.length === 0 ? (
+                    <div className="p-6 text-gray-500">No forwarded requests</div>
+                  ) : (
+                    <div className="overflow-visible">
+                      <table className="w-full text-sm" style={{ tableLayout: 'auto' }}>
+                        <thead className="bg-white">
+                          <tr className="border-b border-gray-200">
+                            <th className="w-20 px-4 py-3 text-center font-semibold text-gray-900 bg-gray-50 text-sm">Meeting Type</th>
+                            <th className="w-32 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Date Meeting</th>
+                            <th className="w-36 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Meeting Time</th>
+                            <th className="w-32 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">User</th>
+                            <th className="w-32 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Interpreter</th>
+                            <th className="w-24 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Room</th>
+                            <th className="w-28 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Status</th>
+                            <th className="w-48 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Date Request</th>
+                            <th className="w-32 px-6 py-3 text-center font-semibold text-gray-900 bg-gray-50 text-sm">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody className="overflow-visible">
+                          {forwarded.map((r, index) => {
+                            const forwardedDate = new Date(r.timeStart).toISOString().split('T')[0];
+                            const isPast = showPast && isPastRecord(forwardedDate, new Date(r.timeEnd).toISOString().split('T')[1].slice(0, 5));
+                            return (
+                              <tr
+                                key={`${r.bookingId}-${r.environmentId}`}
+                                className={`border-b border-gray-100 hover:bg-blue-50 transition-colors ${isPast
+                                  ? "bg-gray-200/50"
+                                  : index % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'
+                                  }`}
+                              >
+                                <td className="px-4 py-4 text-center">
+                                  {getMeetingTypeBadge(r.meetingType, undefined, undefined)}
+                                </td>
+                                <td className="px-4 py-4 overflow-visible relative">
+                                  <div className="flex items-start gap-2">
+                                    <div className="group relative flex-1" style={{ transform: 'translateZ(0)' }}>
+                                      <span className="font-semibold text-gray-900 text-sm cursor-help break-words">
+                                        {formatDate(new Date(r.timeStart).toISOString().split('T')[0])}
+                                      </span>
+                                      <div className="absolute -top-10 left-1/2 transform -translate-x-1/2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none" style={{ zIndex: 999999, position: 'absolute', isolation: 'isolate' }}>
+                                        {new Date(r.timeStart).toLocaleString()}
+                                        <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-2 border-r-2 border-t-2 border-transparent border-t-gray-800"></div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="px-4 py-4">
+                                  <div className="flex items-center gap-1 text-gray-800 font-mono text-sm">
+                                    <Clock className="h-4 w-4 text-gray-500 flex-shrink-0" />
+                                    <span className="whitespace-nowrap">
+                                      {new Date(r.timeStart).toISOString().split('T')[1].slice(0, 5)} - {new Date(r.timeEnd).toISOString().split('T')[1].slice(0, 5)}
+                                    </span>
+                                  </div>
+                                </td>
+                                <td className="px-4 py-4">
+                                  <span className="font-semibold text-gray-900 text-sm break-words">{r.owner.name || '-'}</span>
+                                </td>
+                                <td className="px-4 py-4">
+                                  <span className="text-gray-800 text-sm break-words">-</span>
+                                </td>
+                                <td className="px-4 py-4">
+                                  <div className="flex items-center justify-center h-full">
+                                    <span className="px-2 py-1 bg-gray-100 text-gray-800 rounded-md text-sm font-semibold break-words">
+                                      {r.meetingRoom}
+                                    </span>
+                                  </div>
+                                </td>
+                                <td className="px-6 py-4">
+                                  {(() => {
+                                    const ui = mapForwardStatus(r.status);
+                                    return (
+                                      <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-semibold ${getStatusColor(ui)}`}>
+                                        {getStatusIcon(ui)}
+                                        <span className="truncate">{ui}</span>
+                                      </span>
+                                    );
+                                  })()}
+                                </td>
+                                <td className="px-6 py-4">
+                                  <span className="text-sm text-gray-600 whitespace-nowrap">
+                                    {formatRequestedTime(
+                                      new Date((r.createdAt ?? r.timeStart))
+                                        .toISOString()
+                                        .replace('T', ' ')
+                                        .slice(0, 16) + ':00'
+                                    )}
+                                  </span>
+                                </td>
+                                <td className="px-6 py-4 text-center">
+                                  <div className="flex items-center gap-2 justify-center">
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => {
+                                        const match = bookings.find((b) => b.id === r.bookingId);
+                                        if (match) {
+                                          setSelectedBooking(match);
+                                          setShowBookingDetailDialog(true);
+                                          return;
+                                        }
+                                        const ymd = new Date(r.timeStart).toISOString().split('T')[0];
+                                        const hh = (d: string) => new Date(d).toISOString().split('T')[1].slice(0, 5);
+                                        const fallback: BookingManage = {
+                                          id: r.bookingId,
+                                          dateTime: ymd,
+                                          interpreter: "",
+                                          room: r.meetingRoom,
+                                          group: 'other',
+                                          meetingDetail: '',
+                                          topic: '',
+                                          bookedBy: r.owner.name || '',
+                                          status: 'Wait',
+                                          startTime: hh(r.timeStart),
+                                          endTime: hh(r.timeEnd),
+                                          requestedTime: new Date((r.createdAt ?? r.timeStart)).toISOString(),
+                                          isDR: false,
+                                          meetingType: r.meetingType as BookingManage['meetingType'],
+                                        };
+                                        setSelectedBooking(fallback);
+                                        setShowBookingDetailDialog(true);
+                                      }}
+                                    >
+                                      Edit
+                                    </Button>
+                                    <Button
+                                      variant="destructive"
+                                      size="sm"
+                                      onClick={async () => {
+                                        const reason = prompt("Reject reason?");
+                                        if (!reason || !reason.trim()) return;
+                                        const res = await fetch(`/api/admin/bookings/${r.bookingId}/cancel`, {
+                                          method: 'POST',
+                                          headers: { 'Content-Type': 'application/json' },
+                                          body: JSON.stringify({ note: reason.trim() }),
+                                        });
+                                        if (!res.ok) {
+                                          const j = await res.json().catch(() => null);
+                                          alert(`Reject failed: ${j?.message || res.status}`);
+                                          return;
+                                        }
+                                        await fetchForwarded();
+                                      }}
+                                    >
+                                      Reject
+                                    </Button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </AccordionContent>
+              </div>
+            </AccordionItem>
+          )}
+          <AccordionItem value="all" className="border-none overflow-visible">
+            <div className="rounded-xl shadow-sm overflow-visible">
               <AccordionTrigger className="px-6 border border-gray-200 bg-white rounded-t-xl data-[state=open]:rounded-b-none">
-                Forwarded To Me
+                All
               </AccordionTrigger>
-              <AccordionContent className="px-0 pb-0 border border-gray-200 border-t-0 rounded-b-xl bg-white">
-                {forwarded.length === 0 ? (
-                  <div className="p-6 text-gray-500">No forwarded requests</div>
-                ) : (
-                  <div className="overflow-visible">
-                    <table className="w-full text-sm table-fixed">
-                      <thead className="bg-white">
-                        <tr className="border-b border-gray-200">
-                          <th className="w-20 px-4 py-3 text-center font-semibold text-gray-900 bg-gray-50 text-sm">Meeting Type</th>
-                          <th className="w-32 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Date Meeting</th>
-                          <th className="w-36 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Meeting Time</th>
-                          <th className="w-32 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">User</th>
-                          <th className="w-32 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Interpreter</th>
-                          <th className="w-24 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Room</th>
-                          <th className="w-28 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Status</th>
-                          <th className="w-48 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Date Request</th>
-                          <th className="w-32 px-6 py-3 text-center font-semibold text-gray-900 bg-gray-50 text-sm">Action</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {forwarded.map((r, index) => (
+              <AccordionContent className="px-0 pb-0 border border-gray-200 border-t-0 rounded-b-xl bg-white overflow-visible">
+                <div className="overflow-visible">
+                  <table className="w-full text-sm" style={{ tableLayout: 'auto' }}>
+                    <thead className="bg-white">
+                      <tr className="border-b border-gray-200">
+                        <th className="w-20 px-4 py-3 text-center font-semibold text-gray-900 bg-gray-50 text-sm">Meeting Type</th>
+                        <th className="w-32 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">
+                          <button
+                            onClick={handleDateSortToggle}
+                            className="flex items-center gap-2 hover:bg-gray-100 px-2 py-1 rounded transition-colors w-full justify-start"
+                            title={`Sort by ${sortByDateAsc ? "newest" : "oldest"} first`}
+                          >
+                            <span>Date Meeting</span>
+                            {sortByDateAsc ? (
+                              <ChevronUp className="h-4 w-4 text-gray-600" />
+                            ) : (
+                              <ChevronDown className="h-4 w-4 text-gray-600" />
+                            )}
+                          </button>
+                        </th>
+                        <th className="w-36 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Meeting Time</th>
+                        <th className="w-32 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">User</th>
+                        <th className="w-32 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Interpreter</th>
+                        <th className="w-24 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Room</th>
+                        <th className="w-28 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Status</th>
+                        <th className="w-48 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Date Request</th>
+                        <th className="w-32 px-6 py-3 text-center font-semibold text-gray-900 bg-gray-50 text-sm">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="overflow-visible">
+                      {paginatedBookings.bookings.map((booking, index) => {
+                        const isPast = showPast && isPastRecord(booking.dateTime, booking.endTime);
+                        return (
                           <tr
-                            key={`${r.bookingId}-${r.environmentId}`}
-                            className={`border-b border-gray-100 hover:bg-blue-50 transition-colors ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'}`}
+                            key={booking.id}
+                            className={`border-b border-gray-100 hover:bg-blue-50 transition-colors ${isPast
+                              ? "bg-gray-200/50"
+                              : index % 2 === 0 ? "bg-white" : "bg-gray-50/30"
+                              }`}
                           >
                             <td className="px-4 py-4 text-center">
-                              {getMeetingTypeBadge(r.meetingType, undefined, undefined)}
+                              {getMeetingTypeBadge(booking.meetingType, booking.drType, booking.otherType)}
                             </td>
-                            <td className="px-4 py-4">
+                            <td className="px-4 py-4 overflow-visible relative">
                               <div className="flex items-start gap-2">
-                                <div className="group relative flex-1">
+                                <div className="group relative flex-1" style={{ transform: 'translateZ(0)' }}>
                                   <span className="font-semibold text-gray-900 text-sm cursor-help break-words">
-                                    {formatDate(new Date(r.timeStart).toISOString().split('T')[0])}
+                                    {formatDate(booking.dateTime)}
                                   </span>
-                                  <div className="absolute top-full left-0 mt-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50">
-                                    {new Date(r.timeStart).toLocaleString()}
-                                  </div>
+                                  {isClient && (
+                                    <div className="absolute -top-10 left-1/2 transform -translate-x-1/2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none" style={{ zIndex: 999999, position: 'absolute', isolation: 'isolate' }}>
+                                      {getFullDate(booking.dateTime, isClient)}
+                                      <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-2 border-r-2 border-t-2 border-transparent border-t-gray-800"></div>
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                             </td>
@@ -678,102 +1023,60 @@ export default function BookingManagement(): React.JSX.Element {
                               <div className="flex items-center gap-1 text-gray-800 font-mono text-sm">
                                 <Clock className="h-4 w-4 text-gray-500 flex-shrink-0" />
                                 <span className="whitespace-nowrap">
-                                  {new Date(r.timeStart).toISOString().split('T')[1].slice(0,5)} - {new Date(r.timeEnd).toISOString().split('T')[1].slice(0,5)}
+                                  {booking.startTime} - {booking.endTime}
                                 </span>
                               </div>
                             </td>
                             <td className="px-4 py-4">
-                              <span className="font-semibold text-gray-900 text-sm break-words">{r.owner.name || '-'}</span>
+                              <span className="font-semibold text-gray-900 text-sm break-words">{booking.bookedBy}</span>
                             </td>
                             <td className="px-4 py-4">
-                              <span className="text-gray-800 text-sm break-words">-</span>
+                              <span className="text-gray-800 text-sm break-words">{booking.interpreter}</span>
                             </td>
                             <td className="px-4 py-4">
                               <div className="flex items-center justify-center h-full">
                                 <span className="px-2 py-1 bg-gray-100 text-gray-800 rounded-md text-sm font-semibold break-words">
-                                  {r.meetingRoom}
+                                  {booking.room}
                                 </span>
                               </div>
                             </td>
                             <td className="px-6 py-4">
-                              {(() => {
-                                const ui = mapForwardStatus(r.status);
-                                return (
-                                  <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-semibold ${getStatusColor(ui)}`}>
-                                    {getStatusIcon(ui)}
-                                    <span className="truncate">{ui}</span>
-                                  </span>
-                                );
-                              })()}
+                              <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-semibold ${getStatusColor(booking.status)}`}>
+                                {getStatusIcon(booking.status)}
+                                <span className="truncate">{booking.status}</span>
+                              </span>
                             </td>
                             <td className="px-6 py-4">
                               <span className="text-sm text-gray-600 whitespace-nowrap">
-                                {formatRequestedTime(
-                                  new Date((r.createdAt ?? r.timeStart))
-                                    .toISOString()
-                                    .replace('T', ' ')
-                                    .slice(0, 16) + ':00'
-                                )}
+                                {formatRequestedTime(booking.requestedTime)}
                               </span>
                             </td>
                             <td className="px-6 py-4 text-center">
-                              <div className="flex items-center gap-2 justify-center">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-8 px-3"
+                                onClick={() => {
+                                  setSelectedBooking(booking);
+                                  setShowBookingDetailDialog(true);
+                                }}
+                              >
+                                <SquarePen className="h-4 w-4 mr-1" />
+                                Edit
+                              </Button>
+                              {featureFlags.enableForwardAdmin && booking.status === 'Wait' && (
                                 <Button
                                   variant="outline"
                                   size="sm"
+                                  className="h-8 px-3 ml-2"
                                   onClick={() => {
-                                    const match = bookings.find((b) => b.id === r.bookingId);
-                                    if (match) {
-                                      setSelectedBooking(match);
-                                      setShowBookingDetailDialog(true);
-                                      return;
-                                    }
-                                    const ymd = new Date(r.timeStart).toISOString().split('T')[0];
-                              const hh = (d: string) => new Date(d).toISOString().split('T')[1].slice(0,5);
-                                    const fallback: BookingManage = {
-                                      id: r.bookingId,
-                                      dateTime: ymd,
-                                      interpreter: "",
-                                      room: r.meetingRoom,
-                                      group: 'other',
-                                      meetingDetail: '',
-                                      topic: '',
-                                      bookedBy: r.owner.name || '',
-                                      status: 'Wait',
-                                      startTime: hh(r.timeStart),
-                                      endTime: hh(r.timeEnd),
-                                      requestedTime: new Date((r.createdAt ?? r.timeStart)).toISOString(),
-                                      isDR: false,
-                                      meetingType: r.meetingType as BookingManage['meetingType'],
-                                    };
-                                    setSelectedBooking(fallback);
-                                    setShowBookingDetailDialog(true);
+                                    setForwardingBookingId(booking.id);
+                                    setShowForwardDialog(true);
                                   }}
                                 >
-                                  Edit
+                                  Forward
                                 </Button>
-                                <Button
-                                  variant="destructive"
-                                  size="sm"
-                                  onClick={async () => {
-                                    const reason = prompt("Reject reason?");
-                                    if (!reason || !reason.trim()) return;
-                                    const res = await fetch(`/api/admin/bookings/${r.bookingId}/cancel`, {
-                                      method: 'POST',
-                                      headers: { 'Content-Type': 'application/json' },
-                                      body: JSON.stringify({ note: reason.trim() }),
-                                    });
-                                    if (!res.ok) {
-                                      const j = await res.json().catch(() => null);
-                                      alert(`Reject failed: ${j?.message || res.status}`);
-                                      return;
-                                    }
-                                    await fetchForwarded();
-                                  }}
-                                >
-                                  Reject
-                                </Button>
-                              </div>
+                              )}
                             </td>
                           </tr>
                         ))}
