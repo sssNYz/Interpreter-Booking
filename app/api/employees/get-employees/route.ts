@@ -97,6 +97,30 @@ export async function GET(req: NextRequest) {
       }),
     ]);
 
+    // Calculate global stats if requested (without any filters)
+    let globalStats = undefined;
+    if (q.includeGlobalStats) {
+      const globalBaseWhere: Prisma.EmployeeWhereInput = {
+        // No filters applied - get true global counts
+      };
+      
+      const [globalTotal, globalAdmins, globalInterpreters] = await Promise.all([
+        prisma.employee.count({ where: globalBaseWhere }),
+        prisma.employee.count({
+          where: { ...globalBaseWhere, userRoles: { some: { roleCode: "ADMIN" } } },
+        }),
+        prisma.employee.count({
+          where: { ...globalBaseWhere, userRoles: { some: { roleCode: "INTERPRETER" } } },
+        }),
+      ]);
+      
+      globalStats = { 
+        total: globalTotal, 
+        admins: globalAdmins, 
+        interpreters: globalInterpreters 
+      };
+    }
+
     return NextResponse.json({
       users,
       pagination: {
@@ -106,6 +130,7 @@ export async function GET(req: NextRequest) {
         totalPages: Math.max(1, Math.ceil(total / q.pageSize)),
       },
       stats: { total, admins, interpreters },
+      globalStats,
       // Build tree from currently visible rows to reflect vision scope
       tree: q.includeTree
         ? (() => {
