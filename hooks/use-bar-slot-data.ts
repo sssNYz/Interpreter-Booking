@@ -46,6 +46,8 @@ export function useSlotDataForBars({
 
       const safeBookings = bookings || [];
       const dayBookings = safeBookings.filter((b) => {
+        // Ignore canceled bookings entirely (not shown, not counted)
+        if ((b.bookingStatus || '').toLowerCase() === 'cancel') return false;
         const src = b.timeStart;
         const startDateISO = src.includes("T")
           ? src.split("T")[0]

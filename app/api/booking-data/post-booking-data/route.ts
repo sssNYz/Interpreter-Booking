@@ -451,13 +451,11 @@ const generateOccurrences = (
 
   // Determine limit
   const maxTotal = 104; // hard safety cap
-  let remainingChildren = Infinity;
-  if (
-    settings.recurrenceEndType === "after_occurrences" &&
-    settings.recurrenceEndOccurrences
-  ) {
-    remainingChildren = Math.max(0, settings.recurrenceEndOccurrences - 1); // exclude parent
-  }
+  // Do not cap by occurrences here. We'll generate a long-enough series
+  // and let the insertion phase stop after successfully inserting the
+  // requested number of children. This avoids shortfalls when some
+  // children are skipped due to conflicts.
+  // (no per-generator cap)
 
   // Treat end date as an inclusive "Until" day (compare date-only)
   const untilYmd: string | null =
@@ -473,11 +471,7 @@ const generateOccurrences = (
       const candidateYmd = formatYmd(candidateStart);
       if (candidateYmd > untilYmd) return false;
     }
-    if (
-      remainingChildren !== Infinity &&
-      occurrences.length >= remainingChildren
-    )
-      return false;
+    // Do not enforce remainingChildren here; insertion phase will do it
     const ymd = formatYmd(candidateStart);
     const hhmmss = baseStart.split(" ")[1];
     const hhmmssEnd = baseEnd.split(" ")[1];
@@ -988,7 +982,15 @@ export async function POST(request: NextRequest) {
               recurrenceWeekOrder: body.recurrenceWeekOrder ?? null,
               skipWeekends: body.skipWeekends ?? null,
             });
+            // If user selected after_occurrences, we need to insert exactly that many children
+            const targetChildren =
+              body.recurrenceEndType === "after_occurrences" &&
+              typeof body.recurrenceEndOccurrences === "number"
+                ? Math.max(0, body.recurrenceEndOccurrences - 1)
+                : Infinity;
+
             for (const o of occ) {
+              if (childrenInserted >= targetChildren) break;
               // capacity check per child
               const capOk = await capacityOk(o.timeStart, o.timeEnd);
               if (!capOk) continue;
