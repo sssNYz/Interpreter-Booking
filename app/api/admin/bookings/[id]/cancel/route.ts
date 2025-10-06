@@ -83,7 +83,16 @@ export async function POST(
 
       // Update booking status if no more targets
       if (remaining === 0) {
-        await tx.bookingPlan.update({ where: { bookingId }, data: { bookingStatus: "cancel", isForwarded: false } });
+        await tx.bookingPlan.update({
+          where: { bookingId },
+          data: {
+            bookingStatus: "cancel",
+            isForwarded: false,
+            // Clear interpreter on cancel to avoid lingering assignment
+            interpreterEmpCode: null,
+            selectedInterpreterEmpCode: null,
+          },
+        });
       }
 
       // Append action logs, one per removed target (or one generic if none matched)
