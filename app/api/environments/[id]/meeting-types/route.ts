@@ -7,6 +7,8 @@ import { validateMeetingTypePriority } from "@/lib/assignment/validation/config-
 import { loadPolicy } from "@/lib/assignment/config/policy";
 import type { MeetingTypePriority } from "@/types/assignment";
 import type { ValidationResult } from "@/lib/assignment/validation/config-validation";
+import { scheduleAutoAssignForBooking, getEnvironmentIdForBooking, computeETAForBooking } from "@/lib/assignment/scheduler/compute";
+import { runSchedulerPass } from "@/lib/assignment/scheduler/db-polling-scheduler";
 
 async function getCurrentUser() {
   const cookieStore = await cookies();
@@ -73,6 +75,33 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     const saved = await upsertEnvMeetingTypePriority(envId, it.meetingType, it);
     const effective = await getEnvMeetingTypePriority(envId, it.meetingType);
     results.push({ meetingType: it.meetingType, ok: true, override: saved, effective });
+  }
+
+  // Reschedule impacted bookings for this environment and run a manual pass
+  try {
+    const now = new Date();
+    const horizon = new Date(now.getTime() + 90 * 24 * 3600 * 1000);
+    const candidates = await prisma.bookingPlan.findMany({
+      where: { bookingStatus: 'waiting', interpreterEmpCode: null, timeStart: { lte: horizon } },
+      select: { bookingId: true },
+      orderBy: { timeStart: 'asc' },
+      take: 300
+    });
+    for (const c of candidates) {
+      const bEnv = await getEnvironmentIdForBooking(c.bookingId);
+      if (bEnv === envId) {
+        await scheduleAutoAssignForBooking(c.bookingId);
+        try {
+          const eta = await computeETAForBooking(c.bookingId);
+          if (eta.etaSeconds === 0) {
+            await prisma.bookingPlan.update({ where: { bookingId: c.bookingId }, data: { autoAssignAt: new Date(), autoAssignStatus: 'pending' } });
+          }
+        } catch {}
+      }
+    }
+    await runSchedulerPass('manual');
+  } catch (e) {
+    console.warn('Reschedule after env meeting-type update failed (non-fatal):', e);
   }
 
   return NextResponse.json({ ok: true, results });

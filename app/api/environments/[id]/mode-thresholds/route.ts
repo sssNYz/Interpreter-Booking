@@ -4,6 +4,8 @@ import { cookies } from "next/headers";
 import { SESSION_COOKIE_NAME, verifySessionCookieValue } from "@/lib/auth/session";
 import { listEnvModeThresholds, upsertEnvModeThreshold } from "@/lib/assignment/config/env-policy";
 import type { MeetingTypeModeThreshold } from "@/types/assignment";
+import { scheduleAutoAssignForBooking, getEnvironmentIdForBooking, computeETAForBooking } from "@/lib/assignment/scheduler/compute";
+import { runSchedulerPass } from "@/lib/assignment/scheduler/db-polling-scheduler";
 
 async function getCurrentUser() {
   const cookieStore = await cookies();
@@ -58,6 +60,33 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     }
     const saved = await upsertEnvModeThreshold(envId, it.meetingType, it.assignmentMode, it.urgentThresholdDays, it.generalThresholdDays);
     results.push({ ok: true, saved: saved as MeetingTypeModeThreshold });
+  }
+
+  // Reschedule impacted bookings and kick a manual pass
+  try {
+    const now = new Date();
+    const horizon = new Date(now.getTime() + 90 * 24 * 3600 * 1000);
+    const candidates = await prisma.bookingPlan.findMany({
+      where: { bookingStatus: 'waiting', interpreterEmpCode: null, timeStart: { lte: horizon } },
+      select: { bookingId: true },
+      orderBy: { timeStart: 'asc' },
+      take: 300
+    });
+    for (const c of candidates) {
+      const bEnv = await getEnvironmentIdForBooking(c.bookingId);
+      if (bEnv === envId) {
+        await scheduleAutoAssignForBooking(c.bookingId);
+        try {
+          const eta = await computeETAForBooking(c.bookingId);
+          if (eta.etaSeconds === 0) {
+            await prisma.bookingPlan.update({ where: { bookingId: c.bookingId }, data: { autoAssignAt: new Date(), autoAssignStatus: 'pending' } });
+          }
+        } catch {}
+      }
+    }
+    await runSchedulerPass('manual');
+  } catch (e) {
+    console.warn('Reschedule after env mode-thresholds update failed (non-fatal):', e);
   }
 
   return NextResponse.json({ ok: true, results });

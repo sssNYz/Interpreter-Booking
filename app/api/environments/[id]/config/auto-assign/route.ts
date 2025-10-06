@@ -6,6 +6,8 @@ import { validateAssignmentPolicy } from "@/lib/assignment/validation/config-val
 import { getEffectivePolicyForEnvironment, getEnvironmentPolicyOverride, upsertEnvironmentPolicyOverride } from "@/lib/assignment/config/env-policy";
 import { loadPolicy } from "@/lib/assignment/config/policy";
 import type { AssignmentPolicy } from "@/types/assignment";
+import { scheduleAutoAssignForBooking, getEnvironmentIdForBooking, computeETAForBooking } from "@/lib/assignment/scheduler/compute";
+import { runSchedulerPass } from "@/lib/assignment/scheduler/db-polling-scheduler";
 
 async function getCurrentUser() {
   const cookieStore = await cookies();
@@ -63,6 +65,34 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
   const saved = await upsertEnvironmentPolicyOverride(envId, body);
   const effective = await getEffectivePolicyForEnvironment(envId);
+  
+  // Reschedule impacted bookings in this environment and trigger a manual pass
+  try {
+    const now = new Date();
+    const horizon = new Date(now.getTime() + 90 * 24 * 3600 * 1000);
+    const candidates = await prisma.bookingPlan.findMany({
+      where: { bookingStatus: 'waiting', interpreterEmpCode: null, timeStart: { lte: horizon } },
+      select: { bookingId: true },
+      orderBy: { timeStart: 'asc' },
+      take: 300
+    });
+    for (const c of candidates) {
+      const bEnv = await getEnvironmentIdForBooking(c.bookingId);
+      if (bEnv === envId) {
+        await scheduleAutoAssignForBooking(c.bookingId);
+        try {
+          const eta = await computeETAForBooking(c.bookingId);
+          if (eta.etaSeconds === 0) {
+            await prisma.bookingPlan.update({ where: { bookingId: c.bookingId }, data: { autoAssignAt: new Date(), autoAssignStatus: 'pending' } });
+          }
+        } catch {}
+      }
+    }
+    await runSchedulerPass('manual');
+  } catch (e) {
+    console.warn('Reschedule after env config update failed (non-fatal):', e);
+  }
+
   return NextResponse.json({ ok: true, data: { override: saved, effectivePolicy: effective } });
 }
 
