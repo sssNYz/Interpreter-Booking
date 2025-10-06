@@ -283,23 +283,48 @@ export function diffClass(v: number): string {
 }
 
 // ===== Chart & UI Utilities =====
+import { getInterpreterColor } from "@/utils/interpreter-color";
+
+// Fallback color palette for when interpreter color system fails
 const INTERPRETER_COLOR_PALETTE = [
   "#2563EB", "#16A34A", "#F59E0B", "#DC2626", "#7C3AED",
   "#0EA5E9", "#059669", "#CA8A04", "#EA580C", "#9333EA",
 ] as const;
 
-export function createInterpreterColorPalette(interpreters: InterpreterName[]): Record<InterpreterName, string> {
+export function createInterpreterColorPalette(
+  interpreters: InterpreterName[], 
+  interpreterIdMapping?: Record<string, string>
+): Record<InterpreterName, string> {
   const colorMap = {} as Record<InterpreterName, string>;
   interpreters.forEach((name, index) => {
-    colorMap[name] = INTERPRETER_COLOR_PALETTE[index % INTERPRETER_COLOR_PALETTE.length];
+    // Try to get color using interpreter ID first (for consistency with booking page)
+    const interpreterId = interpreterIdMapping?.[name];
+    const interpreterColorResult = getInterpreterColor(interpreterId, name);
+    if (interpreterColorResult?.bg) {
+      colorMap[name] = interpreterColorResult.bg;
+    } else {
+      // Fallback to index-based palette
+      colorMap[name] = INTERPRETER_COLOR_PALETTE[index % INTERPRETER_COLOR_PALETTE.length];
+    }
   });
   return colorMap;
 }
 
-export function getInterpreterColorPaletteAsMap(interpreters: InterpreterName[]): Map<InterpreterName, string> {
+export function getInterpreterColorPaletteAsMap(
+  interpreters: InterpreterName[], 
+  interpreterIdMapping?: Record<string, string>
+): Map<InterpreterName, string> {
   const colorMap = new Map<InterpreterName, string>();
   interpreters.forEach((name, index) => {
-    colorMap.set(name, INTERPRETER_COLOR_PALETTE[index % INTERPRETER_COLOR_PALETTE.length] ?? "#94a3b8");
+    // Try to get color using interpreter ID first (for consistency with booking page)
+    const interpreterId = interpreterIdMapping?.[name];
+    const interpreterColorResult = getInterpreterColor(interpreterId, name);
+    if (interpreterColorResult?.bg) {
+      colorMap.set(name, interpreterColorResult.bg);
+    } else {
+      // Fallback to index-based palette
+      colorMap.set(name, INTERPRETER_COLOR_PALETTE[index % INTERPRETER_COLOR_PALETTE.length] ?? "#94a3b8");
+    }
   });
   return colorMap;
 }
@@ -460,8 +485,11 @@ export function useDashboardDataExtraction<T extends BaseApiResponse>(data: T | 
   }), [data, fallbackYear]);
 }
 
-export function useInterpreterColors(interpreters: InterpreterName[]): Record<InterpreterName, string> {
-  return React.useMemo(() => createInterpreterColorPalette(interpreters), [interpreters]);
+export function useInterpreterColors(
+  interpreters: InterpreterName[], 
+  interpreterIdMapping?: Record<string, string>
+): Record<InterpreterName, string> {
+  return React.useMemo(() => createInterpreterColorPalette(interpreters, interpreterIdMapping), [interpreters, interpreterIdMapping]);
 }
 
 export function useCurrentMonth(months: MonthName[]): MonthName | "" {
