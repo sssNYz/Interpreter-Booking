@@ -64,7 +64,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Toggle } from "@/components/ui/toggle";
 import {} from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+// Removed monthly custom UI; radio group imports no longer needed
 export function BookingForm({
   open,
   onOpenChange,
@@ -868,6 +868,10 @@ export function BookingForm({
       return;
     }
     // setIsRecurring(true);
+    const safeSelected =
+      selectedDayCode === "sun" || selectedDayCode === "sat"
+        ? "mon"
+        : selectedDayCode;
     if (value === "daily") {
       setRecurrenceType("daily");
       setRecurrenceInterval(1);
@@ -877,13 +881,13 @@ export function BookingForm({
     } else if (value === "weekly") {
       setRecurrenceType("weekly");
       setRecurrenceInterval(1);
-      setRecurrenceWeekdays(selectedDayCode);
+      setRecurrenceWeekdays(safeSelected);
       setRecurrenceMonthday(null);
       setRecurrenceWeekOrder(null);
     } else if (value === "biweekly") {
       setRecurrenceType("biweekly");
       setRecurrenceInterval(2);
-      setRecurrenceWeekdays(selectedDayCode);
+      setRecurrenceWeekdays(safeSelected);
       setRecurrenceMonthday(null);
       setRecurrenceWeekOrder(null);
     } else if (value === "monthly") {
@@ -898,7 +902,7 @@ export function BookingForm({
     } else if (value === "custom") {
       setRecurrenceType("weekly");
       setRecurrenceInterval(1);
-      setRecurrenceWeekdays(selectedDayCode);
+      setRecurrenceWeekdays(safeSelected);
       setRecurrenceMonthday(null);
       setRecurrenceWeekOrder(null);
       setCustomOpen(true);
@@ -1216,7 +1220,7 @@ export function BookingForm({
             recurrenceEndType === "on_date" ? recurrenceEndDate || null : null,
           recurrenceEndOccurrences:
             recurrenceEndType === "after_occurrences"
-              ? recurrenceEndOccurrences ?? 5
+              ? recurrenceEndOccurrences ?? null
               : null,
           recurrenceWeekdays:
             recurrenceType === "weekly" ||
@@ -1517,7 +1521,7 @@ export function BookingForm({
         setDialog({ type: "preflight", message: msg });
         return;
       }
-    } catch (e) {
+    } catch {
       // if preflight fails, continue normal submit
     }
 
@@ -1631,11 +1635,11 @@ export function BookingForm({
                               </span>
                               <Input
                                 type="number"
-                                min={1}
-                                value={recurrenceEndOccurrences ?? 5}
+                                min={0}
+                                value={recurrenceEndOccurrences ?? 0}
                                 onChange={(e) =>
                                   setRecurrenceEndOccurrences(
-                                    Math.max(1, Number(e.target.value) || 1)
+                                    Math.max(0, Number(e.target.value) || 0)
                                   )
                                 }
                                 className="w-20"
@@ -1698,8 +1702,6 @@ export function BookingForm({
                                   value={
                                     recurrenceType === "daily"
                                       ? "day"
-                                      : recurrenceType === "monthly"
-                                      ? "month"
                                       : "week"
                                   }
                                   onValueChange={(unit) => {
@@ -1710,8 +1712,6 @@ export function BookingForm({
                                       setRecurrenceWeekOrder(null);
                                     } else if (unit === "week") {
                                       setRecurrenceType("weekly");
-                                    } else {
-                                      setRecurrenceType("monthly");
                                     }
                                   }}
                                 >
@@ -1723,9 +1723,6 @@ export function BookingForm({
                                     <SelectItem value="week">
                                       week(s)
                                     </SelectItem>
-                                    <SelectItem value="month">
-                                      month(s)
-                                    </SelectItem>
                                   </SelectContent>
                                 </Select>
                               </div>
@@ -1734,22 +1731,18 @@ export function BookingForm({
                                   <div className="text-sm">On days</div>
                                   <div className="flex flex-wrap gap-2">
                                     {[
-                                      "sun",
                                       "mon",
                                       "tue",
                                       "wed",
                                       "thu",
                                       "fri",
-                                      "sat",
                                     ].map((code, idx) => {
                                       const labels = [
-                                        "S",
                                         "M",
                                         "T",
                                         "W",
                                         "T",
                                         "F",
-                                        "S",
                                       ] as const;
                                       const active = (recurrenceWeekdays || "")
                                         .split(",")
@@ -1758,6 +1751,12 @@ export function BookingForm({
                                         <Toggle
                                           key={code}
                                           pressed={active}
+                                          className={`
+                                            bg-muted text-muted-foreground border hover:bg-muted/80
+                                            data-[state=on]:bg-black data-[state=on]:text-white data-[state=on]:border-black
+                                            h-8 w-8 p-0 rounded-md transition-colors
+                                            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2
+                                          `}
                                           onPressedChange={(on) => {
                                             const set = new Set(
                                               (recurrenceWeekdays || "")
@@ -1775,174 +1774,6 @@ export function BookingForm({
                                         </Toggle>
                                       );
                                     })}
-                                  </div>
-                                </div>
-                              )}
-                              {recurrenceType === "monthly" && (
-                                <div className="grid grid-cols-2 gap-3 items-end">
-                                  <div className="col-span-2">
-                                    <RadioGroup
-                                      value={monthlyMode}
-                                      onValueChange={(v) => {
-                                        const mode = v as MonthlyMode;
-                                        setMonthlyMode(mode);
-                                        if (mode === "by_day") {
-                                          setRecurrenceWeekOrder(null);
-                                          setRecurrenceWeekdays("");
-                                          setRecurrenceMonthday(
-                                            recurrenceMonthday ??
-                                              (selectedSlot?.day ||
-                                                dayObj?.fullDate.getDate() ||
-                                                1)
-                                          );
-                                        } else {
-                                          setRecurrenceMonthday(null);
-                                          if (!recurrenceWeekdays)
-                                            setRecurrenceWeekdays("mon");
-                                          if (!recurrenceWeekOrder)
-                                            setRecurrenceWeekOrder("first");
-                                        }
-                                      }}
-                                      className="grid grid-cols-2 gap-4"
-                                    >
-                                      <div>
-                                        <div className="flex items-center gap-2 mb-2">
-                                          <RadioGroupItem
-                                            value="by_day"
-                                            id="modeByDay"
-                                          />
-                                          <label
-                                            htmlFor="modeByDay"
-                                            className="text-sm"
-                                          >
-                                            By day of month
-                                          </label>
-                                        </div>
-                                        <div className="space-y-2 pl-6">
-                                          <div className="text-sm">
-                                            On day (1..31)
-                                          </div>
-                                          <Input
-                                            type="number"
-                                            min={1}
-                                            max={31}
-                                            value={
-                                              monthlyMode === "by_day"
-                                                ? recurrenceMonthday ??
-                                                  (selectedSlot?.day ||
-                                                    dayObj?.fullDate.getDate() ||
-                                                    1)
-                                                : recurrenceMonthday ?? 1
-                                            }
-                                            onChange={(e) =>
-                                              setRecurrenceMonthday(
-                                                Math.min(
-                                                  31,
-                                                  Math.max(
-                                                    1,
-                                                    Number(e.target.value) || 1
-                                                  )
-                                                )
-                                              )
-                                            }
-                                            disabled={monthlyMode !== "by_day"}
-                                            className="w-28"
-                                          />
-                                        </div>
-                                      </div>
-                                      <div>
-                                        <div className="flex items-center gap-2 mb-2">
-                                          <RadioGroupItem
-                                            value="by_nth"
-                                            id="modeByNth"
-                                          />
-                                          <label
-                                            htmlFor="modeByNth"
-                                            className="text-sm"
-                                          >
-                                            By nth weekday
-                                          </label>
-                                        </div>
-                                        <div className="space-y-2 pl-6">
-                                          <div className="flex gap-2">
-                                            <Select
-                                              value={
-                                                recurrenceWeekOrder ?? undefined
-                                              }
-                                              onValueChange={(v) =>
-                                                setRecurrenceWeekOrder(
-                                                  v as WeekOrderUi
-                                                )
-                                              }
-                                              disabled={
-                                                monthlyMode !== "by_nth"
-                                              }
-                                            >
-                                              <SelectTrigger className="w-32">
-                                                <SelectValue placeholder="Order" />
-                                              </SelectTrigger>
-                                              <SelectContent>
-                                                <SelectItem value="first">
-                                                  First
-                                                </SelectItem>
-                                                <SelectItem value="second">
-                                                  Second
-                                                </SelectItem>
-                                                <SelectItem value="third">
-                                                  Third
-                                                </SelectItem>
-                                                <SelectItem value="fourth">
-                                                  Fourth
-                                                </SelectItem>
-                                                <SelectItem value="last">
-                                                  Last
-                                                </SelectItem>
-                                              </SelectContent>
-                                            </Select>
-                                            <Select
-                                              value={
-                                                (
-                                                  recurrenceWeekdays || ""
-                                                ).split(",")[0] || undefined
-                                              }
-                                              onValueChange={(v) =>
-                                                setRecurrenceWeekdays(v)
-                                              }
-                                              disabled={
-                                                monthlyMode !== "by_nth"
-                                              }
-                                            >
-                                              <SelectTrigger className="w-32">
-                                                <SelectValue placeholder="Day" />
-                                              </SelectTrigger>
-                                              <SelectContent>
-                                                <SelectItem value="sun">
-                                                  Sunday
-                                                </SelectItem>
-                                                <SelectItem value="mon">
-                                                  Monday
-                                                </SelectItem>
-                                                <SelectItem value="tue">
-                                                  Tuesday
-                                                </SelectItem>
-                                                <SelectItem value="wed">
-                                                  Wednesday
-                                                </SelectItem>
-                                                <SelectItem value="thu">
-                                                  Thursday
-                                                </SelectItem>
-                                                <SelectItem value="fri">
-                                                  Friday
-                                                </SelectItem>
-                                                <SelectItem value="sat">
-                                                  Saturday
-                                                </SelectItem>
-                                              </SelectContent>
-                                            </Select>
-                                          </div>
-                                        </div>
-                                      </div>
-                                    </RadioGroup>
                                   </div>
                                 </div>
                               )}
