@@ -92,6 +92,15 @@ export async function GET(
     // Get all active interpreters for the year using consolidated utility
     const activeInterpreters = await fetchActiveInterpreters(prisma, dateRange);
     const { empCodeToName, interpreters } = createInterpreterMapping(activeInterpreters);
+    
+    // Create interpreter ID mapping for consistent colors
+    const interpreterIdMapping: Record<string, string> = {};
+    for (const interpreter of activeInterpreters) {
+      const name = empCodeToName.get(interpreter.empCode);
+      if (name) {
+        interpreterIdMapping[name] = interpreter.empCode;
+      }
+    }
 
     // Initialize month rows
     const rows = MONTH_LABELS.map<JobsRow>((m) => ({ month: m, total: 0 } as JobsRow));
@@ -128,6 +137,7 @@ export async function GET(
     const result = {
       months: MONTH_LABELS,
       interpreters,
+      interpreterIdMapping,
       totalJobsStack: rows,
       jobsFooter: { perInterpreter, grand, diff } as FooterByInterpreter,
       year: yearNum,
