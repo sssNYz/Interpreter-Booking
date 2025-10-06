@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useMemo, useState, useEffect, useRef } from "react";
 import { Users, Search, Shield, Languages, Edit3, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -49,6 +49,11 @@ export default function UsersManagement() {
   const [pageSize, setPageSize] = useState<PageSize>(10);
   // Refresh counter to trigger re-fetch
   const [refresh, setRefresh] = useState(0);
+  // Track if global stats have been loaded
+  const globalStatsLoaded = useRef(false);
+  // Current user info (to avoid multiple API calls in UserRoleDialog)
+  const [currentUser, setCurrentUser] = useState<{ isSuper: boolean } | null>(null);
+  
   // Reset page when filters change
   useEffect(() => { setPage(1); }, [search, role, department, group, section]);
 
@@ -93,8 +98,12 @@ export default function UsersManagement() {
     return (tree[depKey]?.[grpKey] || []).slice().sort(collator.compare);
   }, [tree, department, group, collator]);
 
-  // Admin items for sidebar
+  // Optimized single data fetch
   useEffect(() => {
+    // Only request global stats if we haven't loaded them yet or if filters are applied
+    const hasFilters = search || role !== "ALL" || department !== "ALL" || group !== "ALL" || section !== "ALL";
+    const needsGlobalStats = !globalStatsLoaded.current || hasFilters;
+
     const params = {
       search,
       role,
@@ -104,6 +113,7 @@ export default function UsersManagement() {
       page,
       pageSize,
       includeTree: page === 1,
+      includeGlobalStats: needsGlobalStats,
     };
     const url = `/api/employees/get-employees?${query(params)}`;
 
@@ -117,27 +127,31 @@ export default function UsersManagement() {
       setServerPage(data.pagination?.page ?? 1);
       setTotalPages(data.pagination?.totalPages ?? 1);
       if (data.tree) setTree(data.tree);
+
+      // Set global stats from the same response if available
+      if (data.globalStats) {
+        setGlobalStats(data.globalStats);
+        globalStatsLoaded.current = true;
+      } else if (!globalStatsLoaded.current) {
+        // Fallback: use current stats if global stats not available and not loaded yet
+        setGlobalStats(data.stats ?? { total: 0, admins: 0, interpreters: 0 });
+        globalStatsLoaded.current = true;
+      }
     })();
   }, [search, role, department, group, section, page, pageSize, refresh]);
 
-  // Fetch global stats on mountp
+  // Fetch current user info once
   useEffect(() => {
-    (async () => {
-      const url = `/api/employees/get-employees?${query({
-        search: "",
-        role: "ALL",
-        department: "ALL",
-        group: "ALL",
-        section: "ALL",
-        page: 1,
-        pageSize: 1,
-        includeTree: false,
-      })}`;
-      const res = await fetch(url);
-      if (!res.ok) return;
-      const data: ApiResponse = await res.json();
-      if (data?.stats) setGlobalStats(data.stats);
-    })();
+    let alive = true;
+    fetch('/api/user/me', { cache: 'no-store' })
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (!alive) return;
+        const myRoles: string[] = data?.user?.roles || [];
+        setCurrentUser({ isSuper: myRoles.includes('SUPER_ADMIN') });
+      })
+      .catch(() => setCurrentUser({ isSuper: false }));
+    return () => { alive = false };
   }, []);
 
   const displayName = (u: UserRow) =>
@@ -409,6 +423,7 @@ export default function UsersManagement() {
                             roles: (u.roles ?? []) as Role[],
                             languages: [], // Will be fetched by the dialog
                           }}
+                          currentUser={currentUser}
                           onSave={(roles) => saveUserRoles(u.id, roles)}
                           trigger={
                             <Button

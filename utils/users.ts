@@ -12,6 +12,7 @@ export interface ParsedQuery {
   page: number;
   pageSize: PageSize;
   includeTree: boolean;
+  includeGlobalStats: boolean;
 }
 
 // ---------- New: split/normalize ----------
@@ -71,6 +72,7 @@ export function parseQuery(url: string): ParsedQuery {
     page: Number.isFinite(pageNum) && pageNum > 0 ? pageNum : 1,
     pageSize: (new Set([10, 20, 50]).has(sizeNum) ? sizeNum : 10) as PageSize,
     includeTree: (sp.get("includeTree") ?? "true").toLowerCase() !== "false",
+    includeGlobalStats: (sp.get("includeGlobalStats") ?? "false").toLowerCase() === "true",
   };
 }
 

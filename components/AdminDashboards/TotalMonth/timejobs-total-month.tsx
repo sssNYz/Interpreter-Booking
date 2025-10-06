@@ -160,8 +160,8 @@ export function HoursTab({ year, data: externalData, selectedMonth }: HoursTabPr
   }, [selectedMonth, currentData]);
 
   const interpreterColors = React.useMemo<Map<InterpreterName, string>>(() => {
-    return getInterpreterColorPaletteAsMap(interpreters);
-  }, [interpreters]);
+    return getInterpreterColorPaletteAsMap(interpreters, currentData?.interpreterIdMapping);
+  }, [interpreters, currentData?.interpreterIdMapping]);
 
 
   // Filter data for selected month only

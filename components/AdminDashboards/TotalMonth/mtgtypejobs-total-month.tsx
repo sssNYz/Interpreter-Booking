@@ -229,8 +229,8 @@ export function TypesTab({ year, data: externalData, selectedMonth: propSelected
 
   // color palette
   const interpreterColors = React.useMemo<Record<InterpreterName, string>>(() => {
-    return createInterpreterColorPalette(interpreters);
-  }, [interpreters]);
+    return createInterpreterColorPalette(interpreters, currentData?.interpreterIdMapping);
+  }, [interpreters, currentData?.interpreterIdMapping]);
 
   // ===== Chart dataset  =====
   const monthBarData: SingleMonthBar[] = React.useMemo(() => {

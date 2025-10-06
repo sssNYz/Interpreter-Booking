@@ -148,8 +148,8 @@ export function HoursTab({ year, data: externalData }: HoursTabProps) {
 
 
   const interpreterColors = React.useMemo<Map<InterpreterName, string>>(() => {
-    return getInterpreterColorPaletteAsMap(interpreters);
-  }, [interpreters]);
+    return getInterpreterColorPaletteAsMap(interpreters, currentData?.interpreterIdMapping);
+  }, [interpreters, currentData?.interpreterIdMapping]);
 
   // max minutes for Y axis
   const maxMinutes = React.useMemo(() => {

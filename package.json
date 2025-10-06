@@ -3,6 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "description": "Setup notes",
+  "homepage": "https://github.com/sssNYz/Interpreter-Booking#readme",
+  "bugs": {
+    "url": "https://github.com/sssNYz/Interpreter-Booking/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sssNYz/Interpreter-Booking.git"
+  },
   "license": "ISC",
   "author": "",
   "type": "commonjs",
