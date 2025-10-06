@@ -19,7 +19,7 @@ import {
   isValidStartTime,
   isValidTimeRange,
 } from "@/utils/time";
-import { Calendar, Clock, AlertTriangle } from "lucide-react";
+import { Calendar as CalendarIcon, Clock, AlertTriangle } from "lucide-react";
 import { client as featureFlags } from "@/lib/feature-flags";
 import type { MeetingType, DRType } from "@/prisma/prisma";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -62,7 +62,8 @@ import {
 } from "@/components/ui/dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Toggle } from "@/components/ui/toggle";
-import {} from "@/components/ui/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar as CalendarComponent, CalendarDayButton } from "@/components/ui/calendar";
 import { Input } from "@/components/ui/input";
 // Removed monthly custom UI; radio group imports no longer needed
 export function BookingForm({
@@ -152,6 +153,8 @@ export function BookingForm({
     useState<WeekOrderUi | null>(null);
   const [customOpen, setCustomOpen] = useState<boolean>(false);
   const [monthlyMode, setMonthlyMode] = useState<MonthlyMode>("by_day");
+  // Popover state for recurrence end date picker
+  const [endDateOpen, setEndDateOpen] = useState<boolean>(false);
 
   // Loading and error states
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
@@ -1533,7 +1536,7 @@ export function BookingForm({
       <SheetContent className="">
         <SheetHeader className="pb-4 border-b">
           <SheetTitle className="flex items-center gap-2">
-            <Calendar className="h-5 w-5" />
+            <CalendarIcon className="h-5 w-5" />
             Interperter Booking Form
           </SheetTitle>
           <SheetDescription className="flex items-center gap-2">
@@ -1607,23 +1610,74 @@ export function BookingForm({
                       <div className="space-y-3">
                         {recurrenceEndType === "on_date" && (
                           <div className="space-y-2">
-                            <Input
-                              type="date"
-                              value={
-                                recurrenceEndDate
-                                  ? recurrenceEndDate.split(" ")[0]
-                                  : ""
-                              }
-                              onChange={(e) => {
-                                const ymd = e.target.value;
-                                setRecurrenceEndDate(
-                                  ymd ? `${ymd} 00:00:00` : ""
-                                );
-                              }}
-                              className="w-full"
-                              aria-label="Select end date for recurrence"
-                              placeholder="Repeat Option"
-                            />
+                            <Popover open={endDateOpen} onOpenChange={setEndDateOpen}>
+                              <PopoverTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  className="w-full justify-start text-left font-normal"
+                                  aria-label="Select end date for recurrence"
+                                >
+                                  <CalendarIcon className="mr-2 h-4 w-4" />
+                                  {recurrenceEndDate ? (
+                                    // Show a short, friendly date label
+                                    <span>
+                                      {(() => {
+                                        const ymd = recurrenceEndDate.split(" ")[0];
+                                        return formatShortDateFromYmd(ymd);
+                                      })()}
+                                    </span>
+                                  ) : (
+                                    <span className="text-muted-foreground">Pick an end date</span>
+                                  )}
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent align="start" className="p-0">
+                                {(() => {
+                                  const selected =
+                                    recurrenceEndDate && recurrenceEndDate.includes("-")
+                                      ? new Date(`${recurrenceEndDate.split(" ")[0]}T00:00:00`)
+                                      : undefined;
+                                  const minDate = dayObj?.fullDate
+                                    ? new Date(
+                                        dayObj.fullDate.getFullYear(),
+                                        dayObj.fullDate.getMonth(),
+                                        dayObj.fullDate.getDate()
+                                      )
+                                    : undefined;
+                                  return (
+                                    <CalendarComponent
+                                      mode="single"
+                                      defaultMonth={dayObj?.fullDate}
+                                      selected={selected}
+                                      onSelect={(date) => {
+                                        if (date) {
+                                          const ymd = formatYmdFromDate(date);
+                                          setRecurrenceEndDate(`${ymd} 00:00:00`);
+                                        } else {
+                                          setRecurrenceEndDate("");
+                                        }
+                                      }}
+                                      disabled={(date) =>
+                                        minDate ? date < minDate : false
+                                      }
+                                      components={{
+                                        DayButton: (props) => (
+                                          <CalendarDayButton
+                                            {...props}
+                                            className={[
+                                              props.className || "",
+                                              // Add a subtle dot marker on the selected day
+                                              "relative after:content-[''] after:absolute after:bottom-1 after:left-1/2 after:-translate-x-1/2 after:w-1.5 after:h-1.5 after:rounded-full after:bg-primary after:opacity-0 data-[selected-single=true]:after:opacity-100 data-[selected-single=true]:after:bg-primary-foreground",
+                                            ].join(' ')}
+                                          />
+                                        ),
+                                      }}
+                                      initialFocus
+                                    />
+                                  );
+                                })()}
+                              </PopoverContent>
+                            </Popover>
                           </div>
                         )}
 
