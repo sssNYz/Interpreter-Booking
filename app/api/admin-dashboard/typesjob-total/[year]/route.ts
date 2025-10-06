@@ -100,6 +100,15 @@ export async function GET(
     // Get all active interpreters for the year using consolidated utility
     const activeInterpreters = await fetchActiveInterpreters(prisma, dateRange);
     const { empCodeToName, interpreters } = createInterpreterMapping(activeInterpreters);
+    
+    // Create interpreter ID mapping for consistent colors
+    const interpreterIdMapping: Record<string, string> = {};
+    for (const interpreter of activeInterpreters) {
+      const name = empCodeToName.get(interpreter.empCode);
+      if (name) {
+        interpreterIdMapping[name] = interpreter.empCode;
+      }
+    }
 
     // prepare yearData 12 months with full MonthlyDataRowWithDR structure
     const yearData: MonthlyDataRowWithDR[] = MONTH_LABELS.map((m): MonthlyDataRowWithDR => {
@@ -165,6 +174,7 @@ export async function GET(
     const result = {
       months: MONTH_LABELS,
       interpreters,
+      interpreterIdMapping,
       year: yearNum,
       yearData,
       typesMGIFooter,

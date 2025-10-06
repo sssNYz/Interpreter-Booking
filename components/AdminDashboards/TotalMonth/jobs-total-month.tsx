@@ -129,7 +129,7 @@ export function JobsTab({ year, data: externalData, selectedMonth }: JobsTabProp
 
   const interpreterColors = React.useMemo<Record<InterpreterName, string>>(() => {
     if (!currentData) return {} as Record<InterpreterName, string>;
-    return createInterpreterColorPalette(currentData.interpreters);
+    return createInterpreterColorPalette(currentData.interpreters, currentData.interpreterIdMapping);
   }, [currentData]);
 
   // Show 0 values when no data instead of returning null

@@ -85,6 +85,7 @@ export interface AssignmentLogsApiResponse {
 export interface JobsApiResponse {
   months: MonthName[];
   interpreters: InterpreterName[];
+  interpreterIdMapping?: Record<string, string>; // interpreter name -> interpreter ID
   totalJobsStack: JobsRow[];
   jobsFooter: FooterByInterpreter;
   year: number;
@@ -94,6 +95,7 @@ export interface JobsApiResponse {
 export interface HoursApiResponse {
   months: MonthName[];
   interpreters: InterpreterName[];
+  interpreterIdMapping?: Record<string, string>; // interpreter name -> interpreter ID
   totalHoursLineMinutes: HoursRow[];
   hoursFooter: FooterByInterpreter;
   year: number;
@@ -103,6 +105,7 @@ export interface HoursApiResponse {
 export interface DepartmentsApiResponse {
   months: MonthName[];
   interpreters: InterpreterName[];
+  interpreterIdMapping?: Record<string, string>; // interpreter name -> interpreter ID
   departments: OwnerGroup[];
   year: number;
   yearData: MonthlyDataRow[];
@@ -117,6 +120,7 @@ export interface MonthlyDataRowWithDR extends MonthlyDataRow {
 export interface TypesApiResponse {
   months: MonthName[];
   interpreters: InterpreterName[];
+  interpreterIdMapping?: Record<string, string>; // interpreter name -> interpreter ID
   year: number;
   yearData: MonthlyDataRowWithDR[];
   typesMGIFooter: FooterByInterpreter;
