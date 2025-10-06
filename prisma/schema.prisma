@@ -34,17 +34,17 @@ model BookingPlan {
   recurrenceType             RecurrenceType?        @map("RECURRENCE_TYPE")
   recurrenceWeekdays         String?                @map("RECURRENCE_WEEKDAYS") @db.VarChar(32)
   recurrenceWeekOrder        WeekOrder?             @map("RECURRENCE_WEEK_ORDER")
+  forwardedByEmpCode         String?                @map("FORWARDED_BY_EMP_CODE") @db.VarChar(64)
+  isForwarded                Boolean                @default(false) @map("IS_FORWARDED")
+  forwardActions             Json                   @map("FORWARD_ACTIONS")
   languageCode               String?                @map("LANGUAGE_CODE") @db.VarChar(16)
   chairmanEmail              String?                @map("CHAIRMAN_EMAIL") @db.VarChar(255)
   selectedInterpreterEmpCode String?                @map("SELECTED_INTERPRETER_EMP_CODE") @db.VarChar(64)
-  isForwarded                Boolean                @default(false) @map("IS_FORWARDED")
-  forwardedByEmpCode         String?                @map("FORWARDED_BY_EMP_CODE") @db.VarChar(64)
-  forwardActions             Json                   @map("FORWARD_ACTIONS")
   autoAssignAt               DateTime?              @map("AUTO_ASSIGN_AT") @db.DateTime(0)
-  autoAssignStatus           String                 @default("pending") @map("AUTO_ASSIGN_STATUS") @db.VarChar(16)
+  autoAssignAttempts         Int                    @default(0) @map("AUTO_ASSIGN_ATTEMPTS")
   autoAssignLockedAt         DateTime?              @map("AUTO_ASSIGN_LOCKED_AT") @db.DateTime(0)
   autoAssignLockedBy         String?                @map("AUTO_ASSIGN_LOCKED_BY") @db.VarChar(64)
-  autoAssignAttempts         Int                    @default(0) @map("AUTO_ASSIGN_ATTEMPTS")
+  autoAssignStatus           String                 @default("pending") @map("AUTO_ASSIGN_STATUS") @db.VarChar(16)
   assignmentLogs             AssignmentLog[]
   forwardTargets             BookingForwardTarget[]
   forwardedByEmployee        Employee?              @relation("ForwardedByEmployee", fields: [forwardedByEmpCode], references: [empCode])
@@ -71,9 +71,9 @@ model BookingPlan {
 
 model BookingForwardTarget {
   bookingId     Int         @map("BOOKING_ID")
-  environmentId Int         @map("ENVIRONMENT_ID")
   createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamp(0)
   updatedAt     DateTime    @default(now()) @updatedAt @map("updated_at") @db.Timestamp(0)
+  environmentId Int         @map("ENVIRONMENT_ID")
   booking       BookingPlan @relation(fields: [bookingId], references: [bookingId], onDelete: Cascade)
   environment   Environment @relation(fields: [environmentId], references: [id], onDelete: Cascade)
 
@@ -173,11 +173,11 @@ model AutoAssignmentConfig {
   w_urgency            Float    @default(0.5) @map("W_URGENCY")
   w_lrs                Float    @default(0.3) @map("W_LRS")
   drConsecutivePenalty Float    @default(-0.7) @map("DR_CONSECUTIVE_PENALTY")
-  pollIntervalMinutes  Int      @default(180) @map("POLL_INTERVAL_MINUTES")
-  dailyRunTimes        String?  @map("DAILY_RUN_TIMES") @db.VarChar(255)
-  timezone             String?  @map("TIMEZONE") @db.VarChar(64)
   createdAt            DateTime @default(now()) @map("created_at") @db.Timestamp(0)
   updatedAt            DateTime @updatedAt @map("updated_at") @db.Timestamp(0)
+  dailyRunTimes        String?  @map("DAILY_RUN_TIMES") @db.VarChar(255)
+  pollIntervalMinutes  Int      @default(180) @map("POLL_INTERVAL_MINUTES")
+  timezone             String?  @map("TIMEZONE") @db.VarChar(64)
 
   @@map("AUTO_ASSIGNMENT_CONFIG")
 }
@@ -322,12 +322,12 @@ model Environment {
   isActive          Boolean                      @default(true) @map("IS_ACTIVE")
   createdAt         DateTime                     @default(now()) @map("created_at") @db.Timestamp(0)
   updatedAt         DateTime                     @updatedAt @map("updated_at") @db.Timestamp(0)
+  forwardTargets    BookingForwardTarget[]
   admins            EnvironmentAdmin[]
   assignmentConfigs EnvironmentAssignmentConfig?
   centers           EnvironmentCenter[]
   interpreters      EnvironmentInterpreter[]
   priorities        MeetingTypePriority[]
-  forwardTargets    BookingForwardTarget[]
 
   @@map("ENVIRONMENT")
 }
