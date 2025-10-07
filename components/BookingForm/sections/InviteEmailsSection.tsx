@@ -67,7 +67,16 @@ export function InviteEmailsSection({
         <Label htmlFor="newEmail" className="text-sm font-medium text-foreground">
           Add Participant Email(s) <span className="text-muted-foreground">(Optional)</span>
         </Label>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
+          <Button
+            type="button"
+            onClick={submitEmails}
+            disabled={!newEmail.trim()}
+            aria-label="Add email(s) to invite list"
+            className="h-9 w-9 rounded-full bg-neutral-800 text-neutral-100 hover:bg-neutral-700"
+          >
+            <Plus className="h-4 w-4" />
+          </Button>
           <Input
             id="newEmail"
             type="text"
@@ -78,16 +87,6 @@ export function InviteEmailsSection({
             className="flex-1"
             aria-describedby="email-help"
           />
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={submitEmails}
-            disabled={!newEmail.trim()}
-            aria-label="Add email(s) to invite list"
-          >
-            <Plus className="h-4 w-4" />
-          </Button>
         </div>
         <p id="email-help" className="text-xs text-muted-foreground">
           Enter one or many emails separated by commas or spaces, then press Enter or click +

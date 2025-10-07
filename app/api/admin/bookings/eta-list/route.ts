@@ -50,13 +50,13 @@ export async function GET(request: NextRequest) {
 
       // Categories
       const first = meta.firstAutoAssignAt?.getTime() ?? now;
-      const within1d = first <= now + 24 * 3600 * 1000;
+      const within2d = first <= now + 2 * 24 * 3600 * 1000;
 
       // in-coming = within general window (daysUntilStart <= general) but not auto-approve soon
       const daysUntilStart = Math.floor((meta.timeStart.getTime() - now) / (24 * 3600 * 1000));
       const inGeneral = daysUntilStart <= meta.generalThresholdDays;
 
-      const category = within1d
+      const category = within2d
         ? 'auto-approve'
         : (inGeneral ? 'in-coming' : 'none');
 
