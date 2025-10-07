@@ -9,13 +9,13 @@ This project includes a clear split between development and production setups.
 
 - Start services:
   - `docker compose up -d`
-- App: http://localhost:3000
-- DB: MySQL 8 on localhost:3306 (user `booking_user`)
+- App: http://172.31.150.22:3030
+- DB: MySQL 8 on 172.31.150.22:3306 (user `booking_user`)
 - Hot reload: code mounted into the container; `node_modules` uses a named volume.
 
 Notes
 - Inside container the app uses `DATABASE_URL` pointing to `db:3306`.
-- Your local `.env` can still point to `localhost:3306` for running outside Docker.
+- Your local `.env` can still point to `172.31.150.22:3306` for running outside Docker.
 
 ## Production
 

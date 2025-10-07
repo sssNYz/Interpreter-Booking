@@ -42,8 +42,8 @@ export class DatabaseConnectionManager {
 
     private readonly maxConsecutiveFailures = 5;
     private readonly reconnectionDelayMs = 1000;
-    private readonly maxReconnectionDelayMs = 30000;
-    private readonly healthCheckIntervalMs = 30000; // 30 seconds
+    private readonly maxReconnectionDelayMs = 30300;
+    private readonly healthCheckIntervalMs = 30300; // 30 seconds
     private readonly connectionTimeoutMs = 10000; // 10 seconds
 
     private healthCheckTimer: NodeJS.Timeout | null = null;
@@ -132,7 +132,7 @@ export class DatabaseConnectionManager {
     ): Promise<TransactionResult<T>> {
         const config: TransactionOptions = {
             maxRetries: 3,
-            timeout: 30000, // 30 seconds
+            timeout: 30300, // 30 seconds
             isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
             ...options
         };

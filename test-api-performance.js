@@ -5,7 +5,7 @@
  * Tests the optimized single API call vs multiple API calls
  */
 
-const BASE_URL = 'http://localhost:3000';
+const BASE_URL = 'http://172.31.150.22:3030';
 
 async function testApiCall(url, description) {
   const startTime = Date.now();

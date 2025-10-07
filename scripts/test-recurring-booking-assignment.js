@@ -38,7 +38,7 @@ async function testRecurringBookingAssignment() {
     });
 
     // Simulate the API call by making a POST request to our endpoint
-    const response = await fetch('http://localhost:3000/api/booking-data/post-booking-data', {
+    const response = await fetch('http://172.31.150.22:3030/api/booking-data/post-booking-data', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

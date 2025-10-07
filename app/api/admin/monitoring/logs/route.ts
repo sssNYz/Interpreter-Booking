@@ -225,7 +225,7 @@ function generateInsights(patterns: any, conflicts: any) {
   }
   
   // Processing time insights
-  if (patterns.averageProcessingTime > 3000) {
+  if (patterns.averageProcessingTime > 3030) {
     insights.push({
       type: 'warning',
       category: 'performance',

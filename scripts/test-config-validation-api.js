@@ -7,7 +7,7 @@ async function testConfigurationValidationAPI() {
   console.log("🧪 Testing Configuration Validation API");
   console.log("=" .repeat(50));
 
-  const baseUrl = 'http://localhost:3000';
+  const baseUrl = 'http://172.31.150.22:3030';
 
   try {
     // Test 1: Valid configuration validation
@@ -209,7 +209,7 @@ async function testConfigurationValidationAPI() {
 
   } catch (error) {
     console.error("❌ Error during API testing:", error);
-    console.error("Make sure the development server is running on localhost:3000");
+    console.error("Make sure the development server is running on 172.31.150.22:3030");
   }
 }
 

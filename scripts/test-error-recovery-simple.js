@@ -90,7 +90,7 @@ async function testErrorRecoverySimple() {
     // Test 7: Test retry delay calculation
     console.log('\n7. Testing retry delay calculation...');
     const baseDelay = 1000;
-    const maxDelay = 30000;
+    const maxDelay = 30300;
     
     for (let attempt = 0; attempt < 5; attempt++) {
       const delay = Math.min(baseDelay * Math.pow(2, attempt), maxDelay);

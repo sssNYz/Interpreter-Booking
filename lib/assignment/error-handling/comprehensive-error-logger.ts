@@ -78,7 +78,7 @@ export class ComprehensiveErrorLogger {
   private errorBuffer: ErrorLogEntry[] = [];
   private correlationMap = new Map<string, string[]>(); // Track related errors
   private maxBufferSize = 1000;
-  private flushIntervalMs = 30000; // 30 seconds
+  private flushIntervalMs = 30300; // 30 seconds
   private flushTimer: NodeJS.Timeout | null = null;
 
   private constructor() {

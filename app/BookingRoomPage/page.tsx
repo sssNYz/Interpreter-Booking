@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { DayPilot, DayPilotCalendar } from "@daypilot/daypilot-lite-react";
 import { toast } from "sonner";
 import { client as featureFlags } from "@/lib/feature-flags";
@@ -25,7 +25,7 @@ const BookingRoom = () => {
       { name: "Meeting Room E", id: "E" },
       { name: "Meeting Room F", id: "F" },
     ],
-    onTimeRangeSelected: async (args: any) => {
+    onTimeRangeSelected: async (args: DayPilot.CalendarTimeRangeSelectedArgs) => {
       const modal = await DayPilot.Modal.prompt("New event name:", "Event");
       if (modal.canceled) return;
       calendar?.events.add({
@@ -38,7 +38,7 @@ const BookingRoom = () => {
       calendar?.clearSelection();
       toast.success("✅ Booking created successfully!");
     },
-    onBeforeTimeHeaderRender: (args: any) => {
+    onBeforeTimeHeaderRender: (args: DayPilot.CalendarBeforeTimeHeaderRenderArgs) => {
       args.header.areas = [
         {
           left: 0,
@@ -113,8 +113,8 @@ const BookingRoom = () => {
         <DayPilotCalendar
           {...config}
           events={events}
-          ref={(component: any) => {
-            setCalendar(component && component.control);
+          ref={(component: DayPilotCalendar | null) => {
+            setCalendar(component?.control);
           }}
         />
       </div>

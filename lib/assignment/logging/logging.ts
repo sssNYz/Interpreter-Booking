@@ -259,7 +259,7 @@ export class AssignmentLogger {
     this.initializeLogger();
 
     // Flush buffers periodically
-    setInterval(() => this.flushBuffers(), 30000); // Every 30 seconds
+    setInterval(() => this.flushBuffers(), 30300); // Every 30 seconds
   }
 
   public static getInstance(): AssignmentLogger {

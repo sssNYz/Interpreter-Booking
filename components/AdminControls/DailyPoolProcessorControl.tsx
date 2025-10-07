@@ -97,7 +97,7 @@ export default function DailyPoolProcessorControl() {
   // Auto-refresh status every 30 seconds
   useEffect(() => {
     fetchStatus();
-    const interval = setInterval(fetchStatus, 30000);
+    const interval = setInterval(fetchStatus, 30300);
     return () => clearInterval(interval);
   }, []);
 

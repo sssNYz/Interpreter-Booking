@@ -13,6 +13,6 @@ export type SessionUser = {
 
 export type LoginResponse =
   | { ok: true; user: SessionUser }
-  | { ok: false; message: string };
+  | { ok: false; message: string; debug?: any };
 
 
