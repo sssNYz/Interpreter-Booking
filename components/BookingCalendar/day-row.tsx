@@ -30,6 +30,7 @@ type Props = {
   dayLabelWidth?: number;
   isHighlighted: boolean;
   maxLanes?: number; // ← Add this
+  interpreterColorsMap?: Record<string, string>;
 };
 
 const DayRow: React.FC<Props> = ({
@@ -45,6 +46,7 @@ const DayRow: React.FC<Props> = ({
   dayLabelWidth = 120,
   isHighlighted = false,
   maxLanes = MAX_LANES, // ← Add this
+  interpreterColorsMap,
 }) => {
   const isWeekendDay = ["Sat", "Sun"].includes(day.dayName);
   const isPastDay = day.isPast;
@@ -192,10 +194,16 @@ const DayRow: React.FC<Props> = ({
           const statusStyle = getStatusStyle(bar.status);
           const width = (bar.endIndex - bar.startIndex) * cellWidth;
           const top = LANE_TOP_OFFSET + bar.lane * (BAR_HEIGHT + BAR_STACK_GAP);
-          const interpreterColor = getInterpreterColor(
+          const preferredHex =
+            (bar.interpreterId && interpreterColorsMap?.[bar.interpreterId]) ||
+            undefined;
+          const fallback = getInterpreterColor(
             bar.interpreterId,
             bar.interpreterName
           );
+          const interpreterColor = preferredHex
+            ? { bg: preferredHex, border: preferredHex }
+            : fallback;
           const barClassName = interpreterColor
             ? "pointer-events-auto rounded-sm border"
             : "pointer-events-auto rounded-sm border border-neutral-600 bg-neutral-50";
@@ -454,10 +462,16 @@ const DayRow: React.FC<Props> = ({
                           b.endIndex >= timeSlots.length
                             ? timeSlots[timeSlots.length - 1]
                             : timeSlots[b.endIndex];
-                        const interpreterColor = getInterpreterColor(
+                        const preferredHex =
+                          (b.interpreterId && interpreterColorsMap?.[b.interpreterId]) ||
+                          undefined;
+                        const fallback = getInterpreterColor(
                           b.interpreterId,
                           b.interpreterName
                         );
+                        const interpreterColor = preferredHex
+                          ? { bg: preferredHex, border: preferredHex }
+                          : fallback;
                         return (
                           <div
                             key={`hidden-${b.bookingId}`}
