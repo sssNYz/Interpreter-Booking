@@ -15,8 +15,18 @@ export function middleware(req: NextRequest) {
         return NextResponse.next();
     }
 
-    const hasSession = Boolean(req.cookies.get("booking.session")?.value);
-    if (!hasSession) {
+    // Validate session cookie presence AND expiry (format: empCode|expiresAtMs|sig)
+    const cookieValue = req.cookies.get("booking.session")?.value;
+    const validSession = (() => {
+        if (!cookieValue) return false;
+        const parts = cookieValue.split("|");
+        if (parts.length !== 3) return false;
+        const expMs = Number(parts[1]);
+        if (!Number.isFinite(expMs)) return false;
+        return Date.now() < expMs; // treat expired as no session
+    })();
+
+    if (!validSession) {
         // API routes should return JSON error, not redirect to login page
         if (pathname.startsWith("/api/")) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

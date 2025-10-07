@@ -44,12 +44,15 @@ export default function ClientShell({
     const returnUrl = url.pathname + url.search;
     toast.dismiss();
     toast.error("Your session has expired. Please sign in again.");
-    router.replace(`/login?expired=1&returnUrl=${encodeURIComponent(returnUrl)}`);
+    // Small delay so users can see the toast before redirect
+    setTimeout(() => {
+      router.replace(`/login?expired=1&returnUrl=${encodeURIComponent(returnUrl)}`);
+    }, 1200);
   };
 
-  const refreshSession = async () => {
+  const refreshSession = async (force = false) => {
     const now = Date.now();
-    if (now - lastRefreshRef.current < 60000) return; // throttle refresh to once per minute
+    if (!force && now - lastRefreshRef.current < 60000) return; // throttle refresh to once per minute
     lastRefreshRef.current = now;
     try {
       const r = await fetch("/api/session/status?refresh=1", { credentials: "include", cache: "no-store" });
@@ -111,13 +114,13 @@ export default function ClientShell({
         const id = toast.warning(`Session will expire in ~${minutes} minute${minutes > 1 ? "s" : ""}.`, {
           action: {
             label: "Stay signed in",
-            onClick: () => refreshSession(),
+            onClick: () => refreshSession(true),
           },
           duration: 120000,
         });
         const handler = () => {
           toast.dismiss(id);
-          refreshSession();
+          refreshSession(true);
           window.removeEventListener("click", handler);
           window.removeEventListener("keydown", handler);
           window.removeEventListener("touchstart", handler);

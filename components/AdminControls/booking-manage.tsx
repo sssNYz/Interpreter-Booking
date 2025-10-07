@@ -139,7 +139,7 @@ export default function BookingManagement(): React.JSX.Element {
       if (!j?.ok || !Array.isArray(j.data)) return setEtaMap({});
       const m: Record<number, { etaLabel: string; category: 'auto-approve'|'in-coming'|'none'; urgentFrom?: string; schedulerFrom?: string }> = {};
       for (const it of j.data as Array<{ bookingId: number; etaLabel: string; category: 'auto-approve'|'in-coming'|'none'; urgentFrom?: string; schedulerFrom?: string }>) {
-        m[it.bookingId] = { etaLabel: it.etaLabel, category: it.category, urgentFrom: (it as any).urgentFrom, schedulerFrom: (it as any).schedulerFrom };
+        m[it.bookingId] = { etaLabel: it.etaLabel, category: it.category, urgentFrom: it.urgentFrom, schedulerFrom: it.schedulerFrom };
       }
       setEtaMap(m);
     } catch {
@@ -956,138 +956,7 @@ export default function BookingManagement(): React.JSX.Element {
               </div>
             </AccordionItem>
           )}
-          <AccordionItem value="all" className="border-none overflow-visible">
-            <div className="rounded-xl shadow-sm overflow-visible">
-              <AccordionTrigger className="px-6 border border-gray-200 bg-white rounded-t-xl data-[state=open]:rounded-b-none">
-                All
-              </AccordionTrigger>
-              <AccordionContent className="px-0 pb-0 border border-gray-200 border-t-0 rounded-b-xl bg-white overflow-visible">
-                <div className="overflow-visible">
-                  <table className="w-full text-sm" style={{ tableLayout: 'auto' }}>
-                    <thead className="bg-white">
-                      <tr className="border-b border-gray-200">
-                        <th className="w-20 px-4 py-3 text-center font-semibold text-gray-900 bg-gray-50 text-sm">Meeting Type</th>
-                        <th className="w-32 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">
-                          <button
-                            onClick={handleDateSortToggle}
-                            className="flex items-center gap-2 hover:bg-gray-100 px-2 py-1 rounded transition-colors w-full justify-start"
-                            title={`Sort by ${sortByDateAsc ? "newest" : "oldest"} first`}
-                          >
-                            <span>Date Meeting</span>
-                            {sortByDateAsc ? (
-                              <ChevronUp className="h-4 w-4 text-gray-600" />
-                            ) : (
-                              <ChevronDown className="h-4 w-4 text-gray-600" />
-                            )}
-                          </button>
-                        </th>
-                        <th className="w-36 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Meeting Time</th>
-                        <th className="w-32 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">User</th>
-                        <th className="w-32 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Interpreter</th>
-                        <th className="w-24 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Room</th>
-                        <th className="w-28 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Status</th>
-                        <th className="w-48 px-4 py-3 text-left font-semibold text-gray-900 bg-gray-50 text-sm">Date Request</th>
-                        <th className="w-32 px-6 py-3 text-center font-semibold text-gray-900 bg-gray-50 text-sm">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody className="overflow-visible">
-                      {paginatedBookings.bookings.map((booking, index) => {
-                        const isPast = showPast && isPastRecord(booking.dateTime, booking.endTime);
-                        return (
-                          <tr
-                            key={booking.id}
-                            className={`border-b border-gray-100 hover:bg-blue-50 transition-colors ${isPast
-                              ? "bg-gray-200/50"
-                              : index % 2 === 0 ? "bg-white" : "bg-gray-50/30"
-                              }`}
-                          >
-                            <td className="px-4 py-4 text-center">
-                              {getMeetingTypeBadge(booking.meetingType, booking.drType, booking.otherType)}
-                            </td>
-                            <td className="px-4 py-4 overflow-visible relative">
-                              <div className="flex items-start gap-2">
-                                <div className="group relative flex-1" style={{ transform: 'translateZ(0)' }}>
-                                  <span className="font-semibold text-gray-900 text-sm cursor-help break-words">
-                                    {formatDate(booking.dateTime)}
-                                  </span>
-                                  {isClient && (
-                                    <div className="absolute -top-10 left-1/2 transform -translate-x-1/2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none" style={{ zIndex: 999999, position: 'absolute', isolation: 'isolate' }}>
-                                      {getFullDate(booking.dateTime, isClient)}
-                                      <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-2 border-r-2 border-t-2 border-transparent border-t-gray-800"></div>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            </td>
-                            <td className="px-4 py-4">
-                              <div className="flex items-center gap-1 text-gray-800 font-mono text-sm">
-                                <Clock className="h-4 w-4 text-gray-500 flex-shrink-0" />
-                                <span className="whitespace-nowrap">
-                                  {booking.startTime} - {booking.endTime}
-                                </span>
-                              </div>
-                            </td>
-                            <td className="px-4 py-4">
-                              <span className="font-semibold text-gray-900 text-sm break-words">{booking.bookedBy}</span>
-                            </td>
-                            <td className="px-4 py-4">
-                              <span className="text-gray-800 text-sm break-words">{booking.interpreter}</span>
-                            </td>
-                            <td className="px-4 py-4">
-                              <div className="flex items-center justify-center h-full">
-                                <span className="px-2 py-1 bg-gray-100 text-gray-800 rounded-md text-sm font-semibold break-words">
-                                  {booking.room}
-                                </span>
-                              </div>
-                            </td>
-                            <td className="px-6 py-4">
-                              <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-semibold ${getStatusColor(booking.status)}`}>
-                                {getStatusIcon(booking.status)}
-                                <span className="truncate">{booking.status}</span>
-                              </span>
-                            </td>
-                            <td className="px-6 py-4">
-                              <span className="text-sm text-gray-600 whitespace-nowrap">
-                                {formatRequestedTime(booking.requestedTime)}
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 text-center">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="h-8 px-3"
-                                onClick={() => {
-                                  setSelectedBooking(booking);
-                                  setShowBookingDetailDialog(true);
-                                }}
-                              >
-                                <SquarePen className="h-4 w-4 mr-1" />
-                                Edit
-                              </Button>
-                              {featureFlags.enableForwardAdmin && booking.status === 'Wait' && (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="h-8 px-3 ml-2"
-                                  onClick={() => {
-                                    setForwardingBookingId(booking.id);
-                                    setShowForwardDialog(true);
-                                  }}
-                                >
-                                  Forward
-                                </Button>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                
-              </AccordionContent>
-            </div>
-          </AccordionItem>
+          
         
           {/* Auto-approve soon */}
           <AccordionItem value="auto-approve" className="border-none">

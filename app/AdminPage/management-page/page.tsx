@@ -71,7 +71,7 @@ export default function UnifiedManagementPage() {
                 className="flex items-center gap-2"
               >
                 <Users className="h-4 w-4" />
-                Interpreters colors
+                colors
               </TabsTrigger>
               <TabsTrigger 
                 value="languages" 
