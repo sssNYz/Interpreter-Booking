@@ -1,13 +1,15 @@
 "use client"
 
 import React, { useEffect, useState } from "react";
-import { Settings, Building2, Users, Languages } from "lucide-react";
+import { Settings, Building2, Users, Languages, DoorOpen, Cog } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 // Import existing components
 import EnvironmentManagement from "./environment-section";
 import InterpreterManagement from "./interpreter-section";
 import LanguageManagement from "./language-section";
+import RoomManagementSection from "./room-section";
+import AutoAssignSection from "./auto-assign-section";
 
 export default function UnifiedManagementPage() {
   const [allowed, setAllowed] = useState<boolean | null>(null);
@@ -56,7 +58,7 @@ export default function UnifiedManagementPage() {
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           {/* Tab Navigation */}
           <div className="flex items-center justify-between mb-6">
-            <TabsList className="grid grid-cols-3 w-auto">
+            <TabsList className="grid grid-cols-5 w-auto">
               <TabsTrigger 
                 value="environments" 
                 className="flex items-center gap-2"
@@ -69,7 +71,7 @@ export default function UnifiedManagementPage() {
                 className="flex items-center gap-2"
               >
                 <Users className="h-4 w-4" />
-                Interpreters
+                Interpreters colors
               </TabsTrigger>
               <TabsTrigger 
                 value="languages" 
@@ -77,6 +79,20 @@ export default function UnifiedManagementPage() {
               >
                 <Languages className="h-4 w-4" />
                 Languages
+              </TabsTrigger>
+              <TabsTrigger 
+                value="rooms" 
+                className="flex items-center gap-2"
+              >
+                <DoorOpen className="h-4 w-4" />
+                Rooms
+              </TabsTrigger>
+              <TabsTrigger 
+                value="autoAssign" 
+                className="flex items-center gap-2"
+              >
+                <Cog className="h-4 w-4" />
+                Auto Assign
               </TabsTrigger>
             </TabsList>
           </div>
@@ -92,6 +108,14 @@ export default function UnifiedManagementPage() {
 
           <TabsContent value="languages">
             <LanguageManagement />
+          </TabsContent>
+
+          <TabsContent value="rooms">
+            <RoomManagementSection />
+          </TabsContent>
+
+          <TabsContent value="autoAssign">
+            <AutoAssignSection />
           </TabsContent>
         </Tabs>
       </div>

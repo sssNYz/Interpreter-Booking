@@ -16,6 +16,7 @@ import {
   Star,
   DoorOpen,
   Languages,
+  User,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -48,17 +49,7 @@ const ADMIN_MENU_ALL = [
   {
     title: "User management",
     url: "/AdminPage/user-manage-page",
-    icon: Settings,
-  },
-  {
-    title: "Room management",
-    url: "/AdminPage/room-management",
-    icon: DoorOpen,
-  },
-  {
-    title: "Auto-Assignment Config",
-    url: "/AdminPage/auto-assign-config",
-    icon: Cog,
+    icon: User,
   },
 ] as const;
 
@@ -71,7 +62,19 @@ export function AppNavbar() {
   const pathname = usePathname();
 
   type Key = "calendar" | "room" | "mybookings" | "admin";
-  const [active, setActive] = useState<Key>("calendar");
+
+  // Map path → tab key
+  const pathToKey = (p?: string): Key => {
+    if (!p) return "calendar";
+    if (p === "/" || p.startsWith("/BookingPage")) return "calendar";
+    if (p.startsWith("/BookingRoomPage")) return "room";
+    if (p.startsWith("/MyBookings")) return "mybookings";
+    if (p.startsWith("/AdminPage")) return "admin";
+    return "calendar";
+  };
+
+  // FIX 1: Initialize from current path (no Calendar flash)
+  const [active, setActive] = useState<Key>(() => pathToKey(pathname));
 
   // Refs to measure each button
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -85,21 +88,19 @@ export function AppNavbar() {
   const [pill, setPill] = useState({ left: 0, width: 0, ready: false });
   const [canAdmin, setCanAdmin] = useState<boolean>(false);
   const [isSuper, setIsSuper] = useState<boolean>(false);
+  const onAdminPath = !!pathname && pathname.startsWith("/AdminPage");
 
   // Update active based on the URL
   useEffect(() => {
-    if (!pathname) return;
-    if (pathname === "/" || pathname.startsWith("/BookingPage"))
-      setActive("calendar");
-    else if (pathname.startsWith("/BookingRoomPage")) setActive("room");
-    else if (pathname.startsWith("/MyBookings")) setActive("mybookings");
-    else if (pathname.startsWith("/AdminPage")) setActive("admin");
+    const next = pathToKey(pathname);
+    setActive((prev) => (prev === next ? prev : next));
   }, [pathname]);
 
   // Compute the pill position/size to match the active button
   const updatePill = useCallback(() => {
     const c = containerRef.current;
     const el = btnRefs.current[active];
+
     if (!c || !el) return;
     const cRect = c.getBoundingClientRect();
     const bRect = el.getBoundingClientRect();
@@ -108,7 +109,6 @@ export function AppNavbar() {
 
   useEffect(() => {
     updatePill();
-    // Only reposition on window resize, not on content changes
     const handle = () => updatePill();
     window.addEventListener("resize", handle);
     return () => {
@@ -116,14 +116,21 @@ export function AppNavbar() {
     };
   }, [active, updatePill]);
 
+  // When Admin visibility changes, re-measure if active is admin
+  useEffect(() => {
+    if (active === "admin") {
+      updatePill();
+    }
+  }, [canAdmin, active, updatePill]);
+
   // Determine if current user can see Admin menu
   useEffect(() => {
     let alive = true;
-    fetch("/api/user/me", { cache: "no-store" })
+    fetch("/api/auth/me", { cache: "no-store" })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
-        if (!alive || !data?.user) return;
-        const roles: string[] = data.user.roles || [];
+        if (!alive || !data) return;
+        const roles: string[] = data.roles || [];
         setCanAdmin(roles.includes("ADMIN") || roles.includes("SUPER_ADMIN"));
         setIsSuper(roles.includes("SUPER_ADMIN"));
       })
@@ -218,41 +225,51 @@ export function AppNavbar() {
                 </button>
               </Link>
 
-              {/* Admin dropdown */}
-              {canAdmin && (
-                <DropdownMenu
-                  onOpenChange={(open) => open && setActive("admin")}
-                >
-                  <DropdownMenuTrigger asChild>
-                    <button
-                      ref={(el) => {
-                        btnRefs.current.admin = el;
-                      }}
-                      className={itemClass(active === "admin")}
-                    >
-                      <Star className="h-4 w-4" />
-                      <span>Admin</span>
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-72">
-                    <DropdownMenuLabel>Admin</DropdownMenuLabel>
-                    <DropdownMenuSeparator />
-                    {ADMIN_MENU_ALL.filter((item) => {
-                      // Admin and Super Admin can see all admin items
-                      return true;
-                    }).map((item) => (
-                      <DropdownMenuItem key={item.title} asChild>
-                        <Link
-                          href={item.url}
-                          className="flex items-center gap-2 py-2"
-                        >
-                          <item.icon className="h-4 w-4" />
-                          <span>{item.title}</span>
-                        </Link>
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
+              {/* Admin (render button on Admin path even before roles load) */}
+              {(canAdmin || onAdminPath) && (
+                canAdmin ? (
+                  <DropdownMenu
+                    onOpenChange={(open) => open && setActive("admin")}
+                  >
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        ref={(el) => {
+                          btnRefs.current.admin = el;
+                        }}
+                        className={itemClass(active === "admin")}
+                      >
+                        <Star className="h-4 w-4" />
+                        <span>Admin</span>
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-72">
+                      <DropdownMenuLabel>Admin</DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      {ADMIN_MENU_ALL.map((item) => (
+                        <DropdownMenuItem key={item.title} asChild>
+                          <Link
+                            href={item.url}
+                            className="flex items-center gap-2 py-2"
+                          >
+                            <item.icon className="h-4 w-4" />
+                            <span>{item.title}</span>
+                          </Link>
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                ) : (
+                  <button
+                    ref={(el) => {
+                      btnRefs.current.admin = el;
+                    }}
+                    className={itemClass(active === "admin")}
+                    disabled
+                  >
+                    <Star className="h-4 w-4" />
+                    <span>Admin</span>
+                  </button>
+                )
               )}
             </div>
 
