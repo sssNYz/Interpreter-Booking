@@ -46,6 +46,8 @@ interface MeetingDetailsSectionProps {
   setMeetingDetail: (value: string) => void;
   applicableModel?: string;
   setApplicableModel?: (value: string) => void;
+  chairmanEmail?: string;
+  setChairmanEmail?: (value: string) => void;
 
   drType?: DRType | null;
   setDrType?: (value: DRType | null) => void;
@@ -89,6 +91,8 @@ export function MeetingDetailsSection({
   setMeetingDetail,
   applicableModel,
   setApplicableModel,
+  chairmanEmail,
+  setChairmanEmail,
   startTime,
   endTime,
   slotsTime,
@@ -436,6 +440,32 @@ export function MeetingDetailsSection({
 
       {/* Line 3: Repeat Section (if provided) */}
       {repeatSection && <div className="space-y-4">{repeatSection}</div>}
+
+      {/* Chairman Email (DR only) before Meeting Description */}
+      {meetingType === "DR" && (
+        <div className="space-y-2">
+          <Label
+            htmlFor="chairmanEmail"
+            className="text-sm font-medium text-foreground"
+          >
+            Chairman Email <span className="text-destructive">*</span>
+          </Label>
+          <Input
+            id="chairmanEmail"
+            type="email"
+            placeholder="chairman@company.com"
+            value={chairmanEmail || ""}
+            onChange={(e) => setChairmanEmail && setChairmanEmail(e.target.value)}
+            className={`${errors.chairmanEmail ? "border-destructive focus:border-destructive" : ""}`}
+            aria-describedby={errors.chairmanEmail ? "chairmanEmail-error" : undefined}
+          />
+          {errors.chairmanEmail && (
+            <p id="chairmanEmail-error" className="text-sm text-amber-600">
+              {errors.chairmanEmail}
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Line 4: Meeting Description */}
       <div className="space-y-2">

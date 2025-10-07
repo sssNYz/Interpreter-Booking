@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 
 export const SESSION_COOKIE_NAME = "booking.session";
-export const DEFAULT_TTL_SECONDS = 30 * 60; // 30 minutes
+export const DEFAULT_TTL_SECONDS =30 * 60; // 30 minutes
 
 export type ParsedSession = {
 	empCode: string;

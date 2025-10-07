@@ -1152,13 +1152,13 @@ export function BookingForm({
 
       const raw = localStorage.getItem("booking.user");
       if (!raw) {
-        alert("User session expired. Please login again.");
+        toast.error("Your session has expired. Please sign in again.");
         return;
       }
       const parsed = JSON.parse(raw);
       const empCode = parsed.empCode;
       if (!empCode) {
-        alert("User session invalid. Please login again.");
+        toast.error("Your session is invalid. Please sign in again.");
         return;
       }
 
@@ -1213,6 +1213,25 @@ export function BookingForm({
 
       let recurrencePayload: Record<string, unknown> = {};
       if (repeatChoice !== "none") {
+        // Convert weekly/custom "occurrences" (entered as weeks) into total booking days
+        // Example: M/W/F for 3 weeks => 3 * 3 = 9 total occurrences
+        const endOccurrencesToSend = (() => {
+          if (recurrenceEndType !== "after_occurrences") return null;
+          const isWeeklyLike =
+            recurrenceType === "weekly" ||
+            repeatChoice === "weekly" ||
+            repeatChoice === "biweekly" ||
+            repeatChoice === "custom";
+          if (!isWeeklyLike) return recurrenceEndOccurrences ?? null;
+          if (typeof recurrenceEndOccurrences !== "number") return null;
+          const csv = (recurrenceWeekdays || selectedDayCode || "")
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean);
+          const daysPerWeek = Math.max(1, csv.length);
+          return recurrenceEndOccurrences * daysPerWeek;
+        })();
+
         recurrencePayload = {
           isRecurring: true,
           recurrenceType: recurrenceType || repeatChoice,
@@ -1222,9 +1241,7 @@ export function BookingForm({
           recurrenceEndDate:
             recurrenceEndType === "on_date" ? recurrenceEndDate || null : null,
           recurrenceEndOccurrences:
-            recurrenceEndType === "after_occurrences"
-              ? recurrenceEndOccurrences ?? null
-              : null,
+            recurrenceEndType === "after_occurrences" ? endOccurrencesToSend : null,
           recurrenceWeekdays:
             recurrenceType === "weekly" ||
             repeatChoice === "weekly" ||
@@ -1584,6 +1601,8 @@ export function BookingForm({
                 setMeetingDetail={(v) => setMeetingDetail(v)}
                 applicableModel={applicableModel}
                 setApplicableModel={(v) => setApplicableModel(v)}
+                chairmanEmail={chairmanEmail}
+                setChairmanEmail={(v) => setChairmanEmail(v)}
                 startTime={startTime}
                 endTime={endTime}
                 slotsTime={slotsTime}
@@ -1902,28 +1921,7 @@ export function BookingForm({
                 )}
               </div>
 
-              {/* Chairman Email - Only for DR meetings */}
-              {meetingType === "DR" && (
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">
-                    Chairman Email <span className="text-red-500">*</span>
-                  </label>
-                  <Input
-                    id="chairmanEmail"
-                    type="email"
-                    value={chairmanEmail}
-                    onChange={(e) => setChairmanEmail(e.target.value)}
-                    placeholder="chairman@company.com"
-                    className={errors.chairmanEmail ? "border-red-500" : ""}
-                  />
-                  {errors.chairmanEmail && (
-                    <div className="flex items-center gap-2 text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-md p-2">
-                      <AlertTriangle className="h-4 w-4 flex-shrink-0" />
-                      <span>{errors.chairmanEmail}</span>
-                    </div>
-                  )}
-                </div>
-              )}
+              {/* Chairman Email moved into MeetingDetailsSection for DR */}
 
               {/* Interpreter Selection - Only for President meetings */}
               {meetingType === "President" && (
