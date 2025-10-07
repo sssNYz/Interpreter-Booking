@@ -27,14 +27,7 @@ import { useBookings } from "@/hooks/use-booking";
 import { useSlotDataForBars } from "@/hooks/use-bar-slot-data";
 
 
-import {
-  ROW_HEIGHT,
-  BAR_HEIGHT,
-  LANE_TOP_OFFSET,
-  BAR_STACK_GAP,
-} from "@/utils/constants";
-
-import { getStatusStyle } from "@/utils/status";
+import { ROW_HEIGHT } from "@/utils/constants";
 
 import type { DayInfo } from "@/types/booking";
 import { Button } from "@/components/ui/button";
@@ -110,6 +103,26 @@ useEffect(() => {
   };
   
   fetchInterpretersAndColors();
+}, []);
+
+// Periodically refresh interpreter colors to reflect admin changes without reload
+useEffect(() => {
+  let id: number | null = null;
+  const start = () => {
+    id = window.setInterval(async () => {
+      try {
+        const res = await fetch('/api/admin/interpreter-colors', { cache: 'no-store' });
+        if (res.ok) {
+          const json = await res.json();
+          setInterpreterColors(json.data);
+        }
+      } catch {}
+    }, 30000);
+  };
+  start();
+  return () => {
+    if (id !== null) window.clearInterval(id);
+  };
 }, []);
 
   // Admin vision toggle removed: rely on API defaults per role/environment
@@ -545,6 +558,7 @@ useEffect(() => {
                 cellWidth={cellWidth}
                 dayLabelWidth={dayLabelWidth}
                 maxLanes={interpreterCount}  // ← Add this
+                interpreterColorsMap={interpreterColors}
     
                 isHighlighted={
                   highlightToday &&
