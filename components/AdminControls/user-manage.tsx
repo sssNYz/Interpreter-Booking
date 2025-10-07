@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useMemo, useState, useEffect, useRef } from "react";
-import { Users, Search, Shield, Languages, Edit3, ChevronLeft, ChevronRight } from "lucide-react";
+import { User, Search, Shield, Languages, Edit3, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -186,7 +186,7 @@ export default function UsersManagement() {
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center space-x-3">
               <div className="bg-gray-900 text-white rounded-full p-2">
-                <Users className="h-5 w-5" />
+                <User className="h-5 w-5" />
               </div>
               <div>
                 <h1 className="text-xl font-semibold text-gray-900">Users Management</h1>
@@ -210,7 +210,7 @@ export default function UsersManagement() {
                   <p className="text-3xl font-bold">{(globalStats ?? serverStats).total}</p>
                 </div>
                 <div className="h-12 w-12 rounded-full bg-sky-100 grid place-items-center">
-                  <Users className="h-6 w-6 text-sky-600" />
+                  <User className="h-6 w-6 text-sky-600" />
                 </div>
               </div>
             </CardContent>
