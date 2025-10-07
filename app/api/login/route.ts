@@ -7,11 +7,11 @@ import {
 } from "@/lib/auth/session";
 import type { LoginRequest, LoginResponse } from "@/types/auth";
 
-const REF_API_URL =
+const REF_API_URL = "http://172.31.150.3/api/login";
 
-  process.env.REF_API_URL || "http://localhost:3000/api/mock-login";
+  //process.env.REF_API_URL || "http://172.31.150.22:3030/api/mock-login";
   //process.env.REF_API_URL || "http://192.168.1.184/api/login";
-
+  //process.env.REF_API_URL || "http://172.31.150.3/api/login";
 
 export async function POST(req: NextRequest) {
   let body: LoginRequest;
@@ -58,23 +58,57 @@ export async function POST(req: NextRequest) {
       const text = await refRes.text().catch(() => "");
       console.error("[/api/login] reference responded non-200", {
         status: refRes.status,
-        body: text?.slice(0, 300),
+        statusText: refRes.statusText,
+        headers: Object.fromEntries(refRes.headers.entries()),
+        body: text?.slice(0, 500),
+        url: REF_API_URL,
+        requestData: { empCode: forward.empCode, passwordLength: forward.oldPassword.length }
       });
       return NextResponse.json(
-        { ok: false, message: "Invalid credentials" },
+        {
+          ok: false,
+          message: `Authentication failed: ${refRes.status} ${refRes.statusText}`,
+          debug: {
+            status: refRes.status,
+            response: text?.slice(0, 200),
+            endpoint: REF_API_URL
+          }
+        },
         { status: 401 }
       );
     }
 
     const data = await refRes.json();
+    console.log("[/api/login] reference API response received", {
+      status: refRes.status,
+      hasUserData: !!data?.user_data,
+      dataKeys: Object.keys(data || {}),
+      userDataKeys: data?.user_data ? Object.keys(data.user_data) : [],
+      empCodeInResponse: data?.user_data?.code
+    });
+
     // const token: string | undefined = data?.token;
     const u = data?.user_data || {};
 
     // Map to employee fields
     const empCodeFromRef: string | undefined = u.code;
     if (!empCodeFromRef) {
+      console.error("[/api/login] missing empCode in response", {
+        responseData: data,
+        userData: u,
+        allKeys: Object.keys(data || {})
+      });
       return NextResponse.json(
-        { ok: false, message: "Malformed response" },
+        {
+          ok: false,
+          message: "Authentication service returned invalid user data",
+          debug: {
+            hasData: !!data,
+            hasUserData: !!data?.user_data,
+            userDataKeys: data?.user_data ? Object.keys(data.user_data) : [],
+            responseKeys: Object.keys(data || {})
+          }
+        },
         { status: 500 }
       );
     }
@@ -93,6 +127,7 @@ export async function POST(req: NextRequest) {
     // Upsert employee via parameterized SQL
     const now = new Date();
     const nowIso = now.toISOString().slice(0, 19).replace("T", " ");
+    console.log("[/api/login] attempting DB upsert for empCode", empCodeFromRef);
     try {
       await prisma.$executeRaw`
                 INSERT INTO EMPLOYEE (
@@ -108,13 +143,14 @@ export async function POST(req: NextRequest) {
                     ${email}, ${telExt},
                     1, ${nowIso}, ${nowIso}, ${nowIso}, ${nowIso}
                 )
-                ON DUPLICATE KEY UPDATE 
+                ON DUPLICATE KEY UPDATE
                     PREFIX_EN=VALUES(PREFIX_EN), FIRST_NAME_EN=VALUES(FIRST_NAME_EN), LAST_NAME_EN=VALUES(LAST_NAME_EN),
                     PREFIX_TH=VALUES(PREFIX_TH), FIRST_NAME_TH=VALUES(FIRST_NAME_TH), LAST_NAME_TH=VALUES(LAST_NAME_TH),
                     FNO=VALUES(FNO), DEPT_PATH=VALUES(DEPT_PATH), POSITION_TITLE=VALUES(POSITION_TITLE),
                     EMAIL=VALUES(EMAIL), TEL_EXT=VALUES(TEL_EXT),
                     LAST_LOGIN_AT=VALUES(LAST_LOGIN_AT), SYNCED_AT=VALUES(SYNCED_AT), updated_at=${nowIso}
             `;
+      console.log("[/api/login] DB upsert successful");
     } catch (err) {
       console.error("[/api/login] DB write failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -124,6 +160,7 @@ export async function POST(req: NextRequest) {
         { status: 500 }
       );
     }
+    console.log("[/api/login] querying employee record");
     const rows = await prisma.$queryRaw<
       Array<{
         ID: number;
@@ -136,6 +173,7 @@ export async function POST(req: NextRequest) {
     >`
             SELECT ID, EMAIL, EMP_CODE, FIRST_NAME_EN, LAST_NAME_EN, TEL_EXT FROM EMPLOYEE WHERE EMP_CODE = ${empCodeFromRef} LIMIT 1
         `;
+    console.log("[/api/login] employee record found:", rows.length > 0);
     const row = rows[0];
     // Set HttpOnly session cookie with sliding TTL
     const session = createSessionCookie(empCodeFromRef, DEFAULT_TTL_SECONDS);
@@ -153,18 +191,43 @@ export async function POST(req: NextRequest) {
       name: SESSION_COOKIE_NAME,
       value: session.value,
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      secure: false, // Set to false for internal HTTP-only deployment
       sameSite: "lax",
       path: "/",
       maxAge: session.maxAge,
     });
+    console.log("[/api/login] login successful, returning response");
     return res;
   } catch (err) {
     console.error("[/api/login] unexpected error", {
       error: err instanceof Error ? err.message : String(err),
+      errorName: err instanceof Error ? err.name : 'Unknown',
+      errorStack: err instanceof Error ? err.stack : undefined,
+      isAbortError: err instanceof Error && err.name === 'AbortError',
+      isFetchError: err instanceof Error && (err.message.includes('fetch') || err.message.includes('network')),
+      endpoint: REF_API_URL,
+      empCode: empCode
     });
+
+    let errorMessage = "Login error";
+    if (err instanceof Error) {
+      if (err.name === 'AbortError') {
+        errorMessage = "Authentication service timeout";
+      } else if (err.message.includes('fetch') || err.message.includes('network')) {
+        errorMessage = "Cannot connect to authentication service";
+      }
+    }
+
     return NextResponse.json<LoginResponse>(
-      { ok: false, message: "Login error" },
+      {
+        ok: false,
+        message: errorMessage,
+        debug: {
+          errorType: err instanceof Error ? err.name : 'Unknown',
+          errorMessage: err instanceof Error ? err.message : String(err),
+          endpoint: REF_API_URL
+        }
+      },
       { status: 500 }
     );
   }

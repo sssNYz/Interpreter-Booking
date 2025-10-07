@@ -55,7 +55,7 @@ RUN apt-get update -y \
 
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
-    PORT=3000
+    PORT=3030
 
 # Copy production node_modules and app build
 COPY --from=deps /app/node_modules ./node_modules
@@ -64,8 +64,9 @@ COPY --from=builder /app/public ./public
 COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/next.config.* ./
 COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 
-EXPOSE 3000
+EXPOSE 3030
 
 # Run Prisma migrations then start server (idempotent)
 CMD ["sh", "-c", "npx prisma migrate deploy && npm run start -- -p $PORT"]

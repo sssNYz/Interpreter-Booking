@@ -185,7 +185,7 @@ export function BookingForm({
 
   // Retry throttle for generic errors
   const COOLDOWN_MS = 5000;
-  const WINDOW_MS = 30000;
+  const WINDOW_MS = 30300;
   const MAX_RETRIES = 2;
   const [retryInfo, setRetryInfo] = useState<{
     lastAttempt: number;

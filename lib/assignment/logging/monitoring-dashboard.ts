@@ -309,7 +309,7 @@ export class MonitoringDashboard {
   private calculateProcessingTrend(averageTime: number): 'IMPROVING' | 'STABLE' | 'DEGRADING' {
     // Simplified trend calculation - would need historical data for real implementation
     if (averageTime < 1000) return 'IMPROVING';
-    if (averageTime > 3000) return 'DEGRADING';
+    if (averageTime > 3030) return 'DEGRADING';
     return 'STABLE';
   }
   
@@ -351,7 +351,7 @@ export class MonitoringDashboard {
   private identifyBottlenecks(assignmentPatterns: { escalationRate: number; drOverrideRate: number }, performanceMetrics: { averageProcessingTime: number; averageConflictRate: number }): string[] {
     const bottlenecks = [];
     
-    if (performanceMetrics.averageProcessingTime > 3000) {
+    if (performanceMetrics.averageProcessingTime > 3030) {
       bottlenecks.push('Slow processing times');
     }
     
