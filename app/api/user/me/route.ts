@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import prisma from "@/prisma/prisma";
 import { SESSION_COOKIE_NAME, verifySessionCookieValue } from "@/lib/auth/session";
-import { centerPart } from "@/utiv6789ls/users";
+import { centerPart } from "@/utils/users";
 
 export async function GET() {
   try {
