@@ -160,6 +160,7 @@ export function MeetingDetailsSection({
                 variant="outline"
                 role="combobox"
                 aria-expanded={roomComboboxOpen}
+                id="meetingRoom"
                 className={`w-full justify-between ${
                   errors.meetingRoom
                     ? "border-destructive focus:border-destructive"
@@ -460,7 +461,7 @@ export function MeetingDetailsSection({
             aria-describedby={errors.chairmanEmail ? "chairmanEmail-error" : undefined}
           />
           {errors.chairmanEmail && (
-            <p id="chairmanEmail-error" className="text-sm text-amber-600">
+            <p id="chairmanEmail-error" className="text-sm text-destructive">
               {errors.chairmanEmail}
             </p>
           )}

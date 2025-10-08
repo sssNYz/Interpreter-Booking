@@ -31,6 +31,7 @@ type Props = {
   isHighlighted: boolean;
   maxLanes?: number; // ← Add this
   interpreterColorsMap?: Record<string, string>;
+  forwardMonthLimit?: number;
 };
 
 const DayRow: React.FC<Props> = ({
@@ -47,10 +48,20 @@ const DayRow: React.FC<Props> = ({
   isHighlighted = false,
   maxLanes = MAX_LANES, // ← Add this
   interpreterColorsMap,
+  forwardMonthLimit = 1,
 }) => {
   const isWeekendDay = ["Sat", "Sun"].includes(day.dayName);
   const isPastDay = day.isPast;
   const [openBarId, setOpenBarId] = useState<number | null>(null);
+
+  // Allow booking only in current month and next month (by month, not by day)
+  const isWithinAllowedMonths = (d: Date) => {
+    const now = new Date();
+    const monthIndex = (x: Date) => x.getFullYear() * 12 + x.getMonth();
+    const diff = monthIndex(d) - monthIndex(now);
+    return diff >= 0 && diff <= forwardMonthLimit;
+  };
+  const isAllowedByMonth = isWithinAllowedMonths(day.fullDate);
 
   // Visible lanes logic is based on TRUE overlaps from bars (unlimited lanes),
   // not on capped occupancy. This ensures UI always shows all bookings even
@@ -135,7 +146,8 @@ const DayRow: React.FC<Props> = ({
         const isFull = occupancy[index] >= maxLanes;
         const isPastTime = isTimeSlotPast(day.date, slot);
 
-        const clickable = !isWeekendDay && !isPastDay && !isPastTime && !isFull;
+        const clickable =
+          !isWeekendDay && !isPastDay && !isPastTime && !isFull && isAllowedByMonth;
 
         let stateClasses = "";
         if (isWeekendDay) {
@@ -146,6 +158,10 @@ const DayRow: React.FC<Props> = ({
             "bg-neutral-100 text-muted-foreground cursor-not-allowed";
         } else if (isFull) {
           stateClasses = "bg-muted text-muted-foreground cursor-not-allowed";
+        } else if (!isAllowedByMonth) {
+          // Out-of-window cells: look like a disabled part of the day
+          stateClasses =
+            "bg-neutral-100 text-muted-foreground cursor-not-allowed";
         } else {
           stateClasses = "bg-background cursor-pointer hover:bg-accent";
         }
@@ -156,6 +172,8 @@ const DayRow: React.FC<Props> = ({
           ? "Past"
           : isFull
           ? "Time full"
+          : !isAllowedByMonth
+          ? `Forward limit: ${forwardMonthLimit} month${forwardMonthLimit === 1 ? '' : 's'} ahead`
           : `Available: ${slot}`;
 
         if (!clickable) {
