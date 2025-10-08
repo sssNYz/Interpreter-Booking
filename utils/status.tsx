@@ -20,6 +20,12 @@ export const getStatusStyle = (status: string) => {
         text: "text-destructive-foreground",
         icon: <XCircle className="w-3 h-3" />,
       };
+    case "complet":
+      return {
+        bg: "bg-[#93c5fd]",
+        text: "text-neutral-900",
+        icon: null,
+      };
     default:
       return {
         bg: "bg-neutral-800",

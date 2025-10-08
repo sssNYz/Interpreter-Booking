@@ -105,7 +105,8 @@ export const getStatusColor = (status: string): string =>
     Approve: "text-emerald-700 bg-emerald-100",
     Wait: "text-amber-700 bg-amber-100",
     Cancel: "text-red-700 bg-red-100",
-  } as const)[status as "Approve" | "Wait" | "Cancel"] || "text-gray-700 bg-gray-100";
+    Complete: "text-slate-900 bg-[#93c5fd]",
+  } as const)[status as "Approve" | "Wait" | "Cancel" | "Complete"] || "text-gray-700 bg-gray-100";
 
 /**
  * Get status icon for booking status
@@ -115,7 +116,8 @@ export const getStatusIcon = (status: string) => {
     Approve: React.createElement(CheckCircle, { className: "h-4 w-4" }),
     Wait: React.createElement(Hourglass, { className: "h-4 w-4" }),
     Cancel: React.createElement(XCircle, { className: "h-4 w-4" }),
+    Complete: React.createElement(CheckCircle, { className: "h-4 w-4" }),
   } as const;
   
-  return iconMap[status as "Approve" | "Wait" | "Cancel"] || null;
+  return iconMap[status as "Approve" | "Wait" | "Cancel" | "Complete"] || null;
 };

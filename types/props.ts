@@ -16,6 +16,7 @@ export type BookingFormProps = {
   }[];
   rooms?: string[];
   maxLanes?: number;
+  forwardMonthLimit?: number;
 };
 
 
