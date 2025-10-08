@@ -578,7 +578,7 @@ export default function BookingHistory({ renderEmpty, startDate, endDate }: Book
 
       {/* Meeting Detail Dialog */}
       <Dialog open={meetingDetailDialogOpen} onOpenChange={setMeetingDetailDialogOpen}>
-        <DialogContent className="w-[min(96vw,1200px)] max-w-[1200px] max-h-[92vh] overflow-hidden p-0 rounded-[32px] shadow-xl border border-primary/10">
+        <DialogContent showCloseButton={false} className="w-[min(96vw,1200px)] max-w-[1200px] max-h-[92vh] overflow-hidden p-0 rounded-[32px] shadow-xl border border-primary/10">
           <DialogHeader className="sr-only">
             <DialogTitle>Meeting Detail</DialogTitle>  
           </DialogHeader>

@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import type { BookingData, DayInfo, BarItem } from "@/types/booking";
 import { MAX_LANES } from "@/utils/constants";
+import { END_OF_DAY } from "@/utils/time";
 
 function toIndices(startStrIn: string, endStrIn: string, timeSlots: string[]) {
   // Accepts either 'YYYY-MM-DD HH:mm:ss' or ISO 'YYYY-MM-DDTHH:mm:ss'
@@ -13,9 +14,8 @@ function toIndices(startStrIn: string, endStrIn: string, timeSlots: string[]) {
   const startStr = s.slice(0, 5);
   const endStr = e.slice(0, 5);
   const startIndex = timeSlots.indexOf(startStr);
-  // If end is 17:00, render bar to the final cell (after 16:30)
-  const endIndex =
-    endStr === "17:00" ? timeSlots.length : timeSlots.indexOf(endStr);
+  // If end is end-of-day (e.g., 21:00), render bar to the final cell
+  const endIndex = endStr === END_OF_DAY ? timeSlots.length : timeSlots.indexOf(endStr);
   return { startIndex, endIndex };
 }
 

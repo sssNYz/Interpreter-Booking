@@ -631,6 +631,89 @@ export async function POST(request: NextRequest) {
       body.timeStart,
       body.timeEnd
     );
+    // Enforce: only allow current month and next month (by month, not by day)
+    const monthIndex = (d: Date) => d.getFullYear() * 12 + d.getMonth();
+    const now = new Date();
+    const envLimitRaw = process.env.FORWARD_MONTH_LIMIT;
+    let forwardMonthLimit = Number.parseInt(String(envLimitRaw ?? ''), 10);
+    if (!Number.isFinite(forwardMonthLimit) || forwardMonthLimit < 0) forwardMonthLimit = 1;
+    const startDate = toDate(timeStart);
+    const diff = monthIndex(startDate) - monthIndex(now);
+    if (!(diff >= 0 && diff <= forwardMonthLimit)) {
+      console.warn("DATE_OUT_OF_RANGE", { timeStart, emp: body.ownerEmpCode, limit: forwardMonthLimit });
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Date out of allowed range",
+          message: `You can book only current + ${forwardMonthLimit} month(s)`,
+          code: "DATE_OUT_OF_RANGE",
+        },
+        { status: 400 }
+      );
+    }
+
+    // If recurring, ensure end and all occurrences are within end of next month
+    if (body.isRecurring) {
+      const endOfNextMonth = new Date(
+        now.getFullYear(),
+        now.getMonth() + forwardMonthLimit + 1,
+        0,
+        23,
+        59,
+        59,
+        999
+      );
+      if (body.recurrenceEndType === "on_date" && body.recurrenceEndDate) {
+        const recEnd = toDate(body.recurrenceEndDate);
+        if (recEnd > endOfNextMonth) {
+          console.warn("RECURRENCE_END_OUT_OF_RANGE", { recEnd: body.recurrenceEndDate, limit: endOfNextMonth.toISOString() });
+          return NextResponse.json(
+            {
+              success: false,
+              error: "Recurrence end out of range",
+              message: `Repeat end date must be within current + ${forwardMonthLimit} month(s)`,
+              code: "RECURRENCE_END_OUT_OF_RANGE",
+            },
+            { status: 400 }
+          );
+        }
+      }
+
+      // Generate occurrences to validate they stay within the window
+      const occ = generateOccurrences(timeStart, timeEnd, {
+        recurrenceType: body.recurrenceType,
+        recurrenceInterval: body.recurrenceInterval,
+        recurrenceEndType: body.recurrenceEndType,
+        recurrenceEndDate: body.recurrenceEndDate ?? null,
+        recurrenceEndOccurrences: body.recurrenceEndOccurrences ?? null,
+        recurrenceWeekdays: body.recurrenceWeekdays ?? null,
+        recurrenceMonthday: body.recurrenceMonthday ?? null,
+        recurrenceWeekOrder: body.recurrenceWeekOrder ?? null,
+        skipWeekends: body.skipWeekends ?? null,
+      });
+      // Consider only the first N children when endType is after_occurrences
+      let occToCheck = occ;
+      if (
+        body.recurrenceEndType === "after_occurrences" &&
+        typeof body.recurrenceEndOccurrences === "number"
+      ) {
+        const targetChildren = Math.max(0, body.recurrenceEndOccurrences - 1);
+        occToCheck = occ.slice(0, targetChildren);
+      }
+      const offending = occToCheck.find(({ timeStart: ts }) => toDate(ts) > endOfNextMonth);
+      if (offending) {
+        console.warn("RECURRENCE_OUT_OF_RANGE", { firstOffending: offending.timeStart, limit: endOfNextMonth.toISOString() });
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Recurrence out of range",
+            message: `Repeat dates must be within current + ${forwardMonthLimit} month(s)`,
+            code: "RECURRENCE_OUT_OF_RANGE",
+          },
+          { status: 400 }
+        );
+      }
+    }
     const interpreterCount = await getInterpreterCount();
     // normalize chairman email once for consistent checks and storage
     const normalizedChairmanEmail = body.chairmanEmail

@@ -73,6 +73,7 @@ export function BookingForm({
   daysInMonth,
   dayOccupancy,
   maxLanes = MAX_LANES,
+  forwardMonthLimit = 1,
 }: BookingFormProps) {
   // Form state
   const [startTime, setStartTime] = useState<string>("");
@@ -218,6 +219,51 @@ export function BookingForm({
         : { lastAttempt: now, windowStart: now, retries: 1 };
     });
   };
+
+  // Error-to-element mapping and scroll helper
+  const errorKeyToElementId: Record<string, string> = {
+    meetingRoom: "meetingRoom",
+    meetingType: "meetingType",
+    drType: "drType",
+    otherType: "otherType",
+    languageCodes: "languageCodes",
+    startTime: "meeting-time",
+    endTime: "meeting-time",
+    chairmanEmail: "chairmanEmail",
+    selectedInterpreterEmpCode: "interpreterSelect",
+    recurrenceEndType: "repeatSelect",
+    recurrenceEndDate: "repeatSelect",
+    recurrenceEndOccurrences: "repeatSelect",
+  };
+
+  const friendlyFieldLabel: Record<string, string> = {
+    meetingRoom: "Meeting room",
+    meetingType: "Meeting type",
+    drType: "DR type",
+    otherType: "Other type",
+    languageCodes: "Language",
+    startTime: "Start time",
+    endTime: "End time",
+    chairmanEmail: "Chairman email",
+    selectedInterpreterEmpCode: "Interpreter",
+    recurrenceEndType: "Repeat end option",
+    recurrenceEndDate: "Repeat end date",
+    recurrenceEndOccurrences: "Repeat occurrences",
+  };
+
+  function scrollToError(errs: Record<string, string>) {
+    const first = Object.keys(errs)[0];
+    if (!first) return;
+    if (first === "chairmanEmail") return focusChairmanField();
+    if (first.startsWith("recurrence")) return focusRecurrenceControls();
+    if (first === "meetingRoom" || first === "startTime" || first === "endTime")
+      return focusTimeOrRoom();
+    const id = errorKeyToElementId[first];
+    if (!id) return;
+    const el = document.getElementById(id);
+    el?.scrollIntoView({ behavior: "smooth", block: "center" });
+    (el as HTMLElement | null)?.focus?.();
+  }
 
   // Forward booking handler
   const handleForwardBooking = async (bookingId: number) => {
@@ -756,6 +802,7 @@ export function BookingForm({
     if (type === "daily") {
       for (let i = 1; i < maxTotal; i++) {
         const cand = addDaysLocal(start, i * interval);
+        if (isWeekend(cand)) continue;
         if (!pushIf(cand)) break;
       }
     } else if (type === "weekly" || type === "biweekly" || type === "custom") {
@@ -781,6 +828,7 @@ export function BookingForm({
         if (w >= 1) weekStart = addWeeksLocal(weekStart, actualInterval);
         for (const wd of weekdays) {
           const cand = addDaysLocal(weekStart, wd);
+          if (isWeekend(cand)) continue;
           if (cand.getTime() === start.getTime()) continue;
           if (!pushIf(cand)) return dates;
         }
@@ -814,7 +862,10 @@ export function BookingForm({
             cand = null; // skip months without the target day (e.g., 29/30/31)
           }
         }
-        if (cand && !pushIf(cand)) break;
+        if (cand) {
+          if (isWeekend(cand)) continue;
+          if (!pushIf(cand)) break;
+        }
       }
     }
     return dates;
@@ -1060,7 +1111,7 @@ export function BookingForm({
   };
 
   // Form validation
-  const validateForm = (): boolean => {
+  const validateForm = (): { ok: boolean; errors: Record<string, string> } => {
     const newErrors: Record<string, string> = {};
 
     if (!meetingRoom.trim()) newErrors.meetingRoom = "Meeting room is required";
@@ -1128,15 +1179,15 @@ export function BookingForm({
         newErrors.recurrenceEndDate = "Select an end date";
       } else if (
         recurrenceEndType === "after_occurrences" &&
-        (!recurrenceEndOccurrences || recurrenceEndOccurrences < 1)
+        ((recurrenceEndOccurrences ?? 0) <= 1)
       ) {
-        newErrors.recurrenceEndOccurrences = "Enter occurrences (>= 1)";
+        newErrors.recurrenceEndOccurrences = "Enter occurrences (> 1)";
       }
     }
 
     setErrors(newErrors);
     console.log("ERROR IS = ", newErrors);
-    return Object.keys(newErrors).length === 0;
+    return { ok: Object.keys(newErrors).length === 0, errors: newErrors } as const;
   };
 
   // Form submission (real create call)
@@ -1257,7 +1308,7 @@ export function BookingForm({
               : null,
           recurrenceWeekOrder:
             recurrenceType === "monthly" ? recurrenceWeekOrder || null : null,
-          skipWeekends: opts?.skipWeekends || undefined,
+          skipWeekends: true,
         };
       }
 
@@ -1473,21 +1524,57 @@ export function BookingForm({
   const handleSubmit = async () => {
     // mark attempt timestamp for retry cooldown visibility
     setRetryInfo((prev) => ({ ...prev, lastAttempt: Date.now() }));
-    if (!validateForm()) return;
+    const result = validateForm();
+    if (!result.ok) {
+      const missing = Object.keys(result.errors).map((k) => friendlyFieldLabel[k] || k);
+      const top = missing.slice(0, 4).join(", ");
+      toast.error(missing.length > 4 ? `Please fill: ${top} + more` : `Please fill: ${top}`);
+      scrollToError(result.errors);
+      return;
+    }
     if (!dayObj) return;
 
-    // Phase 4: Preview weekends for non-occurrence flows and prompt user
+    // Enforce month-based window: only current month + forwardMonthLimit are allowed
+    const monthIndex = (d: Date) => d.getFullYear() * 12 + d.getMonth();
+    const now = new Date();
+    const diff = monthIndex(dayObj.fullDate) - monthIndex(now);
+    if (!(diff >= 0 && diff <= forwardMonthLimit)) {
+      toast.error(
+        `You can book only current + ${forwardMonthLimit} month${forwardMonthLimit === 1 ? '' : 's'}`
+      );
+      return;
+    }
+
+    // If repeating, make sure every occurrence stays within allowed window (end of next month)
     if (repeatChoice !== "none") {
+      const endOfWindow = new Date(
+        now.getFullYear(),
+        now.getMonth() + forwardMonthLimit + 1,
+        0,
+        23,
+        59,
+        59,
+        999
+      );
       const preview = previewRecurringDates();
-      const hasWeekend = preview.some((d) => isWeekend(d));
-      if (hasWeekend) {
-        setDialog({
-          type: "weekend",
-          message: "Some occurrences fall on Sat/Sun.",
-        });
+      // Only check the first N-1 children when after_occurrences is selected
+      const childrenToCheck = (() => {
+        if (recurrenceEndType === "after_occurrences" && typeof recurrenceEndOccurrences === 'number') {
+          const targetChildren = Math.max(0, recurrenceEndOccurrences - 1);
+          return preview.slice(0, targetChildren);
+        }
+        return preview;
+      })();
+      const outOfRange = childrenToCheck.some((d) => d > endOfWindow);
+      if (outOfRange) {
+        toast.error(
+          `Repeat dates must be within current + ${forwardMonthLimit} month${forwardMonthLimit === 1 ? '' : 's'}`
+        );
         return;
       }
     }
+
+    // Weekends are always skipped; no dialog needed
 
     // Preflight: ask server if forward is eligible before saving
     try {
@@ -1622,6 +1709,9 @@ export function BookingForm({
                 selectedSlot={selectedSlot}
                 repeatSection={
                   <div className="space-y-4">
+                    <p className="text-xs text-muted-foreground">
+                      Weekends are not bookable. We skip Sat/Sun automatically.
+                    </p>
                     {/* Additional repeat options (date/occurrences) */}
 
                     {/* Second row: Until options (date/occurrences) if repeat is selected */}
@@ -1663,6 +1753,12 @@ export function BookingForm({
                                         dayObj.fullDate.getDate()
                                       )
                                     : undefined;
+                                  const _now = new Date();
+                                  const maxDate = new Date(
+                                    _now.getFullYear(),
+                                    _now.getMonth() + forwardMonthLimit + 1,
+                                    0
+                                  ); // last day of allowed window
                                   return (
                                     <CalendarComponent
                                       mode="single"
@@ -1676,9 +1772,11 @@ export function BookingForm({
                                           setRecurrenceEndDate("");
                                         }
                                       }}
-                                      disabled={(date) =>
-                                        minDate ? date < minDate : false
-                                      }
+                                      disabled={(date) => {
+                                        const tooEarly = minDate ? date < minDate : false;
+                                        const tooLate = maxDate ? date > maxDate : false;
+                                        return tooEarly || tooLate;
+                                      }}
                                       components={{
                                         DayButton: (props) => (
                                           <CalendarDayButton
@@ -1711,13 +1809,42 @@ export function BookingForm({
                                 min={0}
                                 value={recurrenceEndOccurrences ?? 0}
                                 onChange={(e) =>
-                                  setRecurrenceEndOccurrences(
-                                    Math.max(0, Number(e.target.value) || 0)
-                                  )
+                                  setRecurrenceEndOccurrences(() => {
+                                    const raw = Math.max(0, Number(e.target.value) || 0);
+                                    const now = new Date();
+                                    const endOfWindow = new Date(
+                                      now.getFullYear(),
+                                      now.getMonth() + forwardMonthLimit + 1,
+                                      0,
+                                      23,
+                                      59,
+                                      59,
+                                      999
+                                    );
+                                    const children = previewRecurringDates().filter((d) => d <= endOfWindow).length;
+                                    const maxOcc = 1 + children; // occurrences include the first
+                                    return Math.min(raw, Math.max(0, maxOcc));
+                                  })
                                 }
                                 className="w-20"
                                 aria-label="Number of occurrences"
                               />
+                              <span className="text-xs text-muted-foreground">(max
+                                {(() => {
+                                  const now = new Date();
+                                  const endOfWindow = new Date(
+                                    now.getFullYear(),
+                                    now.getMonth() + forwardMonthLimit + 1,
+                                    0,
+                                    23,
+                                    59,
+                                    59,
+                                    999
+                                  );
+                                  const children = previewRecurringDates().filter((d) => d <= endOfWindow).length;
+                                  const maxOcc = 1 + children;
+                                  return ` ${maxOcc}`;
+                                })()})</span>
                               <span className="text-sm text-muted-foreground whitespace-nowrap">
                                 occurrences
                               </span>
@@ -1914,7 +2041,7 @@ export function BookingForm({
                   )}
                 </div>
                 {errors.languageCodes && (
-                  <div className="flex items-center gap-2 text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-md p-2">
+                  <div id="languageCodes" className="flex items-center gap-2 text-sm text-destructive bg-destructive/10 border border-destructive rounded-md p-2">
                     <AlertTriangle className="h-4 w-4 flex-shrink-0" />
                     <span>{errors.languageCodes}</span>
                   </div>
@@ -1937,7 +2064,7 @@ export function BookingForm({
                       )
                     }
                   >
-                    <SelectTrigger className="w-full">
+                  <SelectTrigger id="interpreterSelect" className="w-full">
                       <SelectValue placeholder="Choose interpreter for this meeting" />
                     </SelectTrigger>
                     <SelectContent>
@@ -2061,35 +2188,7 @@ export function BookingForm({
               </AlertDialogFooter>
             </>
           )}
-          {dialog.type === "weekend" && (
-            <>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Weekend included</AlertDialogTitle>
-                <AlertDialogDescription>
-                  {dialog.message ||
-                    "Some occurrences fall on Sat/Sun. Adjust your recurrence settings."}
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogAction
-                  onClick={() => {
-                    setDialog({ type: "none" });
-                    focusRecurrenceControls();
-                  }}
-                >
-                  Back to Edit
-                </AlertDialogAction>
-                <AlertDialogAction
-                  onClick={() => {
-                    setDialog({ type: "none" });
-                    proceedSubmit({ skipWeekends: true });
-                  }}
-                >
-                  Skip weekend
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </>
-          )}
+          {/* Weekend dialog removed: weekends are always skipped */}
 
           {dialog.type === "overlap" && (
             <>
