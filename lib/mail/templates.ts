@@ -1,22 +1,22 @@
 import prisma, { MeetingType } from "@/prisma/prisma"
 
 export interface EmailTemplate {
-  id: string
-  name: string
-  category: string
-  subject: string
-  body: string
-  isHtml: boolean
-  isSystem: boolean
+    id: string
+    name: string
+    category: string
+    subject: string
+    body: string
+    isHtml: boolean
+    isSystem: boolean
 }
 
 export const SYSTEM_TEMPLATES: EmailTemplate[] = [
-  {
-    id: 'unified-meeting',
-    name: 'Unified Meeting Invitation',
-    category: 'meeting',
-    subject: '{meetingType} Meeting - {topic}',
-    body: `<!DOCTYPE html>
+    {
+        id: 'unified-meeting',
+        name: 'Unified Meeting Invitation',
+        category: 'meeting',
+        subject: '{meetingType} Meeting - {topic}',
+        body: `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -65,48 +65,50 @@ export const SYSTEM_TEMPLATES: EmailTemplate[] = [
                 <h3 style="margin: 0 0 20px 0; color: #0f172a; font-size: 18px; font-weight: 600; border-bottom: 2px solid {headerColor1}; padding-bottom: 8px;">
                     📝 Meeting Details
                 </h3>
-                
+
                 <div style="background: #FAFBFC; border-radius: 8px; padding: 20px; border: 1px solid #E5E7EB;">
                     <table cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse;">
                         <tr>
-                            <td style="padding: 8px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                            <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
                                 📋 Meeting Type:
                             </td>
-                            <td style="padding: 8px 0; color: #374151;">
+                            <td style="padding: 10px 0; color: #374151;">
                                 {meetingTypeDisplay}
                             </td>
                         </tr>
-                        {drDetailsSection}
+                        {descriptionSection}
+                        {applicationModelSection}
                         <tr>
-                            <td style="padding: 8px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                            <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
                                 ⏰ Time:
                             </td>
-                            <td style="padding: 8px 0; color: #374151;">
+                            <td style="padding: 10px 0; color: #374151;">
                                 {time}
                             </td>
                         </tr>
                         <tr>
-                            <td style="padding: 8px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                            <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
                                 📍 Location:
                             </td>
-                            <td style="padding: 8px 0; color: #374151;">
+                            <td style="padding: 10px 0; color: #374151;">
                                 {location}
                             </td>
                         </tr>
                         <tr>
-                            <td style="padding: 8px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                            <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
                                 👤 Organizer:
                             </td>
-                            <td style="padding: 8px 0; color: #374151;">
+                            <td style="padding: 10px 0; color: #374151;">
                                 {organizerName}
                             </td>
                         </tr>
+                        {interpreterSection}
                         {chairmanSection}
                         <tr>
-                            <td style="padding: 8px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                            <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
                                 👥 Participants:
                             </td>
-                            <td style="padding: 8px 0; color: #374151;">
+                            <td style="padding: 10px 0; color: #374151;">
                                 {participant}
                             </td>
                         </tr>
@@ -144,15 +146,15 @@ export const SYSTEM_TEMPLATES: EmailTemplate[] = [
     </div>
 </body>
 </html>`,
-    isHtml: true,
-    isSystem: true
-  },
-  {
-    id: 'unified-cancellation',
-    name: 'Unified Meeting Cancellation',
-    category: 'cancellation',
-    subject: 'CANCELLED: {meetingType} Meeting - {topic}',
-    body: `<!DOCTYPE html>
+        isHtml: true,
+        isSystem: true
+    },
+    {
+        id: 'unified-cancellation',
+        name: 'Unified Meeting Cancellation',
+        category: 'cancellation',
+        subject: 'CANCELLED: {meetingType} Meeting - {topic}',
+        body: `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -202,56 +204,50 @@ export const SYSTEM_TEMPLATES: EmailTemplate[] = [
                 <h3 style="margin: 0 0 20px 0; color: #0f172a; font-size: 18px; font-weight: 600; border-bottom: 2px solid #DC2626; padding-bottom: 8px;">
                     📝 Cancelled Meeting Details
                 </h3>
-                
+
                 <div style="background: #FAFBFC; border-radius: 8px; padding: 20px; border: 1px solid #E5E7EB;">
                     <table cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse;">
                         <tr>
-                            <td style="padding: 8px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
-                                📋 Meeting Type:
+                            <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                                �� Meeting Type:
                             </td>
-                            <td style="padding: 8px 0; color: #374151;">
+                            <td style="padding: 10px 0; color: #374151;">
                                 {meetingTypeDisplay}
                             </td>
                         </tr>
+                        {descriptionSection}
+                        {applicationModelSection}
                         <tr>
-                            <td style="padding: 8px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
-                                📋 Topic:
-                            </td>
-                            <td style="padding: 8px 0; color: #374151;">
-                                {topic}
-                            </td>
-                        </tr>
-                        {drDetailsSection}
-                        <tr>
-                            <td style="padding: 8px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                            <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
                                 ⏰ Time:
                             </td>
-                            <td style="padding: 8px 0; color: #374151;">
+                            <td style="padding: 10px 0; color: #374151;">
                                 {time}
                             </td>
                         </tr>
                         <tr>
-                            <td style="padding: 8px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                            <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
                                 📍 Location:
                             </td>
-                            <td style="padding: 8px 0; color: #374151;">
+                            <td style="padding: 10px 0; color: #374151;">
                                 {location}
                             </td>
                         </tr>
                         <tr>
-                            <td style="padding: 8px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                            <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
                                 👤 Organizer:
                             </td>
-                            <td style="padding: 8px 0; color: #374151;">
+                            <td style="padding: 10px 0; color: #374151;">
                                 {organizerName}
                             </td>
                         </tr>
+                        {interpreterSection}
                         {chairmanSection}
                         <tr>
-                            <td style="padding: 8px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                            <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
                                 👥 Participants:
                             </td>
-                            <td style="padding: 8px 0; color: #374151;">
+                            <td style="padding: 10px 0; color: #374151;">
                                 {participant}
                             </td>
                         </tr>
@@ -304,385 +300,498 @@ export const SYSTEM_TEMPLATES: EmailTemplate[] = [
     </div>
 </body>
 </html>`,
-    isHtml: true,
-    isSystem: true
-  }
+        isHtml: true,
+        isSystem: true
+    }
 ]
 
 export function getTemplateById(id: string): EmailTemplate | undefined {
-  return SYSTEM_TEMPLATES.find(template => template.id === id)
+    return SYSTEM_TEMPLATES.find(template => template.id === id)
 }
 
 export function getTemplatesByCategory(category: string): EmailTemplate[] {
-  return SYSTEM_TEMPLATES.filter(template => template.category === category)
+    return SYSTEM_TEMPLATES.filter(template => template.category === category)
 }
 
 export function getAllTemplates(): EmailTemplate[] {
-  return SYSTEM_TEMPLATES
+    return SYSTEM_TEMPLATES
 }
 
 export function formatTemplate(template: EmailTemplate, variables: Record<string, string>): { subject: string; body: string; isHtml: boolean } {
-  let subject = template.subject
-  let body = template.body
+    let subject = template.subject
+    let body = template.body
 
-  // Replace variables in subject and body
-  Object.entries(variables).forEach(([key, value]) => {
-    const placeholder = `{${key}}`
-    subject = subject.replace(new RegExp(placeholder, 'g'), value)
-    body = body.replace(new RegExp(placeholder, 'g'), value)
-  })
+    // Replace variables in subject and body
+    Object.entries(variables).forEach(([key, value]) => {
+        const placeholder = `{${key}}`
+        subject = subject.replace(new RegExp(placeholder, 'g'), value)
+        body = body.replace(new RegExp(placeholder, 'g'), value)
+    })
 
-  return { subject, body, isHtml: template.isHtml }
+    return { subject, body, isHtml: template.isHtml }
 }
 
 // Unified template mapping - all meeting types use the same template with different variables
 export const DEFAULT_TEMPLATE_BY_MEETING_TYPE: Record<MeetingType, string> = {
-  DR: 'unified-meeting',
-  VIP: 'unified-meeting',
-  Weekly: 'unified-meeting',
-  General: 'unified-meeting',
-  Urgent: 'unified-meeting',
-  President: 'unified-meeting',
-  Other: 'unified-meeting'
+    DR: 'unified-meeting',
+    VIP: 'unified-meeting',
+    Weekly: 'unified-meeting',
+    General: 'unified-meeting',
+    Urgent: 'unified-meeting',
+    President: 'unified-meeting',
+    Other: 'unified-meeting'
 }
 
 export function getTemplateForMeetingType(meetingType: MeetingType): EmailTemplate | undefined {
-  const templateId = DEFAULT_TEMPLATE_BY_MEETING_TYPE[meetingType]
-  return getTemplateById(templateId)
+    const templateId = DEFAULT_TEMPLATE_BY_MEETING_TYPE[meetingType]
+    return getTemplateById(templateId)
 }
 
 export function getDeviceDRTemplateVariables(): Record<string, string> {
-  return {
-    topic: 'DC-K/I Altair comply WAF&RDS policies',
-    date: '23/Sep/\'25 (Tue)',
-    deviceGroup: 'IoT',
-    applicableModel: '-',
-    drStage: 'DC-K/I',
-    time: '15:00-16:00',
-    place: 'R&D/ Meeting Room 4&5 (Floor 4) or Microsoft Team meeting',
-    chairman: 'Mr. Nomura Yoshihide',
-    participant: 'R&D/DEDE, MKQ, DIT/IT and DIL/ITS',
-    organizerName: 'DEDE_SYSTEM',
-    organizerDivision: 'R&D DIVISION / DEVICE GROUP',
-    organizerPhone: '0-3846-9700 #7650'
-  }
+    return {
+        topic: 'DC-K/I Altair comply WAF&RDS policies',
+        date: '23/Sep/\'25 (Tue)',
+        deviceGroup: 'IoT',
+        applicableModel: '-',
+        drStage: 'DC-K/I',
+        time: '15:00-16:00',
+        place: 'R&D/ Meeting Room 4&5 (Floor 4) or Microsoft Team meeting',
+        chairman: 'Mr. Nomura Yoshihide',
+        participant: 'R&D/DEDE, MKQ, DIT/IT and DIL/ITS',
+        organizerName: 'DEDE_SYSTEM',
+        organizerDivision: 'R&D DIVISION / DEVICE GROUP',
+        organizerPhone: '0-3846-9700 #7650'
+    }
 }
 
 // Generic variables helper for non-DR meeting types
 export function getGenericMeetingTemplateVariables(): Record<string, string> {
-  return {
-    topic: 'Meeting Topic',
-    date: 'dd/MMM/\'yy (EEE)',
-    time: 'HH:mm–HH:mm',
-    location: 'Meeting Room / Teams',
-    organizer: 'Organizer',
-    organizerName: 'Organizer'
-  }
+    return {
+        topic: 'Meeting Topic',
+        date: 'dd/MMM/\'yy (EEE)',
+        time: 'HH:mm–HH:mm',
+        location: 'Meeting Room / Teams',
+        organizer: 'Organizer',
+        organizerName: 'Organizer'
+    }
 }
 
 // ===== DB-backed variable builders =====
 function formatGbDateWithWeekday(date: Date): string {
-  return date
-    .toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' })
-    .replace(/(\d+)\/(\w+)\/(\d+)/, '$1/$2/\'$3') +
-    ` (${date.toLocaleDateString('en-US', { weekday: 'short' })})`
+    return date
+        .toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' })
+        .replace(/(\d+)\/(\w+)\/(\d+)/, '$1/$2/\'$3') +
+        ` (${date.toLocaleDateString('en-US', { weekday: 'short' })})`
 }
 
 function formatTimeRange(start: Date, end: Date): string {
-  const s = start.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false })
-  const e = end.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false })
-  return `${s}–${e}`
+    const s = start.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false })
+    const e = end.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false })
+    return `${s}–${e}`
 }
 
 // Meeting type configurations for unified template
 const MEETING_TYPE_CONFIG = {
-  DR: {
-    icon: '🎯',
-    headerColor1: '#00A0E9',
-    headerColor2: '#0078C7',
-    displayName: 'Device Review (DR)'
-  },
-  VIP: {
-    icon: '⭐',
-    headerColor1: '#7C3AED',
-    headerColor2: '#5B21B6',
-    displayName: 'VIP'
-  },
-  Weekly: {
-    icon: '📅',
-    headerColor1: '#059669',
-    headerColor2: '#047857',
-    displayName: 'Weekly'
-  },
-  General: {
-    icon: '📋',
-    headerColor1: '#4F46E5',
-    headerColor2: '#3730A3',
-    displayName: 'General'
-  },
-  Urgent: {
-    icon: '🚨',
-    headerColor1: '#DC2626',
-    headerColor2: '#B91C1C',
-    displayName: 'Urgent'
-  },
-  President: {
-    icon: '👑',
-    headerColor1: '#B45309',
-    headerColor2: '#92400E',
-    displayName: 'President'
-  },
-  Other: {
-    icon: '📝',
-    headerColor1: '#6B7280',
-    headerColor2: '#4B5563',
-    displayName: 'Other'
-  }
+    DR: {
+        icon: '🎯',
+        headerColor1: '#00A0E9',
+        headerColor2: '#0078C7',
+        displayName: 'Device Review (DR)'
+    },
+    VIP: {
+        icon: '⭐',
+        headerColor1: '#7C3AED',
+        headerColor2: '#5B21B6',
+        displayName: 'VIP'
+    },
+    Weekly: {
+        icon: '📅',
+        headerColor1: '#059669',
+        headerColor2: '#047857',
+        displayName: 'Weekly'
+    },
+    General: {
+        icon: '📋',
+        headerColor1: '#4F46E5',
+        headerColor2: '#3730A3',
+        displayName: 'General'
+    },
+    Urgent: {
+        icon: '🚨',
+        headerColor1: '#DC2626',
+        headerColor2: '#B91C1C',
+        displayName: 'Urgent'
+    },
+    President: {
+        icon: '👑',
+        headerColor1: '#B45309',
+        headerColor2: '#92400E',
+        displayName: 'President'
+    },
+    Other: {
+        icon: '📝',
+        headerColor1: '#6B7280',
+        headerColor2: '#4B5563',
+        displayName: 'Other'
+    }
 }
 
 // DR sub-type display mapping
 const DR_SUBTYPE_DISPLAY = {
-  DR_PR: 'DR-PR',
-  DR_k: 'DR-k',
-  DR_II: 'DR-II',
-  DR_I: 'DR-I',
-  Other: 'Custom DR Type'
+    DR_PR: 'DR-PR',
+    DR_k: 'DR-k',
+    DR_II: 'DR-II',
+    DR_I: 'DR-I',
+    Other: 'Custom DR Type'
 }
 
 export async function buildTemplateVariablesFromBooking(bookingId: number): Promise<Record<string, string>> {
-  const booking = await prisma.bookingPlan.findUnique({
-    where: { bookingId },
-    include: {
-      employee: true, // owner
-      inviteEmails: true,
-    }
-  })
-  if (!booking) throw new Error(`Booking not found: ${bookingId}`)
+    const booking = await prisma.bookingPlan.findUnique({
+        where: { bookingId },
+        include: {
+            employee: true, // owner
+            inviteEmails: true,
+            interpreterEmployee: true, // assigned interpreter
+            selectedInterpreter: true, // selected interpreter (for President meetings)
+        }
+    })
+    if (!booking) throw new Error(`Booking not found: ${bookingId}`)
 
-  const start = new Date(booking.timeStart)
-  const end = new Date(booking.timeEnd)
+    const start = new Date(booking.timeStart)
+    const end = new Date(booking.timeEnd)
 
-  const meetingType = booking.meetingType as MeetingType
-  const config = MEETING_TYPE_CONFIG[meetingType]
-  const isDR = meetingType === 'DR'
+    const meetingType = booking.meetingType as MeetingType
+    const config = MEETING_TYPE_CONFIG[meetingType]
+    const isDR = meetingType === 'DR'
 
-  // Build topic
-  const topic = booking.meetingDetail
-    ? `${meetingType} – ${booking.meetingDetail}`
-    : meetingType
+    // Build topic - just the meeting type for title
+    const topic = meetingType
 
-  // Build participants list
-  const participant = booking.inviteEmails.length
-    ? booking.inviteEmails.map(i => i.email).join(', ')
-    : 'To be confirmed'
-
-  // Build organizer info
-  const organizerName = booking.employee
-    ? [booking.employee.firstNameEn, booking.employee.lastNameEn].filter(Boolean).join(' ') || (booking.employee.email ?? booking.ownerEmpCode)
-    : booking.ownerEmpCode
-
-  const organizerDivision = booking.employee?.deptPath ?? ''
-  const organizerPhone = booking.employee?.telExt ?? ''
-
-  // Build DR-specific sections
-  let drDetailsSection = ''
-  let chairmanSection = ''
-  let meetingTypeDisplay = config.displayName
-
-  if (isDR) {
-    // Handle DR sub-types - ALL DR sub-types are supported
-    const drSubtype = booking.drType
-    const drSubtypeDisplay = drSubtype ? DR_SUBTYPE_DISPLAY[drSubtype] || drSubtype : 'Not specified'
-    
-    // If DR sub-type is "Other", use the custom otherType text
-    const finalDrDisplay = (drSubtype === 'Other' && booking.otherType) 
-      ? booking.otherType 
-      : drSubtypeDisplay
-
-    meetingTypeDisplay = `${config.displayName} - ${finalDrDisplay}`
-
-    drDetailsSection = `
+    // Build description section
+    const description = booking.meetingDetail || ''
+    const descriptionSection = description ? `
                         <tr>
-                            <td style="padding: 8px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                            <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                                📝 Description:
+                            </td>
+                            <td style="padding: 10px 0; color: #374151;">
+                                ${description}
+                            </td>
+                        </tr>` : ''
+
+    // Build participants list - include everyone
+    const participantsList = new Set<string>()
+
+    // Add owner/booker
+    const ownerEmail = booking.employee?.email?.trim()
+    if (ownerEmail) participantsList.add(ownerEmail)
+
+    // Add assigned interpreter
+    const interpreterEmail = booking.interpreterEmployee?.email?.trim()
+    if (interpreterEmail) participantsList.add(interpreterEmail)
+
+    // Add selected interpreter (for President meetings)
+    const selectedInterpreterEmail = booking.selectedInterpreter?.email?.trim()
+    if (selectedInterpreterEmail) participantsList.add(selectedInterpreterEmail)
+
+    // Add chairman
+    if (booking.chairmanEmail?.trim()) participantsList.add(booking.chairmanEmail.trim())
+
+    // Add all invited attendees
+    booking.inviteEmails?.forEach(invite => {
+        const email = invite.email?.trim()
+        if (email) participantsList.add(email)
+    })
+
+    const participant = participantsList.size > 0
+        ? Array.from(participantsList).join(', ')
+        : 'To be confirmed'
+
+    // Build interpreter section
+    const interpreterName = booking.interpreterEmployee
+        ? [booking.interpreterEmployee.firstNameEn, booking.interpreterEmployee.lastNameEn].filter(Boolean).join(' ') || booking.interpreterEmployee.email
+        : (booking.selectedInterpreter
+            ? [booking.selectedInterpreter.firstNameEn, booking.selectedInterpreter.lastNameEn].filter(Boolean).join(' ') || booking.selectedInterpreter.email
+            : '')
+
+    const interpreterSection = interpreterName ? `
+                        <tr>
+                            <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                                🗣️ Interpreter:
+                            </td>
+                            <td style="padding: 10px 0; color: #374151;">
+                                ${interpreterName}
+                            </td>
+                        </tr>` : ''
+
+    // Build organizer info
+    const organizerName = booking.employee
+        ? [booking.employee.firstNameEn, booking.employee.lastNameEn].filter(Boolean).join(' ') || (booking.employee.email ?? booking.ownerEmpCode)
+        : booking.ownerEmpCode
+
+    const organizerDivision = booking.employee?.deptPath ?? ''
+    const organizerPhone = booking.employee?.telExt ?? ''
+
+    // Build Application Model section
+    const applicationModelSection = booking.applicableModel ? `
+                        <tr>
+                            <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                                📱 Application Model:
+                            </td>
+                            <td style="padding: 10px 0; color: #374151;">
+                                ${booking.applicableModel}
+                            </td>
+                        </tr>` : ''
+
+    // Build DR-specific sections
+    let drDetailsSection = ''
+    let chairmanSection = ''
+    let meetingTypeDisplay = config.displayName
+
+    if (isDR) {
+        // Handle DR sub-types - ALL DR sub-types are supported
+        const drSubtype = booking.drType
+        const drSubtypeDisplay = drSubtype ? DR_SUBTYPE_DISPLAY[drSubtype] || drSubtype : 'Not specified'
+
+        // If DR sub-type is "Other", use the custom otherType text
+        const finalDrDisplay = (drSubtype === 'Other' && booking.otherType)
+            ? booking.otherType
+            : drSubtypeDisplay
+
+        meetingTypeDisplay = `${config.displayName} - ${finalDrDisplay}`
+
+        drDetailsSection = `
+                        <tr>
+                            <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
                                 🏷️ Device Group:
                             </td>
-                            <td style="padding: 8px 0; color: #374151;">
+                            <td style="padding: 10px 0; color: #374151;">
                                 ${booking.ownerGroup || 'Not specified'}
                             </td>
                         </tr>
                         <tr>
-                            <td style="padding: 8px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
-                                📱 Applicable Model:
-                            </td>
-                            <td style="padding: 8px 0; color: #374151;">
-                                ${booking.applicableModel || 'Not specified'}
-                            </td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 8px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                            <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
                                 🎯 DR Stage:
                             </td>
-                            <td style="padding: 8px 0; color: #374151;">
+                            <td style="padding: 10px 0; color: #374151;">
                                 ${finalDrDisplay}
                             </td>
                         </tr>`
 
-    if (booking.chairmanEmail) {
-      chairmanSection = `
+        if (booking.chairmanEmail) {
+            chairmanSection = `
                         <tr>
-                            <td style="padding: 8px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                            <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
                                 👨‍💼 Chairman:
                             </td>
-                            <td style="padding: 8px 0; color: #374151;">
+                            <td style="padding: 10px 0; color: #374151;">
                                 ${booking.chairmanEmail}
                             </td>
                         </tr>`
+        }
+    } else if (meetingType === 'Other' && booking.otherType) {
+        meetingTypeDisplay = `${config.displayName} - ${booking.otherType}`
     }
-  } else if (meetingType === 'Other' && booking.otherType) {
-    meetingTypeDisplay = `${config.displayName} - ${booking.otherType}`
-  }
 
-  return {
-    // Meeting type specific
-    meetingType: meetingType,
-    meetingTypeDisplay: meetingTypeDisplay,
-    meetingTypeIcon: config.icon,
-    headerColor1: config.headerColor1,
-    headerColor2: config.headerColor2,
-    
-    // Common fields
-    topic,
-    date: formatGbDateWithWeekday(start),
-    time: formatTimeRange(start, end),
-    location: booking.meetingRoom,
-    organizerName,
-    organizerDivision,
-    organizerPhone,
-    participant,
-    
-    // Dynamic sections
-    drDetailsSection,
-    chairmanSection,
-    
-    // Legacy fields (for backward compatibility)
-    organizer: organizerName,
-    deviceGroup: booking.ownerGroup || '',
-    applicableModel: booking.applicableModel || '-',
-    drStage: isDR ? (booking.drType ?? (booking.otherType ?? '-')) : '-',
-    place: booking.meetingRoom,
-    chairman: booking.chairmanEmail ?? '',
+    return {
+        // Meeting type specific
+        meetingType: meetingType,
+        meetingTypeDisplay: meetingTypeDisplay,
+        meetingTypeIcon: config.icon,
+        headerColor1: config.headerColor1,
+        headerColor2: config.headerColor2,
 
-    // Additional field for meeting room compatibility
-    meetingRoom: booking.meetingRoom,
-  }
+        // Common fields
+        topic,
+        date: formatGbDateWithWeekday(start),
+        time: formatTimeRange(start, end),
+        location: booking.meetingRoom,
+        organizerName,
+        organizerDivision,
+        organizerPhone,
+        participant,
+
+        // Dynamic sections
+        descriptionSection,
+        applicationModelSection,
+        drDetailsSection,
+        chairmanSection,
+        interpreterSection,
+
+        // Legacy fields (for backward compatibility)
+        organizer: organizerName,
+        deviceGroup: booking.ownerGroup || '',
+        applicableModel: booking.applicableModel || '-',
+        drStage: isDR ? (booking.drType ?? (booking.otherType ?? '-')) : '-',
+        place: booking.meetingRoom,
+        chairman: booking.chairmanEmail ?? '',
+
+        // Additional field for meeting room compatibility
+        meetingRoom: booking.meetingRoom,
+    }
 }
 
 export async function getFormattedTemplateForBooking(bookingId: number): Promise<{ subject: string; body: string; isHtml: boolean }> {
-  const booking = await prisma.bookingPlan.findUnique({ where: { bookingId } })
-  if (!booking) throw new Error(`Booking not found: ${bookingId}`)
-  const template = getTemplateForMeetingType(booking.meetingType as MeetingType)
-  if (!template) throw new Error(`No template configured for meeting type: ${booking.meetingType}`)
-  const variables = await buildTemplateVariablesFromBooking(bookingId)
-  return formatTemplate(template, variables)
+    const booking = await prisma.bookingPlan.findUnique({ where: { bookingId } })
+    if (!booking) throw new Error(`Booking not found: ${bookingId}`)
+    const template = getTemplateForMeetingType(booking.meetingType as MeetingType)
+    if (!template) throw new Error(`No template configured for meeting type: ${booking.meetingType}`)
+    const variables = await buildTemplateVariablesFromBooking(bookingId)
+    return formatTemplate(template, variables)
 }
 
 export async function buildCancellationTemplateVariablesFromBooking(bookingId: number, reason?: string): Promise<Record<string, string>> {
-  const booking = await prisma.bookingPlan.findUnique({
-    where: { bookingId },
-    include: {
-      employee: true, // owner
-      inviteEmails: true,
-    }
-  })
-  if (!booking) throw new Error(`Booking not found: ${bookingId}`)
+    const booking = await prisma.bookingPlan.findUnique({
+        where: { bookingId },
+        include: {
+            employee: true, // owner
+            inviteEmails: true,
+            interpreterEmployee: true, // assigned interpreter
+            selectedInterpreter: true, // selected interpreter (for President meetings)
+        }
+    })
+    if (!booking) throw new Error(`Booking not found: ${bookingId}`)
 
-  const start = new Date(booking.timeStart)
-  const end = new Date(booking.timeEnd)
+    const start = new Date(booking.timeStart)
+    const end = new Date(booking.timeEnd)
 
-  const meetingType = booking.meetingType as MeetingType
-  const config = MEETING_TYPE_CONFIG[meetingType]
-  const isDR = meetingType === 'DR'
+    const meetingType = booking.meetingType as MeetingType
+    const config = MEETING_TYPE_CONFIG[meetingType]
+    const isDR = meetingType === 'DR'
 
-  // Build topic
-  const topic = booking.meetingDetail
-    ? `${meetingType} – ${booking.meetingDetail}`
-    : meetingType
+    // Build topic - just the meeting type for title
+    const topic = meetingType
 
-  // Build participants list
-  const participant = booking.inviteEmails.length
-    ? booking.inviteEmails.map(i => i.email).join(', ')
-    : 'To be confirmed'
-
-  // Build organizer info
-  const organizerName = booking.employee
-    ? [booking.employee.firstNameEn, booking.employee.lastNameEn].filter(Boolean).join(' ') || (booking.employee.email ?? booking.ownerEmpCode)
-    : booking.ownerEmpCode
-
-  const organizerDivision = booking.employee?.deptPath ?? ''
-  const organizerPhone = booking.employee?.telExt ?? ''
-
-  // Build DR-specific sections
-  let drDetailsSection = ''
-  let chairmanSection = ''
-  let meetingTypeDisplay = config.displayName
-
-  if (isDR) {
-    // Handle DR sub-types - ALL DR sub-types are supported
-    const drSubtype = booking.drType
-    const drSubtypeDisplay = drSubtype ? DR_SUBTYPE_DISPLAY[drSubtype] || drSubtype : 'Not specified'
-    
-    // If DR sub-type is "Other", use the custom otherType text
-    const finalDrDisplay = (drSubtype === 'Other' && booking.otherType) 
-      ? booking.otherType 
-      : drSubtypeDisplay
-
-    meetingTypeDisplay = `${config.displayName} - ${finalDrDisplay}`
-
-    drDetailsSection = `
+    // Build description section
+    const description = booking.meetingDetail || ''
+    const descriptionSection = description ? `
                         <tr>
-                            <td style="padding: 8px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                            <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                                📝 Description:
+                            </td>
+                            <td style="padding: 10px 0; color: #374151;">
+                                ${description}
+                            </td>
+                        </tr>` : ''
+
+    // Build participants list - include everyone
+    const participantsList = new Set<string>()
+
+    // Add owner/booker
+    const ownerEmail = booking.employee?.email?.trim()
+    if (ownerEmail) participantsList.add(ownerEmail)
+
+    // Add assigned interpreter
+    const interpreterEmail = booking.interpreterEmployee?.email?.trim()
+    if (interpreterEmail) participantsList.add(interpreterEmail)
+
+    // Add selected interpreter (for President meetings)
+    const selectedInterpreterEmail = booking.selectedInterpreter?.email?.trim()
+    if (selectedInterpreterEmail) participantsList.add(selectedInterpreterEmail)
+
+    // Add chairman
+    if (booking.chairmanEmail?.trim()) participantsList.add(booking.chairmanEmail.trim())
+
+    // Add all invited attendees
+    booking.inviteEmails?.forEach(invite => {
+        const email = invite.email?.trim()
+        if (email) participantsList.add(email)
+    })
+
+    const participant = participantsList.size > 0
+        ? Array.from(participantsList).join(', ')
+        : 'To be confirmed'
+
+    // Build interpreter section
+    const interpreterName = booking.interpreterEmployee
+        ? [booking.interpreterEmployee.firstNameEn, booking.interpreterEmployee.lastNameEn].filter(Boolean).join(' ') || booking.interpreterEmployee.email
+        : (booking.selectedInterpreter
+            ? [booking.selectedInterpreter.firstNameEn, booking.selectedInterpreter.lastNameEn].filter(Boolean).join(' ') || booking.selectedInterpreter.email
+            : '')
+
+    const interpreterSection = interpreterName ? `
+                        <tr>
+                            <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                                🗣️ Interpreter:
+                            </td>
+                            <td style="padding: 10px 0; color: #374151;">
+                                ${interpreterName}
+                            </td>
+                        </tr>` : ''
+
+    // Build organizer info
+    const organizerName = booking.employee
+        ? [booking.employee.firstNameEn, booking.employee.lastNameEn].filter(Boolean).join(' ') || (booking.employee.email ?? booking.ownerEmpCode)
+        : booking.ownerEmpCode
+
+    const organizerDivision = booking.employee?.deptPath ?? ''
+    const organizerPhone = booking.employee?.telExt ?? ''
+
+    // Build Application Model section
+    const applicationModelSection = booking.applicableModel ? `
+                        <tr>
+                            <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                                📱 Application Model:
+                            </td>
+                            <td style="padding: 10px 0; color: #374151;">
+                                ${booking.applicableModel}
+                            </td>
+                        </tr>` : ''
+
+    // Build DR-specific sections
+    let drDetailsSection = ''
+    let chairmanSection = ''
+    let meetingTypeDisplay = config.displayName
+
+    if (isDR) {
+        // Handle DR sub-types - ALL DR sub-types are supported
+        const drSubtype = booking.drType
+        const drSubtypeDisplay = drSubtype ? DR_SUBTYPE_DISPLAY[drSubtype] || drSubtype : 'Not specified'
+
+        // If DR sub-type is "Other", use the custom otherType text
+        const finalDrDisplay = (drSubtype === 'Other' && booking.otherType)
+            ? booking.otherType
+            : drSubtypeDisplay
+
+        meetingTypeDisplay = `${config.displayName} - ${finalDrDisplay}`
+
+        drDetailsSection = `
+                        <tr>
+                            <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
                                 🏷️ Device Group:
                             </td>
-                            <td style="padding: 8px 0; color: #374151;">
+                            <td style="padding: 10px 0; color: #374151;">
                                 ${booking.ownerGroup || 'Not specified'}
                             </td>
                         </tr>
                         <tr>
-                            <td style="padding: 8px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
-                                📱 Applicable Model:
-                            </td>
-                            <td style="padding: 8px 0; color: #374151;">
-                                ${booking.applicableModel || 'Not specified'}
-                            </td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 8px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                            <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
                                 🎯 DR Stage:
                             </td>
-                            <td style="padding: 8px 0; color: #374151;">
+                            <td style="padding: 10px 0; color: #374151;">
                                 ${finalDrDisplay}
                             </td>
                         </tr>`
 
-    if (booking.chairmanEmail) {
-      chairmanSection = `
+        if (booking.chairmanEmail) {
+            chairmanSection = `
                         <tr>
-                            <td style="padding: 8px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                            <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
                                 👨‍💼 Chairman:
                             </td>
-                            <td style="padding: 8px 0; color: #374151;">
+                            <td style="padding: 10px 0; color: #374151;">
                                 ${booking.chairmanEmail}
                             </td>
                         </tr>`
+        }
+    } else if (meetingType === 'Other' && booking.otherType) {
+        meetingTypeDisplay = `${config.displayName} - ${booking.otherType}`
     }
-  } else if (meetingType === 'Other' && booking.otherType) {
-    meetingTypeDisplay = `${config.displayName} - ${booking.otherType}`
-  }
 
-  // Build reason section
-  let reasonSection = ''
-  if (reason) {
-    reasonSection = `
+    // Build reason section
+    let reasonSection = ''
+    if (reason) {
+        reasonSection = `
             <div style="background: #FEF3C7; border-radius: 8px; padding: 15px; margin-bottom: 25px;">
                 <p style="margin: 0 0 8px 0; color: #92400E; font-size: 14px; font-weight: 600;">
                     📝 Reason for cancellation:
@@ -691,75 +800,78 @@ export async function buildCancellationTemplateVariablesFromBooking(bookingId: n
                     ${reason}
                 </p>
             </div>`
-  }
+    }
 
-  return {
-    // Meeting type specific
-    meetingType: meetingType,
-    meetingTypeDisplay: meetingTypeDisplay,
-    meetingTypeIcon: config.icon,
-    headerColor1: config.headerColor1,
-    headerColor2: config.headerColor2,
-    
-    // Common fields
-    topic,
-    date: formatGbDateWithWeekday(start),
-    time: formatTimeRange(start, end),
-    location: booking.meetingRoom,
-    organizerName,
-    organizerDivision,
-    organizerPhone,
-    participant,
-    
-    // Dynamic sections
-    drDetailsSection,
-    chairmanSection,
-    reasonSection,
-    
-    // Legacy fields (for backward compatibility)
-    organizer: organizerName,
-    deviceGroup: booking.ownerGroup || '',
-    applicableModel: booking.applicableModel || '-',
-    drStage: isDR ? (booking.drType ?? (booking.otherType ?? '-')) : '-',
-    place: booking.meetingRoom,
-    chairman: booking.chairmanEmail ?? '',
+    return {
+        // Meeting type specific
+        meetingType: meetingType,
+        meetingTypeDisplay: meetingTypeDisplay,
+        meetingTypeIcon: config.icon,
+        headerColor1: config.headerColor1,
+        headerColor2: config.headerColor2,
 
-    // Additional field for meeting room compatibility
-    meetingRoom: booking.meetingRoom,
-  }
+        // Common fields
+        topic,
+        date: formatGbDateWithWeekday(start),
+        time: formatTimeRange(start, end),
+        location: booking.meetingRoom,
+        organizerName,
+        organizerDivision,
+        organizerPhone,
+        participant,
+
+        // Dynamic sections
+        descriptionSection,
+        applicationModelSection,
+        drDetailsSection,
+        chairmanSection,
+        interpreterSection,
+        reasonSection,
+
+        // Legacy fields (for backward compatibility)
+        organizer: organizerName,
+        deviceGroup: booking.ownerGroup || '',
+        applicableModel: booking.applicableModel || '-',
+        drStage: isDR ? (booking.drType ?? (booking.otherType ?? '-')) : '-',
+        place: booking.meetingRoom,
+        chairman: booking.chairmanEmail ?? '',
+
+        // Additional field for meeting room compatibility
+        meetingRoom: booking.meetingRoom,
+    }
 }
 
 export async function getFormattedCancellationTemplateForBooking(bookingId: number, reason?: string): Promise<{ subject: string; body: string; isHtml: boolean }> {
-  const template = getTemplateById('unified-cancellation')
-  if (!template) throw new Error('Unified cancellation template not found')
-  const variables = await buildCancellationTemplateVariablesFromBooking(bookingId, reason)
-  return formatTemplate(template, variables)
+    const template = getTemplateById('unified-cancellation')
+    if (!template) throw new Error('Unified cancellation template not found')
+    const variables = await buildCancellationTemplateVariablesFromBooking(bookingId, reason)
+    return formatTemplate(template, variables)
 }
 
 // Legacy function for backward compatibility - now uses unified template
 export function generateCancellationEmailHTML(event: { start?: string; end?: string; summary?: string; location?: string }, reason?: string): string {
-  const startDate = event.start ? new Date(event.start) : new Date()
-  const endDate = event.end ? new Date(event.end) : new Date()
-  
-  const meetingDate = startDate.toLocaleDateString('en-GB', {
-    day: '2-digit',
-    month: 'short',
-    year: '2-digit'
-  }).replace(/(\d+)\/(\w+)\/(\d+)/, '$1/$2/\'$3')
-  const meetingDay = startDate.toLocaleDateString('en-US', {
-    weekday: 'short'
-  })
-  const meetingTime = `${startDate.toLocaleTimeString('en-GB', {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false
-  })}–${endDate.toLocaleTimeString('en-GB', {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false
-  })}`
-  
-  return `<!DOCTYPE html>
+    const startDate = event.start ? new Date(event.start) : new Date()
+    const endDate = event.end ? new Date(event.end) : new Date()
+
+    const meetingDate = startDate.toLocaleDateString('en-GB', {
+        day: '2-digit',
+        month: 'short',
+        year: '2-digit'
+    }).replace(/(\d+)\/(\w+)\/(\d+)/, '$1/$2/\'$3')
+    const meetingDay = startDate.toLocaleDateString('en-US', {
+        weekday: 'short'
+    })
+    const meetingTime = `${startDate.toLocaleTimeString('en-GB', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+    })}–${endDate.toLocaleTimeString('en-GB', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+    })}`
+
+    return `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -801,34 +913,34 @@ export function generateCancellationEmailHTML(event: { start?: string; end?: str
             <div style="background: #F8FAFC; border-radius: 8px; padding: 20px; border: 1px solid #E5E7EB; margin-bottom: 25px;">
                 <table cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse;">
                     <tr>
-                        <td style="padding: 8px 0; width: 100px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                        <td style="padding: 10px 0; width: 100px; font-weight: 600; color: #0f172a; vertical-align: top;">
                             📋 Topic:
                         </td>
-                        <td style="padding: 8px 0; color: #374151;">
+                        <td style="padding: 10px 0; color: #374151;">
                             ${event.summary || 'Untitled Event'}
                         </td>
                     </tr>
                     <tr>
-                        <td style="padding: 8px 0; width: 100px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                        <td style="padding: 10px 0; width: 100px; font-weight: 600; color: #0f172a; vertical-align: top;">
                             📅 Date:
                         </td>
-                        <td style="padding: 8px 0; color: #374151;">
+                        <td style="padding: 10px 0; color: #374151;">
                             ${meetingDate} (${meetingDay})
                         </td>
                     </tr>
                     <tr>
-                        <td style="padding: 8px 0; width: 100px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                        <td style="padding: 10px 0; width: 100px; font-weight: 600; color: #0f172a; vertical-align: top;">
                             ⏰ Time:
                         </td>
-                        <td style="padding: 8px 0; color: #374151;">
+                        <td style="padding: 10px 0; color: #374151;">
                             ${meetingTime}
                         </td>
                     </tr>
                     <tr>
-                        <td style="padding: 8px 0; width: 100px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                        <td style="padding: 10px 0; width: 100px; font-weight: 600; color: #0f172a; vertical-align: top;">
                             📍 Location:
                         </td>
-                        <td style="padding: 8px 0; color: #374151;">
+                        <td style="padding: 10px 0; color: #374151;">
                             ${event.location || 'TBD'}
                         </td>
                     </tr>
