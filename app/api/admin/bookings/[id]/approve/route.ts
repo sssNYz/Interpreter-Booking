@@ -13,16 +13,16 @@ async function getRequester() {
   const cookieStore = await cookies();
   const cookieValue = cookieStore.get(SESSION_COOKIE_NAME)?.value;
   const parsed = verifySessionCookieValue(cookieValue);
-  if (!parsed) return null as const;
+  if (!parsed) return null;
   const requester = await prisma.employee.findUnique({
     where: { empCode: parsed.empCode },
     include: { userRoles: true },
   });
-  if (!requester) return null as const;
+  if (!requester) return null;
   const roles = new Set((requester.userRoles ?? []).map((r) => r.roleCode));
   const isSuper = roles.has("SUPER_ADMIN");
   const isAdmin = isSuper || roles.has("ADMIN");
-  return { requester, isAdmin, isSuper } as const;
+  return { requester, isAdmin, isSuper };
 }
 
 export async function POST(
@@ -180,6 +180,19 @@ export async function POST(
         await tx.$queryRaw`SELECT RELEASE_LOCK(${lockKey})`;
       }
     });
+
+    // Send approval email (fire-and-forget)
+    if (result.status === 200) {
+      try {
+        console.log(`[ADMIN_APPROVE] Triggering approval email for booking ${bookingId}`)
+        const { sendApprovalEmailForBooking } = await import('@/lib/mail/sender')
+        sendApprovalEmailForBooking(bookingId).catch((err) => {
+          console.error(`[ADMIN_APPROVE] Failed to send approval email for booking ${bookingId}:`, err)
+        })
+      } catch (err) {
+        console.error('[ADMIN_APPROVE] Error in email trigger block:', err)
+      }
+    }
 
     return NextResponse.json(result.payload as any, { status: result.status });
   } catch (err) {

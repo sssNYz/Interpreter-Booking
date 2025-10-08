@@ -121,7 +121,9 @@ export async function sendApprovalEmailForBooking(bookingId: number): Promise<vo
   const textBody = (isHtml ? toPlainText(body) : body).trim()
   const transporter = createTransporter()
   try {
+    console.log(`[EMAIL] Verifying SMTP connection for approval email...`)
     await transporter.verify()
+    console.log(`[EMAIL] SMTP connection verified successfully`)
     const mailOptions: nodemailer.SendMailOptions = {
       from: `${organizerName} <${organizerEmail}>`,
       to: recipients.join(', '),
@@ -159,6 +161,9 @@ export async function sendApprovalEmailForBooking(bookingId: number): Promise<vo
     }
     await transporter.sendMail(mailOptions)
     console.log(`[EMAIL] Approval email sent successfully for booking ${bookingId}`)
+  } catch (error) {
+    console.error(`[EMAIL] CRITICAL ERROR sending approval email for booking ${bookingId}:`, error)
+    throw error  // Re-throw to propagate the error
   } finally {
     transporter.close()
   }
@@ -192,7 +197,9 @@ export async function sendCancellationEmailForBooking(bookingId: number, reason?
   const textBody = (isHtml ? toPlainText(body) : body).trim()
   const transporter = createTransporter()
   try {
+    console.log(`[EMAIL] Verifying SMTP connection for cancellation email...`)
     await transporter.verify()
+    console.log(`[EMAIL] SMTP connection verified successfully`)
     const mailOptions: nodemailer.SendMailOptions = {
       from: `${organizerName} <${organizerEmail}>`,
       to: recipients.join(', '),
@@ -230,6 +237,9 @@ export async function sendCancellationEmailForBooking(bookingId: number, reason?
     }
     await transporter.sendMail(mailOptions)
     console.log(`[EMAIL] Cancellation email sent successfully for booking ${bookingId}`)
+  } catch (error) {
+    console.error(`[EMAIL] CRITICAL ERROR sending cancellation email for booking ${bookingId}:`, error)
+    throw error  // Re-throw to propagate the error
   } finally {
     transporter.close()
   }

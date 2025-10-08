@@ -571,6 +571,9 @@ export async function buildTemplateVariablesFromBooking(bookingId: number): Prom
     drStage: isDR ? (booking.drType ?? (booking.otherType ?? '-')) : '-',
     place: booking.meetingRoom,
     chairman: booking.chairmanEmail ?? '',
+
+    // Additional field for meeting room compatibility
+    meetingRoom: booking.meetingRoom,
   }
 }
 
@@ -720,6 +723,9 @@ export async function buildCancellationTemplateVariablesFromBooking(bookingId: n
     drStage: isDR ? (booking.drType ?? (booking.otherType ?? '-')) : '-',
     place: booking.meetingRoom,
     chairman: booking.chairmanEmail ?? '',
+
+    // Additional field for meeting room compatibility
+    meetingRoom: booking.meetingRoom,
   }
 }
 
