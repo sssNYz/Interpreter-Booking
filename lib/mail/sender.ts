@@ -1,7 +1,7 @@
 import nodemailer from 'nodemailer'
 import type { Prisma } from '@prisma/client'
 import prisma from '@/prisma/prisma'
-import { getFormattedTemplateForBooking, buildTemplateVariablesFromBooking, generateCancellationEmailHTML } from './templates'
+import { getFormattedTemplateForBooking, buildTemplateVariablesFromBooking, getFormattedCancellationTemplateForBooking } from './templates'
 import { generateCalendarInvite, createCalendarEvent, createCancelledCalendarEvent } from './calendar'
 
 function createTransporter() {
@@ -12,9 +12,9 @@ function createTransporter() {
   const auth = authMethod === 'none'
     ? undefined
     : {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS
-      }
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS
+    }
 
   return nodemailer.createTransport({
     host,
@@ -46,6 +46,8 @@ type BookingWithEmailRelations = Prisma.BookingPlanGetPayload<{
   include: {
     inviteEmails: true
     employee: true
+    interpreterEmployee: true
+    selectedInterpreter: true
   }
 }>
 
@@ -57,7 +59,9 @@ async function getBookingEmailContext(bookingId: number): Promise<{
     where: { bookingId },
     include: {
       inviteEmails: true,
-      employee: true
+      employee: true, // Owner/booker
+      interpreterEmployee: true, // Assigned interpreter
+      selectedInterpreter: true // Selected interpreter (for President meetings)
     }
   })
 
@@ -65,18 +69,37 @@ async function getBookingEmailContext(bookingId: number): Promise<{
 
   const recipients = new Set<string>()
 
-  const chairmanEmail = booking.chairmanEmail?.trim()
-  if (chairmanEmail) recipients.add(chairmanEmail)
+  // 1. Add the meeting owner/booker (person who created the booking)
+  const ownerEmail = booking.employee?.email?.trim()
+  if (ownerEmail) {
+    recipients.add(ownerEmail)
+  }
 
+  // 2. Add the assigned interpreter (if assigned)
+  const interpreterEmail = booking.interpreterEmployee?.email?.trim()
+  if (interpreterEmail) {
+    recipients.add(interpreterEmail)
+  }
+
+  // 3. Add the selected interpreter (for President meetings)
+  const selectedInterpreterEmail = booking.selectedInterpreter?.email?.trim()
+  if (selectedInterpreterEmail) {
+    recipients.add(selectedInterpreterEmail)
+  }
+
+  // 4. Add chairman email (for DR meetings)
+  const chairmanEmail = booking.chairmanEmail?.trim()
+  if (chairmanEmail) {
+    recipients.add(chairmanEmail)
+  }
+
+  // 5. Add all invited attendees from invite_email_list
   booking.inviteEmails?.forEach(invite => {
     const email = invite.email?.trim()
-    if (email) recipients.add(email)
+    if (email) {
+      recipients.add(email)
+    }
   })
-
-  if (recipients.size === 0) {
-    const ownerEmail = booking.employee?.email?.trim()
-    if (ownerEmail) recipients.add(ownerEmail)
-  }
 
   if (recipients.size === 0) return null
   if (!booking.timeStart || !booking.timeEnd) return null
@@ -88,10 +111,15 @@ async function getBookingEmailContext(bookingId: number): Promise<{
 }
 
 export async function sendApprovalEmailForBooking(bookingId: number): Promise<void> {
+  console.log(`[EMAIL] sendApprovalEmailForBooking called for booking ${bookingId}`)
   const context = await getBookingEmailContext(bookingId)
-  if (!context) return
+  if (!context) {
+    console.log(`[EMAIL] No context found for booking ${bookingId} - skipping email`)
+    return
+  }
 
   const { booking, recipients } = context
+  console.log(`[EMAIL] Sending approval email for booking ${bookingId} to ${recipients.length} recipients:`, recipients)
   const { subject, body, isHtml } = await getFormattedTemplateForBooking(bookingId)
   const vars = await buildTemplateVariablesFromBooking(bookingId)
   const { name: organizerName, email: organizerEmail } = getOrganizerInfo()
@@ -154,16 +182,23 @@ export async function sendApprovalEmailForBooking(bookingId: number): Promise<vo
     }
 
     await transporter.sendMail(mailOptions)
+    console.log(`[EMAIL] Approval email sent successfully for booking ${bookingId}`)
   } finally {
     transporter.close()
   }
 }
 
 export async function sendCancellationEmailForBooking(bookingId: number, reason?: string): Promise<void> {
+  console.log(`[EMAIL] sendCancellationEmailForBooking called for booking ${bookingId}${reason ? ` with reason: ${reason}` : ''}`)
   const context = await getBookingEmailContext(bookingId)
-  if (!context) return
+  if (!context) {
+    console.log(`[EMAIL] No context found for booking ${bookingId} - skipping email`)
+    return
+  }
 
   const { booking, recipients } = context
+  console.log(`[EMAIL] Sending cancellation email for booking ${bookingId} to ${recipients.length} recipients:`, recipients)
+  const { subject, body, isHtml } = await getFormattedCancellationTemplateForBooking(bookingId, reason)
   const vars = await buildTemplateVariablesFromBooking(bookingId)
   const { name: organizerName, email: organizerEmail } = getOrganizerInfo()
 
@@ -182,17 +217,7 @@ export async function sendCancellationEmailForBooking(bookingId: number, reason?
   const cancelledEvent = createCancelledCalendarEvent(baseEvent)
   const calendarInvite = generateCalendarInvite(cancelledEvent)
 
-  const emailBody = generateCancellationEmailHTML(
-    {
-      summary: cancelledEvent.summary,
-      start: booking.timeStart instanceof Date ? booking.timeStart.toISOString() : new Date(booking.timeStart).toISOString(),
-      end: booking.timeEnd instanceof Date ? booking.timeEnd.toISOString() : new Date(booking.timeEnd).toISOString(),
-      location: booking.meetingRoom || ''
-    },
-    reason
-  )
-  const textBody = toPlainText(emailBody)
-  const subject = `CANCELLED: ${cancelledEvent.summary || vars.topic || booking.meetingType}`
+  const textBody = (isHtml ? toPlainText(body) : body).trim()
 
   const transporter = createTransporter()
 
@@ -204,7 +229,7 @@ export async function sendCancellationEmailForBooking(bookingId: number, reason?
       to: recipients.join(', '),
       subject,
       text: textBody,
-      html: emailBody,
+      html: isHtml ? body : undefined,
       alternatives: [
         { contentType: calendarInvite.contentType, content: calendarInvite.content }
       ],
@@ -236,6 +261,7 @@ export async function sendCancellationEmailForBooking(bookingId: number, reason?
     }
 
     await transporter.sendMail(mailOptions)
+    console.log(`[EMAIL] Cancellation email sent successfully for booking ${bookingId}`)
   } finally {
     transporter.close()
   }

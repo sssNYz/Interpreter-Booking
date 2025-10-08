@@ -75,13 +75,21 @@ export async function PATCH(
     if ((to === 'approve' && from !== 'approve') || (to === 'cancel' && from !== 'cancel')) {
       const { sendApprovalEmailForBooking, sendCancellationEmailForBooking } = await import('@/lib/mail/sender')
       if (to === 'approve' && from !== 'approve') {
-        sendApprovalEmailForBooking(updated.bookingId).catch(() => {})
+        console.log(`[EMAIL] Triggering approval email for booking ${updated.bookingId}`)
+        sendApprovalEmailForBooking(updated.bookingId).catch((err) => {
+          console.error(`[EMAIL] Failed to send approval email for booking ${updated.bookingId}:`, err)
+        })
       }
       if (to === 'cancel' && from !== 'cancel') {
-        sendCancellationEmailForBooking(updated.bookingId).catch(() => {})
+        console.log(`[EMAIL] Triggering cancellation email for booking ${updated.bookingId}`)
+        sendCancellationEmailForBooking(updated.bookingId).catch((err) => {
+          console.error(`[EMAIL] Failed to send cancellation email for booking ${updated.bookingId}:`, err)
+        })
       }
     }
-  } catch {}
+  } catch (err) {
+    console.error('[EMAIL] Error in email trigger block:', err)
+  }
 
   return NextResponse.json(updated, { status: 200 });
 }
