@@ -11,16 +11,16 @@ async function getRequester() {
   const cookieStore = await cookies();
   const cookieValue = cookieStore.get(SESSION_COOKIE_NAME)?.value;
   const parsed = verifySessionCookieValue(cookieValue);
-  if (!parsed) return null as const;
+  if (!parsed) return null;
   const requester = await prisma.employee.findUnique({
     where: { empCode: parsed.empCode },
     include: { userRoles: true },
   });
-  if (!requester) return null as const;
+  if (!requester) return null;
   const roles = new Set((requester.userRoles ?? []).map((r) => r.roleCode));
   const isSuper = roles.has("SUPER_ADMIN");
   const isAdmin = isSuper || roles.has("ADMIN");
-  return { requester, isAdmin, isSuper } as const;
+  return { requester, isAdmin, isSuper };
 }
 
 export async function POST(
@@ -120,6 +120,19 @@ export async function POST(
 
       return { status: 200 as const, payload: { ok: true, status: remaining === 0 ? "cancel" : "waiting", remainingTargets: remaining } };
     });
+
+    // Send cancellation email if booking was fully cancelled (fire-and-forget)
+    if (result.status === 200 && result.payload && 'status' in result.payload && result.payload.status === 'cancel') {
+      try {
+        console.log(`[ADMIN_CANCEL] Triggering cancellation email for booking ${bookingId}`)
+        const { sendCancellationEmailForBooking } = await import('@/lib/mail/sender')
+        sendCancellationEmailForBooking(bookingId, note).catch((err) => {
+          console.error(`[ADMIN_CANCEL] Failed to send cancellation email for booking ${bookingId}:`, err)
+        })
+      } catch (err) {
+        console.error('[ADMIN_CANCEL] Error in email trigger block:', err)
+      }
+    }
 
     return NextResponse.json(result.payload as any, { status: result.status });
   } catch (err) {

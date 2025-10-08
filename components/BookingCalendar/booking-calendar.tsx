@@ -40,6 +40,8 @@ import { useSearchParams } from "next/navigation";
 const BookingCalendar: React.FC = () => {
   // State for current month/year being displayed
   const [currentDate, setCurrentDate] = useState(new Date());
+  // Policy: how many months ahead allowed (current + N months)
+  const [forwardMonthLimit, setForwardMonthLimit] = useState<number>(1);
   // Debounced date for fetching to avoid multiple API calls during rapid navigation
   const [debouncedDate, setDebouncedDate] = useState(currentDate);
 
@@ -132,6 +134,17 @@ useEffect(() => {
     const id = window.setTimeout(() => setDebouncedDate(currentDate), 1000);
     return () => window.clearTimeout(id);
   }, [currentDate]);
+
+  // Fetch forward month limit policy once on load
+  useEffect(() => {
+    fetch('/api/policy/forward-limit')
+      .then((res) => res.ok ? res.json() : Promise.reject(res.status))
+      .then((json) => {
+        const n = Number(json?.data?.forwardMonthLimit);
+        if (Number.isFinite(n) && n >= 0) setForwardMonthLimit(n);
+      })
+      .catch(() => { /* keep default */ });
+  }, []);
 
   // Fetch all bookings for the debounced month (use API role-based defaults)
   const { bookings, refetch, loading } = useBookings(debouncedDate);
@@ -555,6 +568,7 @@ useEffect(() => {
                 }
                 isTimeSlotPast={isTimeSlotPast}
                 onSlotClick={handleSlotClick}
+                forwardMonthLimit={forwardMonthLimit}
                 cellWidth={cellWidth}
                 dayLabelWidth={dayLabelWidth}
                 maxLanes={interpreterCount}  // ← Add this
@@ -606,7 +620,7 @@ useEffect(() => {
             {loading ? "Refreshing..." : "Refresh"}
           </Button>
           {/* Admin vision toggle removed */}
-          <BookingRules />
+          <BookingRules forwardMonthLimit={forwardMonthLimit} />
         </div>
 
         {/* Right: interpreter legend */}
@@ -658,6 +672,7 @@ useEffect(() => {
         
         }
         maxLanes={interpreterCount}
+        forwardMonthLimit={forwardMonthLimit}
       />
     </div>
   );

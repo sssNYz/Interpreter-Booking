@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import type { Booking, BookingData, DayInfo, SlotData } from "@/types/booking";
 import { getStatusStyle } from "@/utils/status";
+import { END_OF_DAY } from "@/utils/time";
 
 type Params = {
   bookings: BookingData[];
@@ -45,12 +46,12 @@ export function useSlotData({
 
       const startTime = hhmm(start);
       const endTimeRaw = hhmm(end);
-      const endTime = endTimeRaw === "17:00" ? "17:00" : endTimeRaw;
+      const endTime = endTimeRaw === END_OF_DAY ? END_OF_DAY : endTimeRaw;
 
       // Step through 30-min slots between start and end using string math
       const toMinutes = (t: string) => parseInt(t.slice(0,2),10)*60 + parseInt(t.slice(3,5),10);
       const toTime = (m: number) => `${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`;
-      const rangeEndMinutes = endTime === "17:00" ? toMinutes("16:30") + 30 : toMinutes(endTime);
+      const rangeEndMinutes = toMinutes(endTime);
       for (let m = toMinutes(startTime); m < rangeEndMinutes; m += 30) {
         const timeKey = toTime(m);
         const key = `${dateKey}-${timeKey}`;

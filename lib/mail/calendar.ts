@@ -33,39 +33,66 @@ export interface CalendarEvent {
 export function generateEventUID(): string {
   const timestamp = Date.now()
   const random = Math.random().toString(36).substring(2, 15)
-  
+
   // Extract domain from SMTP_FROM_EMAIL or FROM_EMAIL
   const fromEmail = process.env.SMTP_FROM_EMAIL || process.env.FROM_EMAIL || 'DEDE_SYSTEM@dit.daikin.co.jp'
   const domain = fromEmail.split('@')[1] || 'dit.daikin.co.jp'
-  
+
   return `${timestamp}-${random}@${domain}`
 }
 
 /**
  * Format date for iCalendar (RFC5545 basic format)
- * Converts any date input to RFC5545 basic UTC format: YYYYMMDDTHHMMSSZ
+ * CRITICAL: Database stores times WITHOUT timezone info (naive datetime)
+ * We treat them as Bangkok time and convert to UTC for the .ics file
  */
 function formatICalDate(dateString: string, timezone?: string): string {
+  // Parse the date string
+  // If the database stores "2025-01-08 08:00:00", JavaScript will interpret it in local server time
+  // We need to treat it as Bangkok time (UTC+7) and convert to UTC
+
   const date = new Date(dateString)
 
-  if (timezone) {
-    // Use timezone identifier - still basic format but without Z
-    const year = date.getFullYear()
-    const month = String(date.getMonth() + 1).padStart(2, '0')
-    const day = String(date.getDate()).padStart(2, '0')
-    const hours = String(date.getHours()).padStart(2, '0')
-    const minutes = String(date.getMinutes()).padStart(2, '0')
-    const seconds = String(date.getSeconds()).padStart(2, '0')
+  // Check if the date string already has timezone info (ends with Z or has +/-)
+  const hasTimezone = dateString.includes('Z') || dateString.includes('+') || dateString.match(/-\d{2}:\d{2}$/)
 
-    return `${year}${month}${day}T${hours}${minutes}${seconds}`
-  } else {
-    // Use UTC - RFC5545 basic format
+  if (hasTimezone) {
+    // If it already has timezone, use UTC directly
     const year = date.getUTCFullYear()
     const month = String(date.getUTCMonth() + 1).padStart(2, '0')
     const day = String(date.getUTCDate()).padStart(2, '0')
     const hours = String(date.getUTCHours()).padStart(2, '0')
     const minutes = String(date.getUTCMinutes()).padStart(2, '0')
     const seconds = String(date.getUTCSeconds()).padStart(2, '0')
+
+    return `${year}${month}${day}T${hours}${minutes}${seconds}Z`
+  } else {
+    // If no timezone info, treat as Bangkok time (UTC+7) and convert to UTC
+    // Get the local components (which represent Bangkok time)
+    const bangkokYear = date.getFullYear()
+    const bangkokMonth = date.getMonth()
+    const bangkokDay = date.getDate()
+    const bangkokHours = date.getHours()
+    const bangkokMinutes = date.getMinutes()
+    const bangkokSeconds = date.getSeconds()
+
+    // Create UTC date by subtracting 7 hours
+    const utcDate = new Date(Date.UTC(
+      bangkokYear,
+      bangkokMonth,
+      bangkokDay,
+      bangkokHours - 7, // Subtract 7 hours to convert Bangkok to UTC
+      bangkokMinutes,
+      bangkokSeconds
+    ))
+
+    // Format as RFC5545 basic UTC format
+    const year = utcDate.getUTCFullYear()
+    const month = String(utcDate.getUTCMonth() + 1).padStart(2, '0')
+    const day = String(utcDate.getUTCDate()).padStart(2, '0')
+    const hours = String(utcDate.getUTCHours()).padStart(2, '0')
+    const minutes = String(utcDate.getUTCMinutes()).padStart(2, '0')
+    const seconds = String(utcDate.getUTCSeconds()).padStart(2, '0')
 
     return `${year}${month}${day}T${hours}${minutes}${seconds}Z`
   }
@@ -216,6 +243,16 @@ export function generateICalContent(event: CalendarEvent): string {
   lines.push('CALSCALE:GREGORIAN')
   lines.push(`METHOD:${event.method || 'REQUEST'}`)
 
+  // Add timezone component for Asia/Bangkok (before VEVENT)
+  lines.push('BEGIN:VTIMEZONE')
+  lines.push('TZID:Asia/Bangkok')
+  lines.push('BEGIN:STANDARD')
+  lines.push('DTSTART:19700101T000000')
+  lines.push('TZOFFSETFROM:+0700')
+  lines.push('TZOFFSETTO:+0700')
+  lines.push('END:STANDARD')
+  lines.push('END:VTIMEZONE')
+
   // Event
   lines.push('BEGIN:VEVENT')
 
@@ -237,14 +274,13 @@ export function generateICalContent(event: CalendarEvent): string {
     // Do NOT convert timezone - preserve original format to ensure exact match
     if (event.method === 'CANCEL') {
       // For cancellations, use the exact same format as the original
-      lines.push(`DTSTART:${event.start}`)
-      lines.push(`DTEND:${event.end}`)
+      lines.push(`DTSTART;TZID=Asia/Bangkok:${event.start}`)
+      lines.push(`DTEND;TZID=Asia/Bangkok:${event.end}`)
     } else {
-      // For new events, enforce RFC5545 basic UTC format (YYYYMMDDTHHMMSSZ)
-      const startUTC = isBasicDateTime(event.start) ? event.start : formatICalDate(event.start)
-      const endUTC = isBasicDateTime(event.end) ? event.end : formatICalDate(event.end)
-      lines.push(`DTSTART:${startUTC}`)
-      lines.push(`DTEND:${endUTC}`)
+      // For new events, use TZID=Asia/Bangkok format (not UTC)
+      // This preserves the local time as stored in the database
+      lines.push(`DTSTART;TZID=Asia/Bangkok:${event.start}`)
+      lines.push(`DTEND;TZID=Asia/Bangkok:${event.end}`)
     }
   }
 
@@ -322,7 +358,7 @@ export function generateCalendarInvite(event: CalendarEvent): {
   // CRITICAL: Ensure organizer matches SMTP From address for proper Outlook recognition
   const fromEmail = process.env.SMTP_FROM_EMAIL || 'DEDE_SYSTEM@dit.daikin.co.jp'
   const fromName = process.env.SMTP_FROM_NAME || 'DEDE_SYSTEM'
-  
+
   // For cancellations, preserve original organizer exactly
   // For new events, ensure organizer matches SMTP From
   if (event.method !== 'CANCEL' && (!event.organizer || event.organizer.email !== fromEmail)) {
@@ -377,18 +413,29 @@ export function createCalendarEvent(params: {
   })) || []
 
   const attendees = [...toAttendees, ...ccAttendees]
-  
-  // Ensure dates are in proper RFC5545 basic UTC format for consistency
+
+  // Format dates for ICS using Asia/Bangkok timezone (local time, no conversion)
   const formatDateForICS = (date: string | Date): string => {
+    let dateObj: Date
     if (date instanceof Date) {
-      return formatICalDate(date.toISOString())
+      dateObj = date
+    } else {
+      // Parse the date string
+      dateObj = new Date(date)
+      if (isNaN(dateObj.getTime())) {
+        throw new Error(`Invalid date format: ${date}`)
+      }
     }
-    // If it's already a string, validate it's a proper date first
-    const dateObj = new Date(date)
-    if (isNaN(dateObj.getTime())) {
-      throw new Error(`Invalid date format: ${date}`)
-    }
-    return formatICalDate(dateObj.toISOString())
+
+    // CRITICAL: Format the date components directly in local time (Asia/Bangkok)
+    // Do NOT convert to UTC - keep the local time as-is
+    const year = dateObj.getFullYear()
+    const month = String(dateObj.getMonth() + 1).padStart(2, '0')
+    const day = String(dateObj.getDate()).padStart(2, '0')
+    const hours = String(dateObj.getHours()).padStart(2, '0')
+    const minutes = String(dateObj.getMinutes()).padStart(2, '0')
+    const seconds = String(dateObj.getSeconds()).padStart(2, '0')
+    return `${year}${month}${day}T${hours}${minutes}${seconds}`
   }
 
   return {
@@ -398,7 +445,7 @@ export function createCalendarEvent(params: {
     location: params.location,
     start: formatDateForICS(params.start!),
     end: formatDateForICS(params.end!),
-    timezone: params.timezone,
+    timezone: params.timezone || 'Asia/Bangkok',
     organizer: params.organizerName && params.organizerEmail ? {
       name: params.organizerName,
       email: params.organizerEmail
@@ -509,7 +556,7 @@ export function testCancellationFlow(originalEvent: CalendarEvent): {
   icsContent: string
 } {
   const issues: string[] = []
-  
+
   // Validate original event has required fields
   if (!originalEvent.uid) {
     issues.push('Original event missing UID')
@@ -520,7 +567,7 @@ export function testCancellationFlow(originalEvent: CalendarEvent): {
   if (!originalEvent.organizer?.email) {
     issues.push('Original event missing organizer email')
   }
-  
+
   // Create cancelled event
   let cancelledEvent: CalendarEvent
   try {
@@ -534,7 +581,7 @@ export function testCancellationFlow(originalEvent: CalendarEvent): {
       icsContent: ''
     }
   }
-  
+
   // Validate cancellation event
   if (cancelledEvent.uid !== originalEvent.uid) {
     issues.push('Cancelled event UID does not match original')
@@ -557,7 +604,7 @@ export function testCancellationFlow(originalEvent: CalendarEvent): {
   if (cancelledEvent.status !== 'CANCELLED') {
     issues.push('Cancelled event status is not CANCELLED')
   }
-  
+
   // Generate ICS content
   let icsContent = ''
   try {
@@ -565,7 +612,7 @@ export function testCancellationFlow(originalEvent: CalendarEvent): {
   } catch (error) {
     issues.push(`Failed to generate ICS content: ${error instanceof Error ? error.message : 'Unknown error'}`)
   }
-  
+
   return {
     isValid: issues.length === 0,
     issues,
@@ -593,37 +640,37 @@ export function testMIMEStructure(calendarEvent: CalendarEvent, emailBody: strin
   }
 } {
   const issues: string[] = []
-  
+
   // Test .ics content
   const icsContent = generateICalContent(calendarEvent)
   const calendarInvite = generateCalendarInvite(calendarEvent)
-  
+
   // Check CRLF line endings
   const usesCRLF = icsContent.includes('\r\n')
   if (!usesCRLF) {
     issues.push('ICS content does not use CRLF line endings as required by RFC 5545')
   }
-  
+
   // Check organizer consistency
   const fromEmail = process.env.SMTP_FROM_EMAIL || 'DEDE_SYSTEM@dit.daikin.co.jp'
   const organizerMatchesFrom = calendarEvent.organizer?.email === fromEmail
   if (!organizerMatchesFrom) {
     issues.push('Organizer email does not match SMTP From address')
   }
-  
+
   // Check content types
-  const properContentTypes = calendarInvite.contentType.includes('text/calendar') && 
-                            calendarInvite.contentType.includes('charset=UTF-8')
+  const properContentTypes = calendarInvite.contentType.includes('text/calendar') &&
+    calendarInvite.contentType.includes('charset=UTF-8')
   if (!properContentTypes) {
     issues.push('Calendar attachment does not have proper Content-Type')
   }
-  
+
   // Check HTML body has inline CSS only (basic check)
   const hasExternalCSS = emailBody.includes('href=') && emailBody.includes('.css')
   if (hasExternalCSS) {
     issues.push('HTML body should use inline CSS only, no external stylesheets')
   }
-  
+
   // Check for proper MIME structure components
   const mimeStructure = {
     hasMultipartMixed: true, // Will be handled by nodemailer
@@ -635,11 +682,11 @@ export function testMIMEStructure(calendarEvent: CalendarEvent, emailBody: strin
     usesCRLF,
     properContentTypes
   }
-  
+
   if (!mimeStructure.hasTextHtml) {
     issues.push('Email body should contain HTML content for proper rendering')
   }
-  
+
   return {
     isValid: issues.length === 0,
     issues,
