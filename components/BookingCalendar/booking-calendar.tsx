@@ -39,7 +39,6 @@ import { useSearchParams } from "next/navigation";
 import {
   Modal,
   ModalContent,
-  ModalHeader,
   ModalBody,
   ModalFooter,
 } from "@heroui/modal";
@@ -53,6 +52,22 @@ import {
 } from "@/components/ui/carousel";
 
 const BookingCalendar: React.FC = () => {
+  // Helper function to render text with highlights
+  const renderTextWithHighlights = (text: string) => {
+    const parts = text.split(/(<highlight>.*?<\/highlight>)/g);
+    return parts.map((part, index) => {
+      if (part.startsWith('<highlight>') && part.endsWith('</highlight>')) {
+        const content = part.replace(/<\/?highlight>/g, '');
+        return (
+          <span key={index} className="font-bold">
+            {content}
+          </span>
+        );
+      }
+      return part;
+    });
+  };
+
   // State for current month/year being displayed
   const [currentDate, setCurrentDate] = useState(new Date());
   // Policy: how many months ahead allowed (current + N months)
@@ -70,24 +85,19 @@ const BookingCalendar: React.FC = () => {
   const tutorialSlides = useMemo(
     () => [
       {
-        title: "Make a booking",
-        text: "Tap a time cell to create a booking.",
-        image: "/window.svg",
+        title: "Start a booking : Click a calendar cell",
+        text: "If you cannot click it: <highlight>Time Full</highlight>: no interpreter at that time. <highlight>Past time</highlight>: this time already passed. <highlight>Forward limit</highlight>: you can book up to N months ahead. Look at the <highlight>Rules</highlight> to know how far you can book ahead.",
+        image: "/tutorial/1.gif",
       },
       {
-        title: "Find your time",
-        text: "Scroll left/right for times. Up/down for days.",
-        image: "/globe.svg",
+        title: "Create the booking",
+        text: "Fill in all details and click '<highlight>Create booking</highlight>.' If you see an error: <highlight>Room conflict</highlight>: someone uses this room at that time. Choose another time or room <highlight>DR/chairman busy</highlight>: the chairman is busy at this time. Choose another time",
+        image: "/tutorial/2.gif",
       },
       {
-        title: "Use the buttons",
-        text: "Today jumps to now. Refresh gets new bookings.",
-        image: "/file.svg",
-      },
-      {
-        title: "Read the colors",
-        text: "Colored bars show interpreter assignments.",
-        image: "/illustrations/47718920_9169204.svg",
+        title: "See details",
+        text: "Click the colored bar to see the booking details.",
+        image: "/tutorial/3.gif",
       },
     ],
     []
@@ -769,44 +779,49 @@ useEffect(() => {
         backdrop="blur"
         isOpen={isTutorialOpen}
         onClose={closeTutorial}
+        hideCloseButton
         classNames={{ backdrop: "backdrop-blur-md backdrop-saturate-150" }}
       >
-        <ModalContent className="bg-white text-foreground max-w-3xl sm:max-w-4xl w-[min(92vw,56rem)] !border-0 !outline-none !ring-0">
+        <ModalContent className="text-white max-w-5xl sm:max-w-7xl w-[min(96vw,85rem)] !border-0 !outline-none !ring-0 rounded-3xl" style={{ backgroundColor: '#262626' }}>
           {() => (
             <>
-              <ModalHeader className="flex flex-col gap-1">How to use the calendar</ModalHeader>
-              <ModalBody>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
-                  <div>
+              <ModalBody className="py-6 px-6 sm:px-8">
+                <div className="flex flex-col gap-6 items-center">
+                  {/* Picture on top */}
+                  <div className="w-full flex justify-center px-4 sm:px-8">
+                    <img
+                      src={tutorialSlides[tutorialIndex]?.image}
+                      alt="Booking help"
+                      className="w-full h-auto max-h-[450px] sm:max-h-[550px] object-cover rounded-xl"
+                      loading="lazy"
+                    />
+                  </div>
+                  
+                  {/* Text below */}
+                  <div className="w-full">
                     <Carousel className="w-full" setApi={setTutorialApi}>
                       <CarouselContent>
                         {tutorialSlides.map((s, idx) => (
                           <CarouselItem key={idx}>
-                            <div className="space-y-2 leading-relaxed px-2 sm:px-4 max-w-[560px]">
-                              <p className="text-base font-medium">{s.title}</p>
-                              <p className="text-sm text-muted-foreground">{s.text}</p>
+                            <div className="space-y-2 leading-relaxed px-4 sm:px-8 text-center">
+                              <p className="text-xl sm:text-2xl font-medium text-white">{s.title}</p>
+                              <p className="text-base sm:text-lg text-gray-300 whitespace-pre-line">
+                                {renderTextWithHighlights(s.text)}
+                              </p>
                             </div>
                           </CarouselItem>
                         ))}
                       </CarouselContent>
-                      <div className="flex items-center justify-between mt-4">
-                        <CarouselPrevious className="static translate-x-0" />
-                        <CarouselNext className="static translate-x-0" />
+                      <div className="flex items-center justify-between mt-4 px-4">
+                        <CarouselPrevious className="static translate-x-0 bg-black hover:bg-black/80 text-white border-black" />
+                        <CarouselNext className="static translate-x-0 bg-black hover:bg-black/80 text-white border-black" />
                       </div>
                     </Carousel>
                   </div>
-                  <div className="hidden sm:block">
-                    <img
-                      src={tutorialSlides[tutorialIndex]?.image}
-                      alt="Booking help"
-                      className="w-full h-auto max-h-[360px]"
-                      loading="lazy"
-                    />
-                  </div>
                 </div>
               </ModalBody>
-              <ModalFooter>
-                <Button onClick={closeTutorial} className="bg-neutral-700 text-white hover:bg-black/90">Got it</Button>
+              <ModalFooter className="justify-center pb-6">
+                <Button onClick={closeTutorial} className="bg-neutral-700 text-white hover:bg-black/90 px-12 py-2 text-base">Got it</Button>
               </ModalFooter>
             </>
           )}

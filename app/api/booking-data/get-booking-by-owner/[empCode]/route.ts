@@ -126,6 +126,9 @@ export async function GET(
         ownerGroup: true,
         meetingRoom: true,
         meetingDetail: true,
+        // Ensure we fetch real DB fields used by UI
+        applicableModel: true,
+        meetingType: true,
         timeStart: true,
         timeEnd: true,
         bookingStatus: true,
