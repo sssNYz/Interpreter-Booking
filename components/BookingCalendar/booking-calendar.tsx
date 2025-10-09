@@ -36,6 +36,21 @@ import LoadingThreeDotsJumping from "@/components/ui/loading-three-dots";
 import { useMobile } from "@/hooks/use-mobile";
 import { getInterpreterColor } from "@/utils/interpreter-color";
 import { useSearchParams } from "next/navigation";
+import {
+  Modal,
+  ModalContent,
+  ModalHeader,
+  ModalBody,
+  ModalFooter,
+} from "@heroui/modal";
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+  type CarouselApi,
+} from "@/components/ui/carousel";
 
 const BookingCalendar: React.FC = () => {
   // State for current month/year being displayed
@@ -47,6 +62,36 @@ const BookingCalendar: React.FC = () => {
 
   // Controls whether the booking form modal is open
   const [isFormOpen, setIsFormOpen] = useState(false);
+  // Tutorial modal state (first-time open via localStorage)
+  const [isTutorialOpen, setIsTutorialOpen] = useState(false);
+  const [tutorialApi, setTutorialApi] = useState<CarouselApi | null>(null);
+  const [tutorialIndex, setTutorialIndex] = useState(0);
+
+  const tutorialSlides = useMemo(
+    () => [
+      {
+        title: "Make a booking",
+        text: "Tap a time cell to create a booking.",
+        image: "/window.svg",
+      },
+      {
+        title: "Find your time",
+        text: "Scroll left/right for times. Up/down for days.",
+        image: "/globe.svg",
+      },
+      {
+        title: "Use the buttons",
+        text: "Today jumps to now. Refresh gets new bookings.",
+        image: "/file.svg",
+      },
+      {
+        title: "Read the colors",
+        text: "Colored bars show interpreter assignments.",
+        image: "/illustrations/47718920_9169204.svg",
+      },
+    ],
+    []
+  );
 
   // Stores which time slot was clicked (day + time) to pass to booking form
   const [selectedSlot, setSelectedSlot] = useState<
@@ -82,6 +127,42 @@ useEffect(() => {
     .then(res => res.json())
     .then(data => setInterpreterCount(data.count));
 }, []);
+
+// Open tutorial on first visit (no DB)
+useEffect(() => {
+  if (typeof window === 'undefined') return;
+  try {
+    const seen = window.localStorage.getItem('booking_tutorial_seen');
+    if (seen !== '1') setIsTutorialOpen(true);
+  } catch {}
+}, []);
+
+const closeTutorial = useCallback(() => {
+  try {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('booking_tutorial_seen', '1');
+    }
+  } catch {}
+  setIsTutorialOpen(false);
+}, []);
+
+// Sync active slide index to show matching image
+useEffect(() => {
+  if (!tutorialApi) return;
+  const onSelect = () => {
+    try {
+      setTutorialIndex(tutorialApi.selectedScrollSnap() ?? 0);
+    } catch {
+      setTutorialIndex(0);
+    }
+  };
+  onSelect();
+  tutorialApi.on('select', onSelect);
+  tutorialApi.on('reInit', onSelect);
+  return () => {
+    tutorialApi.off('select', onSelect);
+  };
+}, [tutorialApi]);
 
 // Fetch interpreters and colors for legend
 useEffect(() => {
@@ -619,6 +700,15 @@ useEffect(() => {
             />
             {loading ? "Refreshing..." : "Refresh"}
           </Button>
+          {/* Help button to reopen tutorial */}
+          <Button
+            onClick={() => setIsTutorialOpen(true)}
+            className="bg-neutral-700 text-white rounded-full hover:bg-black/90 h-10 w-10 text-base shadow-md hover:shadow-lg active:shadow-md transition"
+            aria-label="Help"
+            title="Help"
+          >
+            ?
+          </Button>
           {/* Admin vision toggle removed */}
           <BookingRules forwardMonthLimit={forwardMonthLimit} />
         </div>
@@ -674,6 +764,54 @@ useEffect(() => {
         maxLanes={interpreterCount}
         forwardMonthLimit={forwardMonthLimit}
       />
+      {/* Tutorial Modal - first time + via help button */}
+      <Modal
+        backdrop="blur"
+        isOpen={isTutorialOpen}
+        onClose={closeTutorial}
+        classNames={{ backdrop: "backdrop-blur-md backdrop-saturate-150" }}
+      >
+        <ModalContent className="bg-white text-foreground max-w-3xl sm:max-w-4xl w-[min(92vw,56rem)] !border-0 !outline-none !ring-0">
+          {() => (
+            <>
+              <ModalHeader className="flex flex-col gap-1">How to use the calendar</ModalHeader>
+              <ModalBody>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
+                  <div>
+                    <Carousel className="w-full" setApi={setTutorialApi}>
+                      <CarouselContent>
+                        {tutorialSlides.map((s, idx) => (
+                          <CarouselItem key={idx}>
+                            <div className="space-y-2 leading-relaxed px-2 sm:px-4 max-w-[560px]">
+                              <p className="text-base font-medium">{s.title}</p>
+                              <p className="text-sm text-muted-foreground">{s.text}</p>
+                            </div>
+                          </CarouselItem>
+                        ))}
+                      </CarouselContent>
+                      <div className="flex items-center justify-between mt-4">
+                        <CarouselPrevious className="static translate-x-0" />
+                        <CarouselNext className="static translate-x-0" />
+                      </div>
+                    </Carousel>
+                  </div>
+                  <div className="hidden sm:block">
+                    <img
+                      src={tutorialSlides[tutorialIndex]?.image}
+                      alt="Booking help"
+                      className="w-full h-auto max-h-[360px]"
+                      loading="lazy"
+                    />
+                  </div>
+                </div>
+              </ModalBody>
+              <ModalFooter>
+                <Button onClick={closeTutorial} className="bg-neutral-700 text-white hover:bg-black/90">Got it</Button>
+              </ModalFooter>
+            </>
+          )}
+        </ModalContent>
+      </Modal>
     </div>
   );
 };
