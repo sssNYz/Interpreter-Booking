@@ -39,6 +39,7 @@
   "dependencies": {
     "@daypilot/daypilot-lite-react": "^4.4.0",
     "@heroui/drawer": "^2.2.23",
+    "@heroui/modal": "^2.2.24",
     "@heroui/system": "^2.4.22",
     "@heroui/theme": "^2.4.22",
     "@prisma/client": "^6.16.3",
