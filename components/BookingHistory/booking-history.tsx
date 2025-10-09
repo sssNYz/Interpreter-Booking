@@ -282,7 +282,8 @@ export default function BookingHistory({ renderEmpty, startDate, endDate }: Book
       const mi = String(start.getMinutes()).padStart(2, "0");
       const date = `${yyyy}-${mm}-${dd}`;
       const time = `${hh}:${mi}`;
-      router.push(`/BookingPage?date=${date}&time=${time}`);
+      const bookingId = encodeURIComponent(String(booking.bookingId));
+      router.push(`/BookingPage?date=${date}&time=${time}&bookingId=${bookingId}`);
     } catch {}
   };
 
