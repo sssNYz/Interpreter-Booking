@@ -35,10 +35,30 @@ export async function PATCH(
   } catch {
     return problem(400, "Invalid JSON", "Request body must be valid JSON.");
   }
-  // 3) หา record เดิม
+  // 3) หา record เดิม (with interpreter info for cancellation email)
   const existing = await prisma.bookingPlan.findUnique({
     where: { bookingId },
-    select: { bookingStatus: true },
+    select: {
+      bookingStatus: true,
+      interpreterEmpCode: true,
+      selectedInterpreterEmpCode: true,
+      interpreterEmployee: {
+        select: {
+          empCode: true,
+          email: true,
+          firstNameEn: true,
+          lastNameEn: true,
+        }
+      },
+      selectedInterpreter: {
+        select: {
+          empCode: true,
+          email: true,
+          firstNameEn: true,
+          lastNameEn: true,
+        }
+      },
+    },
   });
   if (!existing) {
     return problem(404, "Not Found", "Booking plan not found.");
@@ -74,7 +94,14 @@ export async function PATCH(
       }
       if (to === 'cancel' && from !== 'cancel') {
         console.log(`[EMAIL] Triggering cancellation email for booking ${updated.bookingId}`)
-        sendCancellationEmailForBooking(updated.bookingId).catch((err) => {
+        // Pass preserved interpreter info from 'existing' before it was cleared
+        const preservedInfo = {
+          interpreterEmpCode: existing.interpreterEmpCode,
+          selectedInterpreterEmpCode: existing.selectedInterpreterEmpCode,
+          interpreterEmployee: existing.interpreterEmployee,
+          selectedInterpreter: existing.selectedInterpreter,
+        }
+        sendCancellationEmailForBooking(updated.bookingId, undefined, preservedInfo).catch((err) => {
           console.error(`[EMAIL] Failed to send cancellation email for booking ${updated.bookingId}:`, err)
         })
       }
