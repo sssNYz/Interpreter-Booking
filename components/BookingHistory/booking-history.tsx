@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, MouseEvent } from "react";
+import React, { useEffect, useState, MouseEvent, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import type { BookingData } from "@/types/booking";
@@ -16,6 +16,20 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { FilterIcon, UserSearchIcon, XIcon, ArrowUpLeft, ArrowUpDown, ChevronDown } from "lucide-react";
 import { client as featureFlags } from "@/lib/feature-flags";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Modal,
+  ModalContent,
+  ModalBody,
+  ModalFooter,
+} from "@heroui/modal";
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+  type CarouselApi,
+} from "@/components/ui/carousel";
 
 type StatusFilter = "all" | "approve" | "waiting" | "cancel" | "complete";
 
@@ -45,6 +59,22 @@ type BookingHistoryProps = {
 };
 
 export default function BookingHistory({ renderEmpty, startDate, endDate }: BookingHistoryProps) {
+  // Helper function to render text with highlights
+  const renderTextWithHighlights = (text: string) => {
+    const parts = text.split(/(<highlight>.*?<\/highlight>)/g);
+    return parts.map((part, index) => {
+      if (part.startsWith('<highlight>') && part.endsWith('</highlight>')) {
+        const content = part.replace(/<\/?highlight>/g, '');
+        return (
+          <span key={index} className="font-bold">
+            {content}
+          </span>
+        );
+      }
+      return part;
+    });
+  };
+
   const [userEmpCode, setUserEmpCode] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [selectedStatuses, setSelectedStatuses] = useState<Array<Exclude<StatusFilter, "all">>>([
@@ -69,6 +99,63 @@ export default function BookingHistory({ renderEmpty, startDate, endDate }: Book
   const [meetingDetailDialogOpen, setMeetingDetailDialogOpen] = useState(false);
   const [selectedBookingForDetail, setSelectedBookingForDetail] = useState<BookingData | null>(null);
   const [fetchedBookingById, setFetchedBookingById] = useState<BookingData | null>(null);
+
+  // Tutorial modal state
+  const [isTutorialOpen, setIsTutorialOpen] = useState(false);
+  const [tutorialApi, setTutorialApi] = useState<CarouselApi | null>(null);
+  const [tutorialIndex, setTutorialIndex] = useState(0);
+
+  const tutorialSlides = useMemo(
+    () => [
+      {
+        title: "See Details",
+        text: "Click See details to view all details of your booking.",
+        image: "/tutorial/4.gif",
+      },
+      {
+        title: "Calendar to filter",
+        text: "Use the calendar to filter and find your booking. A dot means there is a booking on that date.",
+        image: "/tutorial/5.gif",
+      },
+    ],
+    []
+  );
+
+  // Open tutorial on first visit
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const seen = window.localStorage.getItem('booking_history_tutorial_seen');
+      if (seen !== '1') setIsTutorialOpen(true);
+    } catch {}
+  }, []);
+
+  const closeTutorial = useCallback(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem('booking_history_tutorial_seen', '1');
+      }
+    } catch {}
+    setIsTutorialOpen(false);
+  }, []);
+
+  // Sync active slide index
+  useEffect(() => {
+    if (!tutorialApi) return;
+    const onSelect = () => {
+      try {
+        setTutorialIndex(tutorialApi.selectedScrollSnap() ?? 0);
+      } catch {
+        setTutorialIndex(0);
+      }
+    };
+    onSelect();
+    tutorialApi.on('select', onSelect);
+    tutorialApi.on('reInit', onSelect);
+    return () => {
+      tutorialApi.off('select', onSelect);
+    };
+  }, [tutorialApi]);
 
   useEffect(() => {
     try {
@@ -208,6 +295,14 @@ export default function BookingHistory({ renderEmpty, startDate, endDate }: Book
           </div>
           <span className="font-medium text-lg">My Booking History</span>
         </div>
+        <Button
+          onClick={() => setIsTutorialOpen(true)}
+          className="bg-neutral-700 text-white rounded-full hover:bg-black/90 h-8 w-8 text-sm shadow-md hover:shadow-lg active:shadow-md transition"
+          aria-label="Help"
+          title="Help"
+        >
+          ?
+        </Button>
       </div>
 
       <div className="flex flex-col gap-4 pt-4 flex-1 min-h-0">
@@ -693,7 +788,7 @@ export default function BookingHistory({ renderEmpty, startDate, endDate }: Book
                           </svg>
                         </div>
                         <div className="flex-1 min-w-0">
-                          <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">Application Model</div>
+                          <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">Applicable Model</div>
                           <div className="text-base font-normal text-foreground break-words leading-relaxed">
                             {dialogBooking.applicableModel || 'No model specified'}
                           </div>
@@ -799,6 +894,60 @@ export default function BookingHistory({ renderEmpty, startDate, endDate }: Book
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Tutorial Modal */}
+      <Modal
+        backdrop="blur"
+        isOpen={isTutorialOpen}
+        onClose={closeTutorial}
+        hideCloseButton
+        classNames={{ backdrop: "backdrop-blur-md backdrop-saturate-150" }}
+      >
+        <ModalContent className="text-white max-w-5xl sm:max-w-7xl w-[min(96vw,85rem)] !border-0 !outline-none !ring-0 rounded-3xl" style={{ backgroundColor: '#262626' }}>
+          {() => (
+            <>
+              <ModalBody className="py-6 px-6 sm:px-8">
+                <div className="flex flex-col gap-6 items-center">
+                  {/* Picture on top */}
+                  <div className="w-full flex justify-center px-4 sm:px-8">
+                    <img
+                      src={tutorialSlides[tutorialIndex]?.image}
+                      alt="Booking history help"
+                      className="w-full h-auto max-h-[450px] sm:max-h-[550px] object-cover rounded-xl"
+                      loading="lazy"
+                    />
+                  </div>
+                  
+                  {/* Text below */}
+                  <div className="w-full">
+                    <Carousel className="w-full" setApi={setTutorialApi}>
+                      <CarouselContent>
+                        {tutorialSlides.map((s, idx) => (
+                          <CarouselItem key={idx}>
+                            <div className="space-y-2 leading-relaxed px-4 sm:px-8 text-center">
+                              <p className="text-xl sm:text-2xl font-medium text-white">{s.title}</p>
+                              <p className="text-base sm:text-lg text-gray-300 whitespace-pre-line">
+                                {renderTextWithHighlights(s.text)}
+                              </p>
+                            </div>
+                          </CarouselItem>
+                        ))}
+                      </CarouselContent>
+                      <div className="flex items-center justify-between mt-4 px-4">
+                        <CarouselPrevious className="static translate-x-0 bg-black hover:bg-black/80 text-white border-black" />
+                        <CarouselNext className="static translate-x-0 bg-black hover:bg-black/80 text-white border-black" />
+                      </div>
+                    </Carousel>
+                  </div>
+                </div>
+              </ModalBody>
+              <ModalFooter className="justify-center pb-6">
+                <Button onClick={closeTutorial} className="bg-neutral-700 text-white hover:bg-black/90 px-12 py-2 text-base">Got it</Button>
+              </ModalFooter>
+            </>
+          )}
+        </ModalContent>
+      </Modal>
     </div>
   );
 }

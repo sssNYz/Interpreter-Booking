@@ -1,92 +1,155 @@
 "use client";
 
-import React, { useState } from "react";
-import { DayPilot, DayPilotCalendar } from "@daypilot/daypilot-lite-react";
+import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { client as featureFlags } from "@/lib/feature-flags";
+import { Button } from "@/components/ui/button";
+import { ChevronLeft, ChevronRight, Users, MapPin, Clock, X } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+
+interface Room {
+  id: number;
+  name: string;
+  location: string | null;
+  capacity: number;
+  isActive: boolean;
+}
+
+interface Booking {
+  id: string;
+  roomId: number;
+  title: string;
+  startTime: string;
+  endTime: string;
+  date: string;
+}
 
 const BookingRoom = () => {
-  const [calendar, setCalendar] = useState<DayPilot.Calendar>();
+  const [rooms, setRooms] = useState<Room[]>([]);
+  const [loadingRooms, setLoadingRooms] = useState<boolean>(true);
+  const [currentPage, setCurrentPage] = useState(0);
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [selectedSlot, setSelectedSlot] = useState<{
+    roomId: number;
+    startTime: string;
+    endTime: string;
+  } | null>(null);
+  const [bookingTitle, setBookingTitle] = useState("");
+  
+  const roomsPerPage = 5;
+  const timeSlots = generateTimeSlots();
 
-  // Calendar configuration for Resources view
-  const config = {
-    viewType: "Resources" as const,
-    scale: "Hour" as const,
-    startDate: DayPilot.Date.today().firstDayOfWeek("en-us"),
-    days: 7,
-    headerHeight: 40,
-    height: 300,
-    cellHeight: 40,
-    columns: [
-      { name: "Meeting Room A", id: "A" },
-      { name: "Meeting Room B", id: "B" },
-      { name: "Meeting Room C", id: "C" },
-      { name: "Meeting Room D", id: "D" },
-      { name: "Meeting Room E", id: "E" },
-      { name: "Meeting Room F", id: "F" },
-    ],
-    onTimeRangeSelected: async (args: DayPilot.CalendarTimeRangeSelectedArgs) => {
-      const modal = await DayPilot.Modal.prompt("New event name:", "Event");
-      if (modal.canceled) return;
-      calendar?.events.add({
-        start: args.start,
-        end: args.end,
-        id: DayPilot.guid(),
-        resource: args.resource,
-        text: modal.result,
+  // Fetch rooms
+  useEffect(() => {
+    let alive = true;
+    const loadRooms = async () => {
+      try {
+        const res = await fetch("/api/admin/add-room?isActive=true", {
+          cache: "no-store",
+        });
+        const json = await res.json();
+        if (!alive) return;
+        if (json?.success && Array.isArray(json?.data?.rooms)) {
+          setRooms(json.data.rooms);
+        } else {
+          setRooms([]);
+        }
+      } catch (e) {
+        console.error("Failed to load rooms", e);
+        toast.error("Failed to load rooms");
+        setRooms([]);
+      } finally {
+        if (alive) setLoadingRooms(false);
+      }
+    };
+    loadRooms();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  function generateTimeSlots() {
+    const slots = [];
+    for (let hour = 8; hour < 18; hour++) {
+      slots.push({
+        time: `${hour}:00`,
+        display: `${hour === 12 ? 12 : hour > 12 ? hour - 12 : hour}:00 ${hour >= 12 ? 'PM' : 'AM'}`,
       });
-      calendar?.clearSelection();
-      toast.success("✅ Booking created successfully!");
-    },
-    onBeforeTimeHeaderRender: (args: DayPilot.CalendarBeforeTimeHeaderRenderArgs) => {
-      args.header.areas = [
-        {
-          left: 0,
-          right: 0,
-          bottom: 0,
-          text: args.header.date.toString("MMM d"),
-          horizontalAlignment: "center",
-          fontColor: "#ccc",
-        },
-      ];
-    },
+    }
+    return slots;
+  }
+
+  const totalPages = Math.ceil(rooms.length / roomsPerPage);
+  const displayedRooms = rooms.slice(
+    currentPage * roomsPerPage,
+    (currentPage + 1) * roomsPerPage
+  );
+
+  const handlePrevPage = () => setCurrentPage((prev) => Math.max(0, prev - 1));
+  const handleNextPage = () => setCurrentPage((prev) => Math.min(totalPages - 1, prev + 1));
+
+  const getRoomImagePath = (roomId: number): string => `/Room/${roomId}.jpg`;
+
+  const isSlotBooked = (roomId: number, time: string): Booking | undefined => {
+    return bookings.find(
+      (b) =>
+        b.roomId === roomId &&
+        b.date === selectedDate.toISOString().split("T")[0] &&
+        b.startTime <= time &&
+        b.endTime > time
+    );
   };
 
-  // Sample events data
-  const events = [
-    {
-      start: DayPilot.Date.today().firstDayOfWeek().addHours(9),
-      end: DayPilot.Date.today().firstDayOfWeek().addHours(11),
-      id: DayPilot.guid(),
-      resource: "B",
-      text: "Marketing Team",
-      barColor: "#674ea7",
-    },
-    {
-      start: DayPilot.Date.today().firstDayOfWeek().addHours(14),
-      end: DayPilot.Date.today().firstDayOfWeek().addHours(16),
-      id: DayPilot.guid(),
-      resource: "B",
-      text: "Development Team",
-      barColor: "#a64d79",
-    },
-    {
-      start: DayPilot.Date.today().firstDayOfWeek().addHours(10),
-      end: DayPilot.Date.today().firstDayOfWeek().addHours(12),
-      id: DayPilot.guid(),
-      resource: "A",
-      text: "Sales Meeting",
-      barColor: "#3d85c6",
-    },
-    {
-      start: DayPilot.Date.today().firstDayOfWeek().addHours(15),
-      end: DayPilot.Date.today().firstDayOfWeek().addHours(17),
-      id: DayPilot.guid(),
-      resource: "C",
-      text: "Training Session",
-      barColor: "#e69138",
-    },
-  ];
+  const handleSlotClick = (roomId: number, time: string) => {
+    const booking = isSlotBooked(roomId, time);
+    if (booking) {
+      // Delete booking
+      setBookings(bookings.filter((b) => b.id !== booking.id));
+      toast.success("Booking cancelled");
+    } else {
+      // Create new booking
+      const endTime = calculateEndTime(time);
+      setSelectedSlot({ roomId, startTime: time, endTime });
+      setIsDialogOpen(true);
+    }
+  };
+
+  const calculateEndTime = (startTime: string): string => {
+    const [hours] = startTime.split(":").map(Number);
+    return `${hours + 1}:00`;
+  };
+
+  const handleCreateBooking = () => {
+    if (!selectedSlot || !bookingTitle.trim()) {
+      toast.error("Please enter a booking title");
+      return;
+    }
+
+    const newBooking: Booking = {
+      id: Date.now().toString(),
+      roomId: selectedSlot.roomId,
+      title: bookingTitle,
+      startTime: selectedSlot.startTime,
+      endTime: selectedSlot.endTime,
+      date: selectedDate.toISOString().split("T")[0],
+    };
+
+    setBookings([...bookings, newBooking]);
+    setIsDialogOpen(false);
+    setBookingTitle("");
+    setSelectedSlot(null);
+    toast.success("✅ Booking created successfully!");
+  };
 
   if (!featureFlags.enableRoomBooking) {
     return (
@@ -101,23 +164,213 @@ const BookingRoom = () => {
     );
   }
 
+  if (loadingRooms) {
+    return (
+      <div className="flex flex-col gap-4 px-4 mx-auto w-full max-w-full">
+        <div className="flex items-center justify-between py-2">
+          <h1 className="text-2xl font-bold">Room Booking</h1>
+        </div>
+        <div className="rounded-xl border bg-white p-6 text-gray-700">
+          Loading rooms...
+        </div>
+      </div>
+    );
+  }
+
+  if (rooms.length === 0) {
+    return (
+      <div className="flex flex-col gap-4 px-4 mx-auto w-full max-w-full">
+        <div className="flex items-center justify-between py-2">
+          <h1 className="text-2xl font-bold">Room Booking</h1>
+        </div>
+        <div className="rounded-xl border bg-white p-6 text-gray-700">
+          No active rooms available. Please contact admin to add rooms.
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex flex-col gap-4 px-4 mx-auto w-full max-w-full">
-      <div className="flex items-center justify-between py-2">
-        <h1 className="text-2xl font-bold">Room Booking Calendar</h1>
+    <div className="flex flex-col h-screen w-full bg-gray-50">
+      {/* Header */}
+      <div className="bg-white border-b px-6 py-4 flex-shrink-0">
+        <div className="flex items-center justify-between mb-4">
+          <h1 className="text-2xl font-bold text-gray-900">Room Booking</h1>
+          <div className="flex items-center gap-3">
+            <Input
+              type="date"
+              value={selectedDate.toISOString().split("T")[0]}
+              onChange={(e) => setSelectedDate(new Date(e.target.value))}
+              className="w-auto"
+            />
+          </div>
+        </div>
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-end gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handlePrevPage}
+              disabled={currentPage === 0}
+            >
+              <ChevronLeft className="h-4 w-4 mr-1" />
+              Previous
+            </Button>
+            <span className="text-sm text-gray-600 px-3">
+              Page {currentPage + 1} of {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleNextPage}
+              disabled={currentPage === totalPages - 1}
+            >
+              Next
+              <ChevronRight className="h-4 w-4 ml-1" />
+            </Button>
+          </div>
+        )}
       </div>
 
-      
+      {/* Calendar Grid */}
+      <div className="flex-1 overflow-auto p-6">
+        <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
+          <div className="grid" style={{ gridTemplateColumns: `120px repeat(${displayedRooms.length}, 1fr)` }}>
+            {/* Time column header */}
+            <div className="bg-gray-50 border-b border-r p-4">
+              <Clock className="h-5 w-5 text-gray-400 mx-auto" />
+            </div>
 
-      <div className="w-full overflow-x-auto">
-        <DayPilotCalendar
-          {...config}
-          events={events}
-          ref={(component: DayPilotCalendar | null) => {
-            setCalendar(component?.control);
-          }}
-        />
+            {/* Room headers */}
+            {displayedRooms.map((room) => (
+              <div key={room.id} className="bg-gray-50 border-b border-r last:border-r-0 p-3">
+                <div className="flex flex-col items-center gap-2">
+                  <div className="w-full h-20 rounded-lg overflow-hidden bg-gray-200">
+                    <img
+                      src={getRoomImagePath(room.id)}
+                      alt={room.name}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none';
+                      }}
+                    />
+                  </div>
+                  <div className="text-center w-full">
+                    <h3 className="font-semibold text-sm text-gray-900 truncate">
+                      {room.name}
+                    </h3>
+                    <div className="flex items-center justify-center gap-3 text-xs text-gray-500 mt-1">
+                      <span className="flex items-center gap-1">
+                        <Users className="h-3 w-3" />
+                        {room.capacity}
+                      </span>
+                      {room.location && (
+                        <span className="flex items-center gap-1">
+                          <MapPin className="h-3 w-3" />
+                          {room.location}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+
+            {/* Time slots */}
+            {timeSlots.map((slot) => (
+              <React.Fragment key={slot.time}>
+                {/* Time label */}
+                <div className="bg-gray-50 border-b border-r p-3 flex items-start justify-end">
+                  <span className="text-xs font-medium text-gray-600">
+                    {slot.display}
+                  </span>
+                </div>
+
+                {/* Room slots */}
+                {displayedRooms.map((room) => {
+                  const booking = isSlotBooked(room.id, slot.time);
+                  const isBooked = !!booking;
+
+                  return (
+                    <div
+                      key={`${room.id}-${slot.time}`}
+                      className={`border-b border-r last:border-r-0 p-2 min-h-[60px] cursor-pointer transition-all ${
+                        isBooked
+                          ? "bg-blue-50 hover:bg-blue-100"
+                          : "bg-white hover:bg-green-50"
+                      }`}
+                      onClick={() => handleSlotClick(room.id, slot.time)}
+                    >
+                      {isBooked ? (
+                        <div className="bg-blue-500 text-white rounded-md p-2 h-full flex flex-col justify-between text-xs group relative">
+                          <div className="font-medium truncate">{booking.title}</div>
+                          <div className="text-blue-100 text-[10px]">
+                            {booking.startTime} - {booking.endTime}
+                          </div>
+                          <div className="absolute inset-0 bg-red-500 opacity-0 group-hover:opacity-90 transition-opacity rounded-md flex items-center justify-center">
+                            <X className="h-4 w-4 text-white" />
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="h-full flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                          <span className="text-xs text-green-600 font-medium">+ Book</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </React.Fragment>
+            ))}
+          </div>
+        </div>
       </div>
+
+      {/* Booking Dialog */}
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create New Booking</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="title">Event Title</Label>
+              <Input
+                id="title"
+                placeholder="e.g., Team Meeting"
+                value={bookingTitle}
+                onChange={(e) => setBookingTitle(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleCreateBooking();
+                }}
+              />
+            </div>
+            {selectedSlot && (
+              <div className="text-sm text-gray-600 space-y-1">
+                <p>
+                  <span className="font-medium">Room:</span>{" "}
+                  {rooms.find((r) => r.id === selectedSlot.roomId)?.name}
+                </p>
+                <p>
+                  <span className="font-medium">Time:</span> {selectedSlot.startTime} -{" "}
+                  {selectedSlot.endTime}
+                </p>
+                <p>
+                  <span className="font-medium">Date:</span>{" "}
+                  {selectedDate.toLocaleDateString()}
+                </p>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleCreateBooking}>Create Booking</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
