@@ -1,35 +1,35 @@
 import prisma, { MeetingType } from "@/prisma/prisma"
 
 export interface EmailTemplate {
-  id: string
-  name: string
-  category: string
-  subject: string
-  body: string
-  isHtml: boolean
-  isSystem: boolean
+    id: string
+    name: string
+    category: string
+    subject: string
+    body: string
+    isHtml: boolean
+    isSystem: boolean
 }
 
 export const SYSTEM_TEMPLATES: EmailTemplate[] = [
-  {
-    id: 'device-dr-meeting',
-    name: 'Device DR Meeting Invitation',
-    category: 'meeting',
-    subject: 'Device DR Meeting - {topic}',
-    body: `<!DOCTYPE html>
+    {
+        id: 'unified-meeting',
+        name: 'Unified Meeting Invitation',
+        category: 'meeting',
+        subject: '{meetingType} Meeting - {topic}',
+        body: `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Device DR Meeting Invitation</title>
+    <title>{meetingType} Meeting Invitation</title>
 </head>
 <body style="margin: 0; padding: 20px; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #F5F8FC; line-height: 1.6;">
     <div style="max-width: 720px; margin: 0 auto; background: white; border-radius: 14px; border: 1px solid #E5E7EB; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05); overflow: hidden;">
         
         <!-- Header -->
-        <div style="background: linear-gradient(135deg, #00A0E9 0%, #0078C7 100%); padding: 30px 25px; text-align: center;">
+        <div style="background: linear-gradient(135deg, {headerColor1} 0%, {headerColor2} 100%); padding: 30px 25px; text-align: center;">
             <h1 style="margin: 0; color: white; font-size: 24px; font-weight: 600; line-height: 1.3;">
-                Device DR Meeting – {topic}
+                {meetingTypeIcon} {meetingType} Meeting – {topic}
             </h1>
         </div>
 
@@ -39,22 +39,22 @@ export const SYSTEM_TEMPLATES: EmailTemplate[] = [
             <!-- Greeting Block -->
             <div style="margin-bottom: 25px;">
                 <p style="margin: 0 0 8px 0; color: #0f172a; font-size: 16px;">
-                    <strong>To:</strong> All concern member,
+                    <strong>To:</strong> All concerned members,
                 </p>
                 <p style="margin: 0; color: #0f172a; font-size: 16px;">
-                    I would like to invite you to join Device DR meeting as below.
+                    I would like to invite you to join the {meetingType} meeting as below.
                 </p>
             </div>
 
             <!-- Date Bar -->
             <div style="margin-bottom: 25px; text-align: center;">
-                <span style="background: #00A0E9; color: white; padding: 8px 20px; border-radius: 20px; font-weight: 600; font-size: 16px; display: inline-block;">
+                <span style="background: {headerColor1}; color: white; padding: 8px 20px; border-radius: 20px; font-weight: 600; font-size: 16px; display: inline-block;">
                     📅 {date}
                 </span>
             </div>
 
             <!-- Agenda Line -->
-            <div style="margin-bottom: 25px; padding: 15px; background: #F8FAFC; border-left: 4px solid #00A0E9; border-radius: 0 8px 8px 0;">
+            <div style="margin-bottom: 25px; padding: 15px; background: #F8FAFC; border-left: 4px solid {headerColor1}; border-radius: 0 8px 8px 0;">
                 <p style="margin: 0; color: #0f172a; font-size: 16px; font-weight: 500;">
                     📋 ① {topic}
                 </p>
@@ -62,65 +62,53 @@ export const SYSTEM_TEMPLATES: EmailTemplate[] = [
 
             <!-- Meeting Details -->
             <div style="margin-bottom: 30px;">
-                <h3 style="margin: 0 0 20px 0; color: #0f172a; font-size: 18px; font-weight: 600; border-bottom: 2px solid #00A0E9; padding-bottom: 8px;">
+                <h3 style="margin: 0 0 20px 0; color: #0f172a; font-size: 18px; font-weight: 600; border-bottom: 2px solid {headerColor1}; padding-bottom: 8px;">
                     📝 Meeting Details
                 </h3>
-                
+
                 <div style="background: #FAFBFC; border-radius: 8px; padding: 20px; border: 1px solid #E5E7EB;">
                     <table cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse;">
                         <tr>
-                            <td style="padding: 8px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
-                                🏷️ Device Group:
+                            <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                                📋 Meeting Type:
                             </td>
-                            <td style="padding: 8px 0; color: #374151;">
-                                {deviceGroup}
-                            </td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 8px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
-                                📱 Applicable Model:
-                            </td>
-                            <td style="padding: 8px 0; color: #374151;">
-                                {applicableModel}
+                            <td style="padding: 10px 0; color: #374151;">
+                                {meetingTypeDisplay}
                             </td>
                         </tr>
+                        {descriptionSection}
+                        {applicationModelSection}
                         <tr>
-                            <td style="padding: 8px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
-                                🎯 DR (Stage):
-                            </td>
-                            <td style="padding: 8px 0; color: #374151;">
-                                {drStage}
-                            </td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 8px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                            <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
                                 ⏰ Time:
                             </td>
-                            <td style="padding: 8px 0; color: #374151;">
+                            <td style="padding: 10px 0; color: #374151;">
                                 {time}
                             </td>
                         </tr>
                         <tr>
-                            <td style="padding: 8px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
-                                📍 Place:
+                            <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                                📍 Location:
                             </td>
-                            <td style="padding: 8px 0; color: #374151;">
-                                {place}
-                            </td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 8px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
-                                👨‍💼 Chairman:
-                            </td>
-                            <td style="padding: 8px 0; color: #374151;">
-                                {chairman}
+                            <td style="padding: 10px 0; color: #374151;">
+                                {location}
                             </td>
                         </tr>
                         <tr>
-                            <td style="padding: 8px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
-                                👥 Participant:
+                            <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                                👤 Organizer:
                             </td>
-                            <td style="padding: 8px 0; color: #374151;">
+                            <td style="padding: 10px 0; color: #374151;">
+                                {organizerName}
+                            </td>
+                        </tr>
+                        {interpreterSection}
+                        {chairmanSection}
+                        <tr>
+                            <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                                👥 Participants:
+                            </td>
+                            <td style="padding: 10px 0; color: #374151;">
                                 {participant}
                             </td>
                         </tr>
@@ -141,7 +129,7 @@ export const SYSTEM_TEMPLATES: EmailTemplate[] = [
                         {organizerDivision}
                     </p>
                     <p style="margin: 0; font-size: 14px; color: #374151;">
-                        Tel : {organizerPhone}
+                        Tel: {organizerPhone}
                     </p>
                 </div>
             </div>
@@ -158,303 +146,41 @@ export const SYSTEM_TEMPLATES: EmailTemplate[] = [
     </div>
 </body>
 </html>`,
-    isHtml: true,
-    isSystem: true
-  },
-  {
-    id: 'general-meeting',
-    name: 'General Meeting Invitation',
-    category: 'meeting',
-    subject: 'Meeting Invitation - {topic}',
-    body: `<!DOCTYPE html>
+        isHtml: true,
+        isSystem: true
+    },
+    {
+        id: 'unified-cancellation',
+        name: 'Unified Meeting Cancellation',
+        category: 'cancellation',
+        subject: 'CANCELLED: {meetingType} Meeting - {topic}',
+        body: `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Meeting Invitation</title>
+    <title>{meetingType} Meeting Cancellation</title>
 </head>
 <body style="margin: 0; padding: 20px; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #F5F8FC; line-height: 1.6;">
-    <div style="max-width: 600px; margin: 0 auto; background: white; border-radius: 12px; border: 1px solid #E5E7EB; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05); overflow: hidden;">
+    <div style="max-width: 720px; margin: 0 auto; background: white; border-radius: 14px; border: 1px solid #E5E7EB; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05); overflow: hidden;">
         
         <!-- Header -->
-        <div style="background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%); padding: 25px; text-align: center;">
-            <h1 style="margin: 0; color: white; font-size: 22px; font-weight: 600;">
-                📅 Meeting Invitation
+        <div style="background: linear-gradient(135deg, #DC2626 0%, #B91C1C 100%); padding: 30px 25px; text-align: center;">
+            <h1 style="margin: 0; color: white; font-size: 24px; font-weight: 600; line-height: 1.3;">
+                ❌ {meetingTypeIcon} {meetingType} Meeting Cancelled
             </h1>
         </div>
 
         <!-- Content -->
-        <div style="padding: 25px;">
+        <div style="padding: 30px 25px;">
             
-            <!-- Greeting -->
-            <div style="margin-bottom: 20px;">
-                <p style="margin: 0; color: #0f172a; font-size: 16px;">
-                    Dear All,
-                </p>
-                <p style="margin: 10px 0 0 0; color: #0f172a; font-size: 16px;">
-                    I would like to invite you to join the following meeting:
-                </p>
-            </div>
-
-            <!-- Meeting Info Card -->
-            <div style="background: #F8FAFC; border-radius: 8px; padding: 20px; border: 1px solid #E5E7EB; margin-bottom: 25px;">
-                <table cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse;">
-                    <tr>
-                        <td style="padding: 8px 0; width: 100px; font-weight: 600; color: #0f172a; vertical-align: top;">
-                            📋 Topic:
-                        </td>
-                        <td style="padding: 8px 0; color: #374151;">
-                            {topic}
-                        </td>
-                    </tr>
-                    <tr>
-                        <td style="padding: 8px 0; width: 100px; font-weight: 600; color: #0f172a; vertical-align: top;">
-                            📅 Date:
-                        </td>
-                        <td style="padding: 8px 0; color: #374151;">
-                            {date}
-                        </td>
-                    </tr>
-                    <tr>
-                        <td style="padding: 8px 0; width: 100px; font-weight: 600; color: #0f172a; vertical-align: top;">
-                            ⏰ Time:
-                        </td>
-                        <td style="padding: 8px 0; color: #374151;">
-                            {time}
-                        </td>
-                    </tr>
-                    <tr>
-                        <td style="padding: 8px 0; width: 100px; font-weight: 600; color: #0f172a; vertical-align: top;">
-                            📍 Location:
-                        </td>
-                        <td style="padding: 8px 0; color: #374151;">
-                            {location}
-                        </td>
-                    </tr>
-                    <tr>
-                        <td style="padding: 8px 0; width: 100px; font-weight: 600; color: #0f172a; vertical-align: top;">
-                            👤 Organizer:
-                        </td>
-                        <td style="padding: 8px 0; color: #374151;">
-                            {organizer}
-                        </td>
-                    </tr>
-                </table>
-            </div>
-
-            <!-- Message -->
+            <!-- Greeting Block -->
             <div style="margin-bottom: 25px;">
+                <p style="margin: 0 0 8px 0; color: #0f172a; font-size: 16px;">
+                    <strong>To:</strong> All concerned members,
+                </p>
                 <p style="margin: 0; color: #0f172a; font-size: 16px;">
-                    Please let me know if you have any questions.
-                </p>
-            </div>
-
-            <!-- Signature -->
-            <div style="padding-top: 20px; border-top: 1px solid #E5E7EB;">
-                <p style="margin: 0; color: #0f172a; font-size: 16px;">
-                    Best regards,<br>
-                    <strong>{organizerName}</strong>
-                </p>
-            </div>
-
-        </div>
-
-    </div>
-</body>
-</html>`,
-    isHtml: true,
-    isSystem: true
-  },
-  {
-    id: 'announcement',
-    name: 'General Announcement',
-    category: 'announcement',
-    subject: 'Announcement - {topic}',
-    body: `<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>General Announcement</title>
-</head>
-<body style="margin: 0; padding: 20px; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #F5F8FC; line-height: 1.6;">
-    <div style="max-width: 600px; margin: 0 auto; background: white; border-radius: 12px; border: 1px solid #E5E7EB; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05); overflow: hidden;">
-        
-        <!-- Header -->
-        <div style="background: linear-gradient(135deg, #059669 0%, #047857 100%); padding: 25px; text-align: center;">
-            <h1 style="margin: 0; color: white; font-size: 22px; font-weight: 600;">
-                📢 General Announcement
-            </h1>
-        </div>
-
-        <!-- Content -->
-        <div style="padding: 25px;">
-            
-            <!-- Greeting -->
-            <div style="margin-bottom: 20px;">
-                <p style="margin: 0; color: #0f172a; font-size: 16px;">
-                    Dear All,
-                </p>
-            </div>
-
-            <!-- Message -->
-            <div style="background: #F0FDF4; border-radius: 8px; padding: 20px; border-left: 4px solid #059669; margin-bottom: 25px;">
-                <p style="margin: 0; color: #0f172a; font-size: 16px; line-height: 1.6;">
-                    {message}
-                </p>
-            </div>
-
-            <!-- Call to Action -->
-            <div style="margin-bottom: 25px;">
-                <p style="margin: 0; color: #0f172a; font-size: 16px;">
-                    Please let me know if you have any questions.
-                </p>
-            </div>
-
-            <!-- Signature -->
-            <div style="padding-top: 20px; border-top: 1px solid #E5E7EB;">
-                <p style="margin: 0; color: #0f172a; font-size: 16px;">
-                    Best regards,<br>
-                    <strong>{organizerName}</strong>
-                </p>
-            </div>
-
-        </div>
-
-    </div>
-</body>
-</html>`,
-    isHtml: true,
-    isSystem: true
-  },
-  {
-    id: 'reminder',
-    name: 'Meeting Reminder',
-    category: 'reminder',
-    subject: 'Reminder: {topic}',
-    body: `<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Meeting Reminder</title>
-</head>
-<body style="margin: 0; padding: 20px; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #F5F8FC; line-height: 1.6;">
-    <div style="max-width: 600px; margin: 0 auto; background: white; border-radius: 12px; border: 1px solid #E5E7EB; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05); overflow: hidden;">
-        
-        <!-- Header -->
-        <div style="background: linear-gradient(135deg, #DC2626 0%, #B91C1C 100%); padding: 25px; text-align: center;">
-            <h1 style="margin: 0; color: white; font-size: 22px; font-weight: 600;">
-                ⏰ Meeting Reminder
-            </h1>
-        </div>
-
-        <!-- Content -->
-        <div style="padding: 25px;">
-            
-            <!-- Greeting -->
-            <div style="margin-bottom: 20px;">
-                <p style="margin: 0; color: #0f172a; font-size: 16px;">
-                    Dear All,
-                </p>
-                <p style="margin: 10px 0 0 0; color: #0f172a; font-size: 16px;">
-                    This is a reminder about the upcoming meeting:
-                </p>
-            </div>
-
-            <!-- Meeting Info Card -->
-            <div style="background: #FEF2F2; border-radius: 8px; padding: 20px; border: 1px solid #FECACA; margin-bottom: 25px;">
-                <table cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse;">
-                    <tr>
-                        <td style="padding: 8px 0; width: 100px; font-weight: 600; color: #0f172a; vertical-align: top;">
-                            📋 Topic:
-                        </td>
-                        <td style="padding: 8px 0; color: #374151;">
-                            {topic}
-                        </td>
-                    </tr>
-                    <tr>
-                        <td style="padding: 8px 0; width: 100px; font-weight: 600; color: #0f172a; vertical-align: top;">
-                            📅 Date:
-                        </td>
-                        <td style="padding: 8px 0; color: #374151;">
-                            {date}
-                        </td>
-                    </tr>
-                    <tr>
-                        <td style="padding: 8px 0; width: 100px; font-weight: 600; color: #0f172a; vertical-align: top;">
-                            ⏰ Time:
-                        </td>
-                        <td style="padding: 8px 0; color: #374151;">
-                            {time}
-                        </td>
-                    </tr>
-                    <tr>
-                        <td style="padding: 8px 0; width: 100px; font-weight: 600; color: #0f172a; vertical-align: top;">
-                            📍 Location:
-                        </td>
-                        <td style="padding: 8px 0; color: #374151;">
-                            {location}
-                        </td>
-                    </tr>
-                </table>
-            </div>
-
-            <!-- Call to Action -->
-            <div style="background: #FEF3C7; border-radius: 8px; padding: 15px; margin-bottom: 25px; text-align: center;">
-                <p style="margin: 0; color: #92400E; font-size: 16px; font-weight: 600;">
-                    ⚠️ Please confirm your attendance
-                </p>
-            </div>
-
-            <!-- Signature -->
-            <div style="padding-top: 20px; border-top: 1px solid #E5E7EB;">
-                <p style="margin: 0; color: #0f172a; font-size: 16px;">
-                    Best regards,<br>
-                    <strong>{organizerName}</strong>
-                </p>
-            </div>
-
-        </div>
-
-    </div>
-</body>
-</html>`,
-    isHtml: true,
-    isSystem: true
-  },
-  {
-    id: 'meeting-cancellation',
-    name: 'Meeting Cancellation',
-    category: 'cancellation',
-    subject: 'CANCELLED: {topic}',
-    body: `<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Meeting Cancellation</title>
-</head>
-<body style="margin: 0; padding: 20px; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #F5F8FC; line-height: 1.6;">
-    <div style="max-width: 600px; margin: 0 auto; background: white; border-radius: 12px; border: 1px solid #E5E7EB; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05); overflow: hidden;">
-        
-        <!-- Header -->
-        <div style="background: linear-gradient(135deg, #DC2626 0%, #B91C1C 100%); padding: 25px; text-align: center;">
-            <h1 style="margin: 0; color: white; font-size: 22px; font-weight: 600;">
-                ❌ Meeting Cancelled
-            </h1>
-        </div>
-
-        <!-- Content -->
-        <div style="padding: 25px;">
-            
-            <!-- Greeting -->
-            <div style="margin-bottom: 20px;">
-                <p style="margin: 0; color: #0f172a; font-size: 16px;">
-                    Dear All,
-                </p>
-                <p style="margin: 10px 0 0 0; color: #0f172a; font-size: 16px;">
-                    I regret to inform you that the following meeting has been cancelled:
+                    I regret to inform you that the {meetingType} meeting has been cancelled.
                 </p>
             </div>
 
@@ -462,59 +188,75 @@ export const SYSTEM_TEMPLATES: EmailTemplate[] = [
             <div style="background: #FEF2F2; border-radius: 8px; padding: 20px; border: 1px solid #FECACA; margin-bottom: 25px; text-align: center;">
                 <div style="font-size: 48px; margin-bottom: 10px;">❌</div>
                 <p style="margin: 0; color: #DC2626; font-size: 18px; font-weight: 600;">
-                    MEETING CANCELLED
+                    {meetingType} MEETING CANCELLED
                 </p>
             </div>
 
-            <!-- Meeting Info Card -->
-            <div style="background: #F8FAFC; border-radius: 8px; padding: 20px; border: 1px solid #E5E7EB; margin-bottom: 25px;">
-                <table cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse;">
-                    <tr>
-                        <td style="padding: 8px 0; width: 100px; font-weight: 600; color: #0f172a; vertical-align: top;">
-                            📋 Topic:
-                        </td>
-                        <td style="padding: 8px 0; color: #374151;">
-                            {topic}
-                        </td>
-                    </tr>
-                    <tr>
-                        <td style="padding: 8px 0; width: 100px; font-weight: 600; color: #0f172a; vertical-align: top;">
-                            📅 Date:
-                        </td>
-                        <td style="padding: 8px 0; color: #374151;">
-                            {date}
-                        </td>
-                    </tr>
-                    <tr>
-                        <td style="padding: 8px 0; width: 100px; font-weight: 600; color: #0f172a; vertical-align: top;">
-                            ⏰ Time:
-                        </td>
-                        <td style="padding: 8px 0; color: #374151;">
-                            {time}
-                        </td>
-                    </tr>
-                    <tr>
-                        <td style="padding: 8px 0; width: 100px; font-weight: 600; color: #0f172a; vertical-align: top;">
-                            📍 Location:
-                        </td>
-                        <td style="padding: 8px 0; color: #374151;">
-                            {location}
-                        </td>
-                    </tr>
-                </table>
+            <!-- Date Bar -->
+            <div style="margin-bottom: 25px; text-align: center;">
+                <span style="background: #DC2626; color: white; padding: 8px 20px; border-radius: 20px; font-weight: 600; font-size: 16px; display: inline-block;">
+                    📅 {date}
+                </span>
+            </div>
+
+            <!-- Cancelled Meeting Details -->
+            <div style="margin-bottom: 30px;">
+                <h3 style="margin: 0 0 20px 0; color: #0f172a; font-size: 18px; font-weight: 600; border-bottom: 2px solid #DC2626; padding-bottom: 8px;">
+                    📝 Cancelled Meeting Details
+                </h3>
+
+                <div style="background: #FAFBFC; border-radius: 8px; padding: 20px; border: 1px solid #E5E7EB;">
+                    <table cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse;">
+                        <tr>
+                            <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                                �� Meeting Type:
+                            </td>
+                            <td style="padding: 10px 0; color: #374151;">
+                                {meetingTypeDisplay}
+                            </td>
+                        </tr>
+                        {descriptionSection}
+                        {applicationModelSection}
+                        <tr>
+                            <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                                ⏰ Time:
+                            </td>
+                            <td style="padding: 10px 0; color: #374151;">
+                                {time}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                                📍 Location:
+                            </td>
+                            <td style="padding: 10px 0; color: #374151;">
+                                {location}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                                👤 Organizer:
+                            </td>
+                            <td style="padding: 10px 0; color: #374151;">
+                                {organizerName}
+                            </td>
+                        </tr>
+                        {interpreterSection}
+                        {chairmanSection}
+                        <tr>
+                            <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                                👥 Participants:
+                            </td>
+                            <td style="padding: 10px 0; color: #374151;">
+                                {participant}
+                            </td>
+                        </tr>
+                    </table>
+                </div>
             </div>
 
             <!-- Cancellation Reason -->
-            {reason && (
-              <div style="background: #FEF3C7; border-radius: 8px; padding: 15px; margin-bottom: 25px;">
-                <p style="margin: 0 0 8px 0; color: #92400E; font-size: 14px; font-weight: 600;">
-                    📝 Reason for cancellation:
-                </p>
-                <p style="margin: 0; color: #92400E; font-size: 14px;">
-                    {reason}
-                </p>
-              </div>
-            )}
+            {reasonSection}
 
             <!-- Next Steps -->
             <div style="background: #F0F9FF; border-radius: 8px; padding: 15px; margin-bottom: 25px;">
@@ -529,194 +271,607 @@ export const SYSTEM_TEMPLATES: EmailTemplate[] = [
             </div>
 
             <!-- Signature -->
-            <div style="padding-top: 20px; border-top: 1px solid #E5E7EB;">
-                <p style="margin: 0; color: #0f172a; font-size: 16px;">
-                    Best regards,<br>
-                    <strong>{organizerName}</strong>
+            <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #E5E7EB;">
+                <p style="margin: 0 0 15px 0; color: #0f172a; font-size: 16px;">
+                    Thank you & Best regards
                 </p>
+                <div style="color: #0f172a;">
+                    <p style="margin: 0 0 5px 0; font-size: 16px; font-weight: 600;">
+                        {organizerName}
+                    </p>
+                    <p style="margin: 0 0 5px 0; font-size: 14px; color: #374151;">
+                        {organizerDivision}
+                    </p>
+                    <p style="margin: 0; font-size: 14px; color: #374151;">
+                        Tel: {organizerPhone}
+                    </p>
+                </div>
             </div>
 
+        </div>
+
+        <!-- Footer -->
+        <div style="background: #F8FAFC; padding: 15px 25px; text-align: center; border-top: 1px solid #E5E7EB;">
+            <p style="margin: 0; color: #6B7280; font-size: 12px;">
+                This is an automated meeting cancellation from Daikin R&D Division
+            </p>
         </div>
 
     </div>
 </body>
 </html>`,
-    isHtml: true,
-    isSystem: true
-  }
+        isHtml: true,
+        isSystem: true
+    }
 ]
 
 export function getTemplateById(id: string): EmailTemplate | undefined {
-  return SYSTEM_TEMPLATES.find(template => template.id === id)
+    return SYSTEM_TEMPLATES.find(template => template.id === id)
 }
 
 export function getTemplatesByCategory(category: string): EmailTemplate[] {
-  return SYSTEM_TEMPLATES.filter(template => template.category === category)
+    return SYSTEM_TEMPLATES.filter(template => template.category === category)
 }
 
 export function getAllTemplates(): EmailTemplate[] {
-  return SYSTEM_TEMPLATES
+    return SYSTEM_TEMPLATES
 }
 
 export function formatTemplate(template: EmailTemplate, variables: Record<string, string>): { subject: string; body: string; isHtml: boolean } {
-  let subject = template.subject
-  let body = template.body
+    let subject = template.subject
+    let body = template.body
 
-  // Replace variables in subject and body
-  Object.entries(variables).forEach(([key, value]) => {
-    const placeholder = `{${key}}`
-    subject = subject.replace(new RegExp(placeholder, 'g'), value)
-    body = body.replace(new RegExp(placeholder, 'g'), value)
-  })
+    // Replace variables in subject and body
+    Object.entries(variables).forEach(([key, value]) => {
+        const placeholder = `{${key}}`
+        subject = subject.replace(new RegExp(placeholder, 'g'), value)
+        body = body.replace(new RegExp(placeholder, 'g'), value)
+    })
 
-  return { subject, body, isHtml: template.isHtml }
+    return { subject, body, isHtml: template.isHtml }
 }
 
-// Mapping to support all meeting types defined in Prisma schema
+// Unified template mapping - all meeting types use the same template with different variables
 export const DEFAULT_TEMPLATE_BY_MEETING_TYPE: Record<MeetingType, string> = {
-  DR: 'device-dr-meeting',
-  VIP: 'general-meeting',
-  Weekly: 'general-meeting',
-  General: 'general-meeting',
-  Urgent: 'reminder',
-  President: 'general-meeting',
-  Other: 'general-meeting'
+    DR: 'unified-meeting',
+    VIP: 'unified-meeting',
+    Weekly: 'unified-meeting',
+    General: 'unified-meeting',
+    Urgent: 'unified-meeting',
+    President: 'unified-meeting',
+    Other: 'unified-meeting'
 }
 
 export function getTemplateForMeetingType(meetingType: MeetingType): EmailTemplate | undefined {
-  const templateId = DEFAULT_TEMPLATE_BY_MEETING_TYPE[meetingType]
-  return getTemplateById(templateId)
+    const templateId = DEFAULT_TEMPLATE_BY_MEETING_TYPE[meetingType]
+    return getTemplateById(templateId)
 }
 
 export function getDeviceDRTemplateVariables(): Record<string, string> {
-  return {
-    topic: 'DC-K/I Altair comply WAF&RDS policies',
-    date: '23/Sep/\'25 (Tue)',
-    deviceGroup: 'IoT',
-    applicableModel: '-',
-    drStage: 'DC-K/I',
-    time: '15:00-16:00',
-    place: 'R&D/ Meeting Room 4&5 (Floor 4) or Microsoft Team meeting',
-    chairman: 'Mr. Nomura Yoshihide',
-    participant: 'R&D/DEDE, MKQ, DIT/IT and DIL/ITS',
-    organizerName: 'DEDE_SYSTEM',
-    organizerDivision: 'R&D DIVISION / DEVICE GROUP',
-    organizerPhone: '0-3846-9700 #7650'
-  }
+    return {
+        topic: 'DC-K/I Altair comply WAF&RDS policies',
+        date: '23/Sep/\'25 (Tue)',
+        deviceGroup: 'IoT',
+        applicableModel: '-',
+        drStage: 'DC-K/I',
+        time: '15:00-16:00',
+        place: 'R&D/ Meeting Room 4&5 (Floor 4) or Microsoft Team meeting',
+        chairman: 'Mr. Nomura Yoshihide',
+        participant: 'R&D/DEDE, MKQ, DIT/IT and DIL/ITS',
+        organizerName: 'DEDE_SYSTEM',
+        organizerDivision: 'R&D DIVISION / DEVICE GROUP',
+        organizerPhone: '0-3846-9700 #7650'
+    }
 }
 
 // Generic variables helper for non-DR meeting types
 export function getGenericMeetingTemplateVariables(): Record<string, string> {
-  return {
-    topic: 'Meeting Topic',
-    date: 'dd/MMM/\'yy (EEE)',
-    time: 'HH:mm–HH:mm',
-    location: 'Meeting Room / Teams',
-    organizer: 'Organizer',
-    organizerName: 'Organizer'
-  }
+    return {
+        topic: 'Meeting Topic',
+        date: 'dd/MMM/\'yy (EEE)',
+        time: 'HH:mm–HH:mm',
+        location: 'Meeting Room / Teams',
+        organizer: 'Organizer',
+        organizerName: 'Organizer'
+    }
 }
 
 // ===== DB-backed variable builders =====
 function formatGbDateWithWeekday(date: Date): string {
-  return date
-    .toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' })
-    .replace(/(\d+)\/(\w+)\/(\d+)/, '$1/$2/\'$3') +
-    ` (${date.toLocaleDateString('en-US', { weekday: 'short' })})`
+    return date
+        .toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' })
+        .replace(/(\d+)\/(\w+)\/(\d+)/, '$1/$2/\'$3') +
+        ` (${date.toLocaleDateString('en-US', { weekday: 'short' })})`
 }
 
 function formatTimeRange(start: Date, end: Date): string {
-  const s = start.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false })
-  const e = end.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false })
-  return `${s}–${e}`
+    const s = start.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false })
+    const e = end.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false })
+    return `${s}–${e}`
+}
+
+// Meeting type configurations for unified template
+const MEETING_TYPE_CONFIG = {
+    DR: {
+        icon: '🎯',
+        headerColor1: '#00A0E9',
+        headerColor2: '#0078C7',
+        displayName: 'Device Review (DR)'
+    },
+    VIP: {
+        icon: '⭐',
+        headerColor1: '#7C3AED',
+        headerColor2: '#5B21B6',
+        displayName: 'VIP'
+    },
+    Weekly: {
+        icon: '📅',
+        headerColor1: '#059669',
+        headerColor2: '#047857',
+        displayName: 'Weekly'
+    },
+    General: {
+        icon: '📋',
+        headerColor1: '#4F46E5',
+        headerColor2: '#3730A3',
+        displayName: 'General'
+    },
+    Urgent: {
+        icon: '🚨',
+        headerColor1: '#DC2626',
+        headerColor2: '#B91C1C',
+        displayName: 'Urgent'
+    },
+    President: {
+        icon: '👑',
+        headerColor1: '#B45309',
+        headerColor2: '#92400E',
+        displayName: 'President'
+    },
+    Other: {
+        icon: '📝',
+        headerColor1: '#6B7280',
+        headerColor2: '#4B5563',
+        displayName: 'Other'
+    }
+}
+
+// DR sub-type display mapping
+const DR_SUBTYPE_DISPLAY = {
+    DR_PR: 'DR-PR',
+    DR_k: 'DR-k',
+    DR_II: 'DR-II',
+    DR_I: 'DR-I',
+    Other: 'Custom DR Type'
 }
 
 export async function buildTemplateVariablesFromBooking(bookingId: number): Promise<Record<string, string>> {
-  const booking = await prisma.bookingPlan.findUnique({
-    where: { bookingId },
-    include: {
-      employee: true, // owner
-      inviteEmails: true,
+    const booking = await prisma.bookingPlan.findUnique({
+        where: { bookingId },
+        include: {
+            employee: true, // owner
+            inviteEmails: true,
+            interpreterEmployee: true, // assigned interpreter
+            selectedInterpreter: true, // selected interpreter (for President meetings)
+        }
+    })
+    if (!booking) throw new Error(`Booking not found: ${bookingId}`)
+
+    const start = new Date(booking.timeStart)
+    const end = new Date(booking.timeEnd)
+
+    const meetingType = booking.meetingType as MeetingType
+    const config = MEETING_TYPE_CONFIG[meetingType]
+    const isDR = meetingType === 'DR'
+
+    // Build topic - just the meeting type for title
+    const topic = meetingType
+
+    // Build description section
+    const description = booking.meetingDetail || ''
+    const descriptionSection = description ? `
+                        <tr>
+                            <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                                📝 Description:
+                            </td>
+                            <td style="padding: 10px 0; color: #374151;">
+                                ${description}
+                            </td>
+                        </tr>` : ''
+
+    // Build participants list - include everyone
+    const participantsList = new Set<string>()
+
+    // Add owner/booker
+    const ownerEmail = booking.employee?.email?.trim()
+    if (ownerEmail) participantsList.add(ownerEmail)
+
+    // Add assigned interpreter
+    const interpreterEmail = booking.interpreterEmployee?.email?.trim()
+    if (interpreterEmail) participantsList.add(interpreterEmail)
+
+    // Add selected interpreter (for President meetings)
+    const selectedInterpreterEmail = booking.selectedInterpreter?.email?.trim()
+    if (selectedInterpreterEmail) participantsList.add(selectedInterpreterEmail)
+
+    // Add chairman
+    if (booking.chairmanEmail?.trim()) participantsList.add(booking.chairmanEmail.trim())
+
+    // Add all invited attendees
+    booking.inviteEmails?.forEach(invite => {
+        const email = invite.email?.trim()
+        if (email) participantsList.add(email)
+    })
+
+    const participant = participantsList.size > 0
+        ? Array.from(participantsList).join(', ')
+        : 'To be confirmed'
+
+    // Build interpreter section
+    const interpreterName = booking.interpreterEmployee
+        ? [booking.interpreterEmployee.firstNameEn, booking.interpreterEmployee.lastNameEn].filter(Boolean).join(' ') || booking.interpreterEmployee.email
+        : (booking.selectedInterpreter
+            ? [booking.selectedInterpreter.firstNameEn, booking.selectedInterpreter.lastNameEn].filter(Boolean).join(' ') || booking.selectedInterpreter.email
+            : '')
+
+    const interpreterSection = interpreterName ? `
+                        <tr>
+                            <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                                🗣️ Interpreter:
+                            </td>
+                            <td style="padding: 10px 0; color: #374151;">
+                                ${interpreterName}
+                            </td>
+                        </tr>` : ''
+
+    // Build organizer info
+    const organizerName = booking.employee
+        ? [booking.employee.firstNameEn, booking.employee.lastNameEn].filter(Boolean).join(' ') || (booking.employee.email ?? booking.ownerEmpCode)
+        : booking.ownerEmpCode
+
+    const organizerDivision = booking.employee?.deptPath ?? ''
+    const organizerPhone = booking.employee?.telExt ?? ''
+
+    // Build Application Model section
+    const applicationModelSection = booking.applicableModel ? `
+                        <tr>
+                            <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                                📱 Application Model:
+                            </td>
+                            <td style="padding: 10px 0; color: #374151;">
+                                ${booking.applicableModel}
+                            </td>
+                        </tr>` : ''
+
+    // Build DR-specific sections
+    let drDetailsSection = ''
+    let chairmanSection = ''
+    let meetingTypeDisplay = config.displayName
+
+    if (isDR) {
+        // Handle DR sub-types - ALL DR sub-types are supported
+        const drSubtype = booking.drType
+        const drSubtypeDisplay = drSubtype ? DR_SUBTYPE_DISPLAY[drSubtype] || drSubtype : 'Not specified'
+
+        // If DR sub-type is "Other", use the custom otherType text
+        const finalDrDisplay = (drSubtype === 'Other' && booking.otherType)
+            ? booking.otherType
+            : drSubtypeDisplay
+
+        meetingTypeDisplay = `${config.displayName} - ${finalDrDisplay}`
+
+        drDetailsSection = `
+                        <tr>
+                            <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                                🏷️ Device Group:
+                            </td>
+                            <td style="padding: 10px 0; color: #374151;">
+                                ${booking.ownerGroup || 'Not specified'}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                                🎯 DR Stage:
+                            </td>
+                            <td style="padding: 10px 0; color: #374151;">
+                                ${finalDrDisplay}
+                            </td>
+                        </tr>`
+
+        if (booking.chairmanEmail) {
+            chairmanSection = `
+                        <tr>
+                            <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                                👨‍💼 Chairman:
+                            </td>
+                            <td style="padding: 10px 0; color: #374151;">
+                                ${booking.chairmanEmail}
+                            </td>
+                        </tr>`
+        }
+    } else if (meetingType === 'Other' && booking.otherType) {
+        meetingTypeDisplay = `${config.displayName} - ${booking.otherType}`
     }
-  })
-  if (!booking) throw new Error(`Booking not found: ${bookingId}`)
 
-  const start = new Date(booking.timeStart)
-  const end = new Date(booking.timeEnd)
+    return {
+        // Meeting type specific
+        meetingType: meetingType,
+        meetingTypeDisplay: meetingTypeDisplay,
+        meetingTypeIcon: config.icon,
+        headerColor1: config.headerColor1,
+        headerColor2: config.headerColor2,
 
-  const isDR = booking.meetingType === 'DR'
-  const drStage = isDR
-    ? (booking.drType ?? (booking.otherType ?? '-'))
-    : (booking.meetingType === 'Other' ? (booking.otherType ?? '-') : '-')
+        // Common fields
+        topic,
+        date: formatGbDateWithWeekday(start),
+        time: formatTimeRange(start, end),
+        location: booking.meetingRoom,
+        organizerName,
+        organizerDivision,
+        organizerPhone,
+        participant,
 
-  const topic = booking.meetingDetail
-    ? `${booking.meetingType} – ${booking.meetingDetail}`
-    : booking.meetingType
+        // Dynamic sections
+        descriptionSection,
+        applicationModelSection,
+        drDetailsSection,
+        chairmanSection,
+        interpreterSection,
 
-  const participant = booking.inviteEmails.length
-    ? booking.inviteEmails.map(i => i.email).join(', ')
-    : ''
+        // Legacy fields (for backward compatibility)
+        organizer: organizerName,
+        deviceGroup: booking.ownerGroup || '',
+        applicableModel: booking.applicableModel || '-',
+        drStage: isDR ? (booking.drType ?? (booking.otherType ?? '-')) : '-',
+        place: booking.meetingRoom,
+        chairman: booking.chairmanEmail ?? '',
 
-  const organizerName = booking.employee
-    ? [booking.employee.firstNameEn, booking.employee.lastNameEn].filter(Boolean).join(' ') || (booking.employee.email ?? booking.ownerEmpCode)
-    : booking.ownerEmpCode
-
-  const organizerDivision = booking.employee?.deptPath ?? ''
-  const organizerPhone = booking.employee?.telExt ?? ''
-
-  return {
-    // Common
-    topic,
-    date: formatGbDateWithWeekday(start),
-    time: formatTimeRange(start, end),
-    // General template fields
-    location: booking.meetingRoom,
-    organizer: organizerName,
-    organizerName,
-    // DR template specific extras (safe for others too)
-    deviceGroup: booking.ownerGroup,
-    applicableModel: booking.applicableModel ?? '-',
-    drStage: drStage,
-    place: booking.meetingRoom,
-    chairman: booking.chairmanEmail ?? '',
-    participant,
-    organizerDivision,
-    organizerPhone,
-  }
+        // Additional field for meeting room compatibility
+        meetingRoom: booking.meetingRoom,
+    }
 }
 
 export async function getFormattedTemplateForBooking(bookingId: number): Promise<{ subject: string; body: string; isHtml: boolean }> {
-  const booking = await prisma.bookingPlan.findUnique({ where: { bookingId } })
-  if (!booking) throw new Error(`Booking not found: ${bookingId}`)
-  const template = getTemplateForMeetingType(booking.meetingType as MeetingType)
-  if (!template) throw new Error(`No template configured for meeting type: ${booking.meetingType}`)
-  const variables = await buildTemplateVariablesFromBooking(bookingId)
-  return formatTemplate(template, variables)
+    const booking = await prisma.bookingPlan.findUnique({ where: { bookingId } })
+    if (!booking) throw new Error(`Booking not found: ${bookingId}`)
+    const template = getTemplateForMeetingType(booking.meetingType as MeetingType)
+    if (!template) throw new Error(`No template configured for meeting type: ${booking.meetingType}`)
+    const variables = await buildTemplateVariablesFromBooking(bookingId)
+    return formatTemplate(template, variables)
 }
 
+export async function buildCancellationTemplateVariablesFromBooking(bookingId: number, reason?: string): Promise<Record<string, string>> {
+    const booking = await prisma.bookingPlan.findUnique({
+        where: { bookingId },
+        include: {
+            employee: true, // owner
+            inviteEmails: true,
+            interpreterEmployee: true, // assigned interpreter
+            selectedInterpreter: true, // selected interpreter (for President meetings)
+        }
+    })
+    if (!booking) throw new Error(`Booking not found: ${bookingId}`)
+
+    const start = new Date(booking.timeStart)
+    const end = new Date(booking.timeEnd)
+
+    const meetingType = booking.meetingType as MeetingType
+    const config = MEETING_TYPE_CONFIG[meetingType]
+    const isDR = meetingType === 'DR'
+
+    // Build topic - just the meeting type for title
+    const topic = meetingType
+
+    // Build description section
+    const description = booking.meetingDetail || ''
+    const descriptionSection = description ? `
+                        <tr>
+                            <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                                📝 Description:
+                            </td>
+                            <td style="padding: 10px 0; color: #374151;">
+                                ${description}
+                            </td>
+                        </tr>` : ''
+
+    // Build participants list - include everyone
+    const participantsList = new Set<string>()
+
+    // Add owner/booker
+    const ownerEmail = booking.employee?.email?.trim()
+    if (ownerEmail) participantsList.add(ownerEmail)
+
+    // Add assigned interpreter
+    const interpreterEmail = booking.interpreterEmployee?.email?.trim()
+    if (interpreterEmail) participantsList.add(interpreterEmail)
+
+    // Add selected interpreter (for President meetings)
+    const selectedInterpreterEmail = booking.selectedInterpreter?.email?.trim()
+    if (selectedInterpreterEmail) participantsList.add(selectedInterpreterEmail)
+
+    // Add chairman
+    if (booking.chairmanEmail?.trim()) participantsList.add(booking.chairmanEmail.trim())
+
+    // Add all invited attendees
+    booking.inviteEmails?.forEach(invite => {
+        const email = invite.email?.trim()
+        if (email) participantsList.add(email)
+    })
+
+    const participant = participantsList.size > 0
+        ? Array.from(participantsList).join(', ')
+        : 'To be confirmed'
+
+    // Build interpreter section
+    const interpreterName = booking.interpreterEmployee
+        ? [booking.interpreterEmployee.firstNameEn, booking.interpreterEmployee.lastNameEn].filter(Boolean).join(' ') || booking.interpreterEmployee.email
+        : (booking.selectedInterpreter
+            ? [booking.selectedInterpreter.firstNameEn, booking.selectedInterpreter.lastNameEn].filter(Boolean).join(' ') || booking.selectedInterpreter.email
+            : '')
+
+    const interpreterSection = interpreterName ? `
+                        <tr>
+                            <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                                🗣️ Interpreter:
+                            </td>
+                            <td style="padding: 10px 0; color: #374151;">
+                                ${interpreterName}
+                            </td>
+                        </tr>` : ''
+
+    // Build organizer info
+    const organizerName = booking.employee
+        ? [booking.employee.firstNameEn, booking.employee.lastNameEn].filter(Boolean).join(' ') || (booking.employee.email ?? booking.ownerEmpCode)
+        : booking.ownerEmpCode
+
+    const organizerDivision = booking.employee?.deptPath ?? ''
+    const organizerPhone = booking.employee?.telExt ?? ''
+
+    // Build Application Model section
+    const applicationModelSection = booking.applicableModel ? `
+                        <tr>
+                            <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                                📱 Application Model:
+                            </td>
+                            <td style="padding: 10px 0; color: #374151;">
+                                ${booking.applicableModel}
+                            </td>
+                        </tr>` : ''
+
+    // Build DR-specific sections
+    let drDetailsSection = ''
+    let chairmanSection = ''
+    let meetingTypeDisplay = config.displayName
+
+    if (isDR) {
+        // Handle DR sub-types - ALL DR sub-types are supported
+        const drSubtype = booking.drType
+        const drSubtypeDisplay = drSubtype ? DR_SUBTYPE_DISPLAY[drSubtype] || drSubtype : 'Not specified'
+
+        // If DR sub-type is "Other", use the custom otherType text
+        const finalDrDisplay = (drSubtype === 'Other' && booking.otherType)
+            ? booking.otherType
+            : drSubtypeDisplay
+
+        meetingTypeDisplay = `${config.displayName} - ${finalDrDisplay}`
+
+        drDetailsSection = `
+                        <tr>
+                            <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                                🏷️ Device Group:
+                            </td>
+                            <td style="padding: 10px 0; color: #374151;">
+                                ${booking.ownerGroup || 'Not specified'}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                                🎯 DR Stage:
+                            </td>
+                            <td style="padding: 10px 0; color: #374151;">
+                                ${finalDrDisplay}
+                            </td>
+                        </tr>`
+
+        if (booking.chairmanEmail) {
+            chairmanSection = `
+                        <tr>
+                            <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                                👨‍💼 Chairman:
+                            </td>
+                            <td style="padding: 10px 0; color: #374151;">
+                                ${booking.chairmanEmail}
+                            </td>
+                        </tr>`
+        }
+    } else if (meetingType === 'Other' && booking.otherType) {
+        meetingTypeDisplay = `${config.displayName} - ${booking.otherType}`
+    }
+
+    // Build reason section
+    let reasonSection = ''
+    if (reason) {
+        reasonSection = `
+            <div style="background: #FEF3C7; border-radius: 8px; padding: 15px; margin-bottom: 25px;">
+                <p style="margin: 0 0 8px 0; color: #92400E; font-size: 14px; font-weight: 600;">
+                    📝 Reason for cancellation:
+                </p>
+                <p style="margin: 0; color: #92400E; font-size: 14px;">
+                    ${reason}
+                </p>
+            </div>`
+    }
+
+    return {
+        // Meeting type specific
+        meetingType: meetingType,
+        meetingTypeDisplay: meetingTypeDisplay,
+        meetingTypeIcon: config.icon,
+        headerColor1: config.headerColor1,
+        headerColor2: config.headerColor2,
+
+        // Common fields
+        topic,
+        date: formatGbDateWithWeekday(start),
+        time: formatTimeRange(start, end),
+        location: booking.meetingRoom,
+        organizerName,
+        organizerDivision,
+        organizerPhone,
+        participant,
+
+        // Dynamic sections
+        descriptionSection,
+        applicationModelSection,
+        drDetailsSection,
+        chairmanSection,
+        interpreterSection,
+        reasonSection,
+
+        // Legacy fields (for backward compatibility)
+        organizer: organizerName,
+        deviceGroup: booking.ownerGroup || '',
+        applicableModel: booking.applicableModel || '-',
+        drStage: isDR ? (booking.drType ?? (booking.otherType ?? '-')) : '-',
+        place: booking.meetingRoom,
+        chairman: booking.chairmanEmail ?? '',
+
+        // Additional field for meeting room compatibility
+        meetingRoom: booking.meetingRoom,
+    }
+}
+
+export async function getFormattedCancellationTemplateForBooking(bookingId: number, reason?: string): Promise<{ subject: string; body: string; isHtml: boolean }> {
+    const template = getTemplateById('unified-cancellation')
+    if (!template) throw new Error('Unified cancellation template not found')
+    const variables = await buildCancellationTemplateVariablesFromBooking(bookingId, reason)
+    return formatTemplate(template, variables)
+}
+
+// Legacy function for backward compatibility - now uses unified template
 export function generateCancellationEmailHTML(event: { start?: string; end?: string; summary?: string; location?: string }, reason?: string): string {
-  const startDate = event.start ? new Date(event.start) : new Date()
-  const endDate = event.end ? new Date(event.end) : new Date()
-  
-  const meetingDate = startDate.toLocaleDateString('en-GB', {
-    day: '2-digit',
-    month: 'short',
-    year: '2-digit'
-  }).replace(/(\d+)\/(\w+)\/(\d+)/, '$1/$2/\'$3')
-  const meetingDay = startDate.toLocaleDateString('en-US', {
-    weekday: 'short'
-  })
-  const meetingTime = `${startDate.toLocaleTimeString('en-GB', {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false
-  })}–${endDate.toLocaleTimeString('en-GB', {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false
-  })}`
-  
-  return `<!DOCTYPE html>
+    const startDate = event.start ? new Date(event.start) : new Date()
+    const endDate = event.end ? new Date(event.end) : new Date()
+
+    const meetingDate = startDate.toLocaleDateString('en-GB', {
+        day: '2-digit',
+        month: 'short',
+        year: '2-digit'
+    }).replace(/(\d+)\/(\w+)\/(\d+)/, '$1/$2/\'$3')
+    const meetingDay = startDate.toLocaleDateString('en-US', {
+        weekday: 'short'
+    })
+    const meetingTime = `${startDate.toLocaleTimeString('en-GB', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+    })}–${endDate.toLocaleTimeString('en-GB', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+    })}`
+
+    return `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -758,34 +913,34 @@ export function generateCancellationEmailHTML(event: { start?: string; end?: str
             <div style="background: #F8FAFC; border-radius: 8px; padding: 20px; border: 1px solid #E5E7EB; margin-bottom: 25px;">
                 <table cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse;">
                     <tr>
-                        <td style="padding: 8px 0; width: 100px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                        <td style="padding: 10px 0; width: 100px; font-weight: 600; color: #0f172a; vertical-align: top;">
                             📋 Topic:
                         </td>
-                        <td style="padding: 8px 0; color: #374151;">
+                        <td style="padding: 10px 0; color: #374151;">
                             ${event.summary || 'Untitled Event'}
                         </td>
                     </tr>
                     <tr>
-                        <td style="padding: 8px 0; width: 100px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                        <td style="padding: 10px 0; width: 100px; font-weight: 600; color: #0f172a; vertical-align: top;">
                             📅 Date:
                         </td>
-                        <td style="padding: 8px 0; color: #374151;">
+                        <td style="padding: 10px 0; color: #374151;">
                             ${meetingDate} (${meetingDay})
                         </td>
                     </tr>
                     <tr>
-                        <td style="padding: 8px 0; width: 100px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                        <td style="padding: 10px 0; width: 100px; font-weight: 600; color: #0f172a; vertical-align: top;">
                             ⏰ Time:
                         </td>
-                        <td style="padding: 8px 0; color: #374151;">
+                        <td style="padding: 10px 0; color: #374151;">
                             ${meetingTime}
                         </td>
                     </tr>
                     <tr>
-                        <td style="padding: 8px 0; width: 100px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                        <td style="padding: 10px 0; width: 100px; font-weight: 600; color: #0f172a; vertical-align: top;">
                             📍 Location:
                         </td>
-                        <td style="padding: 8px 0; color: #374151;">
+                        <td style="padding: 10px 0; color: #374151;">
                             ${event.location || 'TBD'}
                         </td>
                     </tr>
