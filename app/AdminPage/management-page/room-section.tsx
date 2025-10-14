@@ -48,6 +48,8 @@ export default function RoomManagementSection() {
     capacity: 1,
     isActive: true,
   });
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
 
   // Fetch rooms from API
   const fetchRooms = useCallback(async () => {
@@ -84,8 +86,13 @@ export default function RoomManagementSection() {
 
       if (data.success) {
         toast.success("Room created successfully!");
+        const id: number | undefined = data?.data?.id;
+        if (id && imageFile) {
+          await uploadRoomImage(id);
+        }
         setShowCreateDialog(false);
         setFormData({ name: "", location: "", capacity: 1, isActive: true });
+        clearImage();
         fetchRooms();
       } else {
         toast.error(data.error || "Failed to create room");
@@ -113,8 +120,12 @@ export default function RoomManagementSection() {
 
       if (data.success) {
         toast.success("Room updated successfully!");
+        if (imageFile) {
+          await uploadRoomImage(editingRoom.id);
+        }
         setEditingRoom(null);
         setFormData({ name: "", location: "", capacity: 1, isActive: true });
+        clearImage();
         fetchRooms();
       } else {
         toast.error(data.error || "Failed to update room");
@@ -123,6 +134,33 @@ export default function RoomManagementSection() {
       console.error("Error updating room:", error);
       toast.error("Error updating room");
     }
+  };
+
+  const uploadRoomImage = async (roomId: number) => {
+    try {
+      if (!imageFile) return;
+      const fd = new FormData();
+      fd.append("image", imageFile);
+      const res = await fetch(`/api/admin/room-image/${roomId}`, {
+        method: "POST",
+        body: fd,
+      });
+      const json = await res.json();
+      if (json?.success) {
+        toast.success("Image uploaded");
+      } else {
+        toast.error(json?.error || "Failed to upload image");
+      }
+    } catch (e) {
+      console.error("Upload error", e);
+      toast.error("Error uploading image");
+    }
+  };
+
+  const clearImage = () => {
+    if (imagePreview) URL.revokeObjectURL(imagePreview);
+    setImagePreview(null);
+    setImageFile(null);
   };
 
   // Delete room
@@ -163,6 +201,7 @@ export default function RoomManagementSection() {
     setFormData({ name: "", location: "", capacity: 1, isActive: true });
     setEditingRoom(null);
     setShowCreateDialog(false);
+    clearImage();
   };
 
   // Start editing room
@@ -240,6 +279,51 @@ export default function RoomManagementSection() {
                   }
                   placeholder="e.g., Building 1, Floor 2"
                 />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="image">Room Image (jpg, png, webp)</Label>
+                <input
+                  id="image"
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] || null;
+                    if (!file) {
+                      clearImage();
+                      return;
+                    }
+                    if (file.size > 5 * 1024 * 1024) {
+                      toast.error("Image too large (max 5MB)");
+                      return;
+                    }
+                    const allowed = ["image/jpeg", "image/png", "image/webp"];
+                    if (!allowed.includes(file.type)) {
+                      toast.error("Only jpg, png, webp allowed");
+                      return;
+                    }
+                    if (imagePreview) URL.revokeObjectURL(imagePreview);
+                    setImageFile(file);
+                    setImagePreview(URL.createObjectURL(file));
+                  }}
+                  className="block w-full text-sm text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
+                />
+                {imagePreview ? (
+                  <div className="mt-2">
+                    <img
+                      src={imagePreview}
+                      alt="Preview"
+                      className="w-full h-40 object-cover rounded-md border"
+                    />
+                    <div className="flex gap-2 mt-2">
+                      <Button type="button" variant="outline" onClick={clearImage}>
+                        Remove
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground">Optional. Will be resized and optimized.</p>
+                )}
               </div>
 
               <div className="space-y-2">
