@@ -13,13 +13,7 @@ import {
 import { 
   Scale, 
   Calendar, 
-  Clock, 
-  XCircle, 
-  Users, 
-  RefreshCw, 
   FileText,
-  User,
-  DoorClosed,
   ShieldAlert
 } from "lucide-react";
 
@@ -48,8 +42,6 @@ export default function BookingRules({ forwardMonthLimit }: { forwardMonthLimit?
       iconColor: "text-blue-600 dark:text-blue-400",
       items: [
         {
-          icon: Calendar,
-          iconColor: "text-blue-500",
           text: (
             <>
               You can book <strong>current month + {limit} month{limit === 1 ? "" : "s"}</strong> ahead.
@@ -57,8 +49,6 @@ export default function BookingRules({ forwardMonthLimit }: { forwardMonthLimit?
           ),
         },
         {
-          icon: XCircle,
-          iconColor: "text-red-500",
           text: (
             <>
               <strong>No booking</strong> on Saturday or Sunday.
@@ -66,8 +56,6 @@ export default function BookingRules({ forwardMonthLimit }: { forwardMonthLimit?
           ),
         },
         {
-          icon: Clock,
-          iconColor: "text-gray-500",
           text: (
             <>
               <strong>Past time</strong> is disabled.
@@ -75,8 +63,6 @@ export default function BookingRules({ forwardMonthLimit }: { forwardMonthLimit?
           ),
         },
         {
-          icon: Users,
-          iconColor: "text-orange-500",
           text: (
             <>
               If a time is <strong>full</strong>, you cannot book (all interpreters are busy).
@@ -84,8 +70,6 @@ export default function BookingRules({ forwardMonthLimit }: { forwardMonthLimit?
           ),
         },
         {
-          icon: RefreshCw,
-          iconColor: "text-purple-500",
           text: (
             <>
               <strong>Repeat bookings</strong> must stay inside the allowed months.
@@ -100,8 +84,6 @@ export default function BookingRules({ forwardMonthLimit }: { forwardMonthLimit?
       iconColor: "text-green-600 dark:text-green-400",
       items: [
         {
-          icon: FileText,
-          iconColor: "text-green-500",
           text: (
             <>
               <strong>DR meeting:</strong> choose DR type. If &quot;Other&quot;, fill &quot;Other type&quot; and &quot;Scope&quot;. Add <strong>Chairman email</strong>.
@@ -109,8 +91,6 @@ export default function BookingRules({ forwardMonthLimit }: { forwardMonthLimit?
           ),
         },
         {
-          icon: User,
-          iconColor: "text-indigo-500",
           text: (
             <>
               <strong>President meeting:</strong> choose an <strong>Interpreter</strong>.
@@ -125,8 +105,6 @@ export default function BookingRules({ forwardMonthLimit }: { forwardMonthLimit?
       iconColor: "text-amber-600 dark:text-amber-400",
       items: [
         {
-          icon: DoorClosed,
-          iconColor: "text-amber-500",
           text: (
             <>
               <strong>Room</strong> must be free (no room conflict).
@@ -134,8 +112,6 @@ export default function BookingRules({ forwardMonthLimit }: { forwardMonthLimit?
           ),
         },
         {
-          icon: User,
-          iconColor: "text-rose-500",
           text: (
             <>
               <strong>Chairman</strong> must be free at that time.
@@ -143,8 +119,6 @@ export default function BookingRules({ forwardMonthLimit }: { forwardMonthLimit?
           ),
         },
         {
-          icon: Users,
-          iconColor: "text-teal-500",
           text: (
             <>
               <strong>Interpreter</strong> must be free at that time.
@@ -195,7 +169,7 @@ export default function BookingRules({ forwardMonthLimit }: { forwardMonthLimit?
                         key={itemIdx} 
                         className="flex items-start gap-2.5 pl-1"
                       >
-                        <item.icon className={`w-3.5 h-3.5 mt-0.5 flex-shrink-0 ${item.iconColor}`} />
+                        <span className="text-muted-foreground mr-1">•</span>
                         <p className="text-sm text-foreground/80 leading-relaxed">
                           {item.text}
                         </p>

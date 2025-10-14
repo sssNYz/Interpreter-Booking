@@ -4,18 +4,23 @@ import prisma from "@/prisma/prisma";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-// Compute Bangkok local time string (YYYY-MM-DD HH:mm:ss) minus given minutes.
-function bkkNowMinusMinutes(minutes: number): string {
-  const nowUtcMs = Date.now();
-  const bkkOffsetMs = 7 * 60 * 60 * 1000; // Asia/Bangkok is UTC+7, no DST
-  const graceMs = minutes * 60 * 1000;
-  const target = new Date(nowUtcMs + bkkOffsetMs - graceMs);
-  const y = target.getUTCFullYear();
-  const m = String(target.getUTCMonth() + 1).padStart(2, "0");
-  const d = String(target.getUTCDate()).padStart(2, "0");
-  const hh = String(target.getUTCHours()).padStart(2, "0");
-  const mm = String(target.getUTCMinutes()).padStart(2, "0");
-  const ss = String(target.getUTCSeconds()).padStart(2, "0");
+const DEFAULT_TZ_OFFSET_MINUTES = 7 * 60; // Asia/Bangkok UTC+7
+const DEFAULT_GRACE_MINUTES = 10;
+
+function parseIntegerEnv(envValue: string | undefined, fallback: number): number {
+  const parsed = Number.parseInt(envValue ?? "", 10);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+// Compute local time string (YYYY-MM-DD HH:mm:ss) for the configured business timezone.
+function formatLocalTimeWithOffset(date: Date, offsetMinutes: number): string {
+  const shifted = new Date(date.getTime() + offsetMinutes * 60 * 1000);
+  const y = shifted.getUTCFullYear();
+  const m = String(shifted.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(shifted.getUTCDate()).padStart(2, "0");
+  const hh = String(shifted.getUTCHours()).padStart(2, "0");
+  const mm = String(shifted.getUTCMinutes()).padStart(2, "0");
+  const ss = String(shifted.getUTCSeconds()).padStart(2, "0");
   return `${y}-${m}-${d} ${hh}:${mm}:${ss}`;
 }
 
@@ -28,7 +33,9 @@ async function withNamedLock<T>(name: string, timeoutSec: number, fn: () => Prom
     const result = await fn();
     return { ok: true, result };
   } finally {
-    try { await prisma.$queryRaw`SELECT RELEASE_LOCK(${name})`; } catch {}
+    try {
+      await prisma.$queryRaw`SELECT RELEASE_LOCK(${name})`;
+    } catch {}
   }
 }
 
@@ -36,18 +43,17 @@ async function withNamedLock<T>(name: string, timeoutSec: number, fn: () => Prom
 export async function POST(req: NextRequest) {
   try {
     // Simple secret header auth
-    const provided = req.headers.get("x-cron-token") || req.headers.get("X-CRON-TOKEN");
-    const expected = process.env.CRON_SECRET || process.env.CRON_TOKEN;
+    const providedHeader = req.headers.get("x-cron-token") || req.headers.get("X-CRON-TOKEN");
+    const expectedRaw = process.env.CRON_SECRET || process.env.CRON_TOKEN;
+    const provided = providedHeader?.trim();
+    const expected = expectedRaw?.trim();
     if (!expected || provided !== expected) {
       return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
     }
 
-    // Business rule
-    // Only rows where:
-    //  - bookingStatus = 'approve'
-    //  - interpreterEmpCode IS NOT NULL
-    //  - TIME_END < (Bangkok now - 10 minutes)
-    const threshold = bkkNowMinusMinutes(10);
+    const timezoneOffsetMinutes = parseIntegerEnv(process.env.BUSINESS_TZ_OFFSET_MINUTES, DEFAULT_TZ_OFFSET_MINUTES);
+    const graceMinutes = parseIntegerEnv(process.env.COMPLETE_BOOKINGS_GRACE_MINUTES, DEFAULT_GRACE_MINUTES);
+    const threshold = formatLocalTimeWithOffset(new Date(Date.now() - graceMinutes * 60 * 1000), timezoneOffsetMinutes);
 
     const job = await withNamedLock("booking:complete-job", 5, async () => {
       // Perform update in one statement; also set updated_at
@@ -55,16 +61,16 @@ export async function POST(req: NextRequest) {
         SET BOOKING_STATUS = 'complet', updated_at = NOW(0)
         WHERE BOOKING_STATUS = 'approve'
           AND INTERPRETER_EMP_CODE IS NOT NULL
-          AND TIME_END < ${threshold}`;
+          AND TIME_END < DATE_SUB(DATE_ADD(UTC_TIMESTAMP(), INTERVAL ${timezoneOffsetMinutes} MINUTE), INTERVAL ${graceMinutes} MINUTE)`;
 
-      return { affected, threshold };
+      return { affected };
     });
 
     if (!job.ok) {
       return NextResponse.json({ error: job.error }, { status: 423 });
     }
 
-    return NextResponse.json({ ok: true, ...job.result });
+    return NextResponse.json({ ok: true, threshold, ...job.result });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unexpected error";
     return NextResponse.json({ error: "INTERNAL_ERROR", message }, { status: 500 });
@@ -76,4 +82,3 @@ export function OPTIONS() {
   res.headers.set("Allow", "POST, OPTIONS");
   return res;
 }
-

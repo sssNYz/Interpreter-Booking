@@ -408,6 +408,21 @@ const DayRow: React.FC<Props> = ({
                       </div>
                     </div>
 
+                    {/* Chairman Email (DR only) */}
+                    {bar.meetingType === "DR" && (
+                      <div className="flex items-start space-x-3">
+                        <div className="flex-shrink-0 w-2 h-2 bg-neutral-200 rounded-full mt-2"></div>
+                        <div className="flex-1">
+                          <div className="font-semibold text-neutral-500 text-sm mb-1">
+                            Chairman Email
+                          </div>
+                          <div className="text-neutral-700 text-sm break-words">
+                            {bar.chairmanEmail?.trim() || "Not provided"}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Contact */}
                     <div className="border-t pt-3">
                       <div className="flex items-start space-x-3">
