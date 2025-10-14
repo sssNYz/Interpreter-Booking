@@ -46,7 +46,7 @@ const BookingRoom = () => {
   } | null>(null);
   const [bookingTitle, setBookingTitle] = useState("");
   
-  const VISIBLE_COLUMNS = 4;
+  const VISIBLE_COLUMNS = 5;
   const timeSlots = generateTimeSlots();
 
   // Fetch rooms
@@ -246,13 +246,17 @@ const BookingRoom = () => {
             {displayedRooms.map((room) => (
               <div key={room.id} className="sticky top-0 z-20 bg-gray-50 border-b border-r last:border-r-0 p-3">
                 <div className="flex flex-col items-center gap-2">
-                  <div className="w-full h-20 rounded-lg overflow-hidden bg-gray-200">
+                  <div className="w-full rounded-lg overflow-hidden bg-gray-200 relative" style={{ aspectRatio: '4 / 2.5' }}>
                     <img
                       src={getRoomImagePath(room.id)}
                       alt={room.name}
-                      className="w-full h-full object-cover"
+                      className="absolute inset-0 w-full h-full object-cover"
                       onError={(e) => {
-                        e.currentTarget.style.display = 'none';
+                        const img = e.currentTarget as HTMLImageElement;
+                        if (!img.dataset.fallback) {
+                          img.dataset.fallback = '1';
+                          img.src = '/Room/default.jpg';
+                        }
                       }}
                     />
                   </div>
@@ -281,7 +285,7 @@ const BookingRoom = () => {
             {Array.from({ length: placeholderCount }).map((_, idx) => (
               <div key={`placeholder-${idx}`} className="sticky top-0 z-20 bg-gray-100 border-b border-r last:border-r-0 p-3">
                 <div className="flex flex-col items-center gap-2 opacity-30">
-                  <div className="w-full h-20 rounded-lg bg-gray-300"></div>
+                  <div className="w-full rounded-lg bg-gray-300 relative" style={{ aspectRatio: '4 / 3' }}></div>
                   <div className="text-center w-full">
                     <h3 className="font-semibold text-sm text-gray-500">—</h3>
                   </div>
