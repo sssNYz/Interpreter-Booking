@@ -79,16 +79,11 @@ const BookingRoom = () => {
   }, []);
 
   function generateTimeSlots() {
-    const slots: { time: string; display: string }[] = [];
+    const slots: string[] = [];
     for (let h = 8; h <= 20; h++) {
       for (let m = 0; m < 60; m += 30) {
         const time = `${String(h).padStart(2, "0")}:${m === 0 ? "00" : "30"}`;
-        const hour12 = h % 12 === 0 ? 12 : h % 12;
-        const ampm = h >= 12 ? "PM" : "AM";
-        slots.push({
-          time,
-          display: `${hour12}:${m === 0 ? "00" : "30"} ${ampm}`,
-        });
+        slots.push(time);
       }
     }
     return slots;
@@ -196,9 +191,9 @@ const BookingRoom = () => {
   }
 
   return (
-    <div className="flex flex-col h-screen w-full bg-gray-50 overflow-hidden">
+    <div className="flex flex-col h-full min-h-0 w-full bg-gray-50 overflow-hidden">
       {/* Header */}
-      <div className="bg-white border-b px-6 py-4 flex-shrink-0">
+      <div className="bg-white border-b px-4 py-3 flex-shrink-0">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-gray-900">Room Booking</h1>
           <div className="flex items-center gap-2">
@@ -238,9 +233,10 @@ const BookingRoom = () => {
       </div>
 
       {/* Calendar Grid */}
-      <div className="flex-1 overflow-auto p-6">
-        <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
-          <div className="grid" style={{ gridTemplateColumns: `120px repeat(${VISIBLE_COLUMNS}, 1fr)` }}>
+      <div className="flex-1 min-h-0 overflow-hidden p-4">
+        <div className="bg-white rounded-lg shadow-sm border h-full flex flex-col overflow-hidden">
+          <div className="flex-1 min-h-0 overflow-auto">
+            <div className="grid" style={{ gridTemplateColumns: `120px repeat(${VISIBLE_COLUMNS}, 1fr)` }}>
             {/* Time column header - sticky top-left */}
             <div className="sticky top-0 left-0 z-30 bg-gray-50 border-b border-r p-4">
               <Clock className="h-5 w-5 text-gray-400 mx-auto" />
@@ -295,28 +291,28 @@ const BookingRoom = () => {
 
             {/* Time slots */}
             {timeSlots.map((slot) => (
-              <React.Fragment key={slot.time}>
+              <React.Fragment key={slot}>
                 {/* Time label - sticky left */}
                 <div className="sticky left-0 z-10 bg-gray-50 border-b border-r p-3 flex items-start justify-end">
                   <span className="text-xs font-medium text-gray-600">
-                    {slot.display}
+                    {slot}
                   </span>
                 </div>
 
                 {/* Room slots */}
                 {displayedRooms.map((room) => {
-                  const booking = isSlotBooked(room.id, slot.time);
+                  const booking = isSlotBooked(room.id, slot);
                   const isBooked = !!booking;
 
                   return (
                     <div
-                      key={`${room.id}-${slot.time}`}
+                      key={`${room.id}-${slot}`}
                       className={`border-b border-r last:border-r-0 p-2 min-h-[60px] cursor-pointer transition-all ${
                         isBooked
                           ? "bg-blue-50 hover:bg-blue-100"
                           : "bg-white hover:bg-green-50"
                       }`}
-                      onClick={() => handleSlotClick(room.id, slot.time)}
+                      onClick={() => handleSlotClick(room.id, slot)}
                     >
                       {isBooked ? (
                         <div className="bg-blue-500 text-white rounded-md p-2 h-full flex flex-col justify-between text-xs group relative">
@@ -340,12 +336,13 @@ const BookingRoom = () => {
                 {/* Placeholder slots */}
                 {Array.from({ length: placeholderCount }).map((_, idx) => (
                   <div
-                    key={`placeholder-slot-${slot.time}-${idx}`}
+                    key={`placeholder-slot-${slot}-${idx}`}
                     className="border-b border-r last:border-r-0 p-2 min-h-[60px] bg-gray-100"
                   ></div>
                 ))}
               </React.Fragment>
             ))}
+            </div>
           </div>
         </div>
       </div>
