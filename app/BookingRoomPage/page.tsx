@@ -4,7 +4,7 @@ import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { client as featureFlags } from "@/lib/feature-flags";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight, Users, MapPin, Clock, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Users, MapPin, Clock, X, Calendar as CalendarIcon } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -14,6 +14,12 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Calendar as DatePickerCalendar } from "@/components/ui/calendar";
 
 interface Room {
   id: number;
@@ -191,12 +197,47 @@ const BookingRoom = () => {
   }
 
   return (
-    <div className="flex flex-col h-full min-h-0 w-full bg-gray-50 overflow-hidden">
+    <div className="flex flex-col h-full min-h-0 w-full bg-white overflow-hidden">
       {/* Header */}
-      <div className="bg-white border-b px-4 py-3 flex-shrink-0">
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-gray-900">Room Booking</h1>
-          <div className="flex items-center gap-2">
+      <div className="bg-white px-4 py-3 flex-shrink-0">
+        <div className="flex items-center justify-between gap-3">
+          {/* Left: Styled title block + Date picker */}
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="flex items-center gap-2 justify-center min-w-[280px] sm:min-w-[370px] rounded-t-4xl bg-neutral-700 px-4 py-2">
+              <CalendarIcon className="w-6 h-6 sm:w-8 sm:h-8 text-primary-foreground" />
+              <h1 className="text-[16px] sm:text-[20px] font-medium text-primary-foreground">Room Booking</h1>
+            </div>
+            {/* Date picker (shadcn) next to title */}
+            <div className="relative">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button id="date-picker" variant="outline" className="gap-2">
+                    <CalendarIcon className="h-4 w-4" />
+                    <span className="text-sm">
+                      {selectedDate.toLocaleDateString("en-US", { day: "2-digit", month: "long", year: "numeric" })}
+                    </span>
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start" sideOffset={8}>
+                  <DatePickerCalendar
+                    mode="single"
+                    selected={selectedDate}
+                    month={selectedDate}
+                    onMonthChange={(d) => d && setSelectedDate(new Date(d))}
+                    onSelect={(d) => {
+                      if (d) setSelectedDate(d);
+                    }}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+          </div>
+
+          {/* Spacer to push right controls */}
+          <div className="flex-1" />
+
+          {/* Right: Room navigation only */}
+          <div className="flex items-center gap-3">
             {rooms.length > VISIBLE_COLUMNS && (
               <>
                 <Button
@@ -210,23 +251,15 @@ const BookingRoom = () => {
                 <span className="text-sm text-gray-600 px-2">
                   {startIndex + 1}-{endIndex} of {rooms.length}
                 </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleNext}
+                  disabled={!canNext}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
               </>
-            )}
-            <Input
-              type="date"
-              value={selectedDate.toISOString().split("T")[0]}
-              onChange={(e) => setSelectedDate(new Date(e.target.value))}
-              className="w-auto"
-            />
-            {rooms.length > VISIBLE_COLUMNS && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleNext}
-                disabled={!canNext}
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
             )}
           </div>
         </div>
@@ -234,7 +267,7 @@ const BookingRoom = () => {
 
       {/* Calendar Grid */}
       <div className="flex-1 min-h-0 overflow-hidden p-4">
-        <div className="bg-white rounded-lg shadow-sm border h-full flex flex-col overflow-hidden">
+        <div className="bg-white rounded-2xl shadow-sm border h-full flex flex-col overflow-hidden">
           <div className="flex-1 min-h-0 overflow-auto">
             <div className="grid" style={{ gridTemplateColumns: `120px repeat(${VISIBLE_COLUMNS}, 1fr)` }}>
             {/* Time column header - sticky top-left */}

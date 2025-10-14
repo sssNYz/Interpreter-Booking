@@ -50,6 +50,7 @@ export default function RoomManagementSection() {
   });
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imageBust, setImageBust] = useState<number>(0);
 
   // Fetch rooms from API
   const fetchRooms = useCallback(async () => {
@@ -148,6 +149,7 @@ export default function RoomManagementSection() {
       const json = await res.json();
       if (json?.success) {
         toast.success("Image uploaded");
+        setImageBust(Date.now());
       } else {
         toast.error(json?.error || "Failed to upload image");
       }
@@ -162,6 +164,12 @@ export default function RoomManagementSection() {
     setImagePreview(null);
     setImageFile(null);
   };
+
+  useEffect(() => {
+    if (editingRoom) {
+      setImageBust(Date.now());
+    }
+  }, [editingRoom]);
 
   // Delete room
   const deleteRoom = async (roomId: number) => {
@@ -280,6 +288,26 @@ export default function RoomManagementSection() {
                   placeholder="e.g., Building 1, Floor 2"
                 />
               </div>
+
+              {editingRoom && !imagePreview && (
+                <div className="space-y-2">
+                  <Label>Current Image</Label>
+                  <div className="rounded-md overflow-hidden border w-full h-40 bg-gray-100">
+                    <img
+                      src={`/Room/${editingRoom.id}.jpg?v=${imageBust}`}
+                      alt={editingRoom.name}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        const img = e.currentTarget as HTMLImageElement;
+                        if (!img.dataset.fallback) {
+                          img.dataset.fallback = '1';
+                          img.src = '/Room/default.jpg';
+                        }
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="image">Room Image (jpg, png, webp)</Label>
