@@ -1,7 +1,9 @@
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Mail, Phone, User } from "lucide-react";
+import { CalendarIcon, Mail, Phone, User } from "lucide-react";
 import type { OwnerGroup } from "@/types/booking";
 
 interface PersonalInfoSectionProps {
@@ -117,7 +119,31 @@ export function PersonalInfoSection({
 
         <div className="space-y-2">
           <Label htmlFor="ownerGroup" className="text-sm font-medium text-foreground">
-            Department
+            <HoverCard openDelay={0}>
+              <HoverCardTrigger asChild>
+                <span
+                  tabIndex={0}
+                  className="inline-flex underline-offset-4 decoration-muted-foreground/70 hover:underline focus-visible:underline outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-sm"
+                >
+                  Department
+                </span>
+              </HoverCardTrigger>
+              <HoverCardContent className="w-80">
+                <div className="flex justify-between gap-4">
+                  <Avatar className="h-12 w-12">
+                    <AvatarImage src="https://source.boringavatars.com/marble/120/department-card" />
+                    <AvatarFallback>DP</AvatarFallback>
+                  </Avatar>
+                  <div className="space-y-1">
+                    <h4 className="text-sm font-semibold">Department</h4>
+                    <p className="text-sm text-muted-foreground">
+                      Your department or team that hosts the meeting.
+                    </p>
+                
+                  </div>
+                </div>
+              </HoverCardContent>
+            </HoverCard>
           </Label>
           <Select 
             value={ownerGroup} 
