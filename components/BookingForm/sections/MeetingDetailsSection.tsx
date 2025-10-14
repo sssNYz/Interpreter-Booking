@@ -24,7 +24,9 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
-import { Presentation, Check, ChevronsUpDown } from "lucide-react";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { CalendarIcon, Presentation, Check, ChevronsUpDown } from "lucide-react";
 import type { DRType } from "@/prisma/prisma";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
@@ -302,7 +304,31 @@ export function MeetingDetailsSection({
             htmlFor="otherType"
             className="text-sm font-medium text-foreground"
           >
-            Other Type
+            <HoverCard openDelay={0}>
+              <HoverCardTrigger asChild>
+                <span
+                  tabIndex={0}
+                  className="inline-flex underline-offset-4 decoration-muted-foreground/70 hover:underline focus-visible:underline outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-sm"
+                >
+                  Other Type
+                </span>
+              </HoverCardTrigger>
+              <HoverCardContent className="w-80">
+                <div className="flex justify-between gap-4">
+                  <Avatar className="h-12 w-12">
+                    <AvatarImage src="https://source.boringavatars.com/beam/120/other-type-note" />
+                    <AvatarFallback>OT</AvatarFallback>
+                  </Avatar>
+                  <div className="space-y-1">
+                    <h4 className="text-sm font-semibold">Other Type</h4>
+                    <p className="text-sm text-muted-foreground">
+                      If your meeting type is not in the list, write it here. You can also use this for DR meetings if not in the list.
+                    </p>
+                   
+                  </div>
+                </div>
+              </HoverCardContent>
+            </HoverCard>
           </Label>
           <Input
             id="otherType"
@@ -401,7 +427,31 @@ export function MeetingDetailsSection({
 
         <div className="space-y-2">
           <label className="text-sm font-medium text-foreground">
-            Until...
+            <HoverCard openDelay={0}>
+              <HoverCardTrigger asChild>
+                <span
+                  tabIndex={0}
+                  className="inline-flex underline-offset-4 decoration-muted-foreground/70 hover:underline focus-visible:underline outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-sm"
+                >
+                  Until...
+                </span>
+              </HoverCardTrigger>
+              <HoverCardContent className="w-80">
+                <div className="flex justify-between gap-4">
+                  <Avatar className="h-12 w-12">
+                    <AvatarImage src="https://source.boringavatars.com/beam/120/until-explainer" />
+                    <AvatarFallback>UN</AvatarFallback>
+                  </Avatar>
+                  <div className="space-y-1">
+                    <h4 className="text-sm font-semibold">Until</h4>
+                    <p className="text-sm text-muted-foreground">
+                      The last date for the repeat. Fill this only if Repeat is ON.
+                    </p>
+                  
+                  </div>
+                </div>
+              </HoverCardContent>
+            </HoverCard>
           </label>
           <Select
             value={
@@ -449,7 +499,31 @@ export function MeetingDetailsSection({
             htmlFor="chairmanEmail"
             className="text-sm font-medium text-foreground"
           >
-            Chairman Email <span className="text-destructive">*</span>
+            <HoverCard openDelay={0}>
+              <HoverCardTrigger asChild>
+                <span
+                  tabIndex={0}
+                  className="inline-flex items-center gap-1 underline-offset-4 decoration-muted-foreground/70 hover:underline focus-visible:underline outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-sm"
+                >
+                  Chairman Email <span className="text-destructive">*</span>
+                </span>
+              </HoverCardTrigger>
+              <HoverCardContent className="w-80">
+                <div className="flex justify-between gap-4">
+                  <Avatar className="h-12 w-12">
+                    <AvatarImage src="https://source.boringavatars.com/beam/120/chairperson-mail" />
+                    <AvatarFallback>CE</AvatarFallback>
+                  </Avatar>
+                  <div className="space-y-1">
+                    <h4 className="text-sm font-semibold">Chairman Email</h4>
+                    <p className="text-sm text-muted-foreground">
+                      Email of the meeting Chairman. Required when the meeting type is DR. The Chairman cannot be booked for many at the same date and time.
+                    </p>
+                    
+                  </div>
+                </div>
+              </HoverCardContent>
+            </HoverCard>
           </Label>
           <Input
             id="chairmanEmail"

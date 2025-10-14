@@ -3,6 +3,7 @@ Setup notes
 - Requires Node 18+.
 - Set `SESSION_SECRET` in environment for cookie signing.
 - Session timeout is 30 minutes idle (sliding). Adjust in `lib/auth/session.ts`.
+- Optional: `COMPLETE_BOOKINGS_GRACE_MINUTES` controls the auto-complete job grace window (defaults to 10 minutes).
 
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
