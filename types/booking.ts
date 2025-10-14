@@ -78,6 +78,7 @@ export type BarItem = {
   ownerEmail?: string; // owner email
   ownerTel?: string; // owner phone
   ownerGroup?: OwnerGroup; // owner group/department
+  chairmanEmail?: string | null; // chairman email for DR meetings
 };
 
 export type DayBars = {
