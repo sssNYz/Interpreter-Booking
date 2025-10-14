@@ -79,12 +79,17 @@ const BookingRoom = () => {
   }, []);
 
   function generateTimeSlots() {
-    const slots = [];
-    for (let hour = 8; hour < 18; hour++) {
-      slots.push({
-        time: `${hour}:00`,
-        display: `${hour === 12 ? 12 : hour > 12 ? hour - 12 : hour}:00 ${hour >= 12 ? 'PM' : 'AM'}`,
-      });
+    const slots: { time: string; display: string }[] = [];
+    for (let h = 8; h <= 20; h++) {
+      for (let m = 0; m < 60; m += 30) {
+        const time = `${String(h).padStart(2, "0")}:${m === 0 ? "00" : "30"}`;
+        const hour12 = h % 12 === 0 ? 12 : h % 12;
+        const ampm = h >= 12 ? "PM" : "AM";
+        slots.push({
+          time,
+          display: `${hour12}:${m === 0 ? "00" : "30"} ${ampm}`,
+        });
+      }
     }
     return slots;
   }
@@ -191,45 +196,45 @@ const BookingRoom = () => {
   }
 
   return (
-    <div className="flex flex-col h-screen w-full bg-gray-50">
+    <div className="flex flex-col h-screen w-full bg-gray-50 overflow-hidden">
       {/* Header */}
       <div className="bg-white border-b px-6 py-4 flex-shrink-0">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-gray-900">Room Booking</h1>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            {rooms.length > VISIBLE_COLUMNS && (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handlePrev}
+                  disabled={!canPrev}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <span className="text-sm text-gray-600 px-2">
+                  {startIndex + 1}-{endIndex} of {rooms.length}
+                </span>
+              </>
+            )}
             <Input
               type="date"
               value={selectedDate.toISOString().split("T")[0]}
               onChange={(e) => setSelectedDate(new Date(e.target.value))}
               className="w-auto"
             />
+            {rooms.length > VISIBLE_COLUMNS && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleNext}
+                disabled={!canNext}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            )}
           </div>
         </div>
-
-        {/* Room Navigation */}
-        {rooms.length > VISIBLE_COLUMNS && (
-          <div className="flex items-center justify-end gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handlePrev}
-              disabled={!canPrev}
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <span className="text-sm text-gray-600 px-3">
-              Showing {startIndex + 1}-{endIndex} of {rooms.length} rooms
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleNext}
-              disabled={!canNext}
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-        )}
       </div>
 
       {/* Calendar Grid */}
