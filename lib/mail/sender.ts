@@ -3,6 +3,7 @@ import type { Prisma } from '@prisma/client'
 import prisma from '@/prisma/prisma'
 import { getFormattedTemplateForBooking, buildTemplateVariablesFromBooking, getFormattedCancellationTemplateForBooking } from './templates'
 import { generateCalendarInvite, createCalendarEvent, createCancelledCalendarEvent } from './calendar'
+import { getAdminEmailsForBooking } from './admin-emails'
 function createTransporter() {
   const host = (process.env.SMTP_HOST ?? '').trim() || '192.168.212.220'
   const port = parseInt(process.env.SMTP_PORT ?? '25', 10)
@@ -119,10 +120,15 @@ async function getBookingEmailContext(
   })
   if (recipients.size === 0 && ccRecipients.size === 0) return null
   if (!booking.timeStart || !booking.timeEnd) return null
+
+  // Deduplicate: remove any CC recipients that are already in To recipients (case-insensitive)
+  const recipientsLower = new Set(Array.from(recipients).map(e => e.toLowerCase()))
+  const deduplicatedCC = Array.from(ccRecipients).filter(cc => !recipientsLower.has(cc.toLowerCase()))
+
   return {
     booking,
     recipients: Array.from(recipients),
-    ccRecipients: Array.from(ccRecipients)
+    ccRecipients: deduplicatedCC
   }
 }
 export async function sendApprovalEmailForBooking(bookingId: number): Promise<void> {
@@ -132,7 +138,25 @@ export async function sendApprovalEmailForBooking(bookingId: number): Promise<vo
     console.log(`[EMAIL] No context found for booking ${bookingId} - skipping email`)
     return
   }
-  const { booking, recipients, ccRecipients } = context
+  let { booking, recipients, ccRecipients } = context
+
+  // Add admin emails to CC
+  const adminEmails = await getAdminEmailsForBooking(bookingId)
+  if (adminEmails.length > 0) {
+    console.log(`[EMAIL] Adding ${adminEmails.length} admin emails to CC:`, adminEmails)
+    const ccSet = new Set(ccRecipients.map(e => e.toLowerCase()))
+    const recipientsLower = new Set(recipients.map(e => e.toLowerCase()))
+    
+    // Add admins to CC only if they're not already in To or CC
+    adminEmails.forEach(adminEmail => {
+      const lower = adminEmail.toLowerCase()
+      if (!recipientsLower.has(lower) && !ccSet.has(lower)) {
+        ccRecipients.push(adminEmail)
+        ccSet.add(lower)
+      }
+    })
+  }
+
   console.log(`[EMAIL] Sending approval email for booking ${bookingId} to ${recipients.length} recipients:`, recipients)
   console.log(`[EMAIL] CC: ${ccRecipients.length} recipients:`, ccRecipients)
   const { subject, body, isHtml } = await getFormattedTemplateForBooking(bookingId)
@@ -222,11 +246,29 @@ export async function sendCancellationEmailForBooking(
     console.log(`[EMAIL] No context found for booking ${bookingId} - skipping email`)
     return
   }
-  const { booking, recipients, ccRecipients } = context
+  let { booking, recipients, ccRecipients } = context
+
+  // Add admin emails to CC
+  const adminEmails = await getAdminEmailsForBooking(bookingId)
+  if (adminEmails.length > 0) {
+    console.log(`[EMAIL] Adding ${adminEmails.length} admin emails to CC:`, adminEmails)
+    const ccSet = new Set(ccRecipients.map(e => e.toLowerCase()))
+    const recipientsLower = new Set(recipients.map(e => e.toLowerCase()))
+    
+    // Add admins to CC only if they're not already in To or CC
+    adminEmails.forEach(adminEmail => {
+      const lower = adminEmail.toLowerCase()
+      if (!recipientsLower.has(lower) && !ccSet.has(lower)) {
+        ccRecipients.push(adminEmail)
+        ccSet.add(lower)
+      }
+    })
+  }
+
   console.log(`[EMAIL] Sending cancellation email for booking ${bookingId} to ${recipients.length} recipients:`, recipients)
   console.log(`[EMAIL] CC: ${ccRecipients.length} recipients:`, ccRecipients)
-  const { subject, body, isHtml } = await getFormattedCancellationTemplateForBooking(bookingId, reason, booking)
-  const vars = await buildTemplateVariablesFromBooking(bookingId, booking)
+  const { subject, body, isHtml } = await getFormattedCancellationTemplateForBooking(bookingId, reason)
+  const vars = await buildTemplateVariablesFromBooking(bookingId)
   const { name: organizerName, email: organizerEmail } = getOrganizerInfo()
   // Combine recipients and CC for calendar attendees
   const allAttendees = [...recipients, ...ccRecipients]
