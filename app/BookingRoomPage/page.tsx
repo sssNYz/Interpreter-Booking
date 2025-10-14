@@ -35,7 +35,7 @@ interface Booking {
 const BookingRoom = () => {
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loadingRooms, setLoadingRooms] = useState<boolean>(true);
-  const [currentPage, setCurrentPage] = useState(0);
+  const [startIndex, setStartIndex] = useState(0);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -46,7 +46,7 @@ const BookingRoom = () => {
   } | null>(null);
   const [bookingTitle, setBookingTitle] = useState("");
   
-  const roomsPerPage = 5;
+  const VISIBLE_COLUMNS = 4;
   const timeSlots = generateTimeSlots();
 
   // Fetch rooms
@@ -89,14 +89,14 @@ const BookingRoom = () => {
     return slots;
   }
 
-  const totalPages = Math.ceil(rooms.length / roomsPerPage);
-  const displayedRooms = rooms.slice(
-    currentPage * roomsPerPage,
-    (currentPage + 1) * roomsPerPage
-  );
-
-  const handlePrevPage = () => setCurrentPage((prev) => Math.max(0, prev - 1));
-  const handleNextPage = () => setCurrentPage((prev) => Math.min(totalPages - 1, prev + 1));
+  const endIndex = Math.min(startIndex + VISIBLE_COLUMNS, rooms.length);
+  const displayedRooms = rooms.slice(startIndex, endIndex);
+  const placeholderCount = Math.max(0, VISIBLE_COLUMNS - displayedRooms.length);
+  
+  const canPrev = startIndex > 0;
+  const canNext = rooms.length > 0 && startIndex < Math.max(0, rooms.length - VISIBLE_COLUMNS);
+  const handlePrev = () => canPrev && setStartIndex((i) => i - 1);
+  const handleNext = () => canNext && setStartIndex((i) => i + 1);
 
   const getRoomImagePath = (roomId: number): string => `/Room/${roomId}.jpg`;
 
@@ -206,29 +206,27 @@ const BookingRoom = () => {
           </div>
         </div>
 
-        {/* Pagination */}
-        {totalPages > 1 && (
+        {/* Room Navigation */}
+        {rooms.length > VISIBLE_COLUMNS && (
           <div className="flex items-center justify-end gap-2">
             <Button
               variant="outline"
               size="sm"
-              onClick={handlePrevPage}
-              disabled={currentPage === 0}
+              onClick={handlePrev}
+              disabled={!canPrev}
             >
-              <ChevronLeft className="h-4 w-4 mr-1" />
-              Previous
+              <ChevronLeft className="h-4 w-4" />
             </Button>
             <span className="text-sm text-gray-600 px-3">
-              Page {currentPage + 1} of {totalPages}
+              Showing {startIndex + 1}-{endIndex} of {rooms.length} rooms
             </span>
             <Button
               variant="outline"
               size="sm"
-              onClick={handleNextPage}
-              disabled={currentPage === totalPages - 1}
+              onClick={handleNext}
+              disabled={!canNext}
             >
-              Next
-              <ChevronRight className="h-4 w-4 ml-1" />
+              <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
         )}
@@ -237,15 +235,15 @@ const BookingRoom = () => {
       {/* Calendar Grid */}
       <div className="flex-1 overflow-auto p-6">
         <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
-          <div className="grid" style={{ gridTemplateColumns: `120px repeat(${displayedRooms.length}, 1fr)` }}>
-            {/* Time column header */}
-            <div className="bg-gray-50 border-b border-r p-4">
+          <div className="grid" style={{ gridTemplateColumns: `120px repeat(${VISIBLE_COLUMNS}, 1fr)` }}>
+            {/* Time column header - sticky top-left */}
+            <div className="sticky top-0 left-0 z-30 bg-gray-50 border-b border-r p-4">
               <Clock className="h-5 w-5 text-gray-400 mx-auto" />
             </div>
 
-            {/* Room headers */}
+            {/* Room headers - sticky top */}
             {displayedRooms.map((room) => (
-              <div key={room.id} className="bg-gray-50 border-b border-r last:border-r-0 p-3">
+              <div key={room.id} className="sticky top-0 z-20 bg-gray-50 border-b border-r last:border-r-0 p-3">
                 <div className="flex flex-col items-center gap-2">
                   <div className="w-full h-20 rounded-lg overflow-hidden bg-gray-200">
                     <img
@@ -277,12 +275,24 @@ const BookingRoom = () => {
                 </div>
               </div>
             ))}
+            
+            {/* Placeholder columns to keep grid stable */}
+            {Array.from({ length: placeholderCount }).map((_, idx) => (
+              <div key={`placeholder-${idx}`} className="sticky top-0 z-20 bg-gray-100 border-b border-r last:border-r-0 p-3">
+                <div className="flex flex-col items-center gap-2 opacity-30">
+                  <div className="w-full h-20 rounded-lg bg-gray-300"></div>
+                  <div className="text-center w-full">
+                    <h3 className="font-semibold text-sm text-gray-500">—</h3>
+                  </div>
+                </div>
+              </div>
+            ))}
 
             {/* Time slots */}
             {timeSlots.map((slot) => (
               <React.Fragment key={slot.time}>
-                {/* Time label */}
-                <div className="bg-gray-50 border-b border-r p-3 flex items-start justify-end">
+                {/* Time label - sticky left */}
+                <div className="sticky left-0 z-10 bg-gray-50 border-b border-r p-3 flex items-start justify-end">
                   <span className="text-xs font-medium text-gray-600">
                     {slot.display}
                   </span>
@@ -321,6 +331,14 @@ const BookingRoom = () => {
                     </div>
                   );
                 })}
+                
+                {/* Placeholder slots */}
+                {Array.from({ length: placeholderCount }).map((_, idx) => (
+                  <div
+                    key={`placeholder-slot-${slot.time}-${idx}`}
+                    className="border-b border-r last:border-r-0 p-2 min-h-[60px] bg-gray-100"
+                  ></div>
+                ))}
               </React.Fragment>
             ))}
           </div>
