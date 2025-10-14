@@ -595,7 +595,7 @@ useEffect(() => {
         <div className="flex items-center gap-2 justify-center min-w-[280px] sm:min-w-[370px] rounded-t-4xl bg-neutral-700 px-4 py-2">
           <Calendar className="w-6 h-6 sm:w-8 sm:h-8 text-primary-foreground" />
           <h1 className="text-[16px] sm:text-[20px] font-medium text-primary-foreground">
-            Book Appointment
+            Interpreter Booking
           </h1>
         </div>
 
