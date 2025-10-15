@@ -55,6 +55,7 @@ const BookingRoom = () => {
   
   const VISIBLE_COLUMNS = 5;
   const timeSlots = generateTimeSlots();
+  const SLOT_HEIGHT_PX = 60; // fixed height for each 30-min slot
 
   // Fetch rooms
   useEffect(() => {
@@ -98,12 +99,30 @@ const BookingRoom = () => {
     }
   }
 
+  // Helper to format local date as YYYY-MM-DD (avoid UTC shifting)
+  function toYMDLocal(d: Date): string {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  }
+
+  function hmToMinutes(hm: string): number {
+    const [h, m] = hm.split(":").map(Number);
+    return h * 60 + m;
+  }
+
+  function slotsSpanned(startHM: string, endHM: string): number {
+    const diff = Math.max(0, hmToMinutes(endHM) - hmToMinutes(startHM));
+    return Math.max(1, Math.ceil(diff / 30));
+  }
+
   // Fetch room occupancy (from BookingPlan) for the selected date
   useEffect(() => {
     let alive = true;
     const loadOccupancy = async () => {
       try {
-        const dateStr = selectedDate.toISOString().split("T")[0];
+        const dateStr = toYMDLocal(selectedDate);
         const res = await fetch(`/api/rooms/booked?date=${dateStr}`, { cache: "no-store" });
         if (!alive) return;
         if (!res.ok) {
@@ -167,7 +186,7 @@ const BookingRoom = () => {
     return bookings.find(
       (b) =>
         b.roomId === roomId &&
-        b.date === selectedDate.toISOString().split("T")[0] &&
+        b.date === toYMDLocal(selectedDate) &&
         b.startTime <= time &&
         b.endTime > time
     );
@@ -194,7 +213,7 @@ const BookingRoom = () => {
 
   const calculateEndTime = (startTime: string): string => {
     const [hours] = startTime.split(":").map(Number);
-    return `${hours + 1}:00`;
+    return `${String(hours + 1).padStart(2, "0")}:00`;
   };
 
   const handleCreateBooking = () => {
@@ -209,7 +228,7 @@ const BookingRoom = () => {
       title: bookingTitle,
       startTime: selectedSlot.startTime,
       endTime: selectedSlot.endTime,
-      date: selectedDate.toISOString().split("T")[0],
+      date: toYMDLocal(selectedDate),
     };
 
     setBookings([...bookings, newBooking]);
@@ -392,7 +411,7 @@ const BookingRoom = () => {
             {timeSlots.map((slot) => (
               <React.Fragment key={slot}>
                 {/* Time label - sticky left */}
-                <div className="sticky left-0 z-10 bg-gray-50 border-b border-r p-3 flex items-start justify-end">
+                <div className="sticky left-0 z-10 bg-gray-50 border-b border-r p-3 flex items-start justify-end h-[60px]">
                   <span className="text-xs font-medium text-gray-600">
                     {slot}
                   </span>
@@ -402,30 +421,36 @@ const BookingRoom = () => {
                 {displayedRooms.map((room) => {
                   const booking = isSlotBooked(room.id, slot);
                   const isBooked = !!booking;
+                  const isStart = isBooked && booking!.startTime === slot;
 
                   return (
                     <div
                       key={`${room.id}-${slot}`}
-                      className={`border-b border-r last:border-r-0 p-2 min-h-[60px] cursor-pointer transition-all ${
+                      className={`border-b border-r last:border-r-0 p-2 h-[60px] cursor-pointer transition-all relative ${
                         isBooked
                           ? "bg-blue-50 hover:bg-blue-100"
-                          : "bg-white hover:bg-green-50"
+                          : "bg-white hover:bg-black/20"
                       }`}
                       onClick={() => handleSlotClick(room.id, slot)}
                     >
                       {isBooked ? (
-                        <div className="bg-blue-500 text-white rounded-md p-2 h-full flex flex-col justify-between text-xs group relative">
-                          <div className="font-medium truncate">{booking.title}</div>
-                          <div className="text-blue-100 text-[10px]">
-                            {booking.startTime} - {booking.endTime}
+                        isStart ? (
+                          <div
+                            className="absolute inset-x-1 top-1 z-10 text-white rounded-md p-2 text-xs shadow-md"
+                            style={{
+                              height: `${slotsSpanned(booking!.startTime, booking!.endTime) * SLOT_HEIGHT_PX - 8}px`,
+                              backgroundColor: '#8BA888',
+                            }}
+                          >
+                            <div className="font-medium truncate">{booking!.title}</div>
+                            <div className="text-white/80 text-[10px]">
+                              {booking!.startTime} - {booking!.endTime}
+                            </div>
                           </div>
-                          <div className="absolute inset-0 bg-red-500 opacity-0 group-hover:opacity-90 transition-opacity rounded-md flex items-center justify-center">
-                            <X className="h-4 w-4 text-white" />
-                          </div>
-                        </div>
+                        ) : null
                       ) : (
                         <div className="h-full flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
-                          <span className="text-xs text-green-600 font-medium">+ Book</span>
+                          <span className="text-xs text-black font-medium">+ Book</span>
                         </div>
                       )}
                     </div>
