@@ -1,0 +1,91 @@
+                </Button>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Calendar Grid */}
+      <div className="flex-1 min-h-0 overflow-hidden p-4">
+        <div className="bg-white rounded-2xl shadow-sm border h-full flex flex-col overflow-hidden">
+          <div className="flex-1 min-h-0 overflow-auto">
+            <div className="grid" style={{ gridTemplateColumns: `120px repeat(${VISIBLE_COLUMNS}, 1fr)` }}>
+            {/* Time column header - sticky top-left */}
+            <div className="sticky top-0 left-0 z-30 bg-gray-50 border-b border-r p-4">
+              <Clock className="h-5 w-5 text-gray-400 mx-auto" />
+            </div>
+
+            {/* Room headers - sticky top */}
+            {displayedRooms.map((room) => (
+              <div key={room.id} className="sticky top-0 z-20 bg-gray-50 border-b border-r last:border-r-0 p-3">
+                <div className="flex flex-col items-center gap-2">
+                  <div className="w-full rounded-lg overflow-hidden bg-gray-200 relative" style={{ aspectRatio: '4 / 2.5' }}>
+                    <img
+                      src={getRoomImagePath(room.id)}
+                      alt={room.name}
+                      className="absolute inset-0 w-full h-full object-cover"
+                      onError={(e) => {
+                        const img = e.currentTarget as HTMLImageElement;
+                        if (!img.dataset.fallback) {
+                          img.dataset.fallback = '1';
+                          img.src = '/Room/default.jpg';
+                        }
+                      }}
+                    />
+                  </div>
+                  <div className="text-center w-full">
+                    <h3 className="font-semibold text-sm text-gray-900 truncate">
+                      {room.name}
+                    </h3>
+                    <div className="flex items-center justify-center gap-3 text-xs text-gray-500 mt-1">
+                      <span className="flex items-center gap-1">
+                        <Users className="h-3 w-3" />
+                        {room.capacity}
+                      </span>
+                      {room.location && (
+                        <span className="flex items-center gap-1">
+                          <MapPin className="h-3 w-3" />
+                          {room.location}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+            
+            {/* Placeholder columns to keep grid stable */}
+            {Array.from({ length: placeholderCount }).map((_, idx) => (
+              <div key={`placeholder-${idx}`} className="sticky top-0 z-20 bg-gray-100 border-b border-r last:border-r-0 p-3">
+                <div className="flex flex-col items-center gap-2 opacity-30">
+                  <div className="w-full rounded-lg bg-gray-300 relative" style={{ aspectRatio: '4 / 3' }}></div>
+                  <div className="text-center w-full">
+                    <h3 className="font-semibold text-sm text-gray-500">—</h3>
+                  </div>
+                </div>
+              </div>
+            ))}
+
+            {/* Time slots */}
+            {timeSlots.map((slot) => (
+              <React.Fragment key={slot}>
+                {/* Time label - sticky left */}
+                <div className="sticky left-0 z-10 bg-gray-50 border-b border-r p-3 flex items-start justify-end">
+                  <span className="text-xs font-medium text-gray-600">
+                    {slot}
+                  </span>
+                </div>
+
+                {/* Room slots */}
+                {displayedRooms.map((room) => {
+                  const booking = isSlotBooked(room.id, slot);
+                  const isBooked = !!booking;
+                  const isStart = isBooked && booking!.startTime === slot;
+
+                  return (
+                    <div
+                      key={`${room.id}-${slot}`}
+                      className={`border-b border-r last:border-r-0 p-2 min-h-[60px] cursor-pointer transition-all ${
+                        isBooked
+                          ? "bg-blue-50 hover:bg-blue-100"
+                          : "bg-white hover:bg-green-50"
