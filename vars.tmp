@@ -1,0 +1,23 @@
+  const isSlotBooked = (roomId: number, time: string): Booking | undefined => {
+    return bookings.find(
+      (b) =>
+        b.roomId === roomId &&
+        b.date === selectedDate.toISOString().split("T")[0] &&
+        b.startTime <= time &&
+        b.endTime > time
+    );
+  };
+
+  const handleSlotClick = (roomId: number, time: string) => {
+    const booking = isSlotBooked(roomId, time);
+    if (booking) {
+      // Delete booking
+      setBookings(bookings.filter((b) => b.id !== booking.id));
+      toast.success("Booking cancelled");
+    } else {
+      // Create new booking
+      const endTime = calculateEndTime(time);
+      setSelectedSlot({ roomId, startTime: time, endTime });
+      setIsDialogOpen(true);
+    }
+  };
