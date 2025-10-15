@@ -36,6 +36,7 @@ interface Booking {
   startTime: string;
   endTime: string;
   date: string;
+  readOnly?: boolean; // true when sourced from server (BookingPlan) occupancy
 }
 
 const BookingRoom = () => {
@@ -84,6 +85,62 @@ const BookingRoom = () => {
     };
   }, []);
 
+  // Helper to convert "YYYY-MM-DD HH:mm:ss" → "HH:mm"
+  function toHM(dateTimeStr: string): string {
+    // Expecting 'YYYY-MM-DD HH:mm:ss' or 'HH:mm:ss'
+    try {
+      const parts = dateTimeStr.split(" ");
+      const timePart = parts.length > 1 ? parts[1] : parts[0];
+      const [hh, mm] = timePart.split(":");
+      return `${hh}:${mm}`;
+    } catch {
+      return "00:00";
+    }
+  }
+
+  // Fetch room occupancy (from BookingPlan) for the selected date
+  useEffect(() => {
+    let alive = true;
+    const loadOccupancy = async () => {
+      try {
+        const dateStr = selectedDate.toISOString().split("T")[0];
+        const res = await fetch(`/api/rooms/booked?date=${dateStr}`, { cache: "no-store" });
+        if (!alive) return;
+        if (!res.ok) {
+          setBookings([]);
+          return;
+        }
+        const json = await res.json();
+        if (json?.success && Array.isArray(json?.data?.rooms)) {
+          const serverBookings: Booking[] = [];
+          for (const room of json.data.rooms as Array<{ id: number; name: string; bookings: Array<{ id: number; start: string; end: string; status?: string }> }>) {
+            for (const b of room.bookings) {
+              serverBookings.push({
+                id: String(b.id),
+                roomId: room.id,
+                title: b.status ? `Booked (${b.status})` : "Booked",
+                startTime: toHM(b.start),
+                endTime: toHM(b.end),
+                date: dateStr,
+                readOnly: true,
+              });
+            }
+          }
+          setBookings(serverBookings);
+        } else {
+          setBookings([]);
+        }
+      } catch (e) {
+        console.error("Failed to load room occupancy", e);
+        setBookings([]);
+      }
+    };
+    loadOccupancy();
+    return () => {
+      alive = false;
+    };
+  }, [selectedDate]);
+
   function generateTimeSlots() {
     const slots: string[] = [];
     for (let h = 8; h <= 20; h++) {
@@ -119,9 +176,14 @@ const BookingRoom = () => {
   const handleSlotClick = (roomId: number, time: string) => {
     const booking = isSlotBooked(roomId, time);
     if (booking) {
-      // Delete booking
+      // For server-sourced occupancy, do not allow deletion
+      if (booking.readOnly) {
+        toast.error("This time is already booked.");
+        return;
+      }
+      // Allow removing only locally-created placeholder bookings
       setBookings(bookings.filter((b) => b.id !== booking.id));
-      toast.success("Booking cancelled");
+      toast.success("Booking removed");
     } else {
       // Create new booking
       const endTime = calculateEndTime(time);
