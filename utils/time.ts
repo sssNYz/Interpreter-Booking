@@ -12,8 +12,7 @@ export const VALID_START_SLOTS: readonly string[] = (() => {
     // Always include :30 for each hour from START..(END-1)
     slots.push(`${hh}:30`);
   }
-  // Remove 17:00 if somehow present
-  return slots.filter((s) => s !== "17:00");
+  return slots;
 })();
 
 export const generateStandardTimeSlots = (): string[] => {
