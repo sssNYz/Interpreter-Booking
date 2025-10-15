@@ -741,11 +741,11 @@ useEffect(() => {
           {/* Help button to reopen tutorial */}
           <Button
             onClick={() => setIsTutorialOpen(true)}
-            className="bg-neutral-700 text-white rounded-full hover:bg-black/90 h-10 w-10 text-base shadow-md hover:shadow-lg active:shadow-md transition"
+            className="bg-neutral-700 text-white rounded-full hover:bg-black/90 h-10 w-10 p-0 shadow-md hover:shadow-lg active:shadow-md transition overflow-hidden"
             aria-label="Help"
             title="Help"
           >
-            ?
+            <img src="/mascot/mascot.png" alt="Help" className="w-full h-full object-cover" />
           </Button>
           {/* Admin vision toggle removed */}
           <BookingRules forwardMonthLimit={forwardMonthLimit} />
