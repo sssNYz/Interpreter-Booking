@@ -3,6 +3,7 @@ import type { Prisma } from '@prisma/client'
 import prisma from '@/prisma/prisma'
 import { getFormattedTemplateForBooking, buildTemplateVariablesFromBooking, getFormattedCancellationTemplateForBooking } from './templates'
 import { generateCalendarInvite, createCalendarEvent, createCancelledCalendarEvent } from './calendar'
+import { createTeamsMeeting } from '@/lib/meetings/teams'
 import { getAdminEmailsForBooking } from './admin-emails'
 function createTransporter() {
   const host = (process.env.SMTP_HOST ?? '').trim() || '192.168.212.220'
@@ -73,12 +74,12 @@ async function getBookingEmailContext(
   if (preservedInterpreterInfo) {
     if (preservedInterpreterInfo.interpreterEmployee && !booking.interpreterEmployee) {
       // Restore interpreter info that was cleared
-      booking.interpreterEmployee = preservedInterpreterInfo.interpreterEmployee as any
+      booking.interpreterEmployee = preservedInterpreterInfo.interpreterEmployee as unknown as BookingWithEmailRelations['interpreterEmployee']
       booking.interpreterEmpCode = preservedInterpreterInfo.interpreterEmpCode ?? null
     }
     if (preservedInterpreterInfo.selectedInterpreter && !booking.selectedInterpreter) {
       // Restore selected interpreter info that was cleared
-      booking.selectedInterpreter = preservedInterpreterInfo.selectedInterpreter as any
+      booking.selectedInterpreter = preservedInterpreterInfo.selectedInterpreter as unknown as BookingWithEmailRelations['selectedInterpreter']
       booking.selectedInterpreterEmpCode = preservedInterpreterInfo.selectedInterpreterEmpCode ?? null
     }
   }
@@ -138,7 +139,7 @@ export async function sendApprovalEmailForBooking(bookingId: number): Promise<vo
     console.log(`[EMAIL] No context found for booking ${bookingId} - skipping email`)
     return
   }
-  let { booking, recipients, ccRecipients } = context
+  const { booking, recipients, ccRecipients } = context
 
   // Add admin emails to CC
   const adminEmails = await getAdminEmailsForBooking(bookingId)
@@ -162,12 +163,24 @@ export async function sendApprovalEmailForBooking(bookingId: number): Promise<vo
   const { subject, body, isHtml } = await getFormattedTemplateForBooking(bookingId)
   const vars = await buildTemplateVariablesFromBooking(bookingId)
   const { name: organizerName, email: organizerEmail } = getOrganizerInfo()
+  // Try to create a Teams online meeting and get join URL (no DB persistence)
+  let teamsJoinUrl: string | null = null
+  try {
+    teamsJoinUrl = await createTeamsMeeting({
+      start: booking.timeStart,
+      end: booking.timeEnd,
+      subject: vars.topic || booking.meetingType,
+      organizerUpn: process.env.MS_GRAPH_ORGANIZER_UPN || process.env.SMTP_FROM_EMAIL || undefined
+    })
+  } catch (e) {
+    console.error('[EMAIL] Error creating Teams meeting (will continue without link):', e)
+  }
   // Combine recipients and CC for calendar attendees
   const allAttendees = [...recipients, ...ccRecipients]
-
   const calendarEvent = createCalendarEvent({
     uid: getCalendarUid(booking.bookingId),
     summary: vars.topic || booking.meetingType,
+    description: teamsJoinUrl ? `Microsoft Teams meeting: ${teamsJoinUrl}` : undefined,
     start: booking.timeStart,
     end: booking.timeEnd,
     timezone: 'Asia/Bangkok',
@@ -179,7 +192,10 @@ export async function sendApprovalEmailForBooking(bookingId: number): Promise<vo
     sequence: 0
   })
   const calendarInvite = generateCalendarInvite(calendarEvent)
-  const textBody = (isHtml ? toPlainText(body) : body).trim()
+  const teamsBlockHtml = teamsJoinUrl ? `<p><strong>Microsoft Teams:</strong> <a href="${teamsJoinUrl}">Join the meeting</a></p>` : ''
+  const teamsBlockText = teamsJoinUrl ? `Microsoft Teams: ${teamsJoinUrl}\n\n` : ''
+  const finalHtml = isHtml ? `${teamsBlockHtml}${body}` : undefined
+  const textBody = (isHtml ? toPlainText(`${teamsBlockText}${body}`) : `${teamsBlockText}${body}`).trim()
   const transporter = createTransporter()
   try {
     console.log(`[EMAIL] Verifying SMTP connection for approval email...`)
@@ -191,7 +207,7 @@ export async function sendApprovalEmailForBooking(bookingId: number): Promise<vo
       cc: ccRecipients.length > 0 ? ccRecipients.join(', ') : undefined,
       subject,
       text: textBody,
-      html: isHtml ? body : undefined,
+      html: finalHtml,
       alternatives: [
         { contentType: calendarInvite.contentType, content: calendarInvite.content }
       ],
@@ -246,7 +262,7 @@ export async function sendCancellationEmailForBooking(
     console.log(`[EMAIL] No context found for booking ${bookingId} - skipping email`)
     return
   }
-  let { booking, recipients, ccRecipients } = context
+  const { booking, recipients, ccRecipients } = context
 
   // Add admin emails to CC
   const adminEmails = await getAdminEmailsForBooking(bookingId)
