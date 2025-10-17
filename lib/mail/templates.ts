@@ -1,4 +1,4 @@
-import prisma, { MeetingType } from "@/prisma/prisma"
+﻿import prisma, { MeetingType } from "@/prisma/prisma"
 
 export interface EmailTemplate {
     id: string
@@ -15,7 +15,7 @@ export const SYSTEM_TEMPLATES: EmailTemplate[] = [
         id: 'unified-meeting',
         name: 'Unified Meeting Invitation',
         category: 'meeting',
-        subject: '{meetingType} Meeting - {topic}',
+        subject: '{meetingType}{descriptionSubject}',
         body: `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -65,7 +65,7 @@ export const SYSTEM_TEMPLATES: EmailTemplate[] = [
                 <h3 style="margin: 0 0 20px 0; color: #0f172a; font-size: 18px; font-weight: 600; border-bottom: 2px solid {headerColor1}; padding-bottom: 8px;">
                     📝 Meeting Details
                 </h3>
-
+                
                 <div style="background: #FAFBFC; border-radius: 8px; padding: 20px; border: 1px solid #E5E7EB;">
                     <table cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse;">
                         <tr>
@@ -77,7 +77,7 @@ export const SYSTEM_TEMPLATES: EmailTemplate[] = [
                             </td>
                         </tr>
                         {descriptionSection}
-                        {applicationModelSection}
+                        {drDetailsSection}
                         <tr>
                             <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
                                 ⏰ Time:
@@ -102,8 +102,8 @@ export const SYSTEM_TEMPLATES: EmailTemplate[] = [
                                 {organizerName}
                             </td>
                         </tr>
-                        {interpreterSection}
                         {chairmanSection}
+                        {interpreterSection}
                         <tr>
                             <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
                                 👥 Participants:
@@ -112,6 +112,8 @@ export const SYSTEM_TEMPLATES: EmailTemplate[] = [
                                 {participant}
                             </td>
                         </tr>
+                        {deviceGroupSection}
+                        {departmentSection}
                     </table>
                 </div>
             </div>
@@ -153,7 +155,7 @@ export const SYSTEM_TEMPLATES: EmailTemplate[] = [
         id: 'unified-cancellation',
         name: 'Unified Meeting Cancellation',
         category: 'cancellation',
-        subject: 'CANCELLED: {meetingType} Meeting - {topic}',
+        subject: 'CANCELLED: {meetingType}{descriptionSubject}',
         body: `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -204,19 +206,19 @@ export const SYSTEM_TEMPLATES: EmailTemplate[] = [
                 <h3 style="margin: 0 0 20px 0; color: #0f172a; font-size: 18px; font-weight: 600; border-bottom: 2px solid #DC2626; padding-bottom: 8px;">
                     📝 Cancelled Meeting Details
                 </h3>
-
+                
                 <div style="background: #FAFBFC; border-radius: 8px; padding: 20px; border: 1px solid #E5E7EB;">
                     <table cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse;">
                         <tr>
                             <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
-                                �� Meeting Type:
+                                📋 Meeting Type:
                             </td>
                             <td style="padding: 10px 0; color: #374151;">
                                 {meetingTypeDisplay}
                             </td>
                         </tr>
                         {descriptionSection}
-                        {applicationModelSection}
+                        {drDetailsSection}
                         <tr>
                             <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
                                 ⏰ Time:
@@ -241,8 +243,8 @@ export const SYSTEM_TEMPLATES: EmailTemplate[] = [
                                 {organizerName}
                             </td>
                         </tr>
-                        {interpreterSection}
                         {chairmanSection}
+                        {interpreterSection}
                         <tr>
                             <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
                                 👥 Participants:
@@ -251,6 +253,8 @@ export const SYSTEM_TEMPLATES: EmailTemplate[] = [
                                 {participant}
                             </td>
                         </tr>
+                        {deviceGroupSection}
+                        {departmentSection}
                     </table>
                 </div>
             </div>
@@ -445,8 +449,11 @@ const DR_SUBTYPE_DISPLAY = {
     Other: 'Custom DR Type'
 }
 
-export async function buildTemplateVariablesFromBooking(bookingId: number): Promise<Record<string, string>> {
-    const booking = await prisma.bookingPlan.findUnique({
+export async function buildTemplateVariablesFromBooking(
+    bookingId: number,
+    providedBooking?: any
+): Promise<Record<string, string>> {
+    const booking = providedBooking ?? await prisma.bookingPlan.findUnique({
         where: { bookingId },
         include: {
             employee: true, // owner
@@ -469,6 +476,9 @@ export async function buildTemplateVariablesFromBooking(bookingId: number): Prom
 
     // Build description section
     const description = booking.meetingDetail || ''
+
+    // Build description for subject line: "MeetingType - Description"
+    const descriptionSubject = description ? ` - ${description}` : ''
     const descriptionSection = description ? `
                         <tr>
                             <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
@@ -498,7 +508,7 @@ export async function buildTemplateVariablesFromBooking(bookingId: number): Prom
     if (booking.chairmanEmail?.trim()) participantsList.add(booking.chairmanEmail.trim())
 
     // Add all invited attendees
-    booking.inviteEmails?.forEach(invite => {
+    booking.inviteEmails?.forEach((invite: any) => {
         const email = invite.email?.trim()
         if (email) participantsList.add(email)
     })
@@ -532,17 +542,6 @@ export async function buildTemplateVariablesFromBooking(bookingId: number): Prom
     const organizerDivision = booking.employee?.deptPath ?? ''
     const organizerPhone = booking.employee?.telExt ?? ''
 
-    // Build Application Model section
-    const applicationModelSection = booking.applicableModel ? `
-                        <tr>
-                            <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
-                                📱 Application Model:
-                            </td>
-                            <td style="padding: 10px 0; color: #374151;">
-                                ${booking.applicableModel}
-                            </td>
-                        </tr>` : ''
-
     // Build DR-specific sections
     let drDetailsSection = ''
     let chairmanSection = ''
@@ -551,7 +550,7 @@ export async function buildTemplateVariablesFromBooking(bookingId: number): Prom
     if (isDR) {
         // Handle DR sub-types - ALL DR sub-types are supported
         const drSubtype = booking.drType
-        const drSubtypeDisplay = drSubtype ? DR_SUBTYPE_DISPLAY[drSubtype] || drSubtype : 'Not specified'
+        const drSubtypeDisplay = drSubtype ? (DR_SUBTYPE_DISPLAY as any)[drSubtype] || drSubtype : 'Not specified'
 
         // If DR sub-type is "Other", use the custom otherType text
         const finalDrDisplay = (drSubtype === 'Other' && booking.otherType)
@@ -563,10 +562,10 @@ export async function buildTemplateVariablesFromBooking(bookingId: number): Prom
         drDetailsSection = `
                         <tr>
                             <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
-                                🏷️ Device Group:
+                                📱 Applicable Model:
                             </td>
                             <td style="padding: 10px 0; color: #374151;">
-                                ${booking.ownerGroup || 'Not specified'}
+                                ${booking.applicableModel || 'Not specified'}
                             </td>
                         </tr>
                         <tr>
@@ -593,6 +592,28 @@ export async function buildTemplateVariablesFromBooking(bookingId: number): Prom
         meetingTypeDisplay = `${config.displayName} - ${booking.otherType}`
     }
 
+    // Build department section - only show if organizerDivision has a value
+    const departmentSection = organizerDivision ? `
+                        <tr>
+                            <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                                🏢 Department:
+                            </td>
+                            <td style="padding: 10px 0; color: #374151;">
+                                ${organizerDivision}
+                            </td>
+                        </tr>` : ''
+
+    // Build device group section - show for all meetings (not just DR)
+    const deviceGroupSection = booking.ownerGroup ? `
+                        <tr>
+                            <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                                🏷️ Device Group:
+                            </td>
+                            <td style="padding: 10px 0; color: #374151;">
+                                ${booking.ownerGroup}
+                            </td>
+                        </tr>` : ''
+
     return {
         // Meeting type specific
         meetingType: meetingType,
@@ -603,6 +624,7 @@ export async function buildTemplateVariablesFromBooking(bookingId: number): Prom
 
         // Common fields
         topic,
+        descriptionSubject,
         date: formatGbDateWithWeekday(start),
         time: formatTimeRange(start, end),
         location: booking.meetingRoom,
@@ -613,10 +635,11 @@ export async function buildTemplateVariablesFromBooking(bookingId: number): Prom
 
         // Dynamic sections
         descriptionSection,
-        applicationModelSection,
         drDetailsSection,
         chairmanSection,
         interpreterSection,
+        deviceGroupSection,
+        departmentSection,
 
         // Legacy fields (for backward compatibility)
         organizer: organizerName,
@@ -640,8 +663,12 @@ export async function getFormattedTemplateForBooking(bookingId: number): Promise
     return formatTemplate(template, variables)
 }
 
-export async function buildCancellationTemplateVariablesFromBooking(bookingId: number, reason?: string): Promise<Record<string, string>> {
-    const booking = await prisma.bookingPlan.findUnique({
+export async function buildCancellationTemplateVariablesFromBooking(
+    bookingId: number,
+    reason?: string,
+    providedBooking?: any
+): Promise<Record<string, string>> {
+    const booking = providedBooking ?? await prisma.bookingPlan.findUnique({
         where: { bookingId },
         include: {
             employee: true, // owner
@@ -664,6 +691,9 @@ export async function buildCancellationTemplateVariablesFromBooking(bookingId: n
 
     // Build description section
     const description = booking.meetingDetail || ''
+
+    // Build description for subject line: "MeetingType - Description"
+    const descriptionSubject = description ? ` - ${description}` : ''
     const descriptionSection = description ? `
                         <tr>
                             <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
@@ -693,7 +723,7 @@ export async function buildCancellationTemplateVariablesFromBooking(bookingId: n
     if (booking.chairmanEmail?.trim()) participantsList.add(booking.chairmanEmail.trim())
 
     // Add all invited attendees
-    booking.inviteEmails?.forEach(invite => {
+    booking.inviteEmails?.forEach((invite: any) => {
         const email = invite.email?.trim()
         if (email) participantsList.add(email)
     })
@@ -702,20 +732,20 @@ export async function buildCancellationTemplateVariablesFromBooking(bookingId: n
         ? Array.from(participantsList).join(', ')
         : 'To be confirmed'
 
-    // Build interpreter section
+    // Build interpreter section - ALWAYS show if there's an interpreter assigned
     const interpreterName = booking.interpreterEmployee
-        ? [booking.interpreterEmployee.firstNameEn, booking.interpreterEmployee.lastNameEn].filter(Boolean).join(' ') || booking.interpreterEmployee.email
+        ? [booking.interpreterEmployee.firstNameEn, booking.interpreterEmployee.lastNameEn].filter(Boolean).join(' ') || booking.interpreterEmployee.email || 'Interpreter assigned'
         : (booking.selectedInterpreter
-            ? [booking.selectedInterpreter.firstNameEn, booking.selectedInterpreter.lastNameEn].filter(Boolean).join(' ') || booking.selectedInterpreter.email
+            ? [booking.selectedInterpreter.firstNameEn, booking.selectedInterpreter.lastNameEn].filter(Boolean).join(' ') || booking.selectedInterpreter.email || 'Interpreter assigned'
             : '')
 
-    const interpreterSection = interpreterName ? `
+    const interpreterSection = (interpreterName || booking.interpreterEmployee || booking.selectedInterpreter) ? `
                         <tr>
                             <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
                                 🗣️ Interpreter:
                             </td>
                             <td style="padding: 10px 0; color: #374151;">
-                                ${interpreterName}
+                                ${interpreterName || 'Interpreter assigned'}
                             </td>
                         </tr>` : ''
 
@@ -727,17 +757,6 @@ export async function buildCancellationTemplateVariablesFromBooking(bookingId: n
     const organizerDivision = booking.employee?.deptPath ?? ''
     const organizerPhone = booking.employee?.telExt ?? ''
 
-    // Build Application Model section
-    const applicationModelSection = booking.applicableModel ? `
-                        <tr>
-                            <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
-                                📱 Application Model:
-                            </td>
-                            <td style="padding: 10px 0; color: #374151;">
-                                ${booking.applicableModel}
-                            </td>
-                        </tr>` : ''
-
     // Build DR-specific sections
     let drDetailsSection = ''
     let chairmanSection = ''
@@ -746,7 +765,7 @@ export async function buildCancellationTemplateVariablesFromBooking(bookingId: n
     if (isDR) {
         // Handle DR sub-types - ALL DR sub-types are supported
         const drSubtype = booking.drType
-        const drSubtypeDisplay = drSubtype ? DR_SUBTYPE_DISPLAY[drSubtype] || drSubtype : 'Not specified'
+        const drSubtypeDisplay = drSubtype ? (DR_SUBTYPE_DISPLAY as any)[drSubtype] || drSubtype : 'Not specified'
 
         // If DR sub-type is "Other", use the custom otherType text
         const finalDrDisplay = (drSubtype === 'Other' && booking.otherType)
@@ -758,10 +777,10 @@ export async function buildCancellationTemplateVariablesFromBooking(bookingId: n
         drDetailsSection = `
                         <tr>
                             <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
-                                🏷️ Device Group:
+                                📱 Applicable Model:
                             </td>
                             <td style="padding: 10px 0; color: #374151;">
-                                ${booking.ownerGroup || 'Not specified'}
+                                ${booking.applicableModel || 'Not specified'}
                             </td>
                         </tr>
                         <tr>
@@ -787,6 +806,28 @@ export async function buildCancellationTemplateVariablesFromBooking(bookingId: n
     } else if (meetingType === 'Other' && booking.otherType) {
         meetingTypeDisplay = `${config.displayName} - ${booking.otherType}`
     }
+
+    // Build department section - only show if organizerDivision has a value
+    const departmentSection = organizerDivision ? `
+                        <tr>
+                            <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                                🏢 Department:
+                            </td>
+                            <td style="padding: 10px 0; color: #374151;">
+                                ${organizerDivision}
+                            </td>
+                        </tr>` : ''
+
+    // Build device group section - show for all meetings (not just DR)
+    const deviceGroupSection = booking.ownerGroup ? `
+                        <tr>
+                            <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                                🏷️ Device Group:
+                            </td>
+                            <td style="padding: 10px 0; color: #374151;">
+                                ${booking.ownerGroup}
+                            </td>
+                        </tr>` : ''
 
     // Build reason section
     let reasonSection = ''
@@ -812,6 +853,7 @@ export async function buildCancellationTemplateVariablesFromBooking(bookingId: n
 
         // Common fields
         topic,
+        descriptionSubject,
         date: formatGbDateWithWeekday(start),
         time: formatTimeRange(start, end),
         location: booking.meetingRoom,
@@ -822,10 +864,11 @@ export async function buildCancellationTemplateVariablesFromBooking(bookingId: n
 
         // Dynamic sections
         descriptionSection,
-        applicationModelSection,
         drDetailsSection,
         chairmanSection,
         interpreterSection,
+        deviceGroupSection,
+        departmentSection,
         reasonSection,
 
         // Legacy fields (for backward compatibility)
@@ -841,10 +884,14 @@ export async function buildCancellationTemplateVariablesFromBooking(bookingId: n
     }
 }
 
-export async function getFormattedCancellationTemplateForBooking(bookingId: number, reason?: string): Promise<{ subject: string; body: string; isHtml: boolean }> {
+export async function getFormattedCancellationTemplateForBooking(
+    bookingId: number,
+    reason?: string,
+    providedBooking?: any
+): Promise<{ subject: string; body: string; isHtml: boolean }> {
     const template = getTemplateById('unified-cancellation')
     if (!template) throw new Error('Unified cancellation template not found')
-    const variables = await buildCancellationTemplateVariablesFromBooking(bookingId, reason)
+    const variables = await buildCancellationTemplateVariablesFromBooking(bookingId, reason, providedBooking)
     return formatTemplate(template, variables)
 }
 
