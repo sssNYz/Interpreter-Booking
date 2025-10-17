@@ -6,10 +6,11 @@ import {
   SESSION_COOKIE_NAME,
 } from "@/lib/auth/session";
 import type { LoginRequest, LoginResponse } from "@/types/auth";
+import crypto from "node:crypto";
 
-
-//const REF_API_URL = "http://172.31.150.3/api/login";
-const REF_API_URL = "http://localhost:3030/api/mock-login";
+const REF_API_URL = process.env.LOGIN_API_URL || "";
+// const REF_API_URL = "http://172.31.150.3/api/login";
+// const REF_API_URL = "http://localhost:3030/api/mock-login";
 
   //process.env.REF_API_URL || "http://172.31.150.22:3030/api/mock-login";
   //process.env.REF_API_URL || "http://192.168.1.184/api/login";
@@ -39,13 +40,82 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Call reference login service
+  // Helpers for JWT handling (optional verification if secret provided)
+  function base64urlToBuffer(b64url: string): Buffer {
+    const b64 = b64url.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(b64url.length / 4) * 4, "=");
+    return Buffer.from(b64, "base64");
+  }
+
+  function bufferToBase64url(buf: Buffer): string {
+    return buf.toString("base64").replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
+  }
+
+  function verifyHs256Jwt(token: string, secret: string): boolean {
+    try {
+      const parts = token.split(".");
+      if (parts.length !== 3) return false;
+      const [headerB64, payloadB64, sigB64] = parts;
+      const data = `${headerB64}.${payloadB64}`;
+      const expected = crypto.createHmac("sha256", secret).update(data).digest();
+      const expectedB64url = bufferToBase64url(expected);
+      const given = sigB64;
+      // timing-safe compare
+      const a = Buffer.from(expectedB64url);
+      const b = Buffer.from(given);
+      if (a.length !== b.length) return false;
+      return crypto.timingSafeEqual(a, b);
+    } catch {
+      return false;
+    }
+  }
+
+  type JwtPayload = {
+    iss?: string;
+    fullname?: string;
+    fname?: string;
+    lname?: string;
+    email?: string;
+    ou?: string;
+    posit?: string;
+    code?: string;
+    sid?: string;
+    roles?: string;
+    lanePoint_isAdmin?: number;
+    consent?: number;
+    uuid?: string;
+    exp?: number;
+    iat?: number;
+    [key: string]: unknown;
+  };
+
+  function decodeJwtPayload(token: string): JwtPayload | null {
+    try {
+      const parts = token.split(".");
+      if (parts.length !== 3) return null;
+      const payloadB64 = parts[1];
+      const buf = base64urlToBuffer(payloadB64);
+      return JSON.parse(buf.toString("utf8"));
+    } catch {
+      return null;
+    }
+  }
+
+  // Call new reference login service that returns JWT
   try {
-    const forward = { empCode, oldPassword };
-    console.log("[/api/login] forwarding to reference", {
+    if (!REF_API_URL) {
+      console.error("[/api/login] LOGIN_API_URL is not configured");
+      return NextResponse.json(
+        { ok: false, message: "Server misconfiguration: LOGIN_API_URL" },
+        { status: 500 }
+      );
+    }
+
+    // Map old client body to new upstream body
+    const forward = { username: empCode, password: oldPassword };
+    console.log("[/api/login] forwarding to auth", {
       host: REF_API_URL,
-      empCode: forward.empCode,
-      passwordLength: forward.oldPassword.length,
+      username: forward.username,
+      passwordLength: forward.password.length,
     });
     const controller = new AbortController();
     const to = setTimeout(() => controller.abort(), 5000);
@@ -58,13 +128,13 @@ export async function POST(req: NextRequest) {
 
     if (!refRes.ok) {
       const text = await refRes.text().catch(() => "");
-      console.error("[/api/login] reference responded non-200", {
+      console.error("[/api/login] auth responded non-200", {
         status: refRes.status,
         statusText: refRes.statusText,
         headers: Object.fromEntries(refRes.headers.entries()),
         body: text?.slice(0, 500),
         url: REF_API_URL,
-        requestData: { empCode: forward.empCode, passwordLength: forward.oldPassword.length }
+        requestData: { username: forward.username, passwordLength: forward.password.length }
       });
       return NextResponse.json(
         {
@@ -81,50 +151,69 @@ export async function POST(req: NextRequest) {
     }
 
     const data = await refRes.json();
-    console.log("[/api/login] reference API response received", {
+    console.log("[/api/login] auth API response received", {
       status: refRes.status,
-      hasUserData: !!data?.user_data,
       dataKeys: Object.keys(data || {}),
-      userDataKeys: data?.user_data ? Object.keys(data.user_data) : [],
-      empCodeInResponse: data?.user_data?.code
     });
 
-    // const token: string | undefined = data?.token;
-    const u = data?.user_data || {};
-
-    // Map to employee fields
-    const empCodeFromRef: string | undefined = u.code;
-    if (!empCodeFromRef) {
-      console.error("[/api/login] missing empCode in response", {
-        responseData: data,
-        userData: u,
-        allKeys: Object.keys(data || {})
-      });
+    const token: string | undefined = data?.auth_data?.access_token;
+    if (!token || typeof token !== "string") {
+      console.error("[/api/login] missing access_token in response", { keys: Object.keys(data || {}) });
       return NextResponse.json(
-        {
-          ok: false,
-          message: "Authentication service returned invalid user data",
-          debug: {
-            hasData: !!data,
-            hasUserData: !!data?.user_data,
-            userDataKeys: data?.user_data ? Object.keys(data.user_data) : [],
-            responseKeys: Object.keys(data || {})
-          }
-        },
+        { ok: false, message: "Authentication service returned invalid token" },
         { status: 500 }
       );
     }
-    const email: string | null = u.email || null;
-    const telExt: string | null = u.tel || null;
-    const prefixEn: string | null = u.pren || null;
-    const firstNameEn: string | null = u.name || null;
-    const lastNameEn: string | null = u.surn || null;
-    const prefixTh: string | null = u.prenTh || null;
-    const firstNameTh: string | null = u.nameTh || null;
-    const lastNameTh: string | null = u.surnTh || null;
-    const fno: string | null = u.fno || null;
-    const deptPath: string | null = u.divDeptSect || null;
-    const positionTitle: string | null = u.positionDescription || null;
+
+    // Verify if secret provided; otherwise fallback to decode-only
+    const verifySecret = process.env.AUTH_JWT_SECRET;
+    if (verifySecret) {
+      const ok = verifyHs256Jwt(token, verifySecret);
+      if (!ok) {
+        console.error("[/api/login] token signature verification failed");
+        return NextResponse.json(
+          { ok: false, message: "Invalid token signature" },
+          { status: 401 }
+        );
+      }
+    }
+
+    const payload = decodeJwtPayload(token);
+    if (!payload) {
+      return NextResponse.json(
+        { ok: false, message: "Invalid token payload" },
+        { status: 500 }
+      );
+    }
+
+    // Check expiry if present
+    if (typeof payload.exp === "number" && Date.now() / 1000 > payload.exp) {
+      return NextResponse.json(
+        { ok: false, message: "Token expired" },
+        { status: 401 }
+      );
+    }
+
+    // Map JWT claims to employee fields
+    const empCodeFromRef: string | undefined = payload.code;
+    if (!empCodeFromRef) {
+      console.error("[/api/login] missing code in token payload", { payloadKeys: Object.keys(payload) });
+      return NextResponse.json(
+        { ok: false, message: "Authentication service returned invalid user data" },
+        { status: 500 }
+      );
+    }
+    const email: string | null = payload.email ?? null;
+    const telExt: string | null = null; // not provided by token
+    const prefixEn: string | null = null;
+    const firstNameEn: string | null = payload.fname ?? null;
+    const lastNameEn: string | null = payload.lname ?? null;
+    const prefixTh: string | null = null;
+    const firstNameTh: string | null = null;
+    const lastNameTh: string | null = null;
+    const fno: string | null = null;
+    const deptPath: string | null = payload.ou ?? null;
+    const positionTitle: string | null = payload.posit ?? null;
 
     // Upsert employee via parameterized SQL
     const now = new Date();

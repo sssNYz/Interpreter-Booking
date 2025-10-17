@@ -44,7 +44,6 @@ export async function getModeSpecificThreshold(
       where: {
         meetingType: meetingType as MeetingType,
         assignmentMode,
-        environmentId: null,
       },
     });
 
@@ -144,7 +143,6 @@ export async function updateModeThreshold(
       where: {
         meetingType: meetingType as MeetingType,
         assignmentMode,
-        environmentId: null,
       },
     });
 
