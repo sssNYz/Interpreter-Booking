@@ -130,22 +130,18 @@ export async function listEnvMeetingTypePriorities(environmentId: number) {
 }
 
 export async function getEnvModeThreshold(environmentId: number, meetingType: string, assignmentMode: string): Promise<MeetingTypeModeThreshold | null> {
-  const env = await prisma.meetingTypeModeThreshold.findFirst({
-    where: { meetingType: meetingType as any, assignmentMode, environmentId }, // eslint-disable-line @typescript-eslint/no-explicit-any
+  // Model has no environmentId; return global (by meetingType + assignmentMode)
+  const row = await prisma.meetingTypeModeThreshold.findFirst({
+    where: { meetingType: meetingType as any, assignmentMode }, // eslint-disable-line @typescript-eslint/no-explicit-any
     orderBy: { updatedAt: 'desc' }
   });
-  if (env) return env as MeetingTypeModeThreshold;
-
-  const global = await prisma.meetingTypeModeThreshold.findFirst({
-    where: { meetingType: meetingType as any, assignmentMode, environmentId: null }, // eslint-disable-line @typescript-eslint/no-explicit-any
-    orderBy: { updatedAt: 'desc' }
-  });
-  return global as MeetingTypeModeThreshold;
+  return row as MeetingTypeModeThreshold;
 }
 
 export async function upsertEnvModeThreshold(environmentId: number, meetingType: string, assignmentMode: string, urgentThresholdDays: number, generalThresholdDays: number) {
+  // Model has no environmentId; upsert by meetingType + assignmentMode only
   const existing = await prisma.meetingTypeModeThreshold.findFirst({
-    where: { environmentId, meetingType: meetingType as any, assignmentMode } // eslint-disable-line @typescript-eslint/no-explicit-any
+    where: { meetingType: meetingType as any, assignmentMode } // eslint-disable-line @typescript-eslint/no-explicit-any
   });
   if (existing) {
     return prisma.meetingTypeModeThreshold.update({
@@ -154,13 +150,13 @@ export async function upsertEnvModeThreshold(environmentId: number, meetingType:
     });
   }
   return prisma.meetingTypeModeThreshold.create({
-    data: { environmentId, meetingType: meetingType as any, assignmentMode, urgentThresholdDays, generalThresholdDays } // eslint-disable-line @typescript-eslint/no-explicit-any
+    data: { meetingType: meetingType as any, assignmentMode, urgentThresholdDays, generalThresholdDays } // eslint-disable-line @typescript-eslint/no-explicit-any
   });
 }
 
 export async function listEnvModeThresholds(environmentId: number) {
-  const envRows = await prisma.meetingTypeModeThreshold.findMany({ where: { environmentId } });
-  const globalRows = await prisma.meetingTypeModeThreshold.findMany({ where: { environmentId: null } });
-  return { env: envRows, global: globalRows };
+  // No environment scoping in model; return global rows only
+  const globalRows = await prisma.meetingTypeModeThreshold.findMany();
+  return { env: [], global: globalRows };
 }
 

@@ -60,18 +60,19 @@ export async function graphFetch<T = unknown>(path: string, init?: RequestInit &
     Authorization: `Bearer ${token}`,
     'Content-Type': 'application/json'
   }
-  const res = await fetch(url, { ...init, headers: { ...headers, ...(init?.headers as any) } })
+  const base = new Headers(headers);
+if (init?.headers) new Headers(init.headers).forEach((v, k) => base.set(k, v));
+const res = await fetch(url, { ...init, headers: base });
   if (!res.ok) {
     const text = await res.text().catch(() => '')
     throw new Error(`Graph fetch error ${res.status} ${res.statusText} ${text}`)
   }
   // If caller wants raw text or empty body, handle gracefully
   if (init?.asJson === false) {
-    // @ts-expect-error allow text return
     return (await res.text()) as T
   }
   if (res.status === 204) {
-    // @ts-expect-error void
+
     return undefined as T
   }
   return (await res.json()) as T
