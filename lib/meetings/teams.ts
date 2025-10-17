@@ -41,13 +41,25 @@ function addMinutes(date: string | Date, mins: number): Date {
  * If ENABLE_MS_TEAMS is not true, returns null (no-op).
  */
 export async function createTeamsMeeting(params: CreateMeetingParams): Promise<string | null> {
-  if (!asBool(process.env.ENABLE_MS_TEAMS)) return null
+  const enabled = asBool(process.env.ENABLE_MS_TEAMS)
+  console.log('[TEAMS] createTeamsMeeting called', {
+    enabled,
+    subject: params.subject,
+    hasStart: !!params.start,
+    hasEnd: !!params.end
+  })
+  if (!enabled) {
+    console.log('[TEAMS] Feature disabled by ENABLE_MS_TEAMS')
+    return null
+  }
 
   const organizer = params.organizerUpn || getOrganizerUpn()
   const defaultDuration = parseInt(process.env.MS_TEAMS_DEFAULT_DURATION_MIN || '60', 10)
+  console.log('[TEAMS] Organizer & defaults', { organizer, defaultDuration })
 
   const start = params.start
   const end = params.end || (start ? addMinutes(start, defaultDuration) : undefined)
+  console.log('[TEAMS] Times (raw)', { start: String(start || ''), end: String(end || '') })
 
   const body: Record<string, unknown> = {
     subject: params.subject || 'Meeting',
@@ -55,6 +67,7 @@ export async function createTeamsMeeting(params: CreateMeetingParams): Promise<s
 
   if (start) body['startDateTime'] = toGraphISO(start)
   if (end) body['endDateTime'] = toGraphISO(end)
+  console.log('[TEAMS] Request body', body)
 
   try {
     const resp = await graphFetch<any>(`/users/${encodeURIComponent(organizer)}/onlineMeetings`, {
@@ -62,10 +75,10 @@ export async function createTeamsMeeting(params: CreateMeetingParams): Promise<s
       body: JSON.stringify(body)
     })
     const url: string | undefined = resp?.joinWebUrl || resp?.joinUrl || resp?.onlineMeeting?.joinUrl
+    console.log('[TEAMS] Graph response got join URL?', { hasUrl: !!url, url })
     return url || null
   } catch (err) {
     console.error('[TEAMS] Failed to create online meeting:', err)
     return null
   }
 }
-
