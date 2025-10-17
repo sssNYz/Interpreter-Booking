@@ -43,6 +43,32 @@ export async function POST(
     const body = raw as Body | null;
     const note = typeof body?.note === "string" ? body!.note.trim() : undefined;
 
+    // Preserve interpreter information BEFORE cancellation for email
+    const bookingForEmail = await prisma.bookingPlan.findUnique({
+      where: { bookingId },
+      select: {
+        bookingId: true,
+        interpreterEmpCode: true,
+        selectedInterpreterEmpCode: true,
+        interpreterEmployee: {
+          select: {
+            empCode: true,
+            email: true,
+            firstNameEn: true,
+            lastNameEn: true,
+          }
+        },
+        selectedInterpreter: {
+          select: {
+            empCode: true,
+            email: true,
+            firstNameEn: true,
+            lastNameEn: true,
+          }
+        },
+      },
+    });
+
     const result = await prisma.$transaction(async (tx) => {
       // Load booking
       const bk = await tx.bookingPlan.findUnique({
@@ -126,7 +152,8 @@ export async function POST(
       try {
         console.log(`[ADMIN_CANCEL] Triggering cancellation email for booking ${bookingId}`)
         const { sendCancellationEmailForBooking } = await import('@/lib/mail/sender')
-        sendCancellationEmailForBooking(bookingId, note).catch((err) => {
+        // Pass preserved interpreter info so it appears in cancellation email
+        sendCancellationEmailForBooking(bookingId, note, bookingForEmail ?? undefined).catch((err) => {
           console.error(`[ADMIN_CANCEL] Failed to send cancellation email for booking ${bookingId}:`, err)
         })
       } catch (err) {
