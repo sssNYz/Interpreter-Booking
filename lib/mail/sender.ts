@@ -166,12 +166,20 @@ export async function sendApprovalEmailForBooking(bookingId: number): Promise<vo
   // Try to create a Teams online meeting and get join URL (no DB persistence)
   let teamsJoinUrl: string | null = null
   try {
+    console.log('[EMAIL][TEAMS] Attempting to create Teams meeting', {
+      enabled: process.env.ENABLE_MS_TEAMS,
+      organizerUpn: process.env.MS_GRAPH_ORGANIZER_UPN || process.env.SMTP_FROM_EMAIL,
+      start: String(booking.timeStart || ''),
+      end: String(booking.timeEnd || ''),
+      subject: vars.topic || booking.meetingType
+    })
     teamsJoinUrl = await createTeamsMeeting({
       start: booking.timeStart,
       end: booking.timeEnd,
       subject: vars.topic || booking.meetingType,
       organizerUpn: process.env.MS_GRAPH_ORGANIZER_UPN || process.env.SMTP_FROM_EMAIL || undefined
     })
+    console.log('[EMAIL][TEAMS] Created Teams meeting?', { hasUrl: !!teamsJoinUrl, url: teamsJoinUrl })
   } catch (e) {
     console.error('[EMAIL] Error creating Teams meeting (will continue without link):', e)
   }
@@ -196,6 +204,11 @@ export async function sendApprovalEmailForBooking(bookingId: number): Promise<vo
   const teamsBlockText = teamsJoinUrl ? `Microsoft Teams: ${teamsJoinUrl}\n\n` : ''
   const finalHtml = isHtml ? `${teamsBlockHtml}${body}` : undefined
   const textBody = (isHtml ? toPlainText(`${teamsBlockText}${body}`) : `${teamsBlockText}${body}`).trim()
+  console.log('[EMAIL][TEAMS] Email composition', {
+    hasTeamsUrl: !!teamsJoinUrl,
+    htmlHasTeamsBlock: !!teamsBlockHtml,
+    icsHasDescription: !!calendarEvent.description
+  })
   const transporter = createTransporter()
   try {
     console.log(`[EMAIL] Verifying SMTP connection for approval email...`)
