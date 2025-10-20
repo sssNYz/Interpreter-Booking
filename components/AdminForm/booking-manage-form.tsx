@@ -419,6 +419,11 @@ const BookingDetailDialog: React.FC<Props> = ({ open, onOpenChange, editData, is
         const res = await patchInterpreter(bookingIdForApi, pendingEmpCode, serverVersion);
         if ("updatedAt" in res) setServerVersion(res.updatedAt);
         setBooking((prev) => (prev ? { ...prev, interpreter: pendingEmpCode } : prev));
+        
+        // Show notification for approved bookings with interpreter changes
+        if (booking.status === "Approve") {
+          alert("✅ Interpreter updated successfully!\n\n📧 Email notifications:\n• Cancellation email sent for old meeting\n• New meeting invitation sent with updated interpreter\n\nParticipants will receive both emails automatically.");
+        }
       }
 
       setOpen(false);
