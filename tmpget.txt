@@ -1,0 +1,21 @@
+      alive = false;
+    };
+  }, [selectedDate]);
+
+  function generateTimeSlots() {
+    const slots: string[] = [];
+    for (let h = 8; h <= 20; h++) {
+      for (let m = 0; m < 60; m += 30) {
+        const time = `${String(h).padStart(2, "0")}:${m === 0 ? "00" : "30"}`;
+        slots.push(time);
+      }
+    }
+    return slots;
+  }
+
+  const endIndex = Math.min(startIndex + VISIBLE_COLUMNS, rooms.length);
+  const displayedRooms = rooms.slice(startIndex, endIndex);
+  const placeholderCount = Math.max(0, VISIBLE_COLUMNS - displayedRooms.length);
+  
+  const canPrev = startIndex > 0;
+  const canNext = rooms.length > 0 && startIndex < Math.max(0, rooms.length - VISIBLE_COLUMNS);
