@@ -35,7 +35,7 @@ export default function UnifiedManagementPage() {
   );
 
   return (
-    <div className="min-h-screen bg-[#f7f7f7] font-sans text-gray-900">
+    <div className="h-full min-h-0 overflow-auto bg-[#f7f7f7] font-sans text-gray-900">
       {/* Header */}
       <div className="border-b bg-white border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

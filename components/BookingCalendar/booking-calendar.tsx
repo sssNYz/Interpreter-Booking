@@ -595,7 +595,7 @@ useEffect(() => {
         <div className="flex items-center gap-2 justify-center min-w-[280px] sm:min-w-[370px] rounded-t-4xl bg-neutral-700 px-4 py-2">
           <Calendar className="w-6 h-6 sm:w-8 sm:h-8 text-primary-foreground" />
           <h1 className="text-[16px] sm:text-[20px] font-medium text-primary-foreground">
-            Book Appointment
+            Interpreter Booking
           </h1>
         </div>
 
@@ -741,11 +741,11 @@ useEffect(() => {
           {/* Help button to reopen tutorial */}
           <Button
             onClick={() => setIsTutorialOpen(true)}
-            className="bg-neutral-700 text-white rounded-full hover:bg-black/90 h-10 w-10 text-base shadow-md hover:shadow-lg active:shadow-md transition"
+            className="bg-neutral-700 text-white rounded-full hover:bg-black/90 h-10 w-10 p-0 shadow-md hover:shadow-lg active:shadow-md transition overflow-hidden"
             aria-label="Help"
             title="Help"
           >
-            ?
+            <img src="/mascot/mascot.png" alt="Help" className="w-full h-full object-cover" />
           </Button>
           {/* Admin vision toggle removed */}
           <BookingRules forwardMonthLimit={forwardMonthLimit} />

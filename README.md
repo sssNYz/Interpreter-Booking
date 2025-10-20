@@ -4,12 +4,38 @@ Setup notes
 - Set `SESSION_SECRET` in environment for cookie signing.
 - Session timeout is 30 minutes idle (sliding). Adjust in `lib/auth/session.ts`.
 - Optional: `COMPLETE_BOOKINGS_GRACE_MINUTES` controls the auto-complete job grace window (defaults to 10 minutes).
+- Authentication upstream (JWT):
+  - `LOGIN_API_URL` (server-side) e.g. `http://your-auth-host/api/login`
+  - `AUTH_JWT_SECRET` (server-side, HS256) for signature verification
+  - Client flow remains cookie-based; no JWT is exposed to the browser
+
+### Microsoft Teams (optional)
+
+To add a Teams meeting link in booking emails (no DB storage):
+
+- `ENABLE_MS_TEAMS=true`
+- `MS_GRAPH_TENANT_ID=<tenant-id>`
+- `MS_GRAPH_CLIENT_ID=<app-client-id>`
+- `MS_GRAPH_CLIENT_SECRET=<app-client-secret>`
+- `MS_GRAPH_ORGANIZER_UPN=<organizer upn/email>` (defaults to `SMTP_FROM_EMAIL`)
+- `MS_TEAMS_DEFAULT_DURATION_MIN=60` (optional)
+
+App permissions required (admin consent): `OnlineMeetings.ReadWrite.All`.
 
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started
 
-First, run the development server:
+First, run the development server (ensure envs in `.env.local`):
+
+```
+DATABASE_URL=mysql://user:pass@host:3306/db
+SESSION_SECRET=your-session-secret
+LOGIN_API_URL=http://your-auth-host/api/login
+AUTH_JWT_SECRET=shared-hs256-secret
+```
+
+Then start:
 
 ```bash
 npm run dev
