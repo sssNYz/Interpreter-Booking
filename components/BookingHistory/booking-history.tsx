@@ -298,7 +298,7 @@ export default function BookingHistory({ renderEmpty, startDate, endDate }: Book
         </div>
         <Button
           onClick={() => setIsTutorialOpen(true)}
-          className="bg-neutral-700 text-white rounded-full hover:bg-black/90 h-8 w-8 p-0 shadow-md hover:shadow-lg active:shadow-md transition overflow-hidden"
+          className="fixed bottom-6 right-6 bg-white text-white rounded-full hover:bg-white h-15 w-15 p-0 transition overflow-hidden border-2 border-white shadow-none hover:shadow-none active:shadow-none focus-visible:outline-none focus-visible:ring-0 z-50"
           aria-label="Help"
           title="Help"
         >

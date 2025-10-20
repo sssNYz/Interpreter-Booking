@@ -77,7 +77,17 @@ export async function graphFetch<T = unknown>(path: string, init?: RequestInit &
     'Content-Type': 'application/json'
   }
   const base = new Headers(headers)
-  if (init?.headers) new Headers(init.headers as any).forEach((v, k) => base.set(k, v))
+  if (init?.headers) {
+    const extra = init.headers
+    if (extra instanceof Headers) {
+      extra.forEach((v, k) => base.set(k, v))
+    } else if (Array.isArray(extra)) {
+      for (const [k, v] of extra) base.set(k, v)
+    } else if (typeof extra === 'object') {
+      const obj = extra as Record<string, string>
+      Object.entries(obj).forEach(([k, v]) => base.set(k, v))
+    }
+  }
   const method = init?.method || 'GET'
   console.log('[TEAMS][HTTP] Request', method, url)
   const res = await fetch(url, { ...init, headers: base })
@@ -97,7 +107,9 @@ export async function graphFetch<T = unknown>(path: string, init?: RequestInit &
   }
   const json = (await res.json()) as T
   try {
-    console.log('[TEAMS][HTTP] JSON keys', Object.keys((json as any) || {}))
+    if (json && typeof json === 'object') {
+      console.log('[TEAMS][HTTP] JSON keys', Object.keys(json as Record<string, unknown>))
+    }
   } catch {}
   return json
 }
