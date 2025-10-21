@@ -7,6 +7,14 @@ type CreateMeetingParams = {
   organizerUpn?: string
 }
 
+type OnlineMeetingResponse = {
+  joinWebUrl?: string
+  joinUrl?: string
+  onlineMeeting?: {
+    joinUrl?: string
+  }
+}
+
 function asBool(v: string | undefined): boolean {
   if (!v) return false
   const s = String(v).trim().toLowerCase()
@@ -70,7 +78,7 @@ export async function createTeamsMeeting(params: CreateMeetingParams): Promise<s
   console.log('[TEAMS] Request body', body)
 
   try {
-    const resp = await graphFetch<any>(`/users/${encodeURIComponent(organizer)}/onlineMeetings`, {
+    const resp = await graphFetch<OnlineMeetingResponse>(`/users/${encodeURIComponent(organizer)}/onlineMeetings`, {
       method: 'POST',
       body: JSON.stringify(body)
     })
