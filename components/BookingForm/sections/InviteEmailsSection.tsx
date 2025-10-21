@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Users, X, Plus, AlertCircle, CalendarIcon } from "lucide-react";
+import { Users, X, Plus, AlertCircle } from "lucide-react";
 import { useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
@@ -67,7 +67,7 @@ export function InviteEmailsSection({
 
       <div className="space-y-2">
         <Label htmlFor="newEmail" className="text-sm font-medium text-foreground">
-          <HoverCard openDelay={0}>
+          <HoverCard openDelay={1000}>
             <HoverCardTrigger asChild>
               <span
                 tabIndex={0}

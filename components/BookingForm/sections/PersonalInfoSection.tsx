@@ -3,7 +3,7 @@ import { Label } from "@/components/ui/label";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CalendarIcon, Mail, Phone, User } from "lucide-react";
+import { Mail, Phone, User } from "lucide-react";
 import type { OwnerGroup } from "@/types/booking";
 
 interface PersonalInfoSectionProps {
@@ -119,7 +119,7 @@ export function PersonalInfoSection({
 
         <div className="space-y-2">
           <Label htmlFor="ownerGroup" className="text-sm font-medium text-foreground">
-            <HoverCard openDelay={0}>
+            <HoverCard openDelay={1000}>
               <HoverCardTrigger asChild>
                 <span
                   tabIndex={0}

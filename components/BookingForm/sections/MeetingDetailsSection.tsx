@@ -26,7 +26,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { CalendarIcon, Presentation, Check, ChevronsUpDown } from "lucide-react";
+import { Presentation, Check, ChevronsUpDown } from "lucide-react";
 import type { DRType } from "@/prisma/prisma";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
@@ -304,7 +304,7 @@ export function MeetingDetailsSection({
             htmlFor="otherType"
             className="text-sm font-medium text-foreground"
           >
-            <HoverCard openDelay={0}>
+            <HoverCard openDelay={1000}>
               <HoverCardTrigger asChild>
                 <span
                   tabIndex={0}
@@ -427,7 +427,7 @@ export function MeetingDetailsSection({
 
         <div className="space-y-2">
           <label className="text-sm font-medium text-foreground">
-            <HoverCard openDelay={0}>
+            <HoverCard openDelay={1000}>
               <HoverCardTrigger asChild>
                 <span
                   tabIndex={0}
@@ -499,7 +499,7 @@ export function MeetingDetailsSection({
             htmlFor="chairmanEmail"
             className="text-sm font-medium text-foreground"
           >
-            <HoverCard openDelay={0}>
+            <HoverCard openDelay={1000}>
               <HoverCardTrigger asChild>
                 <span
                   tabIndex={0}

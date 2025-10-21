@@ -2004,7 +2004,7 @@ export function BookingForm({
               {/* Language Selection (Multi-select) */}
               <div className="space-y-2">
                 <label className="text-sm font-medium text-foreground">
-                  <HoverCard openDelay={0}>
+                  <HoverCard openDelay={1000}>
                     <HoverCardTrigger asChild>
                       <span
                         tabIndex={0}

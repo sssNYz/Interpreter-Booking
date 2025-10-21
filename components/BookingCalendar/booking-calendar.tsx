@@ -741,7 +741,7 @@ useEffect(() => {
           {/* Help button to reopen tutorial */}
           <Button
             onClick={() => setIsTutorialOpen(true)}
-            className="bg-neutral-700 text-white rounded-full hover:bg-black/90 h-10 w-10 p-0 shadow-md hover:shadow-lg active:shadow-md transition overflow-hidden"
+            className="bg-white text-white rounded-full hover:bg-white h-15 w-15 p-0 transition overflow-hidden border-2 border-white shadow-none hover:shadow-none active:shadow-none focus-visible:outline-none focus-visible:ring-0 mb-4"
             aria-label="Help"
             title="Help"
           >
