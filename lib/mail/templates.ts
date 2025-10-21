@@ -114,6 +114,7 @@ export const SYSTEM_TEMPLATES: EmailTemplate[] = [
                             </td>
                         </tr>
                         {deviceGroupSection}
+                        {applicableModelSection}
                         {departmentSection}
                     </table>
                 </div>
@@ -255,6 +256,7 @@ export const SYSTEM_TEMPLATES: EmailTemplate[] = [
                             </td>
                         </tr>
                         {deviceGroupSection}
+                        {applicableModelSection}
                         {departmentSection}
                     </table>
                 </div>
@@ -626,6 +628,28 @@ export async function buildTemplateVariablesFromBooking(
                             </td>
                         </tr>` : ''
 
+    // Build applicable model section for non-DR meetings
+    const applicableModelSection_2 = (!isDR && booking.applicableModel) ? `
+                        <tr>
+                            <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                                📱 Applicable Model:
+                            </td>
+                            <td style="padding: 10px 0; color: #374151;">
+                                ${booking.applicableModel}
+                            </td>
+                        </tr>` : ''
+
+    // Build applicable model section for non-DR meetings
+    const applicableModelSection = (!isDR && booking.applicableModel) ? `
+                        <tr>
+                            <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                                📱 Applicable Model:
+                            </td>
+                            <td style="padding: 10px 0; color: #374151;">
+                                ${booking.applicableModel}
+                            </td>
+                        </tr>` : ''
+
     return {
         // Meeting type specific
         meetingType: meetingType,
@@ -651,6 +675,7 @@ export async function buildTemplateVariablesFromBooking(
         chairmanSection,
         interpreterSection,
         deviceGroupSection,
+        applicableModelSection: applicableModelSection_2,
         departmentSection,
 
         // Legacy fields (for backward compatibility)
@@ -843,6 +868,17 @@ export async function buildCancellationTemplateVariablesFromBooking(
                             </td>
                         </tr>` : ''
 
+    // Build applicable model section for non-DR meetings
+    const applicableModelSection = (!isDR && booking.applicableModel) ? `
+                        <tr>
+                            <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                                📱 Applicable Model:
+                            </td>
+                            <td style="padding: 10px 0; color: #374151;">
+                                ${booking.applicableModel}
+                            </td>
+                        </tr>` : ''
+
     // Build reason section
     let reasonSection = ''
     if (reason) {
@@ -882,6 +918,7 @@ export async function buildCancellationTemplateVariablesFromBooking(
         chairmanSection,
         interpreterSection,
         deviceGroupSection,
+        applicableModelSection,
         departmentSection,
         reasonSection,
 
