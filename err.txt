@@ -1,0 +1,821 @@
+ Marking logging system as unhealthy due to database error
+❌ DR policy log fallback for booking 74: {
+  bookingId: 74,
+  interpreterId: '75028',
+  isDRMeeting: true,
+  finalDecision: 'ASSIGNED',
+  error: '\n' +
+    'Invalid `prisma.dRPolicyLog.create()` invocation:\n' +
+    '\n' +
+    '\n' +
+    "The provided value for the column is too long for the column's type. Column: DR_TYPE"
+}
+⚠️ 1 DR policy logs failed to flush, re-queued for retry
+⚠️ Logging system unhealthy, using fallback for flushDRPolicyLog
+❌ DR policy log fallback for booking 74: {
+  bookingId: 74,
+  interpreterId: '75028',
+  isDRMeeting: true,
+  finalDecision: 'ASSIGNED',
+  error: 'Logging system marked as unhealthy'
+}
+⚠️ 1 DR policy logs failed to flush, re-queued for retry
+✅ All log buffers flushed successfully
+📊 Performance Monitor: Avg processing: 15ms, Conflict rate: 15.4%, Load: LOW
+✅ Logging system recovered and is now healthy
+⚠️ Retry 1/3 for flushDRPolicyLog after 100ms delay
+⚠️ Retry 2/3 for flushDRPolicyLog after 200ms delay
+⚠️ Retry 3/3 for flushDRPolicyLog after 400ms delay
+❌ Primary logging failed for flushDRPolicyLog: Error [PrismaClientKnownRequestError]: 
+Invalid `prisma.dRPolicyLog.create()` invocation:
+
+
+The provided value for the column is too long for the column's type. Column: DR_TYPE
+✅ All log buffers flushed successfully
+    at async f (.next/server/chunks/3489.js:1:11981)
+    at async f.executeWithRetry (.next/server/chunks/3489.js:1:1188)
+    at async f.logWithFallback (.next/server/chunks/3489.js:1:695)
+    at async h.flushDRPolicyLogs (.next/server/chunks/3489.js:1:12667)
+    at async h.flushBuffers (.next/server/chunks/3489.js:1:8520) {
+  code: 'P2000',
+  meta: [Object],
+  clientVersion: '6.17.0'
+}
+⚠️ Marking logging system as unhealthy due to database error
+❌ DR policy log fallback for booking 74: {
+  bookingId: 74,
+  interpreterId: '75028',
+  isDRMeeting: true,
+  finalDecision: 'ASSIGNED',
+  error: '\n' +
+    'Invalid `prisma.dRPolicyLog.create()` invocation:\n' +
+    '\n' +
+    '\n' +
+    "The provided value for the column is too long for the column's type. Column: DR_TYPE"
+}
+⚠️ 1 DR policy logs failed to flush, re-queued for retry
+⚠️ Logging system unhealthy, using fallback for flushDRPolicyLog
+✅ All log buffers flushed successfully
+❌ DR policy log fallback for booking 74: {
+  bookingId: 74,
+  interpreterId: '75028',
+  isDRMeeting: true,
+  finalDecision: 'ASSIGNED',
+  error: 'Logging system marked as unhealthy'
+}
+⚠️ 1 DR policy logs failed to flush, re-queued for retry
+📊 Performance Monitor: Avg processing: 15ms, Conflict rate: 15.4%, Load: LOW
+✅ Logging system recovered and is now healthy
+⚠️ Retry 1/3 for flushDRPolicyLog after 100ms delay
+⚠️ Retry 2/3 for flushDRPolicyLog after 200ms delay
+⚠️ Retry 3/3 for flushDRPolicyLog after 400ms delay
+❌ Primary logging failed for flushDRPolicyLog: Error [PrismaClientKnownRequestError]: 
+Invalid `prisma.dRPolicyLog.create()` invocation:
+
+
+The provided value for the column is too long for the column's type. Column: DR_TYPE
+    at async f (.next/server/chunks/3489.js:1:11981)
+    at async f.executeWithRetry (.next/server/chunks/3489.js:1:1188)
+    at async f.logWithFallback (.next/server/chunks/3489.js:1:695)
+    at async h.flushDRPolicyLogs (.next/server/chunks/3489.js:1:12667)
+    at async h.flushBuffers (.next/server/chunks/3489.js:1:8520) {
+  code: 'P2000',
+  meta: [Object],
+  clientVersion: '6.17.0'
+}
+⚠️ Marking logging system as unhealthy due to database error
+❌ DR policy log fallback for booking 74: {
+  bookingId: 74,
+  interpreterId: '75028',
+  isDRMeeting: true,
+  finalDecision: 'ASSIGNED',
+  error: '\n' +
+    'Invalid `prisma.dRPolicyLog.create()` invocation:\n' +
+    '\n' +
+    '\n' +
+✅ All log buffers flushed successfully
+    "The provided value for the column is too long for the column's type. Column: DR_TYPE"
+}
+⚠️ 1 DR policy logs failed to flush, re-queued for retry
+⚠️ Logging system unhealthy, using fallback for flushDRPolicyLog
+❌ DR policy log fallback for booking 74: {
+  bookingId: 74,
+  interpreterId: '75028',
+  isDRMeeting: true,
+  finalDecision: 'ASSIGNED',
+  error: 'Logging system marked as unhealthy'
+}
+✅ All log buffers flushed successfully
+⚠️ 1 DR policy logs failed to flush, re-queued for retry
+📊 Performance Monitor: Avg processing: 15ms, Conflict rate: 15.4%, Load: LOW
+✅ Logging system recovered and is now healthy
+⚠️ Retry 1/3 for flushDRPolicyLog after 100ms delay
+⚠️ Retry 2/3 for flushDRPolicyLog after 200ms delay
+⚠️ Retry 3/3 for flushDRPolicyLog after 400ms delay
+❌ Primary logging failed for flushDRPolicyLog: Error [PrismaClientKnownRequestError]: 
+Invalid `prisma.dRPolicyLog.create()` invocation:
+
+
+The provided value for the column is too long for the column's type. Column: DR_TYPE
+    at async f (.next/server/chunks/3489.js:1:11981)
+    at async f.executeWithRetry (.next/server/chunks/3489.js:1:1188)
+    at async f.logWithFallback (.next/server/chunks/3489.js:1:695)
+    at async h.flushDRPolicyLogs (.next/server/chunks/3489.js:1:12667)
+    at async h.flushBuffers (.next/server/chunks/3489.js:1:8520) {
+  code: 'P2000',
+  meta: [Object],
+  clientVersion: '6.17.0'
+}
+⚠️ Marking logging system as unhealthy due to database error
+❌ DR policy log fallback for booking 74: {
+  bookingId: 74,
+  interpreterId: '75028',
+  isDRMeeting: true,
+  finalDecision: 'ASSIGNED',
+  error: '\n' +
+    'Invalid `prisma.dRPolicyLog.create()` invocation:\n' +
+    '\n' +
+    '\n' +
+    "The provided value for the column is too long for the column's type. Column: DR_TYPE"
+}
+⚠️ 1 DR policy logs failed to flush, re-queued for retry
+✅ All log buffers flushed successfully
+⚠️ Logging system unhealthy, using fallback for flushDRPolicyLog
+❌ DR policy log fallback for booking 74: {
+  bookingId: 74,
+  interpreterId: '75028',
+  isDRMeeting: true,
+  finalDecision: 'ASSIGNED',
+  error: 'Logging system marked as unhealthy'
+}
+⚠️ 1 DR policy logs failed to flush, re-queued for retry
+✅ All log buffers flushed successfully
+🏥 Health Check: Status: OPERATIONAL, Active: 0, Pool: 0, Load: LOW
+📊 Performance Monitor: Avg processing: 15ms, Conflict rate: 15.4%, Load: LOW
+✅ Logging system recovered and is now healthy
+⚠️ Retry 1/3 for flushDRPolicyLog after 100ms delay
+⚠️ Retry 2/3 for flushDRPolicyLog after 200ms delay
+⚠️ Retry 3/3 for flushDRPolicyLog after 400ms delay
+❌ Primary logging failed for flushDRPolicyLog: Error [PrismaClientKnownRequestError]: 
+Invalid `prisma.dRPolicyLog.create()` invocation:
+
+
+The provided value for the column is too long for the column's type. Column: DR_TYPE
+    at async f (.next/server/chunks/3489.js:1:11981)
+    at async f.executeWithRetry (.next/server/chunks/3489.js:1:1188)
+    at async f.logWithFallback (.next/server/chunks/3489.js:1:695)
+    at async h.flushDRPolicyLogs (.next/server/chunks/3489.js:1:12667)
+    at async h.flushBuffers (.next/server/chunks/3489.js:1:8520) {
+  code: 'P2000',
+  meta: [Object],
+  clientVersion: '6.17.0'
+}
+⚠️ Marking logging system as unhealthy due to database error
+✅ All log buffers flushed successfully
+❌ DR policy log fallback for booking 74: {
+  bookingId: 74,
+  interpreterId: '75028',
+  isDRMeeting: true,
+  finalDecision: 'ASSIGNED',
+  error: '\n' +
+    'Invalid `prisma.dRPolicyLog.create()` invocation:\n' +
+    '\n' +
+    '\n' +
+    "The provided value for the column is too long for the column's type. Column: DR_TYPE"
+}
+⚠️ 1 DR policy logs failed to flush, re-queued for retry
+⚠️ Logging system unhealthy, using fallback for flushDRPolicyLog
+❌ DR policy log fallback for booking 74: {
+  bookingId: 74,
+  interpreterId: '75028',
+  isDRMeeting: true,
+  finalDecision: 'ASSIGNED',
+  error: 'Logging system marked as unhealthy'
+}
+⚠️ 1 DR policy logs failed to flush, re-queued for retry
+✅ All log buffers flushed successfully
+📊 Performance Monitor: Avg processing: 15ms, Conflict rate: 15.4%, Load: LOW
+✅ Logging system recovered and is now healthy
+⚠️ Retry 1/3 for flushDRPolicyLog after 100ms delay
+⚠️ Retry 2/3 for flushDRPolicyLog after 200ms delay
+⚠️ Retry 3/3 for flushDRPolicyLog after 400ms delay
+❌ Primary logging failed for flushDRPolicyLog: Error [PrismaClientKnownRequestError]: 
+Invalid `prisma.dRPolicyLog.create()` invocation:
+
+
+The provided value for the column is too long for the column's type. Column: DR_TYPE
+    at async f (.next/server/chunks/3489.js:1:11981)
+    at async f.executeWithRetry (.next/server/chunks/3489.js:1:1188)
+    at async f.logWithFallback (.next/server/chunks/3489.js:1:695)
+    at async h.flushDRPolicyLogs (.next/server/chunks/3489.js:1:12667)
+    at async h.flushBuffers (.next/server/chunks/3489.js:1:8520) {
+  code: 'P2000',
+  meta: [Object],
+  clientVersion: '6.17.0'
+}
+⚠️ Marking logging system as unhealthy due to database error
+✅ All log buffers flushed successfully
+❌ DR policy log fallback for booking 74: {
+  bookingId: 74,
+  interpreterId: '75028',
+  isDRMeeting: true,
+  finalDecision: 'ASSIGNED',
+  error: '\n' +
+    'Invalid `prisma.dRPolicyLog.create()` invocation:\n' +
+    '\n' +
+    '\n' +
+    "The provided value for the column is too long for the column's type. Column: DR_TYPE"
+}
+⚠️ 1 DR policy logs failed to flush, re-queued for retry
+⚠️ Logging system unhealthy, using fallback for flushDRPolicyLog
+❌ DR policy log fallback for booking 74: {
+  bookingId: 74,
+  interpreterId: '75028',
+  isDRMeeting: true,
+  finalDecision: 'ASSIGNED',
+  error: 'Logging system marked as unhealthy'
+}
+⚠️ 1 DR policy logs failed to flush, re-queued for retry
+✅ All log buffers flushed successfully
+📊 Performance Monitor: Avg processing: 15ms, Conflict rate: 15.4%, Load: LOW
+✅ Logging system recovered and is now healthy
+⚠️ Retry 1/3 for flushDRPolicyLog after 100ms delay
+⚠️ Retry 2/3 for flushDRPolicyLog after 200ms delay
+⚠️ Retry 3/3 for flushDRPolicyLog after 400ms delay
+❌ Primary logging failed for flushDRPolicyLog: Error [PrismaClientKnownRequestError]: 
+Invalid `prisma.dRPolicyLog.create()` invocation:
+
+
+The provided value for the column is too long for the column's type. Column: DR_TYPE
+    at async f (.next/server/chunks/3489.js:1:11981)
+    at async f.executeWithRetry (.next/server/chunks/3489.js:1:1188)
+    at async f.logWithFallback (.next/server/chunks/3489.js:1:695)
+    at async h.flushDRPolicyLogs (.next/server/chunks/3489.js:1:12667)
+    at async h.flushBuffers (.next/server/chunks/3489.js:1:8520) {
+  code: 'P2000',
+  meta: [Object],
+  clientVersion: '6.17.0'
+}
+⚠️ Marking logging system as unhealthy due to database error
+❌ DR policy log fallback for booking 74: {
+  bookingId: 74,
+  interpreterId: '75028',
+  isDRMeeting: true,
+  finalDecision: 'ASSIGNED',
+  error: '\n' +
+    'Invalid `prisma.dRPolicyLog.create()` invocation:\n' +
+    '\n' +
+    '\n' +
+    "The provided value for the column is too long for the column's type. Column: DR_TYPE"
+}
+⚠️ 1 DR policy logs failed to flush, re-queued for retry
+✅ All log buffers flushed successfully
+⚠️ Logging system unhealthy, using fallback for flushDRPolicyLog
+❌ DR policy log fallback for booking 74: {
+  bookingId: 74,
+  interpreterId: '75028',
+  isDRMeeting: true,
+  finalDecision: 'ASSIGNED',
+  error: 'Logging system marked as unhealthy'
+}
+⚠️ 1 DR policy logs failed to flush, re-queued for retry
+✅ All log buffers flushed successfully
+📊 Performance Monitor: Avg processing: 15ms, Conflict rate: 15.4%, Load: LOW
+✅ Logging system recovered and is now healthy
+⚠️ Retry 1/3 for flushDRPolicyLog after 100ms delay
+⚠️ Retry 2/3 for flushDRPolicyLog after 200ms delay
+⚠️ Retry 3/3 for flushDRPolicyLog after 400ms delay
+❌ Primary logging failed for flushDRPolicyLog: Error [PrismaClientKnownRequestError]: 
+Invalid `prisma.dRPolicyLog.create()` invocation:
+
+
+The provided value for the column is too long for the column's type. Column: DR_TYPE
+    at async f (.next/server/chunks/3489.js:1:11981)
+    at async f.executeWithRetry (.next/server/chunks/3489.js:1:1188)
+    at async f.logWithFallback (.next/server/chunks/3489.js:1:695)
+    at async h.flushDRPolicyLogs (.next/server/chunks/3489.js:1:12667)
+    at async h.flushBuffers (.next/server/chunks/3489.js:1:8520) {
+  code: 'P2000',
+  meta: [Object],
+  clientVersion: '6.17.0'
+}
+⚠️ Marking logging system as unhealthy due to database error
+✅ All log buffers flushed successfully
+❌ DR policy log fallback for booking 74: {
+  bookingId: 74,
+  interpreterId: '75028',
+  isDRMeeting: true,
+  finalDecision: 'ASSIGNED',
+  error: '\n' +
+    'Invalid `prisma.dRPolicyLog.create()` invocation:\n' +
+    '\n' +
+    '\n' +
+    "The provided value for the column is too long for the column's type. Column: DR_TYPE"
+}
+⚠️ 1 DR policy logs failed to flush, re-queued for retry
+⚠️ Logging system unhealthy, using fallback for flushDRPolicyLog
+✅ All log buffers flushed successfully
+❌ DR policy log fallback for booking 74: {
+  bookingId: 74,
+  interpreterId: '75028',
+  isDRMeeting: true,
+  finalDecision: 'ASSIGNED',
+  error: 'Logging system marked as unhealthy'
+}
+⚠️ 1 DR policy logs failed to flush, re-queued for retry
+📊 Performance Monitor: Avg processing: 15ms, Conflict rate: 15.4%, Load: LOW
+✅ Logging system recovered and is now healthy
+⚠️ Retry 1/3 for flushDRPolicyLog after 100ms delay
+⚠️ Retry 2/3 for flushDRPolicyLog after 200ms delay
+⚠️ Retry 3/3 for flushDRPolicyLog after 400ms delay
+❌ Primary logging failed for flushDRPolicyLog: Error [PrismaClientKnownRequestError]: 
+Invalid `prisma.dRPolicyLog.create()` invocation:
+✅ All log buffers flushed successfully
+
+
+The provided value for the column is too long for the column's type. Column: DR_TYPE
+    at async f (.next/server/chunks/3489.js:1:11981)
+    at async f.executeWithRetry (.next/server/chunks/3489.js:1:1188)
+    at async f.logWithFallback (.next/server/chunks/3489.js:1:695)
+    at async h.flushDRPolicyLogs (.next/server/chunks/3489.js:1:12667)
+    at async h.flushBuffers (.next/server/chunks/3489.js:1:8520) {
+  code: 'P2000',
+  meta: [Object],
+  clientVersion: '6.17.0'
+}
+⚠️ Marking logging system as unhealthy due to database error
+❌ DR policy log fallback for booking 74: {
+  bookingId: 74,
+  interpreterId: '75028',
+  isDRMeeting: true,
+  finalDecision: 'ASSIGNED',
+  error: '\n' +
+    'Invalid `prisma.dRPolicyLog.create()` invocation:\n' +
+    '\n' +
+    '\n' +
+    "The provided value for the column is too long for the column's type. Column: DR_TYPE"
+}
+⚠️ 1 DR policy logs failed to flush, re-queued for retry
+⚠️ Logging system unhealthy, using fallback for flushDRPolicyLog
+❌ DR policy log fallback for booking 74: {
+  bookingId: 74,
+  interpreterId: '75028',
+  isDRMeeting: true,
+  finalDecision: 'ASSIGNED',
+  error: 'Logging system marked as unhealthy'
+}
+⚠️ 1 DR policy logs failed to flush, re-queued for retry
+✅ All log buffers flushed successfully
+🏥 Health Check: Status: OPERATIONAL, Active: 0, Pool: 0, Load: LOW
+📊 Performance Monitor: Avg processing: 15ms, Conflict rate: 15.4%, Load: LOW
+✅ Logging system recovered and is now healthy
+⚠️ Retry 1/3 for flushDRPolicyLog after 100ms delay
+⚠️ Retry 2/3 for flushDRPolicyLog after 200ms delay
+⚠️ Retry 3/3 for flushDRPolicyLog after 400ms delay
+❌ Primary logging failed for flushDRPolicyLog: Error [PrismaClientKnownRequestError]: 
+Invalid `prisma.dRPolicyLog.create()` invocation:
+
+
+The provided value for the column is too long for the column's type. Column: DR_TYPE
+    at async f (.next/server/chunks/3489.js:1:11981)
+    at async f.executeWithRetry (.next/server/chunks/3489.js:1:1188)
+    at async f.logWithFallback (.next/server/chunks/3489.js:1:695)
+    at async h.flushDRPolicyLogs (.next/server/chunks/3489.js:1:12667)
+    at async h.flushBuffers (.next/server/chunks/3489.js:1:8520) {
+  code: 'P2000',
+  meta: [Object],
+  clientVersion: '6.17.0'
+}
+⚠️ Marking logging system as unhealthy due to database error
+❌ DR policy log fallback for booking 74: {
+  bookingId: 74,
+  interpreterId: '75028',
+  isDRMeeting: true,
+  finalDecision: 'ASSIGNED',
+  error: '\n' +
+    'Invalid `prisma.dRPolicyLog.create()` invocation:\n' +
+    '\n' +
+    '\n' +
+    "The provided value for the column is too long for the column's type. Column: DR_TYPE"
+}
+⚠️ 1 DR policy logs failed to flush, re-queued for retry
+✅ All log buffers flushed successfully
+⚠️ Logging system unhealthy, using fallback for flushDRPolicyLog
+❌ DR policy log fallback for booking 74: {
+  bookingId: 74,
+  interpreterId: '75028',
+  isDRMeeting: true,
+  finalDecision: 'ASSIGNED',
+  error: 'Logging system marked as unhealthy'
+}
+⚠️ 1 DR policy logs failed to flush, re-queued for retry
+✅ All log buffers flushed successfully
+📊 Performance Monitor: Avg processing: 15ms, Conflict rate: 15.4%, Load: LOW
+✅ Logging system recovered and is now healthy
+⚠️ Retry 1/3 for flushDRPolicyLog after 100ms delay
+⚠️ Retry 2/3 for flushDRPolicyLog after 200ms delay
+⚠️ Retry 3/3 for flushDRPolicyLog after 400ms delay
+❌ Primary logging failed for flushDRPolicyLog: Error [PrismaClientKnownRequestError]: 
+Invalid `prisma.dRPolicyLog.create()` invocation:
+
+
+The provided value for the column is too long for the column's type. Column: DR_TYPE
+    at async f (.next/server/chunks/3489.js:1:11981)
+✅ All log buffers flushed successfully
+    at async f.executeWithRetry (.next/server/chunks/3489.js:1:1188)
+    at async f.logWithFallback (.next/server/chunks/3489.js:1:695)
+    at async h.flushDRPolicyLogs (.next/server/chunks/3489.js:1:12667)
+    at async h.flushBuffers (.next/server/chunks/3489.js:1:8520) {
+  code: 'P2000',
+  meta: [Object],
+  clientVersion: '6.17.0'
+}
+⚠️ Marking logging system as unhealthy due to database error
+❌ DR policy log fallback for booking 74: {
+  bookingId: 74,
+  interpreterId: '75028',
+  isDRMeeting: true,
+  finalDecision: 'ASSIGNED',
+  error: '\n' +
+    'Invalid `prisma.dRPolicyLog.create()` invocation:\n' +
+    '\n' +
+    '\n' +
+    "The provided value for the column is too long for the column's type. Column: DR_TYPE"
+}
+⚠️ 1 DR policy logs failed to flush, re-queued for retry
+⚠️ Logging system unhealthy, using fallback for flushDRPolicyLog
+❌ DR policy log fallback for booking 74: {
+  bookingId: 74,
+  interpreterId: '75028',
+  isDRMeeting: true,
+  finalDecision: 'ASSIGNED',
+  error: 'Logging system marked as unhealthy'
+}
+⚠️ 1 DR policy logs failed to flush, re-queued for retry
+✅ All log buffers flushed successfully
+📊 Performance Monitor: Avg processing: 15ms, Conflict rate: 15.4%, Load: LOW
+✅ Logging system recovered and is now healthy
+⚠️ Retry 1/3 for flushDRPolicyLog after 100ms delay
+⚠️ Retry 2/3 for flushDRPolicyLog after 200ms delay
+⚠️ Retry 3/3 for flushDRPolicyLog after 400ms delay
+❌ Primary logging failed for flushDRPolicyLog: Error [PrismaClientKnownRequestError]: 
+Invalid `prisma.dRPolicyLog.create()` invocation:
+
+
+The provided value for the column is too long for the column's type. Column: DR_TYPE
+    at async f (.next/server/chunks/3489.js:1:11981)
+    at async f.executeWithRetry (.next/server/chunks/3489.js:1:1188)
+    at async f.logWithFallback (.next/server/chunks/3489.js:1:695)
+    at async h.flushDRPolicyLogs (.next/server/chunks/3489.js:1:12667)
+    at async h.flushBuffers (.next/server/chunks/3489.js:1:8520) {
+  code: 'P2000',
+  meta: [Object],
+  clientVersion: '6.17.0'
+}
+⚠️ Marking logging system as unhealthy due to database error
+❌ DR policy log fallback for booking 74: {
+  bookingId: 74,
+  interpreterId: '75028',
+  isDRMeeting: true,
+  finalDecision: 'ASSIGNED',
+  error: '\n' +
+    'Invalid `prisma.dRPolicyLog.create()` invocation:\n' +
+    '\n' +
+    '\n' +
+    "The provided value for the column is too long for the column's type. Column: DR_TYPE"
+}
+⚠️ 1 DR policy logs failed to flush, re-queued for retry
+✅ All log buffers flushed successfully
+⚠️ Logging system unhealthy, using fallback for flushDRPolicyLog
+❌ DR policy log fallback for booking 74: {
+  bookingId: 74,
+  interpreterId: '75028',
+  isDRMeeting: true,
+  finalDecision: 'ASSIGNED',
+  error: 'Logging system marked as unhealthy'
+}
+⚠️ 1 DR policy logs failed to flush, re-queued for retry
+✅ All log buffers flushed successfully
+📊 Performance Monitor: Avg processing: 15ms, Conflict rate: 15.4%, Load: LOW
+✅ Logging system recovered and is now healthy
+⚠️ Retry 1/3 for flushDRPolicyLog after 100ms delay
+⚠️ Retry 2/3 for flushDRPolicyLog after 200ms delay
+⚠️ Retry 3/3 for flushDRPolicyLog after 400ms delay
+❌ Primary logging failed for flushDRPolicyLog: Error [PrismaClientKnownRequestError]: 
+Invalid `prisma.dRPolicyLog.create()` invocation:
+
+
+The provided value for the column is too long for the column's type. Column: DR_TYPE
+    at async f (.next/server/chunks/3489.js:1:11981)
+    at async f.executeWithRetry (.next/server/chunks/3489.js:1:1188)
+    at async f.logWithFallback (.next/server/chunks/3489.js:1:695)
+    at async h.flushDRPolicyLogs (.next/server/chunks/3489.js:1:12667)
+    at async h.flushBuffers (.next/server/chunks/3489.js:1:8520) {
+  code: 'P2000',
+  meta: [Object],
+  clientVersion: '6.17.0'
+}
+⚠️ Marking logging system as unhealthy due to database error
+❌ DR policy log fallback for booking 74: {
+  bookingId: 74,
+  interpreterId: '75028',
+  isDRMeeting: true,
+  finalDecision: 'ASSIGNED',
+  error: '\n' +
+    'Invalid `prisma.dRPolicyLog.create()` invocation:\n' +
+    '\n' +
+    '\n' +
+    "The provided value for the column is too long for the column's type. Column: DR_TYPE"
+}
+⚠️ 1 DR policy logs failed to flush, re-queued for retry
+✅ All log buffers flushed successfully
+⚠️ Logging system unhealthy, using fallback for flushDRPolicyLog
+❌ DR policy log fallback for booking 74: {
+  bookingId: 74,
+  interpreterId: '75028',
+  isDRMeeting: true,
+  finalDecision: 'ASSIGNED',
+  error: 'Logging system marked as unhealthy'
+}
+⚠️ 1 DR policy logs failed to flush, re-queued for retry
+✅ All log buffers flushed successfully
+📊 Performance Monitor: Avg processing: 15ms, Conflict rate: 15.4%, Load: LOW
+✅ Logging system recovered and is now healthy
+⚠️ Retry 1/3 for flushDRPolicyLog after 100ms delay
+⚠️ Retry 2/3 for flushDRPolicyLog after 200ms delay
+⚠️ Retry 3/3 for flushDRPolicyLog after 400ms delay
+❌ Primary logging failed for flushDRPolicyLog: Error [PrismaClientKnownRequestError]: 
+Invalid `prisma.dRPolicyLog.create()` invocation:
+
+
+The provided value for the column is too long for the column's type. Column: DR_TYPE
+    at async f (.next/server/chunks/3489.js:1:11981)
+    at async f.executeWithRetry (.next/server/chunks/3489.js:1:1188)
+    at async f.logWithFallback (.next/server/chunks/3489.js:1:695)
+    at async h.flushDRPolicyLogs (.next/server/chunks/3489.js:1:12667)
+    at async h.flushBuffers (.next/server/chunks/3489.js:1:8520) {
+  code: 'P2000',
+  meta: [Object],
+  clientVersion: '6.17.0'
+}
+⚠️ Marking logging system as unhealthy due to database error
+❌ DR policy log fallback for booking 74: {
+  bookingId: 74,
+  interpreterId: '75028',
+  isDRMeeting: true,
+  finalDecision: 'ASSIGNED',
+  error: '\n' +
+    'Invalid `prisma.dRPolicyLog.create()` invocation:\n' +
+    '\n' +
+    '\n' +
+    "The provided value for the column is too long for the column's type. Column: DR_TYPE"
+}
+⚠️ 1 DR policy logs failed to flush, re-queued for retry
+✅ All log buffers flushed successfully
+⚠️ Logging system unhealthy, using fallback for flushDRPolicyLog
+❌ DR policy log fallback for booking 74: {
+  bookingId: 74,
+  interpreterId: '75028',
+  isDRMeeting: true,
+  finalDecision: 'ASSIGNED',
+  error: 'Logging system marked as unhealthy'
+}
+✅ All log buffers flushed successfully
+⚠️ 1 DR policy logs failed to flush, re-queued for retry
+🏥 Health Check: Status: OPERATIONAL, Active: 0, Pool: 0, Load: LOW
+📊 Performance Monitor: Avg processing: 15ms, Conflict rate: 15.4%, Load: LOW
+✅ Logging system recovered and is now healthy
+⚠️ Retry 1/3 for flushDRPolicyLog after 100ms delay
+⚠️ Retry 2/3 for flushDRPolicyLog after 200ms delay
+⚠️ Retry 3/3 for flushDRPolicyLog after 400ms delay
+❌ Primary logging failed for flushDRPolicyLog: Error [PrismaClientKnownRequestError]: 
+Invalid `prisma.dRPolicyLog.create()` invocation:
+
+
+The provided value for the column is too long for the column's type. Column: DR_TYPE
+    at async f (.next/server/chunks/3489.js:1:11981)
+    at async f.executeWithRetry (.next/server/chunks/3489.js:1:1188)
+    at async f.logWithFallback (.next/server/chunks/3489.js:1:695)
+    at async h.flushDRPolicyLogs (.next/server/chunks/3489.js:1:12667)
+    at async h.flushBuffers (.next/server/chunks/3489.js:1:8520) {
+  code: 'P2000',
+  meta: [Object],
+  clientVersion: '6.17.0'
+}
+⚠️ Marking logging system as unhealthy due to database error
+❌ DR policy log fallback for booking 74: {
+  bookingId: 74,
+  interpreterId: '75028',
+  isDRMeeting: true,
+  finalDecision: 'ASSIGNED',
+  error: '\n' +
+✅ All log buffers flushed successfully
+    'Invalid `prisma.dRPolicyLog.create()` invocation:\n' +
+    '\n' +
+    '\n' +
+    "The provided value for the column is too long for the column's type. Column: DR_TYPE"
+}
+⚠️ 1 DR policy logs failed to flush, re-queued for retry
+⚠️ Logging system unhealthy, using fallback for flushDRPolicyLog
+✅ All log buffers flushed successfully
+❌ DR policy log fallback for booking 74: {
+  bookingId: 74,
+  interpreterId: '75028',
+  isDRMeeting: true,
+  finalDecision: 'ASSIGNED',
+  error: 'Logging system marked as unhealthy'
+}
+⚠️ 1 DR policy logs failed to flush, re-queued for retry
+📊 Performance Monitor: Avg processing: 15ms, Conflict rate: 15.4%, Load: LOW
+✅ Logging system recovered and is now healthy
+⚠️ Retry 1/3 for flushDRPolicyLog after 100ms delay
+⚠️ Retry 2/3 for flushDRPolicyLog after 200ms delay
+⚠️ Retry 3/3 for flushDRPolicyLog after 400ms delay
+❌ Primary logging failed for flushDRPolicyLog: Error [PrismaClientKnownRequestError]: 
+Invalid `prisma.dRPolicyLog.create()` invocation:
+
+
+The provided value for the column is too long for the column's type. Column: DR_TYPE
+    at async f (.next/server/chunks/3489.js:1:11981)
+    at async f.executeWithRetry (.next/server/chunks/3489.js:1:1188)
+    at async f.logWithFallback (.next/server/chunks/3489.js:1:695)
+    at async h.flushDRPolicyLogs (.next/server/chunks/3489.js:1:12667)
+    at async h.flushBuffers (.next/server/chunks/3489.js:1:8520) {
+  code: 'P2000',
+  meta: [Object],
+  clientVersion: '6.17.0'
+}
+⚠️ Marking logging system as unhealthy due to database error
+❌ DR policy log fallback for booking 74: {
+  bookingId: 74,
+  interpreterId: '75028',
+  isDRMeeting: true,
+  finalDecision: 'ASSIGNED',
+  error: '\n' +
+    'Invalid `prisma.dRPolicyLog.create()` invocation:\n' +
+    '\n' +
+    '\n' +
+    "The provided value for the column is too long for the column's type. Column: DR_TYPE"
+}
+⚠️ 1 DR policy logs failed to flush, re-queued for retry
+✅ All log buffers flushed successfully
+⚠️ Logging system unhealthy, using fallback for flushDRPolicyLog
+❌ DR policy log fallback for booking 74: {
+  bookingId: 74,
+  interpreterId: '75028',
+  isDRMeeting: true,
+  finalDecision: 'ASSIGNED',
+  error: 'Logging system marked as unhealthy'
+}
+⚠️ 1 DR policy logs failed to flush, re-queued for retry
+✅ All log buffers flushed successfully
+📊 Performance Monitor: Avg processing: 15ms, Conflict rate: 15.4%, Load: LOW
+✅ Logging system recovered and is now healthy
+⚠️ Retry 1/3 for flushDRPolicyLog after 100ms delay
+⚠️ Retry 2/3 for flushDRPolicyLog after 200ms delay
+⚠️ Retry 3/3 for flushDRPolicyLog after 400ms delay
+❌ Primary logging failed for flushDRPolicyLog: Error [PrismaClientKnownRequestError]: 
+Invalid `prisma.dRPolicyLog.create()` invocation:
+
+
+The provided value for the column is too long for the column's type. Column: DR_TYPE
+✅ All log buffers flushed successfully
+    at async f (.next/server/chunks/3489.js:1:11981)
+    at async f.executeWithRetry (.next/server/chunks/3489.js:1:1188)
+    at async f.logWithFallback (.next/server/chunks/3489.js:1:695)
+    at async h.flushDRPolicyLogs (.next/server/chunks/3489.js:1:12667)
+    at async h.flushBuffers (.next/server/chunks/3489.js:1:8520) {
+  code: 'P2000',
+  meta: [Object],
+  clientVersion: '6.17.0'
+}
+⚠️ Marking logging system as unhealthy due to database error
+❌ DR policy log fallback for booking 74: {
+  bookingId: 74,
+  interpreterId: '75028',
+  isDRMeeting: true,
+  finalDecision: 'ASSIGNED',
+  error: '\n' +
+    'Invalid `prisma.dRPolicyLog.create()` invocation:\n' +
+    '\n' +
+    '\n' +
+    "The provided value for the column is too long for the column's type. Column: DR_TYPE"
+}
+⚠️ 1 DR policy logs failed to flush, re-queued for retry
+⚠️ Logging system unhealthy, using fallback for flushDRPolicyLog
+✅ All log buffers flushed successfully
+❌ DR policy log fallback for booking 74: {
+  bookingId: 74,
+  interpreterId: '75028',
+  isDRMeeting: true,
+  finalDecision: 'ASSIGNED',
+  error: 'Logging system marked as unhealthy'
+}
+⚠️ 1 DR policy logs failed to flush, re-queued for retry
+📊 Performance Monitor: Avg processing: 15ms, Conflict rate: 15.4%, Load: LOW
+✅ Logging system recovered and is now healthy
+⚠️ Retry 1/3 for flushDRPolicyLog after 100ms delay
+⚠️ Retry 2/3 for flushDRPolicyLog after 200ms delay
+⚠️ Retry 3/3 for flushDRPolicyLog after 400ms delay
+❌ Primary logging failed for flushDRPolicyLog: Error [PrismaClientKnownRequestError]: 
+Invalid `prisma.dRPolicyLog.create()` invocation:
+
+
+The provided value for the column is too long for the column's type. Column: DR_TYPE
+    at async f (.next/server/chunks/3489.js:1:11981)
+    at async f.executeWithRetry (.next/server/chunks/3489.js:1:1188)
+    at async f.logWithFallback (.next/server/chunks/3489.js:1:695)
+    at async h.flushDRPolicyLogs (.next/server/chunks/3489.js:1:12667)
+    at async h.flushBuffers (.next/server/chunks/3489.js:1:8520) {
+  code: 'P2000',
+  meta: [Object],
+  clientVersion: '6.17.0'
+}
+⚠️ Marking logging system as unhealthy due to database error
+❌ DR policy log fallback for booking 74: {
+  bookingId: 74,
+  interpreterId: '75028',
+  isDRMeeting: true,
+  finalDecision: 'ASSIGNED',
+  error: '\n' +
+    'Invalid `prisma.dRPolicyLog.create()` invocation:\n' +
+    '\n' +
+    '\n' +
+    "The provided value for the column is too long for the column's type. Column: DR_TYPE"
+}
+⚠️ 1 DR policy logs failed to flush, re-queued for retry
+✅ All log buffers flushed successfully
+[/api/login] body received { hasEmpCode: true, passwordLength: 8 }
+[/api/login] forwarding to auth {
+  host: 'https://bigw.daikinthai.com:8443/api/ditl/auth/sign-in ',
+  username: '83931',
+  passwordLength: 8
+}
+[/api/login] auth API response received { status: 200, dataKeys: [ 'auth_data', 'timestamp' ] }
+[/api/login] attempting DB upsert for empCode 83931
+[/api/login] DB upsert successful
+[/api/login] querying employee record
+[/api/login] employee record found: true
+[/api/login] login successful, returning response
+⚠️ Logging system unhealthy, using fallback for flushDRPolicyLog
+❌ DR policy log fallback for booking 74: {
+  bookingId: 74,
+  interpreterId: '75028',
+  isDRMeeting: true,
+  finalDecision: 'ASSIGNED',
+  error: 'Logging system marked as unhealthy'
+}
+⚠️ 1 DR policy logs failed to flush, re-queued for retry
+✅ All log buffers flushed successfully
+📊 Performance Monitor: Avg processing: 15ms, Conflict rate: 15.4%, Load: LOW
+✅ Logging system recovered and is now healthy
+⚠️ Retry 1/3 for flushDRPolicyLog after 100ms delay
+⚠️ Retry 2/3 for flushDRPolicyLog after 200ms delay
+⚠️ Retry 3/3 for flushDRPolicyLog after 400ms delay
+✅ All log buffers flushed successfully
+❌ Primary logging failed for flushDRPolicyLog: Error [PrismaClientKnownRequestError]: 
+Invalid `prisma.dRPolicyLog.create()` invocation:
+
+
+The provided value for the column is too long for the column's type. Column: DR_TYPE
+    at async f (.next/server/chunks/3489.js:1:11981)
+    at async f.executeWithRetry (.next/server/chunks/3489.js:1:1188)
+    at async f.logWithFallback (.next/server/chunks/3489.js:1:695)
+    at async h.flushDRPolicyLogs (.next/server/chunks/3489.js:1:12667)
+    at async h.flushBuffers (.next/server/chunks/3489.js:1:8520) {
+  code: 'P2000',
+  meta: [Object],
+  clientVersion: '6.17.0'
+}
+⚠️ Marking logging system as unhealthy due to database error
+❌ DR policy log fallback for booking 74: {
+  bookingId: 74,
+  interpreterId: '75028',
+  isDRMeeting: true,
+  finalDecision: 'ASSIGNED',
+  error: '\n' +
+    'Invalid `prisma.dRPolicyLog.create()` invocation:\n' +
+    '\n' +
+    '\n' +
+    "The provided value for the column is too long for the column's type. Column: DR_TYPE"
+}
+⚠️ 1 DR policy logs failed to flush, re-queued for retry
+⚠️ Logging system unhealthy, using fallback for flushDRPolicyLog
+❌ DR policy log fallback for booking 74: {
+  bookingId: 74,
+  interpreterId: '75028',
+  isDRMeeting: true,
+  finalDecision: 'ASSIGNED',
+  error: 'Logging system marked as unhealthy'
+}
+✅ All log buffers flushed successfully
+⚠️ 1 DR policy logs failed to flush, re-queued for retry
+🏥 Health Check: Status: OPERATIONAL, Active: 0, Pool: 0, Load: LOW
+📊 Performance Monitor: Avg processing: 15ms, Conflict rate: 15.4%, Load: LOW
+✅ Logging system recovered and is now healthy
+⚠️ Retry 1/3 for flushDRPolicyLog after 100ms delay
+⚠️ Retry 2/3 for flushDRPolicyLog after 200ms delay
+⚠️ Retry 3/3 for flushDRPolicyLog after 400ms delay
+❌ Primary logging failed for flushDRPolicyLog: Error [PrismaClientKnownRequestError]: 
+Invalid `prisma.dRPolicyLog.create()` invocation:
+
