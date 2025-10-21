@@ -247,7 +247,8 @@ export async function sendApprovalEmailForBooking(bookingId: number): Promise<vo
         'MIME-Version': '1.0',
         'X-Booking-Id': String(bookingId),
         'X-Meeting-Type': String(booking.meetingType),
-        'X-Organizer': vars.organizerName || ''
+        'X-Organizer': vars.organizerName || '',
+        'X-Applicable-Model': booking.applicableModel || ''
       }
     }
     await transporter.sendMail(mailOptions)
@@ -356,7 +357,8 @@ export async function sendCancellationEmailForBooking(
         'MIME-Version': '1.0',
         'X-Booking-Id': String(bookingId),
         'X-Meeting-Type': String(booking.meetingType),
-        'X-Organizer': vars.organizerName || ''
+        'X-Organizer': vars.organizerName || '',
+        'X-Applicable-Model': booking.applicableModel || ''
       }
     }
     await transporter.sendMail(mailOptions)
