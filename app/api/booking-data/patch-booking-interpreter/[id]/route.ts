@@ -196,38 +196,43 @@ export async function PATCH(
         try {
           console.log(`[EMAIL] Interpreter changed for approved booking ${bookingId}: ${oldInterpreterEmpCode} → ${newInterpreterEmpCode}`)
 
-          // Fetch the old interpreter's information BEFORE sending emails
-          // This is critical because the DB has already been updated with the new interpreter
+          // Fetch the old interpreter's information
           const oldInterpreter = await prisma.employee.findUnique({
             where: { empCode: oldInterpreterEmpCode },
             select: { empCode: true, email: true, firstNameEn: true, lastNameEn: true }
           })
 
-          if (!oldInterpreter) {
-            console.error(`[EMAIL] Could not find old interpreter ${oldInterpreterEmpCode} for cancellation email`)
+          if (!oldInterpreter?.email) {
+            console.error(`[EMAIL] Could not find old interpreter ${oldInterpreterEmpCode} or email missing`)
           }
 
           // Import email functions dynamically to avoid circular dependencies
-          const { sendCancellationEmailForBooking, sendApprovalEmailForBooking } = await import('@/lib/mail/sender')
+          const { sendInterpreterChangeCancellation, sendApprovalEmailForBooking } = await import('@/lib/mail/sender')
 
-          // Step 1: Send cancellation email for the old meeting (with old interpreter)
-          // This will cancel the calendar event with the old interpreter
-          const preservedOldInterpreterInfo = {
-            interpreterEmpCode: oldInterpreterEmpCode,
-            selectedInterpreterEmpCode: null,
-            interpreterEmployee: oldInterpreter, // Pass the actual old interpreter info
-            selectedInterpreter: null,
+          // Step 1: Send cancellation ONLY to old interpreter A
+          // This cancels their calendar event without CCing them
+          if (oldInterpreter?.email) {
+            const oldInterpreterName = [oldInterpreter.firstNameEn, oldInterpreter.lastNameEn]
+              .filter(Boolean)
+              .join(' ') || oldInterpreter.email
+            
+            console.log(`[EMAIL] Sending cancellation with old interpreter info:`, {
+              empCode: oldInterpreterEmpCode,
+              email: oldInterpreter.email,
+              name: oldInterpreterName
+            })
+            
+            sendInterpreterChangeCancellation(
+              bookingId,
+              oldInterpreter.email,
+              oldInterpreterName,
+              `Interpreter reassigned to ${newInterpreterEmpCode}`
+            ).catch((err) => {
+              console.error(`[EMAIL] Failed to send cancellation to old interpreter (booking ${bookingId}):`, err)
+            })
           }
 
-          sendCancellationEmailForBooking(
-            bookingId,
-            `Interpreter changed from ${oldInterpreterEmpCode} to ${newInterpreterEmpCode}`,
-            preservedOldInterpreterInfo
-          ).catch((err) => {
-            console.error(`[EMAIL] Failed to send cancellation email for interpreter change (booking ${bookingId}):`, err)
-          })
-
-          // Step 2: Send new approval email with the new interpreter
+          // Step 2: Send new approval email with the new interpreter B
           // Small delay to ensure cancellation is processed first
           setTimeout(() => {
             sendApprovalEmailForBooking(bookingId).catch((err) => {
