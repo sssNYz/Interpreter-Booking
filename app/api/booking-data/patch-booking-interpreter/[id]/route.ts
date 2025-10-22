@@ -196,6 +196,17 @@ export async function PATCH(
         try {
           console.log(`[EMAIL] Interpreter changed for approved booking ${bookingId}: ${oldInterpreterEmpCode} → ${newInterpreterEmpCode}`)
 
+          // Fetch the old interpreter's information BEFORE sending emails
+          // This is critical because the DB has already been updated with the new interpreter
+          const oldInterpreter = await prisma.employee.findUnique({
+            where: { empCode: oldInterpreterEmpCode },
+            select: { empCode: true, email: true, firstNameEn: true, lastNameEn: true }
+          })
+
+          if (!oldInterpreter) {
+            console.error(`[EMAIL] Could not find old interpreter ${oldInterpreterEmpCode} for cancellation email`)
+          }
+
           // Import email functions dynamically to avoid circular dependencies
           const { sendCancellationEmailForBooking, sendApprovalEmailForBooking } = await import('@/lib/mail/sender')
 
@@ -204,7 +215,7 @@ export async function PATCH(
           const preservedOldInterpreterInfo = {
             interpreterEmpCode: oldInterpreterEmpCode,
             selectedInterpreterEmpCode: null,
-            interpreterEmployee: null, // Will be fetched by the email function
+            interpreterEmployee: oldInterpreter, // Pass the actual old interpreter info
             selectedInterpreter: null,
           }
 
