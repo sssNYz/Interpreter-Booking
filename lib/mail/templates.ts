@@ -629,17 +629,6 @@ export async function buildTemplateVariablesFromBooking(
                         </tr>` : ''
 
     // Build applicable model section for non-DR meetings
-    const applicableModelSection_2 = (!isDR && booking.applicableModel) ? `
-                        <tr>
-                            <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
-                                📱 Applicable Model:
-                            </td>
-                            <td style="padding: 10px 0; color: #374151;">
-                                ${booking.applicableModel}
-                            </td>
-                        </tr>` : ''
-
-    // Build applicable model section for non-DR meetings
     const applicableModelSection = (!isDR && booking.applicableModel) ? `
                         <tr>
                             <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
@@ -675,7 +664,7 @@ export async function buildTemplateVariablesFromBooking(
         chairmanSection,
         interpreterSection,
         deviceGroupSection,
-        applicableModelSection: applicableModelSection_2,
+        applicableModelSection,
         departmentSection,
 
         // Legacy fields (for backward compatibility)
