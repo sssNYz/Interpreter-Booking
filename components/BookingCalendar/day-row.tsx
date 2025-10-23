@@ -32,6 +32,8 @@ type Props = {
   maxLanes?: number; // ← Add this
   interpreterColorsMap?: Record<string, string>;
   forwardMonthLimit?: number;
+  highlightBookingId?: number | null;
+  autoOpenBookingId?: number | null;
 };
 
 const DayRow: React.FC<Props> = ({
@@ -49,10 +51,22 @@ const DayRow: React.FC<Props> = ({
   maxLanes = MAX_LANES, // ← Add this
   interpreterColorsMap,
   forwardMonthLimit = 1,
+  highlightBookingId = null,
+  autoOpenBookingId = null,
 }) => {
   const isWeekendDay = ["Sat", "Sun"].includes(day.dayName);
   const isPastDay = day.isPast;
   const [openBarId, setOpenBarId] = useState<number | null>(null);
+
+  // Auto-open the target booking popover briefly when jumping in
+  React.useEffect(() => {
+    if (autoOpenBookingId == null) return;
+    setOpenBarId(autoOpenBookingId);
+    const id = window.setTimeout(() => {
+      setOpenBarId((curr) => (curr === autoOpenBookingId ? null : curr));
+    }, 2800);
+    return () => window.clearTimeout(id);
+  }, [autoOpenBookingId]);
 
   // Allow booking only in current month and next month (by month, not by day)
   const isWithinAllowedMonths = (d: Date) => {
@@ -84,9 +98,11 @@ const DayRow: React.FC<Props> = ({
   // Decide whether to show 3 lanes or switch to "See more" based on true overlaps
   const maxTrueOverlap = trueOverlap.reduce((m, v) => (v > m ? v : m), 0);
   const showThreeLanes = maxTrueOverlap <= 3;
-  const visibleBars = bars.filter((b) =>
-    showThreeLanes ? b.lane < 3 : b.lane < 2
-  );
+  const visibleBars = bars.filter((b) => {
+    const base = showThreeLanes ? b.lane < 3 : b.lane < 2;
+    const isTarget = highlightBookingId != null && b.bookingId === highlightBookingId;
+    return base || isTarget;
+  });
   const hiddenBars = showThreeLanes ? [] : bars.filter((b) => b.lane >= 2);
 
   // Build hidden count per slot from TRUE overlap when in overflow mode (>3)
@@ -249,7 +265,12 @@ const DayRow: React.FC<Props> = ({
             >
               <PopoverTrigger asChild>
                 <motion.div
-                  className={barClassName}
+                  className={
+                    barClassName +
+                    (highlightBookingId === bar.bookingId
+                      ? " ring-4 ring-yellow-400 shadow-lg animate-pulse"
+                      : "")
+                  }
                   style={{
                     position: "absolute",
                     left,
@@ -260,9 +281,15 @@ const DayRow: React.FC<Props> = ({
                     cursor: "pointer",
                     backgroundColor: interpreterColor?.bg,
                     borderColor: interpreterColor?.border,
+                    zIndex: highlightBookingId === bar.bookingId ? 50 : undefined,
+                    boxShadow:
+                      highlightBookingId === bar.bookingId
+                        ? "0 0 0 3px rgba(250,204,21,0.95), 0 8px 18px rgba(0,0,0,0.35)"
+                        : undefined,
                   }}
+                  data-booking-id={bar.bookingId}
                   initial={{ scale: 0.98, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
+                  animate={{ scale: highlightBookingId === bar.bookingId ? 1.04 : 1, opacity: 1 }}
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   transition={{
@@ -380,6 +407,21 @@ const DayRow: React.FC<Props> = ({
                         </div>
                       </div>
                     </div>
+
+                    {/* Chairman Email (DR only) */}
+                    {bar.meetingType === "DR" && (
+                      <div className="flex items-start space-x-3">
+                        <div className="flex-shrink-0 w-2 h-2 bg-neutral-200 rounded-full mt-2"></div>
+                        <div className="flex-1">
+                          <div className="font-semibold text-neutral-500 text-sm mb-1">
+                            Chairman Email
+                          </div>
+                          <div className="text-neutral-700 text-sm break-words">
+                            {bar.chairmanEmail?.trim() || "Not provided"}
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Contact */}
                     <div className="border-t pt-3">

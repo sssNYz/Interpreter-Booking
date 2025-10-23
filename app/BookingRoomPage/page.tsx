@@ -28,10 +28,8 @@ import timeGridPlugin from "@fullcalendar/timegrid";
 import type { ResourceLaneContentArg } from "@fullcalendar/resource-common";
 import { toast } from "sonner";
 import { client as featureFlags } from "@/lib/feature-flags";
-import {
-  Button,
-  type ButtonProps,
-} from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
+import { ChevronLeft, ChevronRight, Users, MapPin, Clock, X, Calendar as CalendarIcon } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -41,39 +39,12 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Calendar as CalendarPicker } from "@/components/ui/calendar";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  CalendarDays,
-  ChevronLeft,
-  ChevronRight,
-  Clock,
-  Filter,
-  MapPin,
-  Search,
-  Users,
-  X,
-} from "lucide-react";
-import { cn } from "@/lib/utils";
-
-const FullCalendar = dynamic(() => import("@fullcalendar/react"), {
-  ssr: false,
-});
-
-type BookingStatus = "booked" | "unavailable";
+import { Calendar as DatePickerCalendar } from "@/components/ui/calendar";
 
 interface Room {
   id: number;
@@ -111,27 +82,10 @@ interface NormalisedBooking {
   id: string;
   roomId: number;
   title: string;
-  start: Date;
-  end: Date;
-  status: BookingStatus;
-  meta: {
-    rawStatus?: string | null;
-    createdBy?: string | null;
-    description?: string | null;
-  };
-}
-
-interface FocusPoint {
-  roomIndex: number;
-  slotIndex: number;
-}
-
-interface CreateBookingState {
-  roomId: number | null;
-  start: Date | null;
-  end: Date | null;
-  title: string;
-  pending: boolean;
+  startTime: string;
+  endTime: string;
+  date: string;
+  readOnly?: boolean; // true when sourced from server (BookingPlan) occupancy
 }
 
 const SCHEDULER_LICENSE = "GPL-My-Project-Is-Open-Source";
@@ -289,70 +243,23 @@ const getPhotoForRoom = (roomId: number, fallback?: string | null): string => {
 
 const BookingRoomPage = (): JSX.Element => {
   const [rooms, setRooms] = useState<Room[]>([]);
-  const [roomsLoading, setRoomsLoading] = useState<boolean>(true);
-  const [roomsError, setRoomsError] = useState<string | null>(null);
+  const [loadingRooms, setLoadingRooms] = useState<boolean>(true);
+  const [startIndex, setStartIndex] = useState(0);
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [selectedSlot, setSelectedSlot] = useState<{
+    roomId: number;
+    startTime: string;
+    endTime: string;
+  } | null>(null);
+  const [bookingTitle, setBookingTitle] = useState("");
+  
+  const VISIBLE_COLUMNS = 5;
+  const timeSlots = generateTimeSlots();
+  const SLOT_HEIGHT_PX = 60; // fixed height for each 30-min slot
 
-  const [bookings, setBookings] = useState<NormalisedBooking[]>([]);
-  const [bookingsLoading, setBookingsLoading] = useState<boolean>(false);
-  const [bookingsError, setBookingsError] = useState<string | null>(null);
-
-  const [selectedDate, setSelectedDate] = useState<Date>(startOfDay(new Date()));
-
-  const [statusFilter, setStatusFilter] = useState<"all" | "booked" | "free" | "unavailable">("all");
-  const [searchTerm, setSearchTerm] = useState("");
-
-  const [createDialog, setCreateDialog] = useState<CreateBookingState>({
-    roomId: null,
-    start: null,
-    end: null,
-    title: "",
-    pending: false,
-  });
-
-  const [detailsBooking, setDetailsBooking] = useState<NormalisedBooking | null>(null);
-  const [isMobile, setIsMobile] = useState<boolean>(false);
-  const [activeRoomIndex, setActiveRoomIndex] = useState<number>(0);
-  const [focusPoint, setFocusPoint] = useState<FocusPoint | null>(null);
-  const calendarRef = useRef<CalendarApi | null>(null);
-  const calendarContainerRef = useRef<HTMLDivElement | null>(null);
-  const focusCellRef = useRef<HTMLElement | null>(null);
-
-  const roomsById = useMemo(() => {
-    const index = new Map<number, Room>();
-    for (const room of rooms) {
-      index.set(room.id, room);
-    }
-    return index;
-  }, [rooms]);
-
-  const createDialogRoom = useMemo(() => {
-    if (!createDialog.roomId) return null;
-    return roomsById.get(createDialog.roomId) ?? null;
-  }, [createDialog.roomId, roomsById]);
-
-  const quickFilters: Array<{
-    value: typeof statusFilter;
-    label: string;
-    icon?: React.ComponentType<{ className?: string }>;
-  }> = useMemo(
-    () => [
-      { value: "all", label: "All" },
-      { value: "booked", label: "Booked" },
-      { value: "free", label: "Free" },
-      { value: "unavailable", label: "Unavailable" },
-    ],
-    [],
-  );
-
-  const filteredRooms = useMemo(() => {
-    if (!searchTerm.trim()) return rooms;
-    const lookFor = searchTerm.trim().toLowerCase();
-    return rooms.filter((room) =>
-      room.name.toLowerCase().includes(lookFor) ||
-      (room.location ?? "").toLowerCase().includes(lookFor),
-    );
-  }, [rooms, searchTerm]);
-
+  // Fetch rooms
   useEffect(() => {
     const update = () => {
       setIsMobile(window.innerWidth < 900);
@@ -441,178 +348,112 @@ const BookingRoomPage = (): JSX.Element => {
     };
   }, []);
 
-  const fetchBookings = useCallback(async (date: Date, roomsList: Room[]) => {
-    if (!BOOKINGS_ENDPOINT) return;
-    if (roomsList.length === 0) {
-      setBookings([]);
-      setBookingsError(null);
-      return;
-    }
-
-    setBookingsLoading(true);
-    setBookingsError(null);
+  // Helper to convert "YYYY-MM-DD HH:mm:ss" → "HH:mm"
+  function toHM(dateTimeStr: string): string {
+    // Expecting 'YYYY-MM-DD HH:mm:ss' or 'HH:mm:ss'
     try {
-      const isoDate = format(date, "yyyy-MM-dd");
-      const separator = BOOKINGS_ENDPOINT.includes("?") ? "&" : "?";
-      const requestUrl = `${BOOKINGS_ENDPOINT}${separator}date=${encodeURIComponent(isoDate)}`;
-      const response = await fetch(requestUrl, {
-        cache: "no-store",
-      });
-      if (response.status === 404) {
+      const parts = dateTimeStr.split(" ");
+      const timePart = parts.length > 1 ? parts[1] : parts[0];
+      const [hh, mm] = timePart.split(":");
+      return `${hh}:${mm}`;
+    } catch {
+      return "00:00";
+    }
+  }
+
+  // Helper to format local date as YYYY-MM-DD (avoid UTC shifting)
+  function toYMDLocal(d: Date): string {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  }
+
+  function hmToMinutes(hm: string): number {
+    const [h, m] = hm.split(":").map(Number);
+    return h * 60 + m;
+  }
+
+  function slotsSpanned(startHM: string, endHM: string): number {
+    const diff = Math.max(0, hmToMinutes(endHM) - hmToMinutes(startHM));
+    return Math.max(1, Math.ceil(diff / 30));
+  }
+
+  // Fetch room occupancy (from BookingPlan) for the selected date
+  useEffect(() => {
+    let alive = true;
+    const loadOccupancy = async () => {
+      try {
+        const dateStr = toYMDLocal(selectedDate);
+        const res = await fetch(`/api/rooms/booked?date=${dateStr}`, { cache: "no-store" });
+        if (!alive) return;
+        if (!res.ok) {
+          setBookings([]);
+          return;
+        }
+        const json = await res.json();
+        if (json?.success && Array.isArray(json?.data?.rooms)) {
+          const serverBookings: Booking[] = [];
+          for (const room of json.data.rooms as Array<{ id: number; name: string; bookings: Array<{ id: number; start: string; end: string; status?: string }> }>) {
+            for (const b of room.bookings) {
+              serverBookings.push({
+                id: String(b.id),
+                roomId: room.id,
+                title: b.status ? `Booked (${b.status})` : "Booked",
+                startTime: toHM(b.start),
+                endTime: toHM(b.end),
+                date: dateStr,
+                readOnly: true,
+              });
+            }
+          }
+          setBookings(serverBookings);
+        } else {
+          setBookings([]);
+        }
+      } catch (e) {
+        console.error("Failed to load room occupancy", e);
         setBookings([]);
-        setBookingsError(null);
-        return;
       }
-      if (!response.ok) {
-        throw new Error(`Request failed (${response.status})`);
+    };
+    loadOccupancy();
+    return () => {
+      alive = false;
+    };
+  }, [selectedDate]);
+
+  function generateTimeSlots() {
+    const slots: string[] = [];
+    for (let h = 8; h <= 20; h++) {
+      for (let m = 0; m < 60; m += 30) {
+        const time = `${String(h).padStart(2, "0")}:${m === 0 ? "00" : "30"}`;
+        slots.push(time);
       }
-      const json = await response.json();
-      const bookingsPayload = json?.data ?? json?.bookings ?? json;
-      setBookings(normaliseBookings(bookingsPayload, date, roomsList));
-    } catch (error) {
-      console.error("Failed to load bookings", error);
-      setBookings([]);
-      setBookingsError("Could not load bookings");
-      toast.error("Could not load bookings");
-    } finally {
-      setBookingsLoading(false);
     }
   }, []);
 
-  useEffect(() => {
-    if (!BOOKINGS_ENDPOINT) {
-      return;
-    }
-    if (roomsLoading || rooms.length === 0) {
-      return;
-    }
-    fetchBookings(selectedDate, rooms).catch((error: unknown) => {
-      console.error("Booking load aborted", error);
-    });
-  }, [fetchBookings, rooms, roomsLoading, selectedDate]);
-
-  const appointmentsByRoom = useMemo(() => {
-    const map = new Map<number, NormalisedBooking[]>();
-    for (const booking of bookings) {
-      if (!map.has(booking.roomId)) {
-        map.set(booking.roomId, []);
-      }
-      map.get(booking.roomId)?.push(booking);
-    }
-    for (const list of map.values()) {
-      list.sort((a, b) => a.start.getTime() - b.start.getTime());
-    }
-    return map;
-  }, [bookings]);
-
-  const findBookingForSlot = useCallback(
-    (roomId: number, slotIndex: number) => {
-      if (slotIndex < 0 || slotIndex >= slotTimes.length) return null;
-      const roomBookings = appointmentsByRoom.get(roomId);
-      if (!roomBookings) return null;
-      const slotStart = combineDateTime(selectedDate, slotTimes[slotIndex]);
-      return (
-        roomBookings.find(
-          (booking) =>
-            booking.start.getTime() <= slotStart.getTime() &&
-            booking.end.getTime() > slotStart.getTime(),
-        ) ?? null
-      );
-    },
-    [appointmentsByRoom, selectedDate],
-  );
-
-  const applyFocusRing = useCallback(() => {
-    const container = calendarContainerRef.current;
-    const currentFocus = focusPoint;
-    if (!container || !currentFocus) return;
-    const room = displayedRooms[currentFocus.roomIndex];
-    const slot = slotTimes[currentFocus.slotIndex];
-    if (!room || !slot) return;
-    const selector = `td[data-resource-id="${room.id}"][data-time$="${slot}"]`;
-    const target = container.querySelector<HTMLElement>(selector);
-    if (!target) return;
-    focusCellRef.current?.classList.remove("book-room-focus-cell");
-    target.classList.add("book-room-focus-cell");
-    focusCellRef.current = target;
-  }, [displayedRooms, focusPoint]);
+  const endIndex = Math.min(startIndex + VISIBLE_COLUMNS, rooms.length);
+  const displayedRooms = rooms.slice(startIndex, endIndex);
+  const placeholderCount = Math.max(0, VISIBLE_COLUMNS - displayedRooms.length);
+  
+  const canPrev = startIndex > 0;
+  const canNext = rooms.length > 0 && startIndex < Math.max(0, rooms.length - VISIBLE_COLUMNS);
+  const handlePrev = () => canPrev && setStartIndex((i) => i - 1);
+  const handleNext = () => canNext && setStartIndex((i) => i + 1);
 
   useEffect(() => {
     applyFocusRing();
   }, [applyFocusRing, bookings, displayedRooms, selectedDate]);
 
-  const gotoSelectedDate = useCallback(() => {
-    if (!calendarRef.current) return;
-    calendarRef.current.gotoDate(selectedDate);
-  }, [selectedDate]);
-
-  useEffect(() => {
-    gotoSelectedDate();
-  }, [gotoSelectedDate]);
-
-  const resources = useMemo(() => {
-    return displayedRooms.map((room) => ({
-      id: room.id.toString(),
-      title: room.name,
-      extendedProps: {
-        capacity: room.capacity,
-        location: room.location,
-        amenities: room.amenities ?? [],
-        photoUrl: getPhotoForRoom(room.id, room.photoUrl),
-      },
-    }));
-  }, [displayedRooms]);
-
-  const visibleBookings = useMemo(() => {
-    if (statusFilter === "free") {
-      return [];
-    }
-    if (statusFilter === "all") {
-      return bookings;
-    }
-    return bookings.filter((booking) => booking.status === statusFilter);
-  }, [bookings, statusFilter]);
-
-  const events: EventInput[] = useMemo(() => {
-    return visibleBookings.map((booking) => ({
-      id: booking.id,
-      resourceId: booking.roomId.toString(),
-      start: booking.start.toISOString(),
-      end: booking.end.toISOString(),
-      title: booking.title,
-      display: "block",
-      classNames: [
-        "book-room-event",
-        booking.status === "unavailable"
-          ? "book-room-event-unavailable"
-          : "book-room-event-booked",
-      ],
-      extendedProps: {
-        status: booking.status,
-        meta: booking.meta,
-        timeRange: formatTimeRange(booking.start, booking.end),
-      },
-    }));
-  }, [visibleBookings]);
-
-  const handleCalendarRef = useCallback((calendar: { getApi: () => CalendarApi } | null) => {
-    if (!calendar) return;
-    calendarRef.current = calendar.getApi();
-  }, []);
-
-  const handleSelect = useCallback(
-    (selection: DateSelectArg) => {
-      const resourceId = selection.resource?.id ?? selection.resource?.extendedProps?.id;
-      const numericRoomId = Number(resourceId);
-      if (!Number.isFinite(numericRoomId)) return;
-
-      const duration = differenceInMinutes(selection.end, selection.start);
-      if (duration <= 0) return;
-
-      const overlaps = findBookingForSlot(numericRoomId, slotTimes.findIndex((slot) => {
-        const slotStart = combineDateTime(selectedDate, slot);
-        return slotStart.getTime() === selection.start.getTime();
-      }));
+  const isSlotBooked = (roomId: number, time: string): Booking | undefined => {
+    return bookings.find(
+      (b) =>
+        b.roomId === roomId &&
+        b.date === toYMDLocal(selectedDate) &&
+        b.startTime <= time &&
+        b.endTime > time
+    );
+  };
 
       if (overlaps) {
         setDetailsBooking(overlaps);
@@ -633,147 +474,26 @@ const BookingRoomPage = (): JSX.Element => {
   const handleEventClick = useCallback((arg: EventClickArg) => {
     const booking = bookings.find((item) => item.id === arg.event.id);
     if (booking) {
-      setDetailsBooking(booking);
+      // For server-sourced occupancy, do not allow deletion
+      if (booking.readOnly) {
+        toast.error("This time is already booked.");
+        return;
+      }
+      // Allow removing only locally-created placeholder bookings
+      setBookings(bookings.filter((b) => b.id !== booking.id));
+      toast.success("Booking removed");
+    } else {
+      // Create new booking
+      const endTime = calculateEndTime(time);
+      setSelectedSlot({ roomId, startTime: time, endTime });
+      setIsDialogOpen(true);
     }
   }, [bookings]);
 
-  const handleFilterClick = useCallback(
-    (value: typeof statusFilter) => {
-      setStatusFilter(value);
-    },
-    [],
-  );
-
-  const moveFocus = useCallback(
-    (deltaRoom: number, deltaSlot: number) => {
-      if (!focusCapable) return;
-      setFocusPoint((current) => {
-        const currentPoint = current ?? { roomIndex: 0, slotIndex: 0 };
-        const nextRoom = Math.min(
-          Math.max(currentPoint.roomIndex + deltaRoom, 0),
-          displayedRooms.length - 1,
-        );
-        const nextSlot = Math.min(
-          Math.max(currentPoint.slotIndex + deltaSlot, 0),
-          slotTimes.length - 1,
-        );
-        return { roomIndex: nextRoom, slotIndex: nextSlot };
-      });
-    },
-    [displayedRooms.length, focusCapable],
-  );
-
-  const stepRoom = useCallback(
-    (delta: number) => {
-      setActiveRoomIndex((index) => {
-        const maxIndex = Math.max(filteredRooms.length - 1, 0);
-        const nextIndex = Math.min(Math.max(index + delta, 0), maxIndex);
-        return nextIndex;
-      });
-    },
-    [filteredRooms.length],
-  );
-
-  const handleKeyboard = useCallback(
-    (event: React.KeyboardEvent<HTMLDivElement>) => {
-      if (!focusCapable) return;
-      switch (event.key) {
-        case "ArrowLeft":
-          event.preventDefault();
-          moveFocus(-1, 0);
-          break;
-        case "ArrowRight":
-          event.preventDefault();
-          moveFocus(1, 0);
-          break;
-        case "ArrowUp":
-          event.preventDefault();
-          moveFocus(0, -1);
-          break;
-        case "ArrowDown":
-          event.preventDefault();
-          moveFocus(0, 1);
-          break;
-        case "Enter":
-        case " ":
-          event.preventDefault();
-          if (!focusPoint) return;
-          const room = displayedRooms[focusPoint.roomIndex];
-          const slot = slotTimes[focusPoint.slotIndex];
-          if (!room || !slot) return;
-          const booking = findBookingForSlot(room.id, focusPoint.slotIndex);
-          if (booking) {
-            setDetailsBooking(booking);
-            return;
-          }
-          const startDate = combineDateTime(selectedDate, slot);
-          const endDate = addMinutes(startDate, SLOT_MINUTES);
-          setCreateDialog({
-            roomId: room.id,
-            start: startDate,
-            end: endDate,
-            title: "",
-            pending: false,
-          });
-          break;
-        default:
-          break;
-      }
-    },
-    [displayedRooms, findBookingForSlot, focusCapable, focusPoint, moveFocus, selectedDate],
-  );
-
-  useEffect(() => {
-    if (!isMobile) return;
-    const totalRooms = filteredRooms.length;
-    if (totalRooms < 2) return;
-    const root = calendarContainerRef.current;
-    if (!root) return;
-
-    let touchStartX: number | null = null;
-
-    const handleTouchStart = (event: TouchEvent) => {
-      touchStartX = event.touches[0]?.clientX ?? null;
-    };
-
-    const handleTouchEnd = (event: TouchEvent) => {
-      if (touchStartX == null) return;
-      const endX = event.changedTouches[0]?.clientX ?? touchStartX;
-      const deltaX = endX - touchStartX;
-      if (Math.abs(deltaX) > 60) {
-        stepRoom(deltaX < 0 ? 1 : -1);
-      }
-      touchStartX = null;
-    };
-
-    root.addEventListener("touchstart", handleTouchStart, { passive: true });
-    root.addEventListener("touchend", handleTouchEnd);
-
-    return () => {
-      root.removeEventListener("touchstart", handleTouchStart);
-      root.removeEventListener("touchend", handleTouchEnd);
-    };
-  }, [isMobile, stepRoom, filteredRooms.length]);
-
-  const closeCreateDialog = useCallback(() => {
-    setCreateDialog({
-      roomId: null,
-      start: null,
-      end: null,
-      title: "",
-      pending: false,
-    });
-  }, []);
-
-  const handleCreateBooking = useCallback(async () => {
-    if (!createDialog.roomId || !createDialog.start || !createDialog.end) {
-      toast.error("Select a valid time");
-      return;
-    }
-    if (!createDialog.title.trim()) {
-      toast.error("Title is required");
-      return;
-    }
+  const calculateEndTime = (startTime: string): string => {
+    const [hours] = startTime.split(":").map(Number);
+    return `${String(hours + 1).padStart(2, "0")}:00`;
+  };
 
     if (!BOOKINGS_ENDPOINT) {
       const localBooking: NormalisedBooking = {
@@ -793,11 +513,13 @@ const BookingRoomPage = (): JSX.Element => {
       return;
     }
 
-    const payload = {
-      roomId: createDialog.roomId,
-      title: createDialog.title.trim(),
-      start: createDialog.start.toISOString(),
-      end: createDialog.end.toISOString(),
+    const newBooking: Booking = {
+      id: Date.now().toString(),
+      roomId: selectedSlot.roomId,
+      title: bookingTitle,
+      startTime: selectedSlot.startTime,
+      endTime: selectedSlot.endTime,
+      date: toYMDLocal(selectedDate),
     };
 
     try {
@@ -985,216 +707,142 @@ const BookingRoomPage = (): JSX.Element => {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-4 px-4 pb-12 pt-6">
-      <style jsx global>{`
-        .book-room-calendar .fc-scrollgrid {
-          border-radius: 16px;
-          overflow: hidden;
-          border: 1px solid hsl(var(--border));
-          box-shadow: var(--tw-shadow, 0 10px 40px rgba(15, 23, 42, 0.08));
-        }
-        .book-room-calendar .fc-timegrid-slot {
-          height: 54px;
-          border-bottom: 1px solid hsl(var(--border) / 0.7);
-        }
-        .book-room-calendar .fc-timegrid-slot.fc-timegrid-slot-lane {
-          background-image: linear-gradient(
-            to right,
-            rgba(148, 163, 184, 0.08) 0,
-            rgba(148, 163, 184, 0.08) 1px,
-            transparent 1px,
-            transparent 100%
-          );
-          background-size: 60px 100%;
-        }
-        .book-room-calendar .fc-timegrid-slot-major {
-          border-bottom: 1px solid hsl(var(--border));
-        }
-        .book-room-calendar .fc-timegrid-axis {
-          font-weight: 600;
-          color: hsl(var(--muted-foreground));
-          background-color: hsl(var(--background));
-        }
-        .book-room-calendar .fc-timegrid-body,
-        .book-room-calendar .fc-timegrid-slots {
-          background: linear-gradient(
-              90deg,
-              rgba(226, 232, 240, 0.45) 0,
-              rgba(226, 232, 240, 0.45) 1px,
-              transparent 1px,
-              transparent 100%
-            ),
-            hsl(var(--background));
-          background-size: 60px 100%, 100% 100%;
-        }
-        .book-room-calendar .fc-col-header,
-        .book-room-calendar .fc-col-header-cell {
-          background-color: hsl(var(--background));
-        }
-        .book-room-calendar .fc-col-header-cell {
-          padding: 10px 8px;
-        }
-        .book-room-calendar .fc-col-header-cell-cushion {
-          padding: 0 !important;
-        }
-        .book-room-calendar .fc-resource-timegrid-divider {
-          display: none;
-        }
-        .book-room-calendar .fc-resource-area {
-          display: none;
-        }
-        .book-room-calendar .fc-event {
-          border: none;
-        }
-        .book-room-calendar .fc-timegrid-axis-cushion {
-          padding: 0 12px;
-        }
-        .book-room-calendar .fc-now-indicator-line {
-          border-color: #ef4444;
-          border-width: 2px;
-        }
-        .book-room-calendar .fc-scrollgrid-section > td {
-          border: none;
-        }
-        .book-room-event {
-          border-width: 1px;
-        }
-        .book-room-event-booked {
-          background-color: rgba(34, 197, 94, 0.18);
-          border-color: rgba(34, 197, 94, 0.35);
-        }
-        .book-room-event-unavailable {
-          background: repeating-linear-gradient(
-              135deg,
-              rgba(148, 163, 184, 0.15),
-              rgba(148, 163, 184, 0.15) 6px,
-              rgba(148, 163, 184, 0.35) 6px,
-              rgba(148, 163, 184, 0.35) 12px
-            ),
-            rgba(226, 232, 240, 0.7);
-          border-color: rgba(148, 163, 184, 0.45);
-        }
-        td.book-room-focus-cell {
-          outline: 3px solid rgba(59, 130, 246, 0.8);
-          outline-offset: -2px;
-          transition: outline 0.12s ease;
-        }
-        @media (max-width: 900px) {
-          .book-room-calendar .fc-scroller.fc-scroller-liquid-absolute {
-            overflow-x: auto;
-          }
-          .book-room-calendar .fc-resource-area {
-            display: none;
-          }
-        }
-
-        .book-room-gallery::-webkit-scrollbar {
-          height: 8px;
-        }
-
-        .book-room-gallery::-webkit-scrollbar-thumb {
-          background: hsl(var(--border));
-          border-radius: 999px;
-        }
-      `}</style>
-
-      <header className="flex flex-col gap-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-col">
-            <h1 className="text-3xl font-bold tracking-tight text-foreground">
-              Room Booking
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              Check availability, review reservations, and create new bookings.
-            </p>
+    <div className="flex flex-col h-full min-h-0 w-full bg-white overflow-hidden">
+      {/* Header */}
+      <div className="bg-white px-4 py-3 flex-shrink-0">
+        <div className="flex items-center justify-between gap-3">
+          {/* Left: Styled title block + Date picker */}
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="flex items-center gap-2 justify-center min-w-[280px] sm:min-w-[370px] rounded-t-4xl bg-neutral-700 px-4 py-2">
+              <CalendarIcon className="w-6 h-6 sm:w-8 sm:h-8 text-primary-foreground" />
+              <h1 className="text-[16px] sm:text-[20px] font-medium text-primary-foreground">Room Booking</h1>
+            </div>
+            {/* Date picker (shadcn) next to title */}
+            <div className="relative">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button id="date-picker" variant="outline" className="gap-2">
+                    <CalendarIcon className="h-4 w-4" />
+                    <span className="text-sm">
+                      {selectedDate.toLocaleDateString("en-US", { day: "2-digit", month: "long", year: "numeric" })}
+                    </span>
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start" sideOffset={8}>
+                  <DatePickerCalendar
+                    mode="single"
+                    selected={selectedDate}
+                    month={selectedDate}
+                    onMonthChange={(d) => d && setSelectedDate(new Date(d))}
+                    onSelect={(d) => {
+                      if (d) setSelectedDate(d);
+                    }}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="icon"
-              className="rounded-full"
-              onClick={() =>
-                setSelectedDate((current) => startOfDay(addMinutes(current, -1 * 24 * 60)))
-              }
-              aria-label="Previous day"
-            >
-              <ChevronLeft className="size-4" />
-            </Button>
-            <Button
-              variant="outline"
-              size="icon"
-              className="rounded-full"
-              onClick={() =>
-                setSelectedDate((current) => startOfDay(addMinutes(current, 24 * 60)))
-              }
-              aria-label="Next day"
-            >
-              <ChevronRight className="size-4" />
-            </Button>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" className="gap-2">
-                  <CalendarDays className="size-4" />
-                  {format(selectedDate, "EEE, MMM d")}
+
+          {/* Spacer to push right controls */}
+          <div className="flex-1" />
+
+          {/* Right: Room navigation only */}
+          <div className="flex items-center gap-3">
+            {rooms.length > VISIBLE_COLUMNS && (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handlePrev}
+                  disabled={!canPrev}
+                >
+                  <ChevronLeft className="h-4 w-4" />
                 </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="end">
-                <CalendarPicker
-                  mode="single"
-                  selected={selectedDate}
-                  onSelect={(day) => {
-                    if (day) {
-                      setSelectedDate(startOfDay(day));
-                    }
-                  }}
-                  initialFocus
-                />
-              </PopoverContent>
-            </Popover>
-            <Button
-              variant="secondary"
-              onClick={() => setSelectedDate(startOfDay(new Date()))}
-              disabled={isToday(selectedDate)}
-            >
-              Today
-            </Button>
+                <span className="text-sm text-gray-600 px-2">
+                  {startIndex + 1}-{endIndex} of {rooms.length}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleNext}
+                  disabled={!canNext}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </>
+            )}
           </div>
         </div>
+      </div>
 
-        <div className="book-room-gallery flex w-full gap-4 overflow-x-auto pb-1" aria-label="Rooms">
-          {filteredRooms.map((room) => (
-            <article
-              key={room.id}
-              className="flex min-w-[240px] max-w-[260px] flex-1 flex-col overflow-hidden rounded-xl border border-border/60 bg-card shadow-sm transition hover:-translate-y-1 hover:shadow-lg"
-            >
-              <div className="relative aspect-video w-full overflow-hidden bg-muted">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={getPhotoForRoom(room.id, room.photoUrl)}
-                  alt={`${room.name} photo`}
-                  className="size-full object-cover"
-                />
-              </div>
-              <div className="flex flex-col gap-2 p-3 text-sm">
-                <div className="flex items-center justify-between">
-                  <span className="font-semibold text-foreground">{room.name}</span>
-                  <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                    <Users className="size-3.5" />
-                    {room.capacity ?? "—"}
-                  </span>
+      {/* Calendar Grid */}
+      <div className="flex-1 min-h-0 overflow-hidden p-4">
+        <div className="bg-white rounded-2xl shadow-sm border h-full flex flex-col overflow-hidden">
+          <div className="flex-1 min-h-0 overflow-auto">
+            <div className="grid" style={{ gridTemplateColumns: `120px repeat(${VISIBLE_COLUMNS}, 1fr)` }}>
+            {/* Time column header - sticky top-left */}
+            <div className="sticky top-0 left-0 z-30 bg-gray-50 border-b border-r p-4">
+              <Clock className="h-5 w-5 text-gray-400 mx-auto" />
+            </div>
+
+            {/* Room headers - sticky top */}
+            {displayedRooms.map((room) => (
+              <div key={room.id} className="sticky top-0 z-20 bg-gray-50 border-b border-r last:border-r-0 p-3">
+                <div className="flex flex-col items-center gap-2">
+                  <div className="w-full rounded-lg overflow-hidden bg-gray-200 relative" style={{ aspectRatio: '4 / 2.5' }}>
+                    <img
+                      src={getRoomImagePath(room.id)}
+                      alt={room.name}
+                      className="absolute inset-0 w-full h-full object-cover"
+                      onError={(e) => {
+                        const img = e.currentTarget as HTMLImageElement;
+                        if (!img.dataset.fallback) {
+                          img.dataset.fallback = '1';
+                          img.src = '/Room/default.jpg';
+                        }
+                      }}
+                    />
+                  </div>
+                  <div className="text-center w-full">
+                    <h3 className="font-semibold text-sm text-gray-900 truncate">
+                      {room.name}
+                    </h3>
+                    <div className="flex items-center justify-center gap-3 text-xs text-gray-500 mt-1">
+                      <span className="flex items-center gap-1">
+                        <Users className="h-3 w-3" />
+                        {room.capacity}
+                      </span>
+                      {room.location && (
+                        <span className="flex items-center gap-1">
+                          <MapPin className="h-3 w-3" />
+                          {room.location}
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 </div>
-                <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                  {room.location && (
-                    <span className="inline-flex items-center gap-1">
-                      <MapPin className="size-3.5" />
-                      {room.location}
-                    </span>
-                  )}
-                  <span className="inline-flex items-center gap-1">
-                    <Filter className="size-3.5" />
-                    {Array.isArray(room.amenities) && room.amenities.length > 0
-                      ? `${room.amenities.length} amenities`
-                      : "0 amenities"}
+              </div>
+            ))}
+            
+            {/* Placeholder columns to keep grid stable */}
+            {Array.from({ length: placeholderCount }).map((_, idx) => (
+              <div key={`placeholder-${idx}`} className="sticky top-0 z-20 bg-gray-100 border-b border-r last:border-r-0 p-3">
+                <div className="flex flex-col items-center gap-2 opacity-30">
+                  <div className="w-full rounded-lg bg-gray-300 relative" style={{ aspectRatio: '4 / 3' }}></div>
+                  <div className="text-center w-full">
+                    <h3 className="font-semibold text-sm text-gray-500">—</h3>
+                  </div>
+                </div>
+              </div>
+            ))}
+
+            {/* Time slots */}
+            {timeSlots.map((slot) => (
+              <React.Fragment key={slot}>
+                {/* Time label - sticky left */}
+                <div className="sticky left-0 z-10 bg-gray-50 border-b border-r p-3 flex items-start justify-end h-[60px]">
+                  <span className="text-xs font-medium text-gray-600">
+                    {slot}
                   </span>
                 </div>
               </div>
@@ -1202,43 +850,55 @@ const BookingRoomPage = (): JSX.Element => {
           ))}
         </div>
 
-        <div className="flex flex-col gap-3 rounded-xl border bg-card p-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center">
-            <div className="flex flex-1 items-center gap-2 rounded-md border px-3 py-2">
-              <Search className="size-4 text-muted-foreground" />
-              <input
-                className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-                placeholder="Search rooms by name or location"
-                value={searchTerm}
-                onChange={(event) => setSearchTerm(event.target.value)}
-              />
-              {searchTerm && (
-                <button
-                  type="button"
-                  aria-label="Clear search"
-                  className="text-muted-foreground transition hover:text-foreground"
-                  onClick={() => setSearchTerm("")}
-                >
-                  <X className="size-4" />
-                </button>
-              )}
-            </div>
-            <div className="flex gap-2 overflow-x-auto">
-              {quickFilters.map((filter) => {
-                const buttonVariant: ButtonProps["variant"] =
-                  statusFilter === filter.value ? "default" : "outline";
-                return (
-                  <Button
-                    key={filter.value}
-                    variant={buttonVariant}
-                    size="sm"
-                    onClick={() => handleFilterClick(filter.value)}
-                    className="rounded-full px-4"
-                  >
-                    {filter.label}
-                  </Button>
-                );
-              })}
+                {/* Room slots */}
+                {displayedRooms.map((room) => {
+                  const booking = isSlotBooked(room.id, slot);
+                  const isBooked = !!booking;
+                  const isStart = isBooked && booking!.startTime === slot;
+
+                  return (
+                    <div
+                      key={`${room.id}-${slot}`}
+                      className={`border-b border-r last:border-r-0 p-2 h-[60px] cursor-pointer transition-all relative ${
+                        isBooked
+                          ? "bg-blue-50 hover:bg-blue-100"
+                          : "bg-white hover:bg-black/20"
+                      }`}
+                      onClick={() => handleSlotClick(room.id, slot)}
+                    >
+                      {isBooked ? (
+                        isStart ? (
+                          <div
+                            className="absolute inset-x-1 top-1 z-10 text-white rounded-md p-2 text-xs shadow-md"
+                            style={{
+                              height: `${slotsSpanned(booking!.startTime, booking!.endTime) * SLOT_HEIGHT_PX - 8}px`,
+                              backgroundColor: '#8BA888',
+                            }}
+                          >
+                            <div className="font-medium truncate">{booking!.title}</div>
+                            <div className="text-white/80 text-[10px]">
+                              {booking!.startTime} - {booking!.endTime}
+                            </div>
+                          </div>
+                        ) : null
+                      ) : (
+                        <div className="h-full flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                          <span className="text-xs text-black font-medium">+ Book</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+                
+                {/* Placeholder slots */}
+                {Array.from({ length: placeholderCount }).map((_, idx) => (
+                  <div
+                    key={`placeholder-slot-${slot}-${idx}`}
+                    className="border-b border-r last:border-r-0 p-2 min-h-[60px] bg-gray-100"
+                  ></div>
+                ))}
+              </React.Fragment>
+            ))}
             </div>
           </div>
           {bookingsError && (
@@ -1540,4 +1200,4 @@ const BookingRoomPage = (): JSX.Element => {
   );
 };
 
-export default BookingRoomPage;
+export default BookingRoom;

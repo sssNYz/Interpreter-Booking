@@ -57,6 +57,7 @@ export async function GET(
       bookingStatus: true,
       createdAt: true,
       updatedAt: true,
+      chairmanEmail: true,
       employee: {
         select: { firstNameEn: true, lastNameEn: true, email: true, telExt: true, deptPath: true },
       },
@@ -199,6 +200,7 @@ export async function GET(
     bookingStatus: string;
     createdAt: Date;
     updatedAt: Date;
+    chairmanEmail: string | null;
     employee?: { firstNameEn: string | null; lastNameEn: string | null; email: string | null; telExt: string | null; deptPath?: string | null } | null;
     interpreterEmployee?: { empCode: string | null; firstNameEn: string | null; lastNameEn: string | null } | null;
 
@@ -225,6 +227,7 @@ export async function GET(
     bookingStatus: b.bookingStatus,
     createdAt: b.createdAt.toISOString(),
     updatedAt: b.updatedAt.toISOString(),
+    chairmanEmail: b.chairmanEmail ?? null,
   }));
 
   return new Response(JSON.stringify(result), {

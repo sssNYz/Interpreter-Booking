@@ -1,4 +1,5 @@
 ﻿import prisma, { MeetingType } from "@/prisma/prisma"
+import type { Prisma } from "@prisma/client"
 
 export interface EmailTemplate {
     id: string
@@ -29,7 +30,7 @@ export const SYSTEM_TEMPLATES: EmailTemplate[] = [
         <!-- Header -->
         <div style="background: linear-gradient(135deg, {headerColor1} 0%, {headerColor2} 100%); padding: 30px 25px; text-align: center;">
             <h1 style="margin: 0; color: white; font-size: 24px; font-weight: 600; line-height: 1.3;">
-                {meetingTypeIcon} {meetingType} Meeting – {topic}
+                {meetingTypeIcon} {topic}
             </h1>
         </div>
 
@@ -113,6 +114,7 @@ export const SYSTEM_TEMPLATES: EmailTemplate[] = [
                             </td>
                         </tr>
                         {deviceGroupSection}
+                        {applicableModelSection}
                         {departmentSection}
                     </table>
                 </div>
@@ -254,6 +256,7 @@ export const SYSTEM_TEMPLATES: EmailTemplate[] = [
                             </td>
                         </tr>
                         {deviceGroupSection}
+                        {applicableModelSection}
                         {departmentSection}
                     </table>
                 </div>
@@ -449,11 +452,20 @@ const DR_SUBTYPE_DISPLAY = {
     Other: 'Custom DR Type'
 }
 
+type BookingWithRelations = Prisma.BookingPlanGetPayload<{
+    include: {
+        employee: true
+        inviteEmails: true
+        interpreterEmployee: true
+        selectedInterpreter: true
+    }
+}>
+
 export async function buildTemplateVariablesFromBooking(
     bookingId: number,
-    providedBooking?: any
+    providedBooking?: BookingWithRelations
 ): Promise<Record<string, string>> {
-    const booking = providedBooking ?? await prisma.bookingPlan.findUnique({
+    const booking: BookingWithRelations | null = providedBooking ?? await prisma.bookingPlan.findUnique({
         where: { bookingId },
         include: {
             employee: true, // owner
@@ -471,8 +483,10 @@ export async function buildTemplateVariablesFromBooking(
     const config = MEETING_TYPE_CONFIG[meetingType]
     const isDR = meetingType === 'DR'
 
-    // Build topic - just the meeting type for title
-    const topic = meetingType
+    // Build topic for email/calendar: "Type - Detail" when detail exists
+    const topic = booking.meetingDetail && booking.meetingDetail.trim().length > 0
+        ? `${meetingType} - ${booking.meetingDetail}`
+        : meetingType
 
     // Build description section
     const description = booking.meetingDetail || ''
@@ -508,7 +522,7 @@ export async function buildTemplateVariablesFromBooking(
     if (booking.chairmanEmail?.trim()) participantsList.add(booking.chairmanEmail.trim())
 
     // Add all invited attendees
-    booking.inviteEmails?.forEach((invite: any) => {
+    booking.inviteEmails?.forEach((invite) => {
         const email = invite.email?.trim()
         if (email) participantsList.add(email)
     })
@@ -550,7 +564,7 @@ export async function buildTemplateVariablesFromBooking(
     if (isDR) {
         // Handle DR sub-types - ALL DR sub-types are supported
         const drSubtype = booking.drType
-        const drSubtypeDisplay = drSubtype ? (DR_SUBTYPE_DISPLAY as any)[drSubtype] || drSubtype : 'Not specified'
+        const drSubtypeDisplay = drSubtype ? (DR_SUBTYPE_DISPLAY as Record<string, string>)[drSubtype] || drSubtype : 'Not specified'
 
         // If DR sub-type is "Other", use the custom otherType text
         const finalDrDisplay = (drSubtype === 'Other' && booking.otherType)
@@ -614,6 +628,28 @@ export async function buildTemplateVariablesFromBooking(
                             </td>
                         </tr>` : ''
 
+    // Build applicable model section for non-DR meetings
+    const applicableModelSection_2 = (!isDR && booking.applicableModel) ? `
+                        <tr>
+                            <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                                📱 Applicable Model:
+                            </td>
+                            <td style="padding: 10px 0; color: #374151;">
+                                ${booking.applicableModel}
+                            </td>
+                        </tr>` : ''
+
+    // Build applicable model section for non-DR meetings
+    const applicableModelSection = (!isDR && booking.applicableModel) ? `
+                        <tr>
+                            <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                                📱 Applicable Model:
+                            </td>
+                            <td style="padding: 10px 0; color: #374151;">
+                                ${booking.applicableModel}
+                            </td>
+                        </tr>` : ''
+
     return {
         // Meeting type specific
         meetingType: meetingType,
@@ -639,6 +675,7 @@ export async function buildTemplateVariablesFromBooking(
         chairmanSection,
         interpreterSection,
         deviceGroupSection,
+        applicableModelSection: applicableModelSection_2,
         departmentSection,
 
         // Legacy fields (for backward compatibility)
@@ -666,9 +703,9 @@ export async function getFormattedTemplateForBooking(bookingId: number): Promise
 export async function buildCancellationTemplateVariablesFromBooking(
     bookingId: number,
     reason?: string,
-    providedBooking?: any
+    providedBooking?: BookingWithRelations
 ): Promise<Record<string, string>> {
-    const booking = providedBooking ?? await prisma.bookingPlan.findUnique({
+    const booking: BookingWithRelations | null = providedBooking ?? await prisma.bookingPlan.findUnique({
         where: { bookingId },
         include: {
             employee: true, // owner
@@ -686,8 +723,10 @@ export async function buildCancellationTemplateVariablesFromBooking(
     const config = MEETING_TYPE_CONFIG[meetingType]
     const isDR = meetingType === 'DR'
 
-    // Build topic - just the meeting type for title
-    const topic = meetingType
+    // Build topic for email/calendar: "Type - Detail" when detail exists
+    const topic = booking.meetingDetail && booking.meetingDetail.trim().length > 0
+        ? `${meetingType} - ${booking.meetingDetail}`
+        : meetingType
 
     // Build description section
     const description = booking.meetingDetail || ''
@@ -723,7 +762,7 @@ export async function buildCancellationTemplateVariablesFromBooking(
     if (booking.chairmanEmail?.trim()) participantsList.add(booking.chairmanEmail.trim())
 
     // Add all invited attendees
-    booking.inviteEmails?.forEach((invite: any) => {
+    booking.inviteEmails?.forEach((invite) => {
         const email = invite.email?.trim()
         if (email) participantsList.add(email)
     })
@@ -765,7 +804,7 @@ export async function buildCancellationTemplateVariablesFromBooking(
     if (isDR) {
         // Handle DR sub-types - ALL DR sub-types are supported
         const drSubtype = booking.drType
-        const drSubtypeDisplay = drSubtype ? (DR_SUBTYPE_DISPLAY as any)[drSubtype] || drSubtype : 'Not specified'
+        const drSubtypeDisplay = drSubtype ? (DR_SUBTYPE_DISPLAY as Record<string, string>)[drSubtype] || drSubtype : 'Not specified'
 
         // If DR sub-type is "Other", use the custom otherType text
         const finalDrDisplay = (drSubtype === 'Other' && booking.otherType)
@@ -826,6 +865,17 @@ export async function buildCancellationTemplateVariablesFromBooking(
                             </td>
                             <td style="padding: 10px 0; color: #374151;">
                                 ${booking.ownerGroup}
+                            </td>
+                        </tr>` : ''
+
+    // Build applicable model section for non-DR meetings
+    const applicableModelSection = (!isDR && booking.applicableModel) ? `
+                        <tr>
+                            <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                                📱 Applicable Model:
+                            </td>
+                            <td style="padding: 10px 0; color: #374151;">
+                                ${booking.applicableModel}
                             </td>
                         </tr>` : ''
 
@@ -868,6 +918,7 @@ export async function buildCancellationTemplateVariablesFromBooking(
         chairmanSection,
         interpreterSection,
         deviceGroupSection,
+        applicableModelSection,
         departmentSection,
         reasonSection,
 
@@ -887,7 +938,7 @@ export async function buildCancellationTemplateVariablesFromBooking(
 export async function getFormattedCancellationTemplateForBooking(
     bookingId: number,
     reason?: string,
-    providedBooking?: any
+    providedBooking?: BookingWithRelations
 ): Promise<{ subject: string; body: string; isHtml: boolean }> {
     const template = getTemplateById('unified-cancellation')
     if (!template) throw new Error('Unified cancellation template not found')

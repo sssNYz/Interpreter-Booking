@@ -20,6 +20,7 @@ import {
   isValidTimeRange,
 } from "@/utils/time";
 import { Calendar as CalendarIcon, Clock, AlertTriangle } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { client as featureFlags } from "@/lib/feature-flags";
 import type { MeetingType, DRType } from "@/prisma/prisma";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -65,6 +66,7 @@ import { Toggle } from "@/components/ui/toggle";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent, CalendarDayButton } from "@/components/ui/calendar";
 import { Input } from "@/components/ui/input";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 // Removed monthly custom UI; radio group imports no longer needed
 export function BookingForm({
   open,
@@ -2002,7 +2004,31 @@ export function BookingForm({
               {/* Language Selection (Multi-select) */}
               <div className="space-y-2">
                 <label className="text-sm font-medium text-foreground">
-                  Language(s) <span className="text-red-500">*</span>
+                  <HoverCard openDelay={1000}>
+                    <HoverCardTrigger asChild>
+                      <span
+                        tabIndex={0}
+                        className="inline-flex items-center gap-1 underline-offset-4 decoration-muted-foreground/70 hover:underline focus-visible:underline outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-sm"
+                      >
+                        Language(s) <span className="text-red-500">*</span>
+                      </span>
+                    </HoverCardTrigger>
+                    <HoverCardContent className="w-80">
+                      <div className="flex justify-between gap-4">
+                        <Avatar className="h-12 w-12">
+                          <AvatarImage src="https://source.boringavatars.com/bauhaus/120/language-picker" />
+                          <AvatarFallback>LG</AvatarFallback>
+                        </Avatar>
+                        <div className="space-y-1">
+                          <h4 className="text-sm font-semibold">Language</h4>
+                          <p className="text-sm text-muted-foreground">
+                            The language you need an interpreter for.
+                          </p>
+                        
+                        </div>
+                      </div>
+                    </HoverCardContent>
+                  </HoverCard>
                 </label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {loadingLanguages ? (
