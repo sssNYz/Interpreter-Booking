@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import crypto from "node:crypto";
 
 // Mock user database
 const mockUsers = [
@@ -64,28 +65,74 @@ const mockUsers = [
   { code: "E0010", email: "E0010@gmail.com", tel: "0050", pren: "Mrs.", name: "Ellen", surn: "Everett", prenTh: "นาง", nameTh: "เอลเลน", surnTh: "เอเวอเร็ต", fno: "DIT", divDeptSect: "R&D / EEEE / TEST", positionDescription: "EN" }
 ];
 
-export async function POST(req: NextRequest) {
-  const { empCode, oldPassword } = await req.json().catch(() => ({}));
+function bufferToBase64url(buf: Buffer): string {
+  return buf
+    .toString("base64")
+    .replace(/=/g, "")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_");
+}
 
-  if (!empCode || !oldPassword) {
+function signHs256Jwt(payload: Record<string, unknown>, secret: string): string {
+  const headerJson = JSON.stringify({ alg: "HS256", typ: "JWT" });
+  const payloadJson = JSON.stringify(payload);
+  const header = bufferToBase64url(Buffer.from(headerJson));
+  const body = bufferToBase64url(Buffer.from(payloadJson));
+  const data = `${header}.${body}`;
+  const sig = crypto.createHmac("sha256", secret).update(data).digest();
+  const sigB64 = bufferToBase64url(sig);
+  return `${data}.${sigB64}`;
+}
+
+export async function POST(req: NextRequest) {
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ ok: false, message: "Invalid JSON" }, { status: 400 });
+  }
+
+  // Support both old and new shapes
+  const b = (body ?? {}) as Record<string, unknown>;
+  const empCode = String(b.empCode ?? b.username ?? "").trim();
+  const password = String(b.oldPassword ?? b.password ?? "").trim();
+
+  if (!empCode || !password) {
     return NextResponse.json({ ok: false, message: "Missing credentials" }, { status: 400 });
   }
 
-  // Find user by empCode
-  const user = mockUsers.find(u => u.code === empCode);
-  
+  const user = mockUsers.find((u) => u.code === empCode);
   if (!user) {
-    return NextResponse.json({ ok: false, message: "Invalid employee code" }, { status: 401 });
+    return NextResponse.json({ ok: false, message: "Invalid username" }, { status: 401 });
   }
-
-  // Simple password check (you can modify this logic)
-  // For demo purposes, accepting any non-empty password
-  if (!oldPassword.trim()) {
+  if (!password) {
     return NextResponse.json({ ok: false, message: "Invalid password" }, { status: 401 });
   }
 
+  const nowSec = Math.floor(Date.now() / 1000);
+  const payload = {
+    iss: "mock-auth",
+    fullname: `${user.name} ${user.surn}`.trim(),
+    fname: user.name,
+    lname: user.surn,
+    email: user.email,
+    ou: user.divDeptSect,
+    posit: user.positionDescription,
+    code: user.code,
+    roles: "user",
+    consent: 1,
+    iat: nowSec,
+    exp: nowSec + 60 * 60, // 1 hour
+  };
+
+  const secret = process.env.AUTH_JWT_SECRET || "mock-secret";
+  const token = signHs256Jwt(payload, secret);
+
   return NextResponse.json({
     ok: true,
+    auth_data: {
+      access_token: token,
+    },
     user_data: {
       code: user.code,
       email: user.email,
@@ -98,7 +145,7 @@ export async function POST(req: NextRequest) {
       surnTh: user.surnTh,
       fno: user.fno,
       divDeptSect: user.divDeptSect,
-      positionDescription: user.positionDescription
-    }
+      positionDescription: user.positionDescription,
+    },
   });
 }

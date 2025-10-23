@@ -324,6 +324,11 @@ useEffect(() => {
   const targetDateRef = useRef<Date | null>(null);
   const targetSlotIndexRef = useRef<number | null>(null);
   const hasAppliedDeepLinkRef = useRef<boolean>(false);
+  // Deep-link highlight target
+  const [highlightBookingId, setHighlightBookingId] = useState<number | null>(null);
+  const [isBookingHighlightActive, setIsBookingHighlightActive] = useState(false);
+  const bookingHighlightTimerRef = useRef<number | null>(null);
+  const [autoOpenBookingId, setAutoOpenBookingId] = useState<number | null>(null);
 
 // Track horizontal scroll position when user scrolls manually
 useEffect(() => {
@@ -345,6 +350,14 @@ useEffect(() => {
 useEffect(() => {
   const dateStr = searchParams?.get("date"); // YYYY-MM-DD
   const timeStr = searchParams?.get("time"); // HH:MM
+  const bookingIdStr = searchParams?.get("bookingId");
+  // Set highlight target if provided
+  if (bookingIdStr) {
+    const idNum = Number(bookingIdStr);
+    setHighlightBookingId(Number.isFinite(idNum) ? idNum : null);
+  } else {
+    setHighlightBookingId(null);
+  }
   if (!dateStr) return;
   const parsed = new Date(dateStr + "T00:00:00");
   if (isNaN(parsed.getTime())) return;
@@ -440,49 +453,62 @@ useEffect(() => {
   }
 }, [loading]);
 
-// After data loads or month changes, apply deep-link jump once
-useEffect(() => {
-  if (loading) return;
-  if (hasAppliedDeepLinkRef.current) return;
-  if (!targetDateRef.current) return;
+  // After data loads or month changes, apply deep-link jump once
+  useEffect(() => {
+    if (loading) return;
+    if (hasAppliedDeepLinkRef.current) return;
+    if (!targetDateRef.current) return;
 
-  const target = targetDateRef.current;
-  if (
-    target.getFullYear() !== currentDate.getFullYear() ||
-    target.getMonth() !== currentDate.getMonth()
-  ) {
-    // Wait until month matches (debounce may delay data fetch)
-    return;
-  }
+    const target = targetDateRef.current;
+    if (
+      target.getFullYear() !== currentDate.getFullYear() ||
+      target.getMonth() !== currentDate.getMonth()
+    ) {
+      // Wait until month matches (debounce may delay data fetch)
+      return;
+    }
 
-  // Find day index and scroll
-  const dayIdx = daysInMonth.findIndex(
-    (d) => d.fullDate.getDate() === target.getDate()
-  );
-  if (dayIdx >= 0) {
-    rowVirtualizer.scrollToIndex(Math.max(0, dayIdx), { align: "center" });
-  }
+    // Find day index and scroll
+    const dayIdx = daysInMonth.findIndex(
+      (d) => d.fullDate.getDate() === target.getDate()
+    );
+    if (dayIdx >= 0) {
+      rowVirtualizer.scrollToIndex(Math.max(0, dayIdx), { align: "center" });
+    }
 
-  // Horizontal scroll to slot if provided
-  if (targetSlotIndexRef.current !== null && scrollAreaViewportRef.current) {
-    const scrollLeft = Math.max(0, targetSlotIndexRef.current * cellWidth);
-    scrollAreaViewportRef.current.scrollLeft = scrollLeft;
-    userScrollRef.current = scrollLeft;
-  }
+    // Horizontal scroll to slot if provided
+    if (targetSlotIndexRef.current !== null && scrollAreaViewportRef.current) {
+      const scrollLeft = Math.max(0, targetSlotIndexRef.current * cellWidth);
+      scrollAreaViewportRef.current.scrollLeft = scrollLeft;
+      userScrollRef.current = scrollLeft;
+    }
 
-  // Brief highlight similar to TODAY
-  setHighlightToday(true);
-  if (highlightTimerRef.current !== null) {
-    window.clearTimeout(highlightTimerRef.current);
-    highlightTimerRef.current = null;
-  }
-  highlightTimerRef.current = window.setTimeout(() => {
-    setHighlightToday(false);
-    highlightTimerRef.current = null;
-  }, 600);
+    // Brief highlight similar to TODAY and pulse booking if provided
+    setHighlightToday(true);
+    if (highlightBookingId != null) {
+      setIsBookingHighlightActive(true);
+      setAutoOpenBookingId(highlightBookingId);
+      if (bookingHighlightTimerRef.current !== null) {
+        window.clearTimeout(bookingHighlightTimerRef.current);
+        bookingHighlightTimerRef.current = null;
+      }
+      bookingHighlightTimerRef.current = window.setTimeout(() => {
+        setIsBookingHighlightActive(false);
+        setAutoOpenBookingId(null);
+        bookingHighlightTimerRef.current = null;
+      }, 3000);
+    }
+    if (highlightTimerRef.current !== null) {
+      window.clearTimeout(highlightTimerRef.current);
+      highlightTimerRef.current = null;
+    }
+    highlightTimerRef.current = window.setTimeout(() => {
+      setHighlightToday(false);
+      highlightTimerRef.current = null;
+    }, 600);
 
-  hasAppliedDeepLinkRef.current = true;
-}, [loading, currentDate, daysInMonth, rowVirtualizer, cellWidth]);
+    hasAppliedDeepLinkRef.current = true;
+  }, [loading, currentDate, daysInMonth, rowVirtualizer, cellWidth, highlightBookingId]);
 
   // Ensure scroll happens after loading completes (since the grid isn't mounted during skeleton)
   useEffect(() => {
@@ -569,7 +595,7 @@ useEffect(() => {
         <div className="flex items-center gap-2 justify-center min-w-[280px] sm:min-w-[370px] rounded-t-4xl bg-neutral-700 px-4 py-2">
           <Calendar className="w-6 h-6 sm:w-8 sm:h-8 text-primary-foreground" />
           <h1 className="text-[16px] sm:text-[20px] font-medium text-primary-foreground">
-            Book Appointment
+            Interpreter Booking
           </h1>
         </div>
 
@@ -664,6 +690,8 @@ useEffect(() => {
                 dayLabelWidth={dayLabelWidth}
                 maxLanes={interpreterCount}  // ← Add this
                 interpreterColorsMap={interpreterColors}
+                highlightBookingId={isBookingHighlightActive ? highlightBookingId : null}
+                autoOpenBookingId={autoOpenBookingId}
     
                 isHighlighted={
                   highlightToday &&
@@ -713,11 +741,11 @@ useEffect(() => {
           {/* Help button to reopen tutorial */}
           <Button
             onClick={() => setIsTutorialOpen(true)}
-            className="bg-neutral-700 text-white rounded-full hover:bg-black/90 h-10 w-10 text-base shadow-md hover:shadow-lg active:shadow-md transition"
+            className="bg-white text-white rounded-full hover:bg-white h-15 w-15 p-0 transition overflow-hidden border-2 border-white shadow-none hover:shadow-none active:shadow-none focus-visible:outline-none focus-visible:ring-0 mb-4"
             aria-label="Help"
             title="Help"
           >
-            ?
+            <img src="/mascot/mascot.png" alt="Help" className="w-full h-full object-cover" />
           </Button>
           {/* Admin vision toggle removed */}
           <BookingRules forwardMonthLimit={forwardMonthLimit} />

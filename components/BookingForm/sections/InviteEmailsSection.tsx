@@ -2,9 +2,11 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Users, X, Plus, AlertCircle } from "lucide-react";
 import { useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 
 type EmailCheck = { email: string; valid: boolean; reasons: string[] };
 
@@ -65,7 +67,31 @@ export function InviteEmailsSection({
 
       <div className="space-y-2">
         <Label htmlFor="newEmail" className="text-sm font-medium text-foreground">
-          Add Participant Email(s) <span className="text-muted-foreground">(Optional)</span>
+          <HoverCard openDelay={1000}>
+            <HoverCardTrigger asChild>
+              <span
+                tabIndex={0}
+                className="inline-flex items-center gap-1 underline-offset-4 decoration-muted-foreground/70 hover:underline focus-visible:underline outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-sm"
+              >
+                Add Participant Email(s) <span className="text-muted-foreground">(Optional)</span>
+              </span>
+            </HoverCardTrigger>
+            <HoverCardContent className="w-80">
+              <div className="flex justify-between gap-4">
+                <Avatar className="h-12 w-12">
+                  <AvatarImage src="https://source.boringavatars.com/marble/120/participant-email" />
+                  <AvatarFallback>PE</AvatarFallback>
+                </Avatar>
+                <div className="space-y-1">
+                  <h4 className="text-sm font-semibold">Add Participant Email</h4>
+                  <p className="text-sm text-muted-foreground">
+                    Emails of people you want to CC in this meeting. You can add more than one, separated by commas.
+                  </p>
+                  
+                </div>
+              </div>
+            </HoverCardContent>
+          </HoverCard>
         </Label>
         <div className="flex gap-2 items-center">
           <Button
