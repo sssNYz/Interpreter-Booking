@@ -11,6 +11,7 @@ interface PersonalInfoSectionProps {
   ownerSurname: string;
   ownerEmail: string;
   ownerTel: string;
+  onTelChange: (value: string) => void;
   ownerGroup: OwnerGroup;
   errors: Record<string, string>;
   onGroupChange: (value: OwnerGroup) => void;
@@ -23,6 +24,7 @@ export function PersonalInfoSection({
   ownerSurname,
   ownerEmail,
   ownerTel,
+  onTelChange,
   ownerGroup,
   errors,
   onGroupChange,
@@ -104,10 +106,10 @@ export function PersonalInfoSection({
           </Label>
           <Input 
             id="ownerTel" 
-            placeholder="0123456789" 
+            type="tel"
+            placeholder="1234" 
             value={ownerTel} 
-            readOnly 
-            className="bg-muted cursor-not-allowed" 
+            onChange={(e) => onTelChange(e.target.value)}
             aria-describedby={errors.ownerTel ? "ownerTel-error" : undefined}
           />
           {errors.ownerTel && (
