@@ -667,6 +667,7 @@ export async function buildTemplateVariablesFromBooking(
         interpreterSection,
         deviceGroupSection,
         applicableModelSection,
+        applicableModelSection,
         departmentSection,
 
         // Legacy fields (for backward compatibility)

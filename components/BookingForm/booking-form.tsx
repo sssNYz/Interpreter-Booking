@@ -228,6 +228,7 @@ export function BookingForm({
     meetingType: "meetingType",
     drType: "drType",
     otherType: "otherType",
+    ownerTel: "ownerTel",
     languageCodes: "languageCodes",
     startTime: "meeting-time",
     endTime: "meeting-time",
@@ -243,6 +244,7 @@ export function BookingForm({
     meetingType: "Meeting type",
     drType: "DR type",
     otherType: "Other type",
+    ownerTel: "Phone",
     languageCodes: "Language",
     startTime: "Start time",
     endTime: "End time",
@@ -444,7 +446,7 @@ export function BookingForm({
         setOwnerName(first);
         setOwnerSurname(last);
         setOwnerEmail(parsed.email || "");
-        setOwnerTel(parsed.phone || "");
+        // Do not auto-fill phone; user should enter manually
       } catch {}
     }
   }, [open]);
@@ -1118,6 +1120,7 @@ export function BookingForm({
 
     if (!meetingRoom.trim()) newErrors.meetingRoom = "Meeting room is required";
     if (!meetingType) newErrors.meetingType = "Meeting type is required";
+    if (!ownerTel.trim()) newErrors.ownerTel = "Phone is required";
     // --- after existing meetingType/start/end validations ---
     if (meetingType === "DR") {
       if (!drType) newErrors.drType = "DR type is required";
@@ -1667,6 +1670,7 @@ export function BookingForm({
                 ownerSurname={ownerSurname}
                 ownerEmail={ownerEmail}
                 ownerTel={ownerTel}
+                onTelChange={(v) => setOwnerTel(v)}
                 ownerGroup={ownerGroup}
                 errors={errors}
                 onGroupChange={setOwnerGroup}

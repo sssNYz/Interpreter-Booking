@@ -199,7 +199,10 @@ export async function sendApprovalEmailForBooking(bookingId: number): Promise<vo
   const calendarEvent = createCalendarEvent({
     uid: getCalendarUid(booking.bookingId),
     summary: vars.topic || booking.meetingType,
-    description: teamsJoinUrl ? `Microsoft Teams meeting: ${teamsJoinUrl}` : undefined,
+    description: [
+      teamsJoinUrl ? `Microsoft Teams meeting: ${teamsJoinUrl}` : null,
+      booking.applicableModel ? `Applicable Model: ${booking.applicableModel}` : null
+    ].filter(Boolean).join(' | ') || undefined,
     start: booking.timeStart,
     end: booking.timeEnd,
     timezone: 'Asia/Bangkok',
@@ -516,6 +519,7 @@ export async function sendCancellationEmailForBooking(
   const baseEvent = createCalendarEvent({
     uid: getCalendarUid(booking.bookingId),
     summary: vars.topic || booking.meetingType,
+    description: booking.applicableModel ? `Applicable Model: ${booking.applicableModel}` : undefined,
     start: booking.timeStart,
     end: booking.timeEnd,
     timezone: 'Asia/Bangkok',
