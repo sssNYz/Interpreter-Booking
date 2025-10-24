@@ -8,11 +8,13 @@ services:
     image: interpreter-booking:prod
     container_name: interpreter-booking-web
     restart: unless-stopped
+    depends_on:
+      - db
     environment:
       NODE_ENV: production
       PORT: 3030
       NEXT_TELEMETRY_DISABLED: "1"
-      DATABASE_URL: "mysql://STG:P@ssw0rd@172.31.150.22:3306/booking_interpreter"
+      DATABASE_URL: "mysql://appuser:apppass@db:3306/booking_interpreter"
       ENABLE_ROOM_BOOKING: "0"
       ENABLE_FORWARD_USER: "0"
       ENABLE_FORWARD_ADMIN: "0"
@@ -29,3 +31,20 @@ services:
     ports:
       - "3030:3030"
 
+  db:
+    image: mysql:8.0
+    container_name: interpreter-booking-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: booking_interpreter
+      MYSQL_USER: appuser
+      MYSQL_PASSWORD: apppass
+    ports:
+      - "3306:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+    command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+
+volumes:
+  db_data:
