@@ -172,11 +172,64 @@ export async function PATCH(
           },
         })
 
-        return { status: 200 as const, payload: latest }
+        return {
+          status: 200 as const,
+          payload: latest,
+          // Pass info for email handling
+          emailContext: {
+            wasApproved: bk.bookingStatus === "approve",
+            oldInterpreterEmpCode: bk.interpreterEmpCode,
+            newInterpreterEmpCode: newCode
+          }
+        }
       } finally {
         await tx.$queryRaw`SELECT RELEASE_LOCK(${lockKey})`
       }
     })
+
+    // Handle email notifications for approved bookings with interpreter changes
+    if (result.status === 200 && 'emailContext' in result && result.emailContext?.wasApproved) {
+      const { oldInterpreterEmpCode, newInterpreterEmpCode } = result.emailContext
+
+      // Only send emails if interpreter actually changed (not just assignment)
+      if (oldInterpreterEmpCode && oldInterpreterEmpCode !== newInterpreterEmpCode) {
+        try {
+          console.log(`[EMAIL] Interpreter changed for approved booking ${bookingId}: ${oldInterpreterEmpCode} → ${newInterpreterEmpCode}`)
+
+          // Import email functions dynamically to avoid circular dependencies
+          const { sendCancellationEmailForBooking, sendApprovalEmailForBooking } = await import('@/lib/mail/sender')
+
+          // Step 1: Send cancellation email for the old meeting (with old interpreter)
+          // This will cancel the calendar event with the old interpreter
+          const preservedOldInterpreterInfo = {
+            interpreterEmpCode: oldInterpreterEmpCode,
+            selectedInterpreterEmpCode: null,
+            interpreterEmployee: null, // Will be fetched by the email function
+            selectedInterpreter: null,
+          }
+
+          sendCancellationEmailForBooking(
+            bookingId,
+            `Interpreter changed from ${oldInterpreterEmpCode} to ${newInterpreterEmpCode}`,
+            preservedOldInterpreterInfo
+          ).catch((err) => {
+            console.error(`[EMAIL] Failed to send cancellation email for interpreter change (booking ${bookingId}):`, err)
+          })
+
+          // Step 2: Send new approval email with the new interpreter
+          // Small delay to ensure cancellation is processed first
+          setTimeout(() => {
+            sendApprovalEmailForBooking(bookingId).catch((err) => {
+              console.error(`[EMAIL] Failed to send new approval email for interpreter change (booking ${bookingId}):`, err)
+            })
+          }, 1000) // 1 second delay
+
+        } catch (err) {
+          console.error(`[EMAIL] Error in email handling for interpreter change (booking ${bookingId}):`, err)
+          // Don't fail the API call if email fails
+        }
+      }
+    }
 
     return NextResponse.json(result.payload, { status: result.status })
   } catch (err) {
