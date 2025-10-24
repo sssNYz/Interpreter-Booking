@@ -8,9 +8,9 @@ import {
 import type { LoginRequest, LoginResponse } from "@/types/auth";
 import crypto from "node:crypto";
 
-const REF_API_URL = process.env.LOGIN_API_URL || "https://bigw.daikinthai.com:8443/api/ditl/auth/sign-in ";
+//const REF_API_URL = process.env.LOGIN_API_URL || "https://bigw.daikinthai.com:8443/api/ditl/auth/sign-in ";
 // const REF_API_URL = "http://172.31.150.3/api/login";
-//const REF_API_URL = "http://localhost:3030/api/mock-login";
+const REF_API_URL =  process.env.LOGIN_API_URL || "http://localhost:3030/api/mock-login";
 
   //process.env.REF_API_URL || "http://172.31.150.22:3030/api/mock-login";
   //process.env.REF_API_URL || "http://192.168.1.184/api/login";
