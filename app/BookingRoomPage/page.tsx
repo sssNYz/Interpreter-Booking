@@ -5,31 +5,22 @@ import React, {
   useCallback,
   useEffect,
   useMemo,
-  useRef,
   useState,
 } from "react";
 import {
   addMinutes,
   differenceInMinutes,
   format,
-  isToday,
   startOfDay,
 } from "date-fns";
-import type {
-  CalendarApi,
-  DateSelectArg,
-  EventClickArg,
-  EventContentArg,
-  EventInput,
-} from "@fullcalendar/core";
-import interactionPlugin from "@fullcalendar/interaction";
-import resourceTimeGridPlugin from "@fullcalendar/resource-timegrid";
-import timeGridPlugin from "@fullcalendar/timegrid";
-import type { ResourceLaneContentArg } from "@fullcalendar/resource-common";
 import { toast } from "sonner";
 import { client as featureFlags } from "@/lib/feature-flags";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight, Users, MapPin, Clock, X, Calendar as CalendarIcon } from "lucide-react";
+import { ChevronLeft, ChevronRight, Users, MapPin, Clock, X, Calendar as CalendarIcon, CalendarDays } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -82,13 +73,28 @@ interface NormalisedBooking {
   id: string;
   roomId: number;
   title: string;
+  start: Date;
+  end: Date;
+  status: BookingStatus;
+  meta: {
+    rawStatus: string | null;
+    createdBy: string | null;
+    description: string | null;
+  };
+}
+
+interface Booking {
+  id: string;
+  roomId: number;
+  title: string;
   startTime: string;
   endTime: string;
   date: string;
   readOnly?: boolean; // true when sourced from server (BookingPlan) occupancy
 }
 
-const SCHEDULER_LICENSE = "GPL-My-Project-Is-Open-Source";
+type BookingStatus = "booked" | "unavailable";
+
 const SLOT_MINUTES = 30;
 const DAY_START_HOUR = 8;
 const DAY_END_HOUR = 21;
@@ -243,20 +249,25 @@ const getPhotoForRoom = (roomId: number, fallback?: string | null): string => {
 
 const BookingRoomPage = (): JSX.Element => {
   const [rooms, setRooms] = useState<Room[]>([]);
-  const [loadingRooms, setLoadingRooms] = useState<boolean>(true);
+  const [roomsLoading, setRoomsLoading] = useState<boolean>(true);
+  const [roomsError, setRoomsError] = useState<string | null>(null);
   const [startIndex, setStartIndex] = useState(0);
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [bookingsError, setBookingsError] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [selectedSlot, setSelectedSlot] = useState<{
+  const [isMobile, setIsMobile] = useState(false);
+  const [activeRoomIndex, setActiveRoomIndex] = useState(0);
+  const [focusPoint, setFocusPoint] = useState<{ roomIndex: number; slotIndex: number } | null>(null);
+  const [createDialog, setCreateDialog] = useState<{
     roomId: number;
-    startTime: string;
-    endTime: string;
-  } | null>(null);
-  const [bookingTitle, setBookingTitle] = useState("");
-  
+    start: Date;
+    end: Date;
+    title: string;
+    pending: boolean;
+  }>({ roomId: 0, start: new Date(), end: new Date(), title: "", pending: false });
+  const [detailsBooking, setDetailsBooking] = useState<NormalisedBooking | null>(null);
+
   const VISIBLE_COLUMNS = 5;
-  const timeSlots = generateTimeSlots();
   const SLOT_HEIGHT_PX = 60; // fixed height for each 30-min slot
 
   // Fetch rooms
@@ -269,45 +280,6 @@ const BookingRoomPage = (): JSX.Element => {
     return () => window.removeEventListener("resize", update);
   }, []);
 
-  useEffect(() => {
-    setActiveRoomIndex((index) => {
-      const maxIndex = Math.max(filteredRooms.length - 1, 0);
-      return Math.min(index, maxIndex);
-    });
-  }, [filteredRooms.length]);
-
-  const displayedRooms = useMemo(() => {
-    if (!isMobile) {
-      return filteredRooms;
-    }
-    const startIndex = Math.min(activeRoomIndex, Math.max(filteredRooms.length - 1, 0));
-    return filteredRooms.slice(startIndex, startIndex + 1);
-  }, [activeRoomIndex, filteredRooms, isMobile]);
-
-  const focusCapable = displayedRooms.length > 0 && slotTimes.length > 0;
-
-  const ensureFocusPoint = useCallback(() => {
-    if (!focusCapable) {
-      setFocusPoint(null);
-      return;
-    }
-
-    setFocusPoint((current) => {
-      if (!current) {
-        return { roomIndex: 0, slotIndex: 0 };
-      }
-      const maxRoomIndex = displayedRooms.length - 1;
-      const maxSlotIndex = slotTimes.length - 1;
-      return {
-        roomIndex: Math.min(current.roomIndex, maxRoomIndex),
-        slotIndex: Math.min(current.slotIndex, maxSlotIndex),
-      };
-    });
-  }, [displayedRooms.length, focusCapable]);
-
-  useEffect(() => {
-    ensureFocusPoint();
-  }, [ensureFocusPoint]);
 
   useEffect(() => {
     let cancelled = false;
@@ -422,7 +394,7 @@ const BookingRoomPage = (): JSX.Element => {
     };
   }, [selectedDate]);
 
-  function generateTimeSlots() {
+  const timeSlots = useMemo(() => {
     const slots: string[] = [];
     for (let h = 8; h <= 20; h++) {
       for (let m = 0; m < 60; m += 30) {
@@ -430,20 +402,47 @@ const BookingRoomPage = (): JSX.Element => {
         slots.push(time);
       }
     }
+    return slots;
   }, []);
 
+  const filteredRooms = useMemo(() => rooms.filter(r => r.isActive), [rooms]);
+
   const endIndex = Math.min(startIndex + VISIBLE_COLUMNS, rooms.length);
-  const displayedRooms = rooms.slice(startIndex, endIndex);
+  const displayedRooms = useMemo(() => {
+    if (!isMobile) {
+      return rooms.slice(startIndex, endIndex);
+    }
+    const idx = Math.min(activeRoomIndex, Math.max(rooms.length - 1, 0));
+    return rooms.slice(idx, idx + 1);
+  }, [isMobile, activeRoomIndex, rooms, startIndex, endIndex]);
+
   const placeholderCount = Math.max(0, VISIBLE_COLUMNS - displayedRooms.length);
+
+  const getRoomImagePath = (roomId: number): string => {
+    return `/Room/${roomId}.jpg`;
+  };
+
+  const createDialogRoom = useMemo(() => {
+    return rooms.find(r => r.id === createDialog.roomId);
+  }, [rooms, createDialog.roomId]);
+
+  const closeCreateDialog = useCallback(() => {
+    setCreateDialog({ roomId: 0, start: new Date(), end: new Date(), title: "", pending: false });
+  }, []);
+
+  const stepRoom = useCallback((delta: number) => {
+    setActiveRoomIndex(prev => {
+      const next = prev + delta;
+      return Math.max(0, Math.min(next, filteredRooms.length - 1));
+    });
+  }, [filteredRooms.length]);
+
+
   
   const canPrev = startIndex > 0;
   const canNext = rooms.length > 0 && startIndex < Math.max(0, rooms.length - VISIBLE_COLUMNS);
   const handlePrev = () => canPrev && setStartIndex((i) => i - 1);
   const handleNext = () => canNext && setStartIndex((i) => i + 1);
-
-  useEffect(() => {
-    applyFocusRing();
-  }, [applyFocusRing, bookings, displayedRooms, selectedDate]);
 
   const isSlotBooked = (roomId: number, time: string): Booking | undefined => {
     return bookings.find(
@@ -455,112 +454,60 @@ const BookingRoomPage = (): JSX.Element => {
     );
   };
 
-      if (overlaps) {
-        setDetailsBooking(overlaps);
-        return;
-      }
-
-      setCreateDialog({
-        roomId: numericRoomId,
-        start: selection.start,
-        end: selection.end,
-        title: "",
-        pending: false,
-      });
-    },
-    [findBookingForSlot, selectedDate],
-  );
-
-  const handleEventClick = useCallback((arg: EventClickArg) => {
-    const booking = bookings.find((item) => item.id === arg.event.id);
+  const handleSlotClick = useCallback((roomId: number, time: string) => {
+    const booking = isSlotBooked(roomId, time);
     if (booking) {
-      // For server-sourced occupancy, do not allow deletion
       if (booking.readOnly) {
         toast.error("This time is already booked.");
         return;
       }
-      // Allow removing only locally-created placeholder bookings
-      setBookings(bookings.filter((b) => b.id !== booking.id));
+      // Allow removing locally-created bookings
+      setBookings(prev => prev.filter((b) => b.id !== booking.id));
       toast.success("Booking removed");
     } else {
       // Create new booking
-      const endTime = calculateEndTime(time);
-      setSelectedSlot({ roomId, startTime: time, endTime });
-      setIsDialogOpen(true);
+      const [hours, minutes] = time.split(":").map(Number);
+      const endHour = hours + 1;
+      const endTime = `${String(endHour).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+
+      const start = combineDateTime(selectedDate, time);
+      const end = combineDateTime(selectedDate, endTime);
+
+      setCreateDialog({
+        roomId,
+        start,
+        end,
+        title: "",
+        pending: false,
+      });
     }
-  }, [bookings]);
+  }, [bookings, selectedDate]);
 
-  const calculateEndTime = (startTime: string): string => {
-    const [hours] = startTime.split(":").map(Number);
-    return `${String(hours + 1).padStart(2, "0")}:00`;
-  };
 
-    if (!BOOKINGS_ENDPOINT) {
-      const localBooking: NormalisedBooking = {
-        id: `temp-${Date.now()}`,
-        roomId: createDialog.roomId,
-        title: createDialog.title.trim(),
-        start: createDialog.start,
-        end: createDialog.end,
-        status: "booked",
-        meta: { rawStatus: "booked", createdBy: null, description: null },
-      };
-      setBookings((current) =>
-        [...current, localBooking].sort((a, b) => a.start.getTime() - b.start.getTime()),
-      );
-      toast.success("Booking created");
-      closeCreateDialog();
+  const handleCreateBooking = useCallback(async () => {
+    if (!createDialog.title.trim()) {
+      toast.error("Please enter a title");
+      return;
+    }
+
+    if (!createDialog.roomId) {
+      toast.error("Please select a room");
       return;
     }
 
     const newBooking: Booking = {
-      id: Date.now().toString(),
-      roomId: selectedSlot.roomId,
-      title: bookingTitle,
-      startTime: selectedSlot.startTime,
-      endTime: selectedSlot.endTime,
+      id: `temp-${Date.now()}`,
+      roomId: createDialog.roomId,
+      title: createDialog.title.trim(),
+      startTime: format(createDialog.start, "HH:mm"),
+      endTime: format(createDialog.end, "HH:mm"),
       date: toYMDLocal(selectedDate),
     };
 
-    try {
-      setCreateDialog((state) => ({ ...state, pending: true }));
-      const response = await fetch(BOOKINGS_ENDPOINT, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
-      if (!response.ok) {
-        throw new Error(`Request failed (${response.status})`);
-      }
-      const json = await response.json();
-      const created =
-        normaliseBookings(
-          Array.isArray(json?.data) ? json?.data : [json?.data ?? json],
-          selectedDate,
-          rooms,
-        )[0] ?? {
-          id: `temp-${Date.now()}`,
-          roomId: createDialog.roomId,
-          title: createDialog.title.trim(),
-          start: createDialog.start,
-          end: createDialog.end,
-          status: "booked" as const,
-          meta: { rawStatus: "booked", createdBy: null, description: null },
-        };
-
-      setBookings((current) =>
-        [...current, created].sort((a, b) => a.start.getTime() - b.start.getTime()),
-      );
-      toast.success("Booking created");
-      closeCreateDialog();
-    } catch (error) {
-      console.error("Booking creation failed", error);
-      toast.error("Could not create booking");
-      setCreateDialog((state) => ({ ...state, pending: false }));
-    }
-  }, [closeCreateDialog, createDialog, rooms, selectedDate]);
+    setBookings((current) => [...current, newBooking]);
+    toast.success("Booking created");
+    closeCreateDialog();
+  }, [closeCreateDialog, createDialog, selectedDate]);
 
   const handleDeleteBooking = useCallback(async (booking: NormalisedBooking) => {
     if (!BOOKINGS_ENDPOINT) {
@@ -589,66 +536,6 @@ const BookingRoomPage = (): JSX.Element => {
     }
   }, []);
 
-  const renderResourceLane = useCallback((arg: ResourceLaneContentArg) => {
-    return (
-      <div className="flex h-full w-full items-center justify-center bg-background/30 text-xs font-medium text-muted-foreground">
-        {arg.resource.title}
-      </div>
-    );
-  }, []);
-
-  const renderEventContent = useCallback(
-    (arg: EventContentArg) => {
-      const status = arg.event.extendedProps.status as BookingStatus;
-      const timeRange = arg.event.extendedProps.timeRange as string;
-      const meta = (arg.event.extendedProps.meta ?? {}) as NormalisedBooking["meta"];
-      const isUnavailable = status === "unavailable";
-      return (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              type="button"
-              className={cn(
-                "group/book-card flex w-full flex-col gap-1 rounded-md border px-3 py-2 text-left text-sm font-medium shadow-sm transition-[transform,box-shadow] focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                isUnavailable
-                  ? "book-room-event-unavailable"
-                  : "book-room-event-booked",
-              )}
-            >
-              <span className="flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-foreground">
-                {status === "unavailable" ? "Unavailable" : "Booked"}
-                <Clock className="size-3.5 text-muted-foreground" />
-              </span>
-              <span className="truncate text-base font-semibold text-foreground">
-                {arg.event.title}
-              </span>
-              <span className="text-xs text-muted-foreground">{timeRange}</span>
-              {meta.createdBy && (
-                <span className="text-[11px] text-muted-foreground/80">
-                  Created by {meta.createdBy}
-                </span>
-              )}
-            </button>
-          </TooltipTrigger>
-          <TooltipContent align="start" side="top">
-            <div className="flex min-w-[180px] flex-col gap-1">
-              <span className="font-semibold text-foreground">{arg.event.title}</span>
-              <span className="text-xs">{timeRange}</span>
-              {meta.description && (
-                <span className="text-xs text-muted-foreground">
-                  {meta.description}
-                </span>
-              )}
-              <span className="text-xs uppercase tracking-wide text-muted-foreground">
-                {status === "unavailable" ? "Unavailable" : "Booked"}
-              </span>
-            </div>
-          </TooltipContent>
-        </Tooltip>
-      );
-    },
-    [],
-  );
 
   if (!featureFlags.enableRoomBooking) {
     return (
@@ -845,10 +732,6 @@ const BookingRoomPage = (): JSX.Element => {
                     {slot}
                   </span>
                 </div>
-              </div>
-            </article>
-          ))}
-        </div>
 
                 {/* Room slots */}
                 {displayedRooms.map((room) => {
@@ -889,7 +772,7 @@ const BookingRoomPage = (): JSX.Element => {
                     </div>
                   );
                 })}
-                
+
                 {/* Placeholder slots */}
                 {Array.from({ length: placeholderCount }).map((_, idx) => (
                   <div
@@ -908,7 +791,7 @@ const BookingRoomPage = (): JSX.Element => {
             </div>
           )}
         </div>
-      </header>
+      </div>
 
       {isMobile && filteredRooms.length > 1 && (
         <div className="flex items-center justify-between gap-3 rounded-xl border bg-card px-3 py-2 shadow-sm">
@@ -945,70 +828,6 @@ const BookingRoomPage = (): JSX.Element => {
         </div>
       )}
 
-      <div
-        ref={calendarContainerRef}
-        className="book-room-calendar focus-visible:outline-none"
-        tabIndex={0}
-        onKeyDown={handleKeyboard}
-        role="application"
-        aria-label="Room booking calendar"
-      >
-        <FullCalendar
-          ref={handleCalendarRef}
-          height="auto"
-          plugins={[timeGridPlugin, resourceTimeGridPlugin, interactionPlugin]}
-          schedulerLicenseKey={SCHEDULER_LICENSE}
-          initialView="resourceTimeGridDay"
-          initialDate={selectedDate}
-          slotDuration={{ hours: 0, minutes: SLOT_MINUTES }}
-          slotLabelInterval={{ hours: 1 }}
-          slotMinTime={`${DAY_START_HOUR.toString().padStart(2, "0")}:00:00`}
-          slotMaxTime={`${DAY_END_HOUR.toString().padStart(2, "0")}:00:00`}
-          slotLabelFormat={{
-            hour: "numeric",
-            minute: "2-digit",
-            hour12: true,
-          }}
-          nowIndicator={isToday(selectedDate)}
-          resources={resources}
-          events={events}
-          eventContent={renderEventContent}
-          resourceLaneContent={renderResourceLane}
-          resourceAreaWidth={0}
-          headerToolbar={false}
-          dayHeaders={false}
-          selectable
-          selectMirror
-          select={handleSelect}
-          eventClick={handleEventClick}
-          selectOverlap={false}
-          longPressDelay={0}
-          selectAllow={(selection) => {
-            const isSame =
-              selection.start.getTime() >= combineDateTime(selectedDate, slotTimes[0]).getTime() &&
-              selection.end.getTime() <= combineDateTime(selectedDate, slotTimes[slotTimes.length - 1])
-                .getTime() + SLOT_MINUTES * 60 * 1000;
-            const duration = differenceInMinutes(selection.end, selection.start);
-            return isSame && duration % SLOT_MINUTES === 0 && duration > 0;
-          }}
-          eventOverlap
-          eventMaxStack={3}
-          scrollTime={`${Math.min(DAY_START_HOUR + 1, DAY_END_HOUR - 1)
-            .toString()
-            .padStart(2, "0")}:00:00`}
-          loading={(isLoading) => {
-            setBookingsLoading(isLoading);
-          }}
-        />
-      </div>
-
-      {bookingsLoading && (
-        <div className="pointer-events-none fixed inset-0 flex items-center justify-center bg-background/50 backdrop-blur-sm">
-          <div className="rounded-md border bg-card px-4 py-2 text-sm font-medium text-muted-foreground shadow">
-            Updating…
-          </div>
-        </div>
-      )}
 
       <Dialog
         open={Boolean(createDialog.roomId)}
@@ -1200,4 +1019,4 @@ const BookingRoomPage = (): JSX.Element => {
   );
 };
 
-export default BookingRoom;
+export default BookingRoomPage;
