@@ -14,7 +14,7 @@ services:
       NODE_ENV: production
       PORT: 3030
       NEXT_TELEMETRY_DISABLED: "1"
-      DATABASE_URL: "mysql://STG:P@ssw0rd@172.31.150.22:3306/booking_interpreter"
+   
       
       NEXT_PUBLIC_ENABLE_ROOM_BOOKING: "0"
       NEXT_PUBLIC_ENABLE_JUPM_TO_CALENDAR: "1"
