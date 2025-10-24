@@ -14,10 +14,17 @@ services:
       NODE_ENV: production
       PORT: 3030
       NEXT_TELEMETRY_DISABLED: "1"
-      DATABASE_URL: "mysql://appuser:apppass@db:3306/booking_interpreter"
+   
+      
+      NEXT_PUBLIC_ENABLE_ROOM_BOOKING: "0"
+      NEXT_PUBLIC_ENABLE_JUPM_TO_CALENDAR: "1"
+      NEXT_PUBLIC_ENABLE_FORWARD_USER: "0"
+      NEXT_PUBLIC_ENABLE_FORWARD_ADMIN: "0"
+
       ENABLE_ROOM_BOOKING: "0"
       ENABLE_FORWARD_USER: "0"
       ENABLE_FORWARD_ADMIN: "0"
+
       SMTP_HOST: "192.168.212.220"
       SMTP_PORT: "25"
       SMTP_SECURE: "false"
@@ -27,6 +34,10 @@ services:
       SMTP_FROM_NAME: "DEDE_SYSTEM"
       EMAIL_DOMAIN: "dit.daikin.co.jp"
       ORGANIZATION_NAME: "Daikin"
+
+      ENABLE_MS_TEAMS: 1
+
+
       
     ports:
       - "3030:3030"

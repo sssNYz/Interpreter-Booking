@@ -1,7 +1,7 @@
 import nodemailer from 'nodemailer'
 import type { Prisma } from '@prisma/client'
 import prisma from '@/prisma/prisma'
-import { getFormattedTemplateForBooking, buildTemplateVariablesFromBooking, getFormattedCancellationTemplateForBooking } from './templates'
+import { getFormattedTemplateForBooking, buildTemplateVariablesFromBooking, getFormattedCancellationTemplateForBooking, buildCancellationTemplateVariablesFromBooking, getTemplateById, formatTemplate } from './templates'
 import { generateCalendarInvite, createCalendarEvent, createCancelledCalendarEvent } from './calendar'
 import { createTeamsMeeting } from '@/lib/meetings/teams'
 import { getAdminEmailsForBooking } from './admin-emails'
@@ -144,22 +144,33 @@ export async function sendApprovalEmailForBooking(bookingId: number): Promise<vo
   // Add admin emails to CC
   const adminEmails = await getAdminEmailsForBooking(bookingId)
   if (adminEmails.length > 0) {
-    console.log(`[EMAIL] Adding ${adminEmails.length} admin emails to CC:`, adminEmails)
+    console.log(`[EMAIL] Found ${adminEmails.length} admin emails:`, adminEmails)
+    console.log(`[EMAIL] Current TO recipients:`, recipients)
+    console.log(`[EMAIL] Current CC recipients:`, ccRecipients)
+
     const ccSet = new Set(ccRecipients.map(e => e.toLowerCase()))
     const recipientsLower = new Set(recipients.map(e => e.toLowerCase()))
-    
+
     // Add admins to CC only if they're not already in To or CC
+    let addedCount = 0
+    let skippedCount = 0
     adminEmails.forEach(adminEmail => {
       const lower = adminEmail.toLowerCase()
       if (!recipientsLower.has(lower) && !ccSet.has(lower)) {
         ccRecipients.push(adminEmail)
         ccSet.add(lower)
+        addedCount++
+        console.log(`[EMAIL] ✓ Added admin to CC: ${adminEmail}`)
+      } else {
+        skippedCount++
+        console.log(`[EMAIL] ✗ Skipped admin (already in TO or CC): ${adminEmail}`)
       }
     })
+    console.log(`[EMAIL] Admin deduplication: ${addedCount} added, ${skippedCount} skipped`)
   }
 
-  console.log(`[EMAIL] Sending approval email for booking ${bookingId} to ${recipients.length} recipients:`, recipients)
-  console.log(`[EMAIL] CC: ${ccRecipients.length} recipients:`, ccRecipients)
+  console.log(`[EMAIL] Final TO recipients (${recipients.length}):`, recipients)
+  console.log(`[EMAIL] Final CC recipients (${ccRecipients.length}):`, ccRecipients)
   const { subject, body, isHtml } = await getFormattedTemplateForBooking(bookingId)
   const vars = await buildTemplateVariablesFromBooking(bookingId)
   const { name: organizerName, email: organizerEmail } = getOrganizerInfo()
@@ -263,6 +274,194 @@ export async function sendApprovalEmailForBooking(bookingId: number): Promise<vo
     transporter.close()
   }
 }
+export async function sendInterpreterChangeCancellation(
+  bookingId: number,
+  oldInterpreterEmail: string,
+  oldInterpreterName: string,
+  reason?: string
+): Promise<void> {
+  console.log(`[EMAIL] sendInterpreterChangeCancellation called for booking ${bookingId}`)
+
+  const booking = await prisma.bookingPlan.findUnique({
+    where: { bookingId },
+    include: {
+      inviteEmails: true,
+      employee: true,
+      interpreterEmployee: true,
+      selectedInterpreter: true
+    }
+  })
+
+  if (!booking || !booking.timeStart || !booking.timeEnd) {
+    console.log(`[EMAIL] Booking ${bookingId} not found or missing time info - skipping cancellation`)
+    return
+  }
+
+  console.log(`[EMAIL] Sending interpreter change cancellation to ALL original recipients (to clear their calendars)`)
+
+  // Build all recipients (creator, attendees, chairman, old interpreter)
+  const recipients = new Set<string>()
+  const ccRecipients = new Set<string>()
+
+  // 1. Add the meeting owner/booker (person who created the booking)
+  const ownerEmail = booking.employee?.email?.trim()
+  if (ownerEmail) {
+    recipients.add(ownerEmail)
+    console.log(`[EMAIL] Added owner to recipients: ${ownerEmail}`)
+  }
+
+  // 2. Add the OLD interpreter (the one being replaced) - use the passed email
+  if (oldInterpreterEmail) {
+    ccRecipients.add(oldInterpreterEmail)
+    console.log(`[EMAIL] Added old interpreter to CC: ${oldInterpreterEmail}`)
+  }
+
+  // 3. Add chairman email (for DR meetings)
+  const chairmanEmail = booking.chairmanEmail?.trim()
+  if (chairmanEmail) {
+    recipients.add(chairmanEmail)
+    console.log(`[EMAIL] Added chairman to recipients: ${chairmanEmail}`)
+  }
+
+  // 4. Add all invited attendees from invite_email_list
+  booking.inviteEmails?.forEach(invite => {
+    const email = invite.email?.trim()
+    if (email) {
+      recipients.add(email)
+      console.log(`[EMAIL] Added attendee to recipients: ${email}`)
+    }
+  })
+
+  // 5. Add admin emails to CC
+  const adminEmails = await getAdminEmailsForBooking(bookingId)
+  if (adminEmails.length > 0) {
+    console.log(`[EMAIL] Found ${adminEmails.length} admin emails`)
+    const recipientsLower = new Set(Array.from(recipients).map(e => e.toLowerCase()))
+    const ccLower = new Set(Array.from(ccRecipients).map(e => e.toLowerCase()))
+
+    adminEmails.forEach(adminEmail => {
+      const lower = adminEmail.toLowerCase()
+      if (!recipientsLower.has(lower) && !ccLower.has(lower)) {
+        ccRecipients.add(adminEmail)
+        console.log(`[EMAIL] Added admin to CC: ${adminEmail}`)
+      } else {
+        console.log(`[EMAIL] Skipped admin (already in recipients): ${adminEmail}`)
+      }
+    })
+  }
+
+  // Deduplicate: remove any CC recipients that are already in To recipients (case-insensitive)
+  const recipientsLower = new Set(Array.from(recipients).map(e => e.toLowerCase()))
+  const deduplicatedCC = Array.from(ccRecipients).filter(cc => !recipientsLower.has(cc.toLowerCase()))
+
+  const recipientsList = Array.from(recipients)
+  const ccList = deduplicatedCC
+
+  console.log(`[EMAIL] Final cancellation recipients - TO: ${recipientsList.length}, CC: ${ccList.length}`)
+
+  // Build template variables for cancellation (includes reasonSection)
+  const vars = await buildCancellationTemplateVariablesFromBooking(bookingId, reason)
+
+  console.log(`[EMAIL] Original interpreter section from DB:`, vars.interpreterSection?.substring(0, 200))
+  console.log(`[EMAIL] Reason section:`, reason ? 'Present' : 'Not provided')
+
+  // Override interpreter section to show the OLD interpreter (the one being cancelled)
+  const interpreterSection = oldInterpreterName ? `
+                        <tr>
+                            <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                                🗣️ Interpreter:
+                            </td>
+                            <td style="padding: 10px 0; color: #374151;">
+                                ${oldInterpreterName}
+                            </td>
+                        </tr>` : ''
+
+  vars.interpreterSection = interpreterSection
+
+  console.log(`[EMAIL] Overridden interpreter section with old interpreter:`, interpreterSection.substring(0, 200))
+  console.log(`[EMAIL] Old interpreter name being used:`, oldInterpreterName)
+
+  // Get the cancellation template and format it with our modified variables
+  const template = getTemplateById('unified-cancellation')
+  if (!template) throw new Error('Cancellation template not found')
+
+  const { subject, body, isHtml } = formatTemplate(template, vars)
+
+  console.log(`[EMAIL] Final email body contains old interpreter name?`, body.includes(oldInterpreterName))
+  const { name: organizerName, email: organizerEmail } = getOrganizerInfo()
+
+  // Send cancellation to ALL original recipients to clear their calendars
+  const allAttendees = [...recipientsList, ...ccList]
+  const baseEvent = createCalendarEvent({
+    uid: getCalendarUid(booking.bookingId),
+    summary: vars.topic || booking.meetingType,
+    start: booking.timeStart,
+    end: booking.timeEnd,
+    timezone: 'Asia/Bangkok',
+    location: booking.meetingRoom || '',
+    organizerName,
+    organizerEmail,
+    attendeeEmails: allAttendees, // All original recipients
+    method: 'REQUEST',
+    sequence: 0
+  })
+  const cancelledEvent = createCancelledCalendarEvent(baseEvent)
+  const calendarInvite = generateCalendarInvite(cancelledEvent)
+  const textBody = (isHtml ? toPlainText(body) : body).trim()
+
+  const transporter = createTransporter()
+  try {
+    console.log(`[EMAIL] Verifying SMTP connection for interpreter change cancellation...`)
+    await transporter.verify()
+    console.log(`[EMAIL] SMTP connection verified successfully`)
+
+    const mailOptions: nodemailer.SendMailOptions = {
+      from: `${organizerName} <${organizerEmail}>`,
+      to: recipientsList.join(', '), // All original TO recipients
+      cc: ccList.length > 0 ? ccList.join(', ') : undefined, // All original CC recipients
+      subject,
+      text: textBody,
+      html: isHtml ? body : undefined,
+      alternatives: [
+        { contentType: calendarInvite.contentType, content: calendarInvite.content }
+      ],
+      attachments: [
+        {
+          filename: calendarInvite.filename || 'cancel.ics',
+          content: calendarInvite.content,
+          contentType: calendarInvite.contentType,
+          contentDisposition: 'attachment',
+          encoding: 'utf8'
+        }
+      ],
+      headers: {
+        'X-MS-OLK-FORCEINSPECTOROPEN': 'TRUE',
+        'Content-Class': 'urn:content-classes:calendarmessage',
+        'X-MICROSOFT-CDO-BUSYSTATUS': 'FREE',
+        'X-MICROSOFT-CDO-IMPORTANCE': '1',
+        'X-MICROSOFT-DISALLOW-COUNTER': 'FALSE',
+        'X-MS-HAS-ATTACH': 'TRUE',
+        'X-MS-OLK-CONFTYPE': '0',
+        'X-MS-OLK-SENDER': organizerEmail,
+        'X-MS-OLK-AUTOFORWARD': 'FALSE',
+        'X-MS-OLK-AUTOREPLY': 'FALSE',
+        'MIME-Version': '1.0',
+        'X-Booking-Id': String(bookingId),
+        'X-Meeting-Type': String(booking.meetingType),
+        'X-Organizer': vars.organizerName || '',
+        'X-Applicable-Model': booking.applicableModel || ''
+      }
+    }
+    await transporter.sendMail(mailOptions)
+    console.log(`[EMAIL] Interpreter change cancellation sent successfully to ${recipientsList.length} TO recipients and ${ccList.length} CC recipients for booking ${bookingId}`)
+  } catch (error) {
+    console.error(`[EMAIL] CRITICAL ERROR sending interpreter change cancellation for booking ${bookingId}:`, error)
+    throw error
+  } finally {
+    transporter.close()
+  }
+}
+
 export async function sendCancellationEmailForBooking(
   bookingId: number,
   reason?: string,
@@ -284,22 +483,33 @@ export async function sendCancellationEmailForBooking(
   // Add admin emails to CC
   const adminEmails = await getAdminEmailsForBooking(bookingId)
   if (adminEmails.length > 0) {
-    console.log(`[EMAIL] Adding ${adminEmails.length} admin emails to CC:`, adminEmails)
+    console.log(`[EMAIL] Found ${adminEmails.length} admin emails:`, adminEmails)
+    console.log(`[EMAIL] Current TO recipients:`, recipients)
+    console.log(`[EMAIL] Current CC recipients:`, ccRecipients)
+
     const ccSet = new Set(ccRecipients.map(e => e.toLowerCase()))
     const recipientsLower = new Set(recipients.map(e => e.toLowerCase()))
-    
+
     // Add admins to CC only if they're not already in To or CC
+    let addedCount = 0
+    let skippedCount = 0
     adminEmails.forEach(adminEmail => {
       const lower = adminEmail.toLowerCase()
       if (!recipientsLower.has(lower) && !ccSet.has(lower)) {
         ccRecipients.push(adminEmail)
         ccSet.add(lower)
+        addedCount++
+        console.log(`[EMAIL] ✓ Added admin to CC: ${adminEmail}`)
+      } else {
+        skippedCount++
+        console.log(`[EMAIL] ✗ Skipped admin (already in TO or CC): ${adminEmail}`)
       }
     })
+    console.log(`[EMAIL] Admin deduplication: ${addedCount} added, ${skippedCount} skipped`)
   }
 
-  console.log(`[EMAIL] Sending cancellation email for booking ${bookingId} to ${recipients.length} recipients:`, recipients)
-  console.log(`[EMAIL] CC: ${ccRecipients.length} recipients:`, ccRecipients)
+  console.log(`[EMAIL] Final TO recipients (${recipients.length}):`, recipients)
+  console.log(`[EMAIL] Final CC recipients (${ccRecipients.length}):`, ccRecipients)
   const { subject, body, isHtml } = await getFormattedCancellationTemplateForBooking(bookingId, reason)
   const vars = await buildTemplateVariablesFromBooking(bookingId)
   const { name: organizerName, email: organizerEmail } = getOrganizerInfo()

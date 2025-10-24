@@ -1,9 +1,0 @@
-LOGIN_API_URL = https://bigw.daikinthai.com:8443/api/ditl/auth/sign-in 
-
-DATABASE_URL="mysql://root:P@ssw0rd@192.168.10.152:3306/booking-interpreter"
-#DATABASE_URL="mysql://STG:P@ssw0rd@172.31.150.22:3306/booking_interpreter"
-AUTH_JWT_SECRET= e4c5d3a9f7b8123a4e98b7f0d1c5a2fcb0e3a6c5b8f9a0d7e2a3c1d4e5f6b7a8
-
-APPLICATION_ID=618f50d6-e699-409c-9a24-d291731b80e0
-TENANT_ID=a6ac163f-c071-46a6-b6e2-ec119b6531a1
-SECRET_ID=618f50d6-e699-409c-9a24-d291731b80e0
