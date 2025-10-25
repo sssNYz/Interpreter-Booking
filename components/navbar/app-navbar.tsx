@@ -7,7 +7,6 @@ import { motion } from "framer-motion";
 import {
   Calendar,
   CheckCircle,
-  LayoutDashboard,
   LogOut,
   BarChart2,
   Inbox,
@@ -162,7 +161,11 @@ export function AppNavbar() {
         <div className="flex h-16 items-center justify-between">
           {/* Logo */}
           <div className="flex items-center gap-2">
-            <LayoutDashboard className="h-6 w-6" />
+            <img 
+              src="/logo.png" 
+              alt="Interpreter Booking Logo" 
+              className="h-8 w-auto"
+            />
             <span className="text-lg font-semibold">Interpreter Booking</span>
           </div>
 
