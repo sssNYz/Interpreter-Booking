@@ -94,6 +94,7 @@ export function BookingForm({
   >(null);
   const [meetingDetail, setMeetingDetail] = useState<string>("");
   const [applicableModel, setApplicableModel] = useState<string>("");
+  const [meetingLink, setMeetingLink] = useState<string>("");
   const [inviteEmails, setInviteEmails] = useState<string[]>([]);
   const [newEmail, setNewEmail] = useState<string>("");
 
@@ -229,6 +230,7 @@ export function BookingForm({
     drType: "drType",
     otherType: "otherType",
     ownerTel: "ownerTel",
+    meetingLink: "meetingLink",
     languageCodes: "languageCodes",
     startTime: "meeting-time",
     endTime: "meeting-time",
@@ -245,6 +247,7 @@ export function BookingForm({
     drType: "DR type",
     otherType: "Other type",
     ownerTel: "Phone",
+    meetingLink: "Meeting link",
     languageCodes: "Language",
     startTime: "Start time",
     endTime: "End time",
@@ -408,6 +411,7 @@ export function BookingForm({
       setMeetingRoom("");
       setMeetingDetail("");
       setApplicableModel("");
+      setMeetingLink("");
       setMeetingType(null);
       setDrType(null);
       setOtherType("");
@@ -1168,6 +1172,11 @@ export function BookingForm({
         "Interpreter selection is required for President meetings";
     }
 
+    // Meeting link (optional) basic validation
+    if (meetingLink && !/^https?:\/\//i.test(meetingLink.trim())) {
+      newErrors.meetingLink = "Link must start with http:// or https://";
+    }
+
     if (!startTime) newErrors.startTime = "Start time is required";
     if (!endTime) newErrors.endTime = "End time is required";
     if (startTime && !isValidStartTime(startTime))
@@ -1225,6 +1234,7 @@ export function BookingForm({
         meetingType: meetingType as MeetingType,
         meetingDetail: meetingDetail.trim() || undefined,
         applicableModel: applicableModel.trim() || undefined,
+        meetingLink: meetingLink.trim() ? meetingLink.trim() : null,
         timeStart: startDateTime,
         timeEnd: endDateTime,
         bookingStatus: "waiting",
@@ -1997,6 +2007,23 @@ export function BookingForm({
                   </div>
                 }
               />
+
+              {/* Meeting Link (optional) */}
+              <div className="space-y-2">
+                <label htmlFor="meetingLink" className="text-sm font-medium text-foreground">
+                  Meeting Link (optional)
+                </label>
+                <Input
+                  id="meetingLink"
+                  type="url"
+                  placeholder="Paste Teams/Zoom/Meet link"
+                  value={meetingLink}
+                  onChange={(e) => setMeetingLink(e.target.value)}
+                />
+                {errors.meetingLink && (
+                  <p className="text-sm text-destructive">{errors.meetingLink}</p>
+                )}
+              </div>
             </fieldset>
 
             {/* NEW FIELDS FOR LANGUAGE AND INTERPRETER SELECTION */}
