@@ -40,6 +40,7 @@ model BookingPlan {
   languageCode               String?                @map("LANGUAGE_CODE") @db.VarChar(16)
   chairmanEmail              String?                @map("CHAIRMAN_EMAIL") @db.VarChar(255)
   selectedInterpreterEmpCode String?                @map("SELECTED_INTERPRETER_EMP_CODE") @db.VarChar(64)
+  meetingLink                String?                @map("MEETING_LINK") @db.VarChar(2048)
   autoAssignAt               DateTime?              @map("AUTO_ASSIGN_AT") @db.DateTime(0)
   autoAssignAttempts         Int                    @default(0) @map("AUTO_ASSIGN_ATTEMPTS")
   autoAssignLockedAt         DateTime?              @map("AUTO_ASSIGN_LOCKED_AT") @db.DateTime(0)

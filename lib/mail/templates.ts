@@ -95,6 +95,7 @@ export const SYSTEM_TEMPLATES: EmailTemplate[] = [
                                 {location}
                             </td>
                         </tr>
+                        {meetingLinkSection}
                         <tr>
                             <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
                                 📢 Organizer:
@@ -461,6 +462,8 @@ type BookingWithRelations = Prisma.BookingPlanGetPayload<{
     }
 }>
 
+type BookingWithRelationsPlus = BookingWithRelations & { meetingLink?: string | null }
+
 export async function buildTemplateVariablesFromBooking(
     bookingId: number,
     providedBooking?: BookingWithRelations
@@ -641,6 +644,19 @@ export async function buildTemplateVariablesFromBooking(
                             </td>
                         </tr>` : ''
 
+    // Meeting link section (optional)
+    const meetingLinkValue = (booking as BookingWithRelationsPlus).meetingLink
+    const meetingLinkSection = meetingLinkValue ? `
+                        <tr>
+                            <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                                🔗 Meeting Link:
+                            </td>
+                            <td style="padding: 10px 0; color: #374151; word-break: break-all;">
+                                <a href="${meetingLinkValue}" target="_blank" rel="noopener noreferrer">Join meeting</a>
+                                <div style="color:#6B7280; font-size:12px; margin-top:4px;">${meetingLinkValue}</div>
+                            </td>
+                        </tr>` : ''
+
     return {
         // Meeting type specific
         meetingType: meetingType,
@@ -667,8 +683,8 @@ export async function buildTemplateVariablesFromBooking(
         interpreterSection,
         deviceGroupSection,
         applicableModelSection,
-        applicableModelSection,
         departmentSection,
+        meetingLinkSection,
 
         // Legacy fields (for backward compatibility)
         organizer: organizerName,
