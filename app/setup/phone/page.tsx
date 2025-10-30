@@ -90,7 +90,8 @@ export default function SetupPhonePage() {
             <Input
               id="ext"
               inputMode="numeric"
-              pattern="\\d{4}"
+              pattern="[0-9]{4}"
+              title="Please enter exactly 4 digits"
               maxLength={4}
               placeholder="1234"
               value={ext}
@@ -110,5 +111,6 @@ export default function SetupPhonePage() {
     </div>
   );
 }
+
 
 
