@@ -46,6 +46,7 @@ export async function GET(req: NextRequest) {
       JOIN BOOKING_PLAN b
         ON b.MEETING_ROOM = r.NAME
       WHERE b.BOOKING_STATUS IN ('waiting', 'approve', 'complet')
+        AND r.NAME <> 'N/A'
         AND b.TIME_START < DATE_ADD(STR_TO_DATE(${date}, '%Y-%m-%d'), INTERVAL 1 DAY)
         AND b.TIME_END   > STR_TO_DATE(${date}, '%Y-%m-%d')
       ORDER BY r.NAME ASC, b.TIME_START ASC`;

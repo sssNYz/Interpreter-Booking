@@ -790,73 +790,79 @@ export async function POST(request: NextRequest) {
           }
 
           // 2) Same-room overlap: HARD BLOCK with detailed logging
-          const sameRoomCounts = await tx.$queryRaw<
-            Array<{ cnt: number | bigint }>
-          >`
-            SELECT COUNT(*) AS cnt
-            FROM BOOKING_PLAN
-            WHERE MEETING_ROOM = ${body.meetingRoom}
-            AND BOOKING_STATUS <> 'cancel'
-            AND (TIME_START < ${timeEnd} AND TIME_END > ${timeStart})
-          `;
-          const sameRoomCntVal = sameRoomCounts?.[0]?.cnt;
-          const sameRoomOverlap =
-            sameRoomCntVal != null ? Number(sameRoomCntVal) : 0;
-          if (sameRoomOverlap > 0) {
-            // Load conflict details for logs and response
-            const conflictRows = await tx.$queryRaw<
-              Array<{
-                bookingId: number | bigint;
-                timeStart: Date;
-                timeEnd: Date;
-                bookingStatus: string;
-              }>
+          const meetingRoomNorm = body.meetingRoom?.toString().trim();
+          const skipRoomConflict = (meetingRoomNorm || '').toUpperCase() === 'N/A';
+
+          if (!skipRoomConflict) {
+            const sameRoomCounts = await tx.$queryRaw<
+              Array<{ cnt: number | bigint }>
             >`
-              SELECT 
-                BOOKING_ID as bookingId,
-                TIME_START as timeStart,
-                TIME_END as timeEnd,
-                BOOKING_STATUS as bookingStatus
+              SELECT COUNT(*) AS cnt
               FROM BOOKING_PLAN
               WHERE MEETING_ROOM = ${body.meetingRoom}
-                AND BOOKING_STATUS <> 'cancel'
-                AND (TIME_START < ${timeEnd} AND TIME_END > ${timeStart})
-              ORDER BY TIME_START
+              AND BOOKING_STATUS <> 'cancel'
+              AND (TIME_START < ${timeEnd} AND TIME_END > ${timeStart})
             `;
+            const sameRoomCntVal = sameRoomCounts?.[0]?.cnt;
+            const sameRoomOverlap =
+              sameRoomCntVal != null ? Number(sameRoomCntVal) : 0;
+            if (sameRoomOverlap > 0) {
+              // Load conflict details for logs and response
+              const conflictRows = await tx.$queryRaw<
+                Array<{
+                  bookingId: number | bigint;
+                  timeStart: Date;
+                  timeEnd: Date;
+                  bookingStatus: string;
+                }>
+              >`
+                SELECT
+                  BOOKING_ID as bookingId,
+                  TIME_START as timeStart,
+                  TIME_END as timeEnd,
+                  BOOKING_STATUS as bookingStatus
+                FROM BOOKING_PLAN
+                WHERE MEETING_ROOM = ${body.meetingRoom}
+                  AND BOOKING_STATUS <> 'cancel'
+                  AND (TIME_START < ${timeEnd} AND TIME_END > ${timeStart})
+                ORDER BY TIME_START
+              `;
 
-            // Log clear details to help verify if it's a real conflict
-            console.log("ROOM_CONFLICT", {
-              meetingRoom: body.meetingRoom?.toString().trim(),
-              requested: { timeStart, timeEnd },
-              conflicts: conflictRows.map((r) => ({
-                bookingId: Number(r.bookingId),
-                timeStart: r.timeStart,
-                timeEnd: r.timeEnd,
-                bookingStatus: r.bookingStatus,
-              })),
-            });
+              // Log clear details to help verify if it's a real conflict
+              console.log("ROOM_CONFLICT", {
+                meetingRoom: meetingRoomNorm,
+                requested: { timeStart, timeEnd },
+                conflicts: conflictRows.map((r) => ({
+                  bookingId: Number(r.bookingId),
+                  timeStart: r.timeStart,
+                  timeEnd: r.timeEnd,
+                  bookingStatus: r.bookingStatus,
+                })),
+              });
 
-            return {
-              success: false as const,
-              status: 409,
-              body: {
-                success: false,
-                error: "Room conflict",
-                message: `Room '${body.meetingRoom?.toString().trim()}' is already booked during this time.`,
-                code: "ROOM_CONFLICT",
-                data: {
-                  meetingRoom: body.meetingRoom?.toString().trim(),
-                  overlapCount: sameRoomOverlap,
-                  conflicts: conflictRows.map((r) => ({
-                    bookingId: Number(r.bookingId),
-                    timeStart: r.timeStart,
-                    timeEnd: r.timeEnd,
-                    bookingStatus: r.bookingStatus,
-                  })),
+              return {
+                success: false as const,
+                status: 409,
+                body: {
+                  success: false,
+                  error: "Room conflict",
+                  message: `Room '${meetingRoomNorm}' is already booked during this time.`,
+                  code: "ROOM_CONFLICT",
+                  data: {
+                    meetingRoom: meetingRoomNorm,
+                    overlapCount: sameRoomOverlap,
+                    conflicts: conflictRows.map((r) => ({
+                      bookingId: Number(r.bookingId),
+                      timeStart: r.timeStart,
+                      timeEnd: r.timeEnd,
+                      bookingStatus: r.bookingStatus,
+                    })),
+                  },
                 },
-              },
-            };
+              };
+            }
           }
+          // if skipRoomConflict === true, this whole check is skipped
 
           // 2.5) Chairman overlap check for parent (DR only)
           if (body.meetingType === "DR" && normalizedChairmanEmail) {
@@ -1109,7 +1115,7 @@ export async function POST(request: NextRequest) {
                 if (cCount > 0) continue; // skip conflicting child occurrence
               }
               // same-room check for each child: ALWAYS skip conflicting child (no force bypass)
-              {
+              if (!skipRoomConflict) {
                 const sameRoomCountsChild = await tx.$queryRaw<
                   Array<{ cnt: number | bigint }>
                 >`
