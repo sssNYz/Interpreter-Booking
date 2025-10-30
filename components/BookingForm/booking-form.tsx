@@ -627,6 +627,21 @@ export function BookingForm({
 
   const getLocalDateString = (date: Date) => formatYmdFromDate(date);
 
+  const isSameLocalDate = (a: Date, b: Date) =>
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate();
+
+  const isPastNowForSlot = (t: string) => {
+    if (!dayObj?.fullDate) return false;
+    const localDate = getLocalDateString(dayObj.fullDate);
+    const isoLike = buildDateTimeString(localDate, t).replace(" ", "T");
+    const slotDate = new Date(isoLike);
+    const now = new Date();
+    if (!isSameLocalDate(dayObj.fullDate, now)) return false;
+    return slotDate <= now;
+  };
+
   // Phase 5: summary helpers
   const formatOrdinalDay = (n: number) => {
     const s = ["th", "st", "nd", "rd"];
@@ -883,6 +898,7 @@ export function BookingForm({
 
   // Occupancy-aware disabling
   const isStartDisabled = (t: string) => {
+    if (isPastNowForSlot(t)) return true;
     if (!dayOccupancy) return false;
     const idx = slotsTime.indexOf(t);
     return idx >= 0 && dayOccupancy[idx] >= maxLanes;
@@ -1186,6 +1202,12 @@ export function BookingForm({
       newErrors.startTime = "Invalid start time";
     if (startTime && endTime && !isValidTimeRange(startTime, endTime))
       newErrors.endTime = "End must be after start";
+
+    try {
+      if (startTime && dayObj?.fullDate && isPastNowForSlot(startTime)) {
+        newErrors.startTime = "Start time cannot be in the past";
+      }
+    } catch {}
 
     // If you want to keep UI silent, we won't show an inline error here.
 
