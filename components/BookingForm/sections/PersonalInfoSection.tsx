@@ -111,6 +111,8 @@ export function PersonalInfoSection({
             value={ownerTel} 
             maxLength={4}
             inputMode="numeric"
+            readOnly
+            className="bg-muted cursor-not-allowed"
             onChange={(e) => onTelChange(e.target.value.replace(/[^0-9]/g, "").slice(0, 4))}
             aria-describedby={errors.ownerTel ? "ownerTel-error" : undefined}
           />
