@@ -15,7 +15,7 @@ export default function ClientShell({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const publicPaths = useMemo(() => new Set<string>(["/login"]), []);
+  const publicPaths = useMemo(() => new Set<string>(["/login", "/setup/phone"]), []);
   const hideNavbar = pathname === "/login";
   const [ready, setReady] = useState<boolean>(publicPaths.has(pathname));
   const [expiresAt, setExpiresAt] = useState<number | null>(null);
@@ -73,7 +73,21 @@ export default function ClientShell({
       setReady(true);
       return;
     }
-    refreshSession();
+    (async () => {
+      await refreshSession();
+      try {
+        // Hard block if no phone set
+        const r = await fetch("/api/user/profile", { cache: "no-store" });
+        if (r.ok) {
+          const j = (await r.json()) as { ok: boolean; user?: { phone?: string | null } };
+          const phone = j?.user?.phone ?? null;
+          if (!phone) {
+            router.replace("/setup/phone");
+            return;
+          }
+        }
+      } catch {}
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
 
