@@ -10,11 +10,11 @@ import crypto from "node:crypto";
 
 //const REF_API_URL = process.env.LOGIN_API_URL || "https://bigw.daikinthai.com:8443/api/ditl/auth/sign-in ";
 // const REF_API_URL = "http://172.31.150.3/api/login";
-const REF_API_URL =  process.env.LOGIN_API_URL || "http://localhost:3030/api/mock-login";
+const REF_API_URL = process.env.LOGIN_API_URL || "http://localhost:3030/api/mock-login";
 
-  //process.env.REF_API_URL || "http://172.31.150.22:3030/api/mock-login";
-  //process.env.REF_API_URL || "http://192.168.1.184/api/login";
-  //process.env.REF_API_URL || "http://172.31.150.3/api/login";
+//process.env.REF_API_URL || "http://172.31.150.22:3030/api/mock-login";
+//process.env.REF_API_URL || "http://192.168.1.184/api/login";
+//process.env.REF_API_URL || "http://172.31.150.3/api/login";
 
 export async function POST(req: NextRequest) {
   let body: LoginRequest;
@@ -221,26 +221,26 @@ export async function POST(req: NextRequest) {
     console.log("[/api/login] attempting DB upsert for empCode", empCodeFromRef);
     try {
       await prisma.$executeRaw`
-                INSERT INTO EMPLOYEE (
-                    EMP_CODE, PREFIX_EN, FIRST_NAME_EN, LAST_NAME_EN,
-                    PREFIX_TH, FIRST_NAME_TH, LAST_NAME_TH,
-                    FNO, DEPT_PATH, POSITION_TITLE,
-                    EMAIL, TEL_EXT,
-                    IS_ACTIVE, LAST_LOGIN_AT, SYNCED_AT, created_at, updated_at
-                ) VALUES (
-                    ${empCodeFromRef}, ${prefixEn}, ${firstNameEn}, ${lastNameEn},
-                    ${prefixTh}, ${firstNameTh}, ${lastNameTh},
-                    ${fno}, ${deptPath}, ${positionTitle},
-                    ${email}, ${telExt},
-                    1, ${nowIso}, ${nowIso}, ${nowIso}, ${nowIso}
-                )
-                ON DUPLICATE KEY UPDATE
-                    PREFIX_EN=VALUES(PREFIX_EN), FIRST_NAME_EN=VALUES(FIRST_NAME_EN), LAST_NAME_EN=VALUES(LAST_NAME_EN),
-                    PREFIX_TH=VALUES(PREFIX_TH), FIRST_NAME_TH=VALUES(FIRST_NAME_TH), LAST_NAME_TH=VALUES(LAST_NAME_TH),
-                    FNO=VALUES(FNO), DEPT_PATH=VALUES(DEPT_PATH), POSITION_TITLE=VALUES(POSITION_TITLE),
-                    EMAIL=VALUES(EMAIL), TEL_EXT=VALUES(TEL_EXT),
-                    LAST_LOGIN_AT=VALUES(LAST_LOGIN_AT), SYNCED_AT=VALUES(SYNCED_AT), updated_at=${nowIso}
-            `;
+      INSERT INTO EMPLOYEE (
+          EMP_CODE, PREFIX_EN, FIRST_NAME_EN, LAST_NAME_EN,
+          PREFIX_TH, FIRST_NAME_TH, LAST_NAME_TH,
+          FNO, DEPT_PATH, POSITION_TITLE,
+          EMAIL, TEL_EXT,
+          IS_ACTIVE, LAST_LOGIN_AT, SYNCED_AT, created_at, updated_at
+      ) VALUES (
+          ${empCodeFromRef}, ${prefixEn}, ${firstNameEn}, ${lastNameEn},
+          ${prefixTh}, ${firstNameTh}, ${lastNameTh},
+          ${fno}, ${deptPath}, ${positionTitle},
+          ${email}, ${telExt},
+          1, ${nowIso}, ${nowIso}, ${nowIso}, ${nowIso}
+      )
+      ON DUPLICATE KEY UPDATE
+          PREFIX_EN=VALUES(PREFIX_EN), FIRST_NAME_EN=VALUES(FIRST_NAME_EN), LAST_NAME_EN=VALUES(LAST_NAME_EN),
+          PREFIX_TH=VALUES(PREFIX_TH), FIRST_NAME_TH=VALUES(FIRST_NAME_TH), LAST_NAME_TH=VALUES(LAST_NAME_TH),
+          FNO=VALUES(FNO), DEPT_PATH=VALUES(DEPT_PATH), POSITION_TITLE=VALUES(POSITION_TITLE),
+          EMAIL=VALUES(EMAIL), TEL_EXT = COALESCE(TEL_EXT, VALUES(TEL_EXT)),
+          LAST_LOGIN_AT=VALUES(LAST_LOGIN_AT), SYNCED_AT=VALUES(SYNCED_AT), updated_at=${nowIso}
+  `;
       console.log("[/api/login] DB upsert successful");
     } catch (err) {
       console.error("[/api/login] DB write failed", {

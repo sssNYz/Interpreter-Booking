@@ -50,7 +50,11 @@ export function LoginForm({
             }
             localStorage.setItem("booking.user", JSON.stringify(payload))
             window.dispatchEvent(new StorageEvent("storage", { key: "booking:user-changed" }))
-            router.push("/BookingPage")
+            if (!user.phone) {
+              router.push("/setup/phone")
+            } else {
+              router.push("/BookingPage")
+            }
           } catch {
             setError("Network error")
             setLoading(false)

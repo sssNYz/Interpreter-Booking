@@ -24,7 +24,7 @@
     "start": "next start",
     "lint": "next lint",
     "postinstall": "prisma generate --schema=./prisma/schema.prisma",
-    "seed": "tsx prisma/seed.ts",
+    "seed": "node --import tsx prisma/seed.ts",
     "seed:priorities": "node scripts/seed-meeting-type-priorities.js",
     "test:enhanced": "node scripts/test-enhanced-assignment-system.js",
     "test:pool-integration": "node scripts/run-pool-integration-tests.js",
@@ -88,6 +88,7 @@
     "react-resizable-panels": "^3.0.6",
     "recharts": "^2.15.4",
     "sharp": "^0.34.4",
+    "tsx": "^4.20.5",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.3.1",
     "zod": "^4.0.17"
@@ -109,11 +110,10 @@
     "prisma": "^6.16.3",
     "tailwindcss": "^4",
     "tailwindcss-animate": "^1.0.7",
-    "tsx": "^4.20.5",
     "tw-animate-css": "^1.3.5",
     "typescript": "^5"
   },
   "prisma": {
-    "seed": "tsx prisma/seed.ts"
+    "seed": "node --import tsx prisma/seed.ts"
   }
 }
