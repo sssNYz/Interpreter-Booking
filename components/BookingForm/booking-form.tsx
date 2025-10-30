@@ -450,7 +450,8 @@ export function BookingForm({
         setOwnerName(first);
         setOwnerSurname(last);
         setOwnerEmail(parsed.email || "");
-        // Do not auto-fill phone; user should enter manually
+        // Auto-fill phone from profile (4-digit extension)
+        if (parsed.phone) setOwnerTel(String(parsed.phone));
       } catch {}
     }
   }, [open]);
@@ -1125,6 +1126,7 @@ export function BookingForm({
     if (!meetingRoom.trim()) newErrors.meetingRoom = "Meeting room is required";
     if (!meetingType) newErrors.meetingType = "Meeting type is required";
     if (!ownerTel.trim()) newErrors.ownerTel = "Phone is required";
+    else if (!/^\d{4}$/.test(ownerTel.trim())) newErrors.ownerTel = "Enter 4 digits";
     // --- after existing meetingType/start/end validations ---
     if (meetingType === "DR") {
       if (!drType) newErrors.drType = "DR type is required";

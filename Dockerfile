@@ -68,5 +68,5 @@ COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 
 EXPOSE 3030
 
-# Run Prisma migrations then start server (idempotent)
-CMD ["sh", "-c", "npx prisma migrate deploy && npm run start -- -p $PORT"]
+# Run Prisma migrations then optional seed then start server (idempotent)
+CMD ["sh", "-c", "npx prisma migrate deploy && ( [ \"$AUTO_SEED\" = \"1\" ] && npx prisma db seed || true ) && npm run start -- -p $PORT"]

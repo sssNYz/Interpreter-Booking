@@ -109,7 +109,11 @@ export function PersonalInfoSection({
             type="tel"
             placeholder="1234" 
             value={ownerTel} 
-            onChange={(e) => onTelChange(e.target.value)}
+            maxLength={4}
+            inputMode="numeric"
+            readOnly
+            className="bg-muted cursor-not-allowed"
+            onChange={(e) => onTelChange(e.target.value.replace(/[^0-9]/g, "").slice(0, 4))}
             aria-describedby={errors.ownerTel ? "ownerTel-error" : undefined}
           />
           {errors.ownerTel && (

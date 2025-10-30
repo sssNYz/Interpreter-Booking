@@ -1023,6 +1023,85 @@ async function main() {
     ],
   });
 
+  // Environments
+  console.log("Inserting environments...");
+  const envABC = await prisma.environment.create({ data: { name: "ENV-ABC" } });
+  const envDE = await prisma.environment.create({ data: { name: "ENV-DE" } });
+
+  // Rooms (generic sample rooms)
+  console.log("Inserting rooms...");
+  await prisma.room.createMany({
+    data: [
+      { name: "Room-101", location: "HQ", capacity: 8 },
+      { name: "Room-102", location: "HQ", capacity: 12 },
+      { name: "Room-201", location: "Building B", capacity: 6 },
+      { name: "Room-202", location: "Building B", capacity: 20 },
+    ],
+    skipDuplicates: true,
+  });
+
+  // Helper to map department path to environment
+  const isABCDept = (deptPath?: string | null): boolean => {
+    if (!deptPath) return false;
+    const s = deptPath.toUpperCase();
+    return s.includes("\\ AAAA ") || s.includes("\\ BBBB ") || s.includes("\\ CCCC ");
+  };
+  const isDEDept = (deptPath?: string | null): boolean => {
+    if (!deptPath) return false;
+    const s = deptPath.toUpperCase();
+    return s.includes("\\ DDDD ") || s.includes("\\ EEEE ");
+  };
+
+  // Link Admins to environments by department
+  console.log("Linking admins to environments...");
+  const adminRoles = await prisma.userRole.findMany({
+    where: { roleCode: "ADMIN" },
+    include: { employee: true },
+  });
+  const adminLinks: { environmentId: number; adminEmpCode: string }[] = [];
+  for (const r of adminRoles) {
+    const emp = r.employee;
+    if (!emp?.empCode) continue;
+    if (isABCDept(emp.deptPath)) adminLinks.push({ environmentId: envABC.id, adminEmpCode: emp.empCode });
+    else if (isDEDept(emp.deptPath)) adminLinks.push({ environmentId: envDE.id, adminEmpCode: emp.empCode });
+  }
+  if (adminLinks.length > 0) {
+    await prisma.environmentAdmin.createMany({ data: adminLinks, skipDuplicates: true });
+  }
+
+  // Link Interpreters to environments by department
+  console.log("Linking interpreters to environments...");
+  const interpreterRoles = await prisma.userRole.findMany({
+    where: { roleCode: "INTERPRETER" },
+    include: { employee: true },
+  });
+  const interpreterLinks: { environmentId: number; interpreterEmpCode: string }[] = [];
+  for (const r of interpreterRoles) {
+    const emp = r.employee;
+    if (!emp?.empCode) continue;
+    if (isABCDept(emp.deptPath)) interpreterLinks.push({ environmentId: envABC.id, interpreterEmpCode: emp.empCode });
+    else if (isDEDept(emp.deptPath)) interpreterLinks.push({ environmentId: envDE.id, interpreterEmpCode: emp.empCode });
+  }
+  if (interpreterLinks.length > 0) {
+    await prisma.environmentInterpreter.createMany({ data: interpreterLinks, skipDuplicates: true });
+  }
+
+  // Give all interpreters all languages
+  console.log("Assigning languages to interpreters...");
+  const allLanguages = await prisma.language.findMany();
+  const interpreterEmpCodes = interpreterRoles
+    .map((r) => r.employee?.empCode)
+    .filter((v): v is string => Boolean(v));
+  const languageLinks: { empCode: string; languageCode: string }[] = [];
+  for (const empCode of interpreterEmpCodes) {
+    for (const lang of allLanguages) {
+      languageLinks.push({ empCode, languageCode: lang.code });
+    }
+  }
+  if (languageLinks.length > 0) {
+    await prisma.interpreterLanguage.createMany({ data: languageLinks, skipDuplicates: true });
+  }
+
   console.log("Seed completed successfully!");
 }
 
