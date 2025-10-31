@@ -79,7 +79,7 @@ export function InviteEmailsSection({
             <HoverCardContent className="w-80">
               <div className="flex justify-between gap-4">
                 <Avatar className="h-12 w-12">
-                  <AvatarImage src="https://source.boringavatars.com/marble/120/participant-email" />
+                  <AvatarImage src="/avatar-placeholder.svg" />
                   <AvatarFallback>PE</AvatarFallback>
                 </Avatar>
                 <div className="space-y-1">
@@ -163,5 +163,4 @@ export function InviteEmailsSection({
     </div>
   );
 }
-
 

@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { Inbox, Calendar, Cog, Users, TestTube, Settings } from "lucide-react"
+import { Inbox, Calendar, Cog, Users, TestTube, Settings, History } from "lucide-react"
 
 const adminMenuItems = [
   {
@@ -45,6 +45,13 @@ const adminMenuItems = [
     url: "/AdminPage/overview-workload-page",
     icon: Calendar,
     color: "bg-orange-500"
+  },
+  {
+    title: "Backfill Booking",
+    description: "Record past bookings (admin only)",
+    url: "/AdminPage/backfill-booking",
+    icon: History,
+    color: "bg-red-500"
   }
 ]
 

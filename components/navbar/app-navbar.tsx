@@ -14,6 +14,7 @@ import {
   Settings,
   Cog,
   Star,
+  History,
   DoorOpen,
   Languages,
   User,
@@ -30,7 +31,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Dialog,
   DialogContent,
@@ -52,6 +53,11 @@ const ADMIN_MENU_ALL = [
     title: "Bookings management",
     url: "/AdminPage/booking-manage-page",
     icon: Inbox,
+  },
+  {
+    title: "Backfill booking",
+    url: "/AdminPage/backfill-booking",
+    icon: History,
   },
   {
     title: "System Management",
@@ -347,7 +353,6 @@ export function AppNavbar() {
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="h-9 px-2 flex items-center gap-2">
                   <Avatar className="h-7 w-7">
-                    <AvatarImage src={`https://source.boringavatars.com/beam/40/${encodeURIComponent(userEmpCode || userEmail || userName || "u")}`} alt={userName || "User"} />
                     <AvatarFallback>{(userName || "U").slice(0, 2).toUpperCase()}</AvatarFallback>
                   </Avatar>
                   <div className="hidden sm:flex flex-col items-start leading-tight">
@@ -361,7 +366,6 @@ export function AppNavbar() {
                 <DropdownMenuLabel className="p-0">
                   <div className="flex items-center gap-2 px-2 py-2">
                     <Avatar className="h-8 w-8">
-                      <AvatarImage src={`https://source.boringavatars.com/beam/40/${encodeURIComponent(userEmpCode || userEmail || userName || "u")}`} alt={userName || "User"} />
                       <AvatarFallback>{(userName || "U").slice(0, 2).toUpperCase()}</AvatarFallback>
                     </Avatar>
                     <div className="grid text-sm leading-tight">
