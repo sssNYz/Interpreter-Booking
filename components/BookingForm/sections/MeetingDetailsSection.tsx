@@ -316,7 +316,7 @@ export function MeetingDetailsSection({
               <HoverCardContent className="w-80">
                 <div className="flex justify-between gap-4">
                   <Avatar className="h-12 w-12">
-                    <AvatarImage src="https://source.boringavatars.com/beam/120/other-type-note" />
+                    <AvatarImage src="/avatar-placeholder.svg" />
                     <AvatarFallback>OT</AvatarFallback>
                   </Avatar>
                   <div className="space-y-1">
@@ -439,7 +439,7 @@ export function MeetingDetailsSection({
               <HoverCardContent className="w-80">
                 <div className="flex justify-between gap-4">
                   <Avatar className="h-12 w-12">
-                    <AvatarImage src="https://source.boringavatars.com/beam/120/until-explainer" />
+                    <AvatarImage src="/avatar-placeholder.svg" />
                     <AvatarFallback>UN</AvatarFallback>
                   </Avatar>
                   <div className="space-y-1">
@@ -511,7 +511,7 @@ export function MeetingDetailsSection({
               <HoverCardContent className="w-80">
                 <div className="flex justify-between gap-4">
                   <Avatar className="h-12 w-12">
-                    <AvatarImage src="https://source.boringavatars.com/beam/120/chairperson-mail" />
+                    <AvatarImage src="/avatar-placeholder.svg" />
                     <AvatarFallback>CE</AvatarFallback>
                   </Avatar>
                   <div className="space-y-1">

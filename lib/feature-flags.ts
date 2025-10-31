@@ -19,5 +19,7 @@ export const server = {
   enableRoomBooking: asBool(process.env.ENABLE_ROOM_BOOKING),
   enableForwardUser: asBool(process.env.ENABLE_FORWARD_USER),
   enableForwardAdmin: asBool(process.env.ENABLE_FORWARD_ADMIN),
+  // Optional flag to gate admin backfill API/UI
+  enableAdminBackfill: asBool(process.env.ENABLE_ADMIN_BACKFILL),
   enableMsTeams: asBool(process.env.ENABLE_MS_TEAMS),
 };
