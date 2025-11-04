@@ -1,5 +1,5 @@
--- CreateTable
-CREATE TABLE `ROOM` (
+-- CreateTable (only if not exists)
+CREATE TABLE IF NOT EXISTS `ROOM` (
     `ID` INTEGER NOT NULL AUTO_INCREMENT,
     `NAME` VARCHAR(128) NOT NULL,
     `LOCATION` VARCHAR(255) NULL,
