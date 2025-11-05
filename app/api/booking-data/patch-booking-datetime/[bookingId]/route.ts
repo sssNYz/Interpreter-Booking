@@ -204,11 +204,18 @@ export async function PATCH(
       );
     }
 
-    // 8) Send email notifications if booking is approved
+    // ⚠️ EMAIL TRIGGER DISABLED - Moved to unified Apply endpoint
+    // This prevents duplicate emails and ensures emails are only sent after "Apply" action
+    // See EMAIL_CONSOLIDATION_PLAN.md for details
+    //
+    // Date/time changes should be detected and sent via unified Apply endpoint that:
+    // 1. Detects all changes (interpreter, time, room)
+    // 2. Sends single combined email
+    // 3. Only triggers on "Apply" (not "Save")
     try {
       if (updated.bookingStatus === "approve") {
-        // Note: Email notification for date/time updates can be implemented later
-        console.log(`[EMAIL] Date/time updated for booking ${updated.bookingId} - email notification pending implementation`);
+        console.log(`[EMAIL] Date/time updated for booking ${updated.bookingId}`)
+        console.log(`[EMAIL] Email notification will be sent when user clicks "Apply" button`)
       }
     } catch (err) {
       console.error("[EMAIL] Error in email trigger block:", err);

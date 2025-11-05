@@ -82,16 +82,28 @@ export async function PATCH(
       inviteEmails: true,
     },
   });
-  // fire-and-forget notifications when status transitions
+  // ⚠️ EMAIL TRIGGER - Modified to prevent duplicate emails
+  // Only send emails on FIRST approval or cancellation (not on updates)
+  // For updates to already-approved bookings, use the unified Apply endpoint
+  // See EMAIL_CONSOLIDATION_PLAN.md for details
   try {
     if ((to === 'approve' && from !== 'approve') || (to === 'cancel' && from !== 'cancel')) {
       const { sendApprovalEmailForBooking, sendCancellationEmailForBooking } = await import('@/lib/mail/sender')
-      if (to === 'approve' && from !== 'approve') {
-        console.log(`[EMAIL] Triggering approval email for booking ${updated.bookingId}`)
+      
+      // FIRST APPROVAL: waiting → approve (send initial invitation)
+      if (to === 'approve' && from === 'waiting') {
+        console.log(`[EMAIL] Triggering INITIAL approval email for booking ${updated.bookingId} (first approval)`)
         sendApprovalEmailForBooking(updated.bookingId).catch((err) => {
           console.error(`[EMAIL] Failed to send approval email for booking ${updated.bookingId}:`, err)
         })
       }
+      // UPDATES TO APPROVED BOOKINGS: Should use unified Apply endpoint instead
+      else if (to === 'approve' && from === 'approve') {
+        console.log(`[EMAIL] Booking ${updated.bookingId} is already approved - no email sent`)
+        console.log(`[EMAIL] For updates to approved bookings, use the unified Apply endpoint`)
+      }
+      
+      // CANCELLATION: any status → cancel (send cancellation)
       if (to === 'cancel' && from !== 'cancel') {
         console.log(`[EMAIL] Triggering cancellation email for booking ${updated.bookingId}`)
         // Pass preserved interpreter info from 'existing' before it was cleared

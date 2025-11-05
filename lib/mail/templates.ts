@@ -13,6 +13,171 @@ export interface EmailTemplate {
 
 export const SYSTEM_TEMPLATES: EmailTemplate[] = [
     {
+        id: 'unified-change',
+        name: 'Unified Meeting Change Notification',
+        category: 'change',
+        subject: 'CHANGE: {changeTypes} - {meetingType}{descriptionSubject}',
+        body: `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{meetingType} Meeting Change</title>
+</head>
+<body style="margin: 0; padding: 20px; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #F5F8FC; line-height: 1.6;">
+    <div style="max-width: 720px; margin: 0 auto; background: white; border-radius: 14px; border: 1px solid #E5E7EB; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05); overflow: hidden;">
+        
+        <!-- Header -->
+        <div style="background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%); padding: 30px 25px; text-align: center;">
+            <h1 style="margin: 0; color: white; font-size: 24px; font-weight: 600; line-height: 1.3;">
+                🔄 {meetingTypeIcon} Meeting Updated
+            </h1>
+        </div>
+
+        <!-- Content -->
+        <div style="padding: 30px 25px;">
+            
+            <!-- Greeting Block -->
+            <div style="margin-bottom: 25px;">
+                <p style="margin: 0 0 8px 0; color: #0f172a; font-size: 16px;">
+                    <strong>To:</strong> All concerned members,
+                </p>
+                <p style="margin: 0; color: #0f172a; font-size: 16px;">
+                    The {meetingType} meeting has been updated. Please review the changes below.
+                </p>
+            </div>
+
+            <!-- Change Notice -->
+            <div style="background: #FEF3C7; border-radius: 8px; padding: 20px; border: 1px solid #FCD34D; margin-bottom: 25px; text-align: center;">
+                <div style="font-size: 48px; margin-bottom: 10px;">🔄</div>
+                <p style="margin: 0; color: #92400E; font-size: 18px; font-weight: 600;">
+                    MEETING UPDATED: {changeTypes}
+                </p>
+            </div>
+
+            <!-- Changes Summary -->
+            {changesSummarySection}
+
+            <!-- Date Bar -->
+            <div style="margin-bottom: 25px; text-align: center;">
+                <span style="background: #F59E0B; color: white; padding: 8px 20px; border-radius: 20px; font-weight: 600; font-size: 16px; display: inline-block;">
+                    📅 {date}
+                </span>
+            </div>
+
+            <!-- Agenda Line -->
+            <div style="margin-bottom: 25px; padding: 15px; background: #F8FAFC; border-left: 4px solid #F59E0B; border-radius: 0 8px 8px 0;">
+                <p style="margin: 0; color: #0f172a; font-size: 16px; font-weight: 500;">
+                    📊 ① {topic}
+                </p>
+            </div>
+
+            <!-- Updated Meeting Details -->
+            <div style="margin-bottom: 30px;">
+                <h3 style="margin: 0 0 20px 0; color: #0f172a; font-size: 18px; font-weight: 600; border-bottom: 2px solid #F59E0B; padding-bottom: 8px;">
+                    📝 Updated Meeting Details
+                </h3>
+                
+                <div style="background: #FAFBFC; border-radius: 8px; padding: 20px; border: 1px solid #E5E7EB;">
+                    <table cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse;">
+                        <tr>
+                            <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                                📊 Meeting Type:
+                            </td>
+                            <td style="padding: 10px 0; color: #374151;">
+                                {meetingTypeDisplay}
+                            </td>
+                        </tr>
+                        {descriptionSection}
+                        {drDetailsSection}
+                        <tr>
+                            <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                                ⏰ Time:
+                            </td>
+                            <td style="padding: 10px 0; color: #374151;">
+                                {time}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                                📍 Location:
+                            </td>
+                            <td style="padding: 10px 0; color: #374151;">
+                                {location}
+                            </td>
+                        </tr>
+                        {meetingLinkSection}
+                        <tr>
+                            <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                                📢 Organizer:
+                            </td>
+                            <td style="padding: 10px 0; color: #374151;">
+                                {organizerName}
+                            </td>
+                        </tr>
+                        {chairmanSection}
+                        {interpreterSection}
+                        <tr>
+                            <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                                ☰ Participants:
+                            </td>
+                            <td style="padding: 10px 0; color: #374151;">
+                                {participant}
+                            </td>
+                        </tr>
+                        {deviceGroupSection}
+                        {applicableModelSection}
+                        {departmentSection}
+                    </table>
+                </div>
+            </div>
+
+            <!-- Important Notice -->
+            <div style="background: #F0F9FF; border-radius: 8px; padding: 15px; margin-bottom: 25px;">
+                <p style="margin: 0 0 8px 0; color: #1E40AF; font-size: 14px; font-weight: 600;">
+                    ℹ️ Please note:
+                </p>
+                <ul style="margin: 0; padding-left: 20px; color: #1E40AF; font-size: 14px;">
+                    <li>Your calendar invitation will be automatically updated</li>
+                    <li>Please review the changes and adjust your schedule if needed</li>
+                    <li>Contact the organizer if you have any questions</li>
+                </ul>
+            </div>
+
+            <!-- Signature -->
+            <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #E5E7EB;">
+                <p style="margin: 0 0 15px 0; color: #0f172a; font-size: 16px;">
+                    Thank you & Best regards
+                </p>
+                <div style="color: #0f172a;">
+                    <p style="margin: 0 0 5px 0; font-size: 16px; font-weight: 600;">
+                        {organizerName}
+                    </p>
+                    <p style="margin: 0 0 5px 0; font-size: 14px; color: #374151;">
+                        {organizerDivision}
+                    </p>
+                    <p style="margin: 0; font-size: 14px; color: #374151;">
+                        Tel: {organizerPhone}
+                    </p>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Footer -->
+        <div style="background: #F8FAFC; padding: 15px 25px; text-align: center; border-top: 1px solid #E5E7EB;">
+            <p style="margin: 0; color: #6B7280; font-size: 12px;">
+                This is an automated meeting update from Daikin R&D Division
+            </p>
+        </div>
+
+    </div>
+</body>
+</html>`,
+        isHtml: true,
+        isSystem: true
+    },
+    {
         id: 'unified-meeting',
         name: 'Unified Meeting Invitation',
         category: 'meeting',
@@ -1090,4 +1255,190 @@ export function generateCancellationEmailHTML(event: { start?: string; end?: str
     </div>
 </body>
 </html>`
+}
+
+// ===== Change Detection and Notification =====
+
+export interface BookingChanges {
+    hasInterpreterChange: boolean
+    hasTimeChange: boolean
+    hasRoomChange: boolean
+    oldInterpreter?: string
+    newInterpreter?: string
+    oldTime?: string
+    newTime?: string
+    oldRoom?: string
+    newRoom?: string
+}
+
+/**
+ * Detect changes between old and new booking data
+ * Only considers actual differences (new values != old values)
+ */
+export function detectBookingChanges(
+    oldBooking: BookingWithRelations,
+    newBooking: BookingWithRelations
+): BookingChanges {
+    const changes: BookingChanges = {
+        hasInterpreterChange: false,
+        hasTimeChange: false,
+        hasRoomChange: false
+    }
+
+    // Check interpreter change
+    const oldInterpreterEmail = oldBooking.interpreterEmployee?.email || oldBooking.selectedInterpreter?.email || ''
+    const newInterpreterEmail = newBooking.interpreterEmployee?.email || newBooking.selectedInterpreter?.email || ''
+
+    if (oldInterpreterEmail !== newInterpreterEmail) {
+        changes.hasInterpreterChange = true
+        changes.oldInterpreter = oldInterpreterEmail || 'None'
+        changes.newInterpreter = newInterpreterEmail || 'None'
+    }
+
+    // Check time change (date, start, or end)
+    const oldStart = new Date(oldBooking.timeStart).getTime()
+    const oldEnd = new Date(oldBooking.timeEnd).getTime()
+    const newStart = new Date(newBooking.timeStart).getTime()
+    const newEnd = new Date(newBooking.timeEnd).getTime()
+
+    if (oldStart !== newStart || oldEnd !== newEnd) {
+        changes.hasTimeChange = true
+        changes.oldTime = formatTimeRange(new Date(oldBooking.timeStart), new Date(oldBooking.timeEnd))
+        changes.newTime = formatTimeRange(new Date(newBooking.timeStart), new Date(newBooking.timeEnd))
+    }
+
+    // Check room change
+    if (oldBooking.meetingRoom !== newBooking.meetingRoom) {
+        changes.hasRoomChange = true
+        changes.oldRoom = oldBooking.meetingRoom
+        changes.newRoom = newBooking.meetingRoom
+    }
+
+    return changes
+}
+
+/**
+ * Check if there are any actual changes
+ */
+export function hasAnyChanges(changes: BookingChanges): boolean {
+    return changes.hasInterpreterChange || changes.hasTimeChange || changes.hasRoomChange
+}
+
+/**
+ * Build change types string for subject line
+ * Examples: "Interpreter", "Time", "Room", "Interpreter & Time", "Interpreter, Time & Room"
+ */
+export function buildChangeTypesString(changes: BookingChanges): string {
+    const types: string[] = []
+
+    if (changes.hasInterpreterChange) types.push('Interpreter')
+    if (changes.hasTimeChange) types.push('Time')
+    if (changes.hasRoomChange) types.push('Room')
+
+    if (types.length === 0) return 'No Changes'
+    if (types.length === 1) return types[0]
+    if (types.length === 2) return types.join(' & ')
+
+    // For 3 items: "A, B & C"
+    return types.slice(0, -1).join(', ') + ' & ' + types[types.length - 1]
+}
+
+/**
+ * Build changes summary section HTML for the email template
+ */
+function buildChangesSummarySection(changes: BookingChanges): string {
+    const items: string[] = []
+
+    if (changes.hasInterpreterChange) {
+        items.push(`
+                    <tr>
+                        <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                            💬 Interpreter:
+                        </td>
+                        <td style="padding: 10px 0; color: #374151;">
+                            <div style="text-decoration: line-through; color: #9CA3AF;">${changes.oldInterpreter}</div>
+                            <div style="color: #059669; font-weight: 600;">→ ${changes.newInterpreter}</div>
+                        </td>
+                    </tr>`)
+    }
+
+    if (changes.hasTimeChange) {
+        items.push(`
+                    <tr>
+                        <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                            ⏰ Time:
+                        </td>
+                        <td style="padding: 10px 0; color: #374151;">
+                            <div style="text-decoration: line-through; color: #9CA3AF;">${changes.oldTime}</div>
+                            <div style="color: #059669; font-weight: 600;">→ ${changes.newTime}</div>
+                        </td>
+                    </tr>`)
+    }
+
+    if (changes.hasRoomChange) {
+        items.push(`
+                    <tr>
+                        <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                            📍 Room:
+                        </td>
+                        <td style="padding: 10px 0; color: #374151;">
+                            <div style="text-decoration: line-through; color: #9CA3AF;">${changes.oldRoom}</div>
+                            <div style="color: #059669; font-weight: 600;">→ ${changes.newRoom}</div>
+                        </td>
+                    </tr>`)
+    }
+
+    if (items.length === 0) {
+        return ''
+    }
+
+    return `
+            <div style="margin-bottom: 25px;">
+                <h3 style="margin: 0 0 20px 0; color: #0f172a; font-size: 18px; font-weight: 600; border-bottom: 2px solid #F59E0B; padding-bottom: 8px;">
+                    📋 What Changed
+                </h3>
+                
+                <div style="background: #FFFBEB; border-radius: 8px; padding: 20px; border: 1px solid #FCD34D;">
+                    <table cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse;">
+${items.join('\n')}
+                    </table>
+                </div>
+            </div>`
+}
+
+/**
+ * Build template variables for change notification email
+ */
+export async function buildChangeTemplateVariablesFromBooking(
+    bookingId: number,
+    changes: BookingChanges,
+    providedBooking?: BookingWithRelations
+): Promise<Record<string, string>> {
+    // Get base variables from the booking
+    const baseVariables = await buildTemplateVariablesFromBooking(bookingId, providedBooking)
+
+    // Add change-specific variables
+    const changeTypes = buildChangeTypesString(changes)
+    const changesSummarySection = buildChangesSummarySection(changes)
+
+    return {
+        ...baseVariables,
+        changeTypes,
+        changesSummarySection
+    }
+}
+
+/**
+ * Get formatted change template for a booking
+ */
+export async function getFormattedChangeTemplateForBooking(
+    bookingId: number,
+    changes: BookingChanges,
+    providedBooking?: BookingWithRelations
+): Promise<{ subject: string; body: string; isHtml: boolean }> {
+    const template = getTemplateById('unified-change')
+    if (!template) throw new Error('Unified change template not found')
+
+    const variables = await buildChangeTemplateVariablesFromBooking(bookingId, changes, providedBooking)
+    return formatTemplate(template, variables)
 }
