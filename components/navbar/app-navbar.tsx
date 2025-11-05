@@ -14,9 +14,12 @@ import {
   Settings,
   Cog,
   Star,
+  History,
   DoorOpen,
   Languages,
   User,
+  ChevronsUpDown,
+  Phone,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -28,6 +31,16 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { toast } from "sonner";
 
 // Admin submenu items
 const ADMIN_MENU_ALL = [
@@ -40,6 +53,11 @@ const ADMIN_MENU_ALL = [
     title: "Bookings management",
     url: "/AdminPage/booking-manage-page",
     icon: Inbox,
+  },
+  {
+    title: "Backfill booking",
+    url: "/AdminPage/backfill-booking",
+    icon: History,
   },
   {
     title: "System Management",
@@ -139,6 +157,63 @@ export function AppNavbar() {
       alive = false;
     };
   }, []);
+
+  // User profile from localStorage
+  const [userName, setUserName] = useState<string>("");
+  const [userEmail, setUserEmail] = useState<string>("");
+  const [userEmpCode, setUserEmpCode] = useState<string>("");
+  const [userPhone, setUserPhone] = useState<string | null>(null);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("booking.user");
+      if (!raw) return;
+      const u = JSON.parse(raw) as { name?: string; email?: string | null; empCode?: string; phone?: string | null };
+      setUserName(String(u.name || ""));
+      setUserEmail(u.email || "");
+      setUserEmpCode(String(u.empCode || ""));
+      setUserPhone(u.phone ?? null);
+    } catch {}
+  }, []);
+
+  // Change phone dialog state
+  const [phoneOpen, setPhoneOpen] = useState(false);
+  const [newPhone, setNewPhone] = useState("");
+  const [savingPhone, setSavingPhone] = useState(false);
+  const openPhoneDialog = () => {
+    setNewPhone(String(userPhone || ""));
+    setPhoneOpen(true);
+  };
+  const handleSavePhone = async () => {
+    const v = newPhone.trim();
+    if (!/^[0-9]{4}$/.test(v)) {
+      toast.error("Please enter exactly 4 digits");
+      return;
+    }
+    setSavingPhone(true);
+    try {
+      const r = await fetch("/api/user/phone", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ telExt: v }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.ok) {
+        toast.error(j?.message || "Failed to update phone");
+        return;
+      }
+      try {
+        const raw = localStorage.getItem("booking.user");
+        const parsed = raw ? JSON.parse(raw) : {};
+        parsed.phone = v;
+        localStorage.setItem("booking.user", JSON.stringify(parsed));
+      } catch {}
+      setUserPhone(v);
+      setPhoneOpen(false);
+      toast.success("Phone updated");
+    } finally {
+      setSavingPhone(false);
+    }
+  };
 
   const handleLogout = async () => {
     try {
@@ -273,18 +348,72 @@ export function AppNavbar() {
               )}
             </div>
 
-            {/* Logout */}
-            <Button
-              variant="ghost"
-              onClick={handleLogout}
-              className="h-9 flex items-center px-3"
-            >
-              <LogOut className="h-4 w-4 mr-2" />
-              Logout
-            </Button>
+            {/* User menu */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="h-9 px-2 flex items-center gap-2">
+                  <Avatar className="h-7 w-7">
+                    <AvatarFallback>{(userName || "U").slice(0, 2).toUpperCase()}</AvatarFallback>
+                  </Avatar>
+                  <div className="hidden sm:flex flex-col items-start leading-tight">
+                    <span className="text-sm font-medium max-w-[160px] truncate">{userName || "User"}</span>
+                    <span className="text-xs text-muted-foreground max-w-[160px] truncate">{userEmail || ""}</span>
+                  </div>
+                  <ChevronsUpDown className="ml-1 h-4 w-4 text-muted-foreground" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="min-w-60">
+                <DropdownMenuLabel className="p-0">
+                  <div className="flex items-center gap-2 px-2 py-2">
+                    <Avatar className="h-8 w-8">
+                      <AvatarFallback>{(userName || "U").slice(0, 2).toUpperCase()}</AvatarFallback>
+                    </Avatar>
+                    <div className="grid text-sm leading-tight">
+                      <span className="font-medium">{userName || "User"}</span>
+                      <span className="text-xs text-muted-foreground">{userEmail || ""}</span>
+                    </div>
+                  </div>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={openPhoneDialog}>
+                  <Phone className="h-4 w-4 mr-2" />
+                  Change phone
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleLogout}>
+                  <LogOut className="h-4 w-4 mr-2" />
+                  Logout
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       </div>
+      {/* Change phone dialog */}
+      <Dialog open={phoneOpen} onOpenChange={setPhoneOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Change phone (4 digits)</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Input
+              inputMode="numeric"
+              pattern="[0-9]{4}"
+              title="Please enter exactly 4 digits"
+              maxLength={4}
+              placeholder="1234"
+              value={newPhone}
+              onChange={(e) => setNewPhone(e.target.value.replace(/[^0-9]/g, "").slice(0, 4))}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPhoneOpen(false)}>Cancel</Button>
+            <Button onClick={handleSavePhone} disabled={savingPhone}>
+              {savingPhone ? "Saving..." : "Change"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </nav>
   );
 }

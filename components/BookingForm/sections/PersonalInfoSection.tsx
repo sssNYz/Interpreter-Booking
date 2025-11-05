@@ -11,6 +11,7 @@ interface PersonalInfoSectionProps {
   ownerSurname: string;
   ownerEmail: string;
   ownerTel: string;
+  onTelChange: (value: string) => void;
   ownerGroup: OwnerGroup;
   errors: Record<string, string>;
   onGroupChange: (value: OwnerGroup) => void;
@@ -23,6 +24,7 @@ export function PersonalInfoSection({
   ownerSurname,
   ownerEmail,
   ownerTel,
+  onTelChange,
   ownerGroup,
   errors,
   onGroupChange,
@@ -104,10 +106,14 @@ export function PersonalInfoSection({
           </Label>
           <Input 
             id="ownerTel" 
-            placeholder="0123456789" 
+            type="tel"
+            placeholder="1234" 
             value={ownerTel} 
-            readOnly 
-            className="bg-muted cursor-not-allowed" 
+            maxLength={4}
+            inputMode="numeric"
+            readOnly
+            className="bg-muted cursor-not-allowed"
+            onChange={(e) => onTelChange(e.target.value.replace(/[^0-9]/g, "").slice(0, 4))}
             aria-describedby={errors.ownerTel ? "ownerTel-error" : undefined}
           />
           {errors.ownerTel && (
@@ -131,7 +137,7 @@ export function PersonalInfoSection({
               <HoverCardContent className="w-80">
                 <div className="flex justify-between gap-4">
                   <Avatar className="h-12 w-12">
-                    <AvatarImage src="https://source.boringavatars.com/marble/120/department-card" />
+                    <AvatarImage src="/avatar-placeholder.svg" />
                     <AvatarFallback>DP</AvatarFallback>
                   </Avatar>
                   <div className="space-y-1">
@@ -166,5 +172,4 @@ export function PersonalInfoSection({
     </div>
   );
 }
-
 

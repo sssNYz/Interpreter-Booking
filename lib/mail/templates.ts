@@ -57,7 +57,7 @@ export const SYSTEM_TEMPLATES: EmailTemplate[] = [
             <!-- Agenda Line -->
             <div style="margin-bottom: 25px; padding: 15px; background: #F8FAFC; border-left: 4px solid {headerColor1}; border-radius: 0 8px 8px 0;">
                 <p style="margin: 0; color: #0f172a; font-size: 16px; font-weight: 500;">
-                    📋 ① {topic}
+                    📊 ① {topic}
                 </p>
             </div>
 
@@ -71,7 +71,7 @@ export const SYSTEM_TEMPLATES: EmailTemplate[] = [
                     <table cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse;">
                         <tr>
                             <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
-                                📋 Meeting Type:
+                                📊 Meeting Type:
                             </td>
                             <td style="padding: 10px 0; color: #374151;">
                                 {meetingTypeDisplay}
@@ -95,9 +95,10 @@ export const SYSTEM_TEMPLATES: EmailTemplate[] = [
                                 {location}
                             </td>
                         </tr>
+                        {meetingLinkSection}
                         <tr>
                             <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
-                                👤 Organizer:
+                                📢 Organizer:
                             </td>
                             <td style="padding: 10px 0; color: #374151;">
                                 {organizerName}
@@ -107,7 +108,7 @@ export const SYSTEM_TEMPLATES: EmailTemplate[] = [
                         {interpreterSection}
                         <tr>
                             <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
-                                👥 Participants:
+                                ☰ Participants:
                             </td>
                             <td style="padding: 10px 0; color: #374151;">
                                 {participant}
@@ -213,7 +214,7 @@ export const SYSTEM_TEMPLATES: EmailTemplate[] = [
                     <table cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse;">
                         <tr>
                             <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
-                                📋 Meeting Type:
+                                📊 Meeting Type:
                             </td>
                             <td style="padding: 10px 0; color: #374151;">
                                 {meetingTypeDisplay}
@@ -239,7 +240,7 @@ export const SYSTEM_TEMPLATES: EmailTemplate[] = [
                         </tr>
                         <tr>
                             <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
-                                👤 Organizer:
+                                📢 Organizer:
                             </td>
                             <td style="padding: 10px 0; color: #374151;">
                                 {organizerName}
@@ -249,7 +250,7 @@ export const SYSTEM_TEMPLATES: EmailTemplate[] = [
                         {interpreterSection}
                         <tr>
                             <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
-                                👥 Participants:
+                                ☰ Participants:
                             </td>
                             <td style="padding: 10px 0; color: #374151;">
                                 {participant}
@@ -418,7 +419,7 @@ const MEETING_TYPE_CONFIG = {
         displayName: 'Weekly'
     },
     General: {
-        icon: '📋',
+        icon: '📊',
         headerColor1: '#4F46E5',
         headerColor2: '#3730A3',
         displayName: 'General'
@@ -460,6 +461,8 @@ type BookingWithRelations = Prisma.BookingPlanGetPayload<{
         selectedInterpreter: true
     }
 }>
+
+type BookingWithRelationsPlus = BookingWithRelations & { meetingLink?: string | null }
 
 export async function buildTemplateVariablesFromBooking(
     bookingId: number,
@@ -541,7 +544,7 @@ export async function buildTemplateVariablesFromBooking(
     const interpreterSection = interpreterName ? `
                         <tr>
                             <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
-                                🗣️ Interpreter:
+                                💬 Interpreter:
                             </td>
                             <td style="padding: 10px 0; color: #374151;">
                                 ${interpreterName}
@@ -576,7 +579,7 @@ export async function buildTemplateVariablesFromBooking(
         drDetailsSection = `
                         <tr>
                             <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
-                                📱 Applicable Model:
+                                ⚙️ Applicable Model:
                             </td>
                             <td style="padding: 10px 0; color: #374151;">
                                 ${booking.applicableModel || 'Not specified'}
@@ -595,7 +598,7 @@ export async function buildTemplateVariablesFromBooking(
             chairmanSection = `
                         <tr>
                             <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
-                                👨‍💼 Chairman:
+                                💼 Chairman:
                             </td>
                             <td style="padding: 10px 0; color: #374151;">
                                 ${booking.chairmanEmail}
@@ -629,24 +632,28 @@ export async function buildTemplateVariablesFromBooking(
                         </tr>` : ''
 
     // Build applicable model section for non-DR meetings
-    const applicableModelSection_2 = (!isDR && booking.applicableModel) ? `
+
+    // Build applicable model section for non-DR meetings
+    const applicableModelSection = (!isDR && booking.applicableModel) ? `
                         <tr>
                             <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
-                                📱 Applicable Model:
+                                ⚙️ Applicable Model:
                             </td>
                             <td style="padding: 10px 0; color: #374151;">
                                 ${booking.applicableModel}
                             </td>
                         </tr>` : ''
 
-    // Build applicable model section for non-DR meetings
-    const applicableModelSection = (!isDR && booking.applicableModel) ? `
+    // Meeting link section (optional)
+    const meetingLinkValue = (booking as BookingWithRelationsPlus).meetingLink
+    const meetingLinkSection = meetingLinkValue ? `
                         <tr>
                             <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
-                                📱 Applicable Model:
+                                🔗 Meeting Link:
                             </td>
-                            <td style="padding: 10px 0; color: #374151;">
-                                ${booking.applicableModel}
+                            <td style="padding: 10px 0; color: #374151; word-break: break-all;">
+                                <a href="${meetingLinkValue}" target="_blank" rel="noopener noreferrer">Join meeting</a>
+                                <div style="color:#6B7280; font-size:12px; margin-top:4px;">${meetingLinkValue}</div>
                             </td>
                         </tr>` : ''
 
@@ -675,8 +682,9 @@ export async function buildTemplateVariablesFromBooking(
         chairmanSection,
         interpreterSection,
         deviceGroupSection,
-        applicableModelSection: applicableModelSection_2,
+        applicableModelSection,
         departmentSection,
+        meetingLinkSection,
 
         // Legacy fields (for backward compatibility)
         organizer: organizerName,
@@ -781,7 +789,7 @@ export async function buildCancellationTemplateVariablesFromBooking(
     const interpreterSection = (interpreterName || booking.interpreterEmployee || booking.selectedInterpreter) ? `
                         <tr>
                             <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
-                                🗣️ Interpreter:
+                                💬 Interpreter:
                             </td>
                             <td style="padding: 10px 0; color: #374151;">
                                 ${interpreterName || 'Interpreter assigned'}
@@ -816,7 +824,7 @@ export async function buildCancellationTemplateVariablesFromBooking(
         drDetailsSection = `
                         <tr>
                             <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
-                                📱 Applicable Model:
+                                ⚙️ Applicable Model:
                             </td>
                             <td style="padding: 10px 0; color: #374151;">
                                 ${booking.applicableModel || 'Not specified'}
@@ -835,7 +843,7 @@ export async function buildCancellationTemplateVariablesFromBooking(
             chairmanSection = `
                         <tr>
                             <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
-                                👨‍💼 Chairman:
+                                💼 Chairman:
                             </td>
                             <td style="padding: 10px 0; color: #374151;">
                                 ${booking.chairmanEmail}
@@ -872,7 +880,7 @@ export async function buildCancellationTemplateVariablesFromBooking(
     const applicableModelSection = (!isDR && booking.applicableModel) ? `
                         <tr>
                             <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
-                                📱 Applicable Model:
+                                ⚙️ Applicable Model:
                             </td>
                             <td style="padding: 10px 0; color: #374151;">
                                 ${booking.applicableModel}
@@ -1012,7 +1020,7 @@ export function generateCancellationEmailHTML(event: { start?: string; end?: str
                 <table cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse;">
                     <tr>
                         <td style="padding: 10px 0; width: 100px; font-weight: 600; color: #0f172a; vertical-align: top;">
-                            📋 Topic:
+                            📊 Topic:
                         </td>
                         <td style="padding: 10px 0; color: #374151;">
                             ${event.summary || 'Untitled Event'}

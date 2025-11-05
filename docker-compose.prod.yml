@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   web:
     build:
@@ -8,14 +6,26 @@ services:
     image: interpreter-booking:prod
     container_name: interpreter-booking-web
     restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
     environment:
       NODE_ENV: production
       PORT: 3030
       NEXT_TELEMETRY_DISABLED: "1"
-      DATABASE_URL: "mysql://STG:P@ssw0rd@172.31.150.22:3306/booking_interpreter"
+      AUTO_SEED: "0"
+      DATABASE_URL: mysql://user:Ps1212312121!@db:3306/booking_interpreter
+   
+      
+      NEXT_PUBLIC_ENABLE_ROOM_BOOKING: "1"
+      NEXT_PUBLIC_ENABLE_JUPM_TO_CALENDAR: "1"
+      NEXT_PUBLIC_ENABLE_FORWARD_USER: "0"
+      NEXT_PUBLIC_ENABLE_FORWARD_ADMIN: "0"
+
       ENABLE_ROOM_BOOKING: "0"
       ENABLE_FORWARD_USER: "0"
       ENABLE_FORWARD_ADMIN: "0"
+
       SMTP_HOST: "192.168.212.220"
       SMTP_PORT: "25"
       SMTP_SECURE: "false"
@@ -25,7 +35,33 @@ services:
       SMTP_FROM_NAME: "DEDE_SYSTEM"
       EMAIL_DOMAIN: "dit.daikin.co.jp"
       ORGANIZATION_NAME: "Daikin"
+
+      ENABLE_MS_TEAMS: 0
+
+
       
     ports:
       - "3030:3030"
 
+  db:
+    image: mysql:8.0
+    container_name: interpreter-booking-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: booking_interpreter
+      MYSQL_USER: user
+      MYSQL_PASSWORD: Ps1212312121!
+    ports:
+      - "3306:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+    command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -proot || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  db_data:

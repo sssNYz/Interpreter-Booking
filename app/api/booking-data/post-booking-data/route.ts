@@ -242,6 +242,17 @@ const validateBookingData = (
     }
   }
 
+  // Meeting link validation (optional)
+  if (data.meetingLink !== undefined && data.meetingLink !== null) {
+    if (typeof data.meetingLink !== "string" || data.meetingLink.trim().length === 0) {
+      errors.push("meetingLink must be a non-empty string when provided");
+    } else if (data.meetingLink.length > 2048) {
+      errors.push("meetingLink must be 2048 characters or less");
+    } else if (!/^https?:\/\//i.test(data.meetingLink.trim())) {
+      errors.push("meetingLink must start with http:// or https://");
+    }
+  }
+
   // Chairman email validation (required for DR meetings)
   if (data.meetingType === "DR") {
     if (
@@ -719,6 +730,10 @@ export async function POST(request: NextRequest) {
     const normalizedChairmanEmail = body.chairmanEmail
       ? body.chairmanEmail.trim().toLowerCase()
       : null;
+    const normalizedMeetingLink =
+      typeof body.meetingLink === "string" && body.meetingLink.trim().length > 0
+        ? body.meetingLink.trim()
+        : null;
 
     // Use an interactive transaction to keep operations atomic (insert + related records)
     const result = await prisma.$transaction(
@@ -990,7 +1005,7 @@ export async function POST(request: NextRequest) {
               \`OWNER_GROUP\`, \`MEETING_ROOM\`, \`MEETING_DETAIL\`, \`TIME_START\`, \`TIME_END\`, \`BOOKING_STATUS\`, \`created_at\`, \`updated_at\`,
               \`DR_TYPE\`, \`OTHER_TYPE\`, \`OTHER_TYPE_SCOPE\`, \`APPLICABLE_MODEL\`, \`INTERPRETER_EMP_CODE\`, \`IS_RECURRING\`, \`MEETING_TYPE\`, \`OWNER_EMP_CODE\`,
               \`RECURRENCE_END_DATE\`, \`RECURRENCE_END_OCCURRENCES\`, \`RECURRENCE_END_TYPE\`, \`RECURRENCE_INTERVAL\`, \`RECURRENCE_MONTHDAY\`, \`RECURRENCE_TYPE\`, \`RECURRENCE_WEEKDAYS\`, \`RECURRENCE_WEEK_ORDER\`,
-              \`LANGUAGE_CODE\`, \`CHAIRMAN_EMAIL\`, \`SELECTED_INTERPRETER_EMP_CODE\`,
+              \`LANGUAGE_CODE\`, \`CHAIRMAN_EMAIL\`, \`SELECTED_INTERPRETER_EMP_CODE\`, \`MEETING_LINK\`,
               \`FORWARD_ACTIONS\`
             ) VALUES (
               ${body.ownerGroup}, ${body.meetingRoom.trim()}, ${
@@ -1020,7 +1035,7 @@ export async function POST(request: NextRequest) {
           },
               ${body.languageCode ?? null}, ${
             normalizedChairmanEmail ?? null
-          }, ${body.selectedInterpreterEmpCode ?? null},
+          }, ${body.selectedInterpreterEmpCode ?? null}, ${normalizedMeetingLink},
               '[]'
             )
           `;
@@ -1114,7 +1129,7 @@ export async function POST(request: NextRequest) {
                 INSERT INTO BOOKING_PLAN (
                   \`OWNER_GROUP\`, \`MEETING_ROOM\`, \`MEETING_DETAIL\`, \`TIME_START\`, \`TIME_END\`, \`BOOKING_STATUS\`, \`created_at\`, \`updated_at\`,
                   \`DR_TYPE\`, \`OTHER_TYPE\`, \`OTHER_TYPE_SCOPE\`, \`APPLICABLE_MODEL\`, \`INTERPRETER_EMP_CODE\`, \`IS_RECURRING\`, \`MEETING_TYPE\`, \`OWNER_EMP_CODE\`, \`PARENT_BOOKING_ID\`,
-                  \`LANGUAGE_CODE\`, \`CHAIRMAN_EMAIL\`, \`SELECTED_INTERPRETER_EMP_CODE\`,
+                  \`LANGUAGE_CODE\`, \`CHAIRMAN_EMAIL\`, \`SELECTED_INTERPRETER_EMP_CODE\`, \`MEETING_LINK\`,
                   \`FORWARD_ACTIONS\`
                 ) VALUES (
                   ${body.ownerGroup}, ${body.meetingRoom.trim()}, ${
@@ -1131,7 +1146,7 @@ export async function POST(request: NextRequest) {
               }, ${body.ownerEmpCode.trim()}, ${bookingId},
                   ${body.languageCode ?? null}, ${
                 normalizedChairmanEmail ?? null
-              }, ${body.selectedInterpreterEmpCode ?? null},
+              }, ${body.selectedInterpreterEmpCode ?? null}, ${normalizedMeetingLink},
                   '[]'
                 )
               `;

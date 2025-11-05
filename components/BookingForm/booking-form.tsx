@@ -94,6 +94,7 @@ export function BookingForm({
   >(null);
   const [meetingDetail, setMeetingDetail] = useState<string>("");
   const [applicableModel, setApplicableModel] = useState<string>("");
+  const [meetingLink, setMeetingLink] = useState<string>("");
   const [inviteEmails, setInviteEmails] = useState<string[]>([]);
   const [newEmail, setNewEmail] = useState<string>("");
 
@@ -183,7 +184,8 @@ export function BookingForm({
       }
     | { type: "apiError"; message?: string }
     | { type: "preflight"; message?: string }
-    | { type: "forward"; bookingId?: number; message?: string };
+    | { type: "forward"; bookingId?: number; message?: string }
+    | { type: "summary" };
   const [dialog, setDialog] = useState<DialogState>({ type: "none" });
 
   // Retry throttle for generic errors
@@ -228,6 +230,8 @@ export function BookingForm({
     meetingType: "meetingType",
     drType: "drType",
     otherType: "otherType",
+    ownerTel: "ownerTel",
+    meetingLink: "meetingLink",
     languageCodes: "languageCodes",
     startTime: "meeting-time",
     endTime: "meeting-time",
@@ -243,6 +247,8 @@ export function BookingForm({
     meetingType: "Meeting type",
     drType: "DR type",
     otherType: "Other type",
+    ownerTel: "Phone",
+    meetingLink: "Meeting link",
     languageCodes: "Language",
     startTime: "Start time",
     endTime: "End time",
@@ -406,6 +412,7 @@ export function BookingForm({
       setMeetingRoom("");
       setMeetingDetail("");
       setApplicableModel("");
+      setMeetingLink("");
       setMeetingType(null);
       setDrType(null);
       setOtherType("");
@@ -444,7 +451,8 @@ export function BookingForm({
         setOwnerName(first);
         setOwnerSurname(last);
         setOwnerEmail(parsed.email || "");
-        setOwnerTel(parsed.phone || "");
+        // Auto-fill phone from profile (4-digit extension)
+        if (parsed.phone) setOwnerTel(String(parsed.phone));
       } catch {}
     }
   }, [open]);
@@ -618,6 +626,21 @@ export function BookingForm({
   };
 
   const getLocalDateString = (date: Date) => formatYmdFromDate(date);
+
+  const isSameLocalDate = (a: Date, b: Date) =>
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate();
+
+  const isPastNowForSlot = (t: string) => {
+    if (!dayObj?.fullDate) return false;
+    const localDate = getLocalDateString(dayObj.fullDate);
+    const isoLike = buildDateTimeString(localDate, t).replace(" ", "T");
+    const slotDate = new Date(isoLike);
+    const now = new Date();
+    if (!isSameLocalDate(dayObj.fullDate, now)) return false;
+    return slotDate <= now;
+  };
 
   // Phase 5: summary helpers
   const formatOrdinalDay = (n: number) => {
@@ -875,6 +898,7 @@ export function BookingForm({
 
   // Occupancy-aware disabling
   const isStartDisabled = (t: string) => {
+    if (isPastNowForSlot(t)) return true;
     if (!dayOccupancy) return false;
     const idx = slotsTime.indexOf(t);
     return idx >= 0 && dayOccupancy[idx] >= maxLanes;
@@ -1118,6 +1142,8 @@ export function BookingForm({
 
     if (!meetingRoom.trim()) newErrors.meetingRoom = "Meeting room is required";
     if (!meetingType) newErrors.meetingType = "Meeting type is required";
+    if (!ownerTel.trim()) newErrors.ownerTel = "Phone is required";
+    else if (!/^\d{4}$/.test(ownerTel.trim())) newErrors.ownerTel = "Enter 4 digits";
     // --- after existing meetingType/start/end validations ---
     if (meetingType === "DR") {
       if (!drType) newErrors.drType = "DR type is required";
@@ -1165,12 +1191,23 @@ export function BookingForm({
         "Interpreter selection is required for President meetings";
     }
 
+    // Meeting link (optional) basic validation
+    if (meetingLink && !/^https?:\/\//i.test(meetingLink.trim())) {
+      newErrors.meetingLink = "Link must start with http:// or https://";
+    }
+
     if (!startTime) newErrors.startTime = "Start time is required";
     if (!endTime) newErrors.endTime = "End time is required";
     if (startTime && !isValidStartTime(startTime))
       newErrors.startTime = "Invalid start time";
     if (startTime && endTime && !isValidTimeRange(startTime, endTime))
       newErrors.endTime = "End must be after start";
+
+    try {
+      if (startTime && dayObj?.fullDate && isPastNowForSlot(startTime)) {
+        newErrors.startTime = "Start time cannot be in the past";
+      }
+    } catch {}
 
     // If you want to keep UI silent, we won't show an inline error here.
 
@@ -1222,6 +1259,7 @@ export function BookingForm({
         meetingType: meetingType as MeetingType,
         meetingDetail: meetingDetail.trim() || undefined,
         applicableModel: applicableModel.trim() || undefined,
+        meetingLink: meetingLink.trim() ? meetingLink.trim() : null,
         timeStart: startDateTime,
         timeEnd: endDateTime,
         bookingStatus: "waiting",
@@ -1634,7 +1672,7 @@ export function BookingForm({
       // if preflight fails, continue normal submit
     }
 
-    await proceedSubmit();
+    setDialog({ type: "summary" });
   };
 
   return (
@@ -1667,6 +1705,7 @@ export function BookingForm({
                 ownerSurname={ownerSurname}
                 ownerEmail={ownerEmail}
                 ownerTel={ownerTel}
+                onTelChange={(v) => setOwnerTel(v)}
                 ownerGroup={ownerGroup}
                 errors={errors}
                 onGroupChange={setOwnerGroup}
@@ -1993,6 +2032,23 @@ export function BookingForm({
                   </div>
                 }
               />
+
+              {/* Meeting Link (optional) */}
+              <div className="space-y-2">
+                <label htmlFor="meetingLink" className="text-sm font-medium text-foreground">
+                  Meeting Link (optional)
+                </label>
+                <Input
+                  id="meetingLink"
+                  type="url"
+                  placeholder="Paste Teams/Zoom/Meet link"
+                  value={meetingLink}
+                  onChange={(e) => setMeetingLink(e.target.value)}
+                />
+                {errors.meetingLink && (
+                  <p className="text-sm text-destructive">{errors.meetingLink}</p>
+                )}
+              </div>
             </fieldset>
 
             {/* NEW FIELDS FOR LANGUAGE AND INTERPRETER SELECTION */}
@@ -2016,7 +2072,7 @@ export function BookingForm({
                     <HoverCardContent className="w-80">
                       <div className="flex justify-between gap-4">
                         <Avatar className="h-12 w-12">
-                          <AvatarImage src="https://source.boringavatars.com/bauhaus/120/language-picker" />
+                          <AvatarImage src="/avatar-placeholder.svg" />
                           <AvatarFallback>LG</AvatarFallback>
                         </Avatar>
                         <div className="space-y-1">
@@ -2210,6 +2266,119 @@ export function BookingForm({
                   }}
                 >
                   Forward
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </>
+          )}
+          {/* NEW: Booking summary confirmation */}
+          {dialog.type === "summary" && (
+            <>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Booking summary</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Please check your information. If your booking is approved, you cannot change it. To change later, please contact admin.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+
+              <div className="mt-3 text-sm space-y-1">
+                <div>
+                  <strong>Date:</strong>{" "}
+                  {dayObj?.fullDate
+                    ? dayObj.fullDate.toLocaleDateString("en-US", {
+                        weekday: "long",
+                        year: "numeric",
+                        month: "long",
+                        day: "numeric",
+                      })
+                    : "-"}
+                </div>
+                <div>
+                  <strong>Time:</strong> {startTime || "-"}{" "}
+                  {startTime && endTime ? " - " : ""} {endTime || "-"}
+                </div>
+                <div>
+                  <strong>Room:</strong> {meetingRoom || "-"}
+                </div>
+                <div>
+                  <strong>Meeting type:</strong>{" "}
+                  {(() => {
+                    if (!meetingType) return "-";
+                    if (meetingType === "DR") {
+                      const dr = drType || "-";
+                      const other =
+                        drType === "Other" && otherType ? ` (${otherType})` : "";
+                      return `DR - ${dr}${other}`;
+                    }
+                    if (meetingType === "Other") {
+                      return otherType ? `Other (${otherType})` : "Other";
+                    }
+                    return String(meetingType);
+                  })()}
+                </div>
+                <div>
+                  <strong>Language(s):</strong>{" "}
+                  {selectedLanguageCodes && selectedLanguageCodes.length > 0
+                    ? selectedLanguageCodes.join(", ")
+                    : "-"}
+                </div>
+                {meetingType === "DR" && (
+                  <div>
+                    <strong>Chairman email:</strong> {chairmanEmail || "-"}
+                  </div>
+                )}
+                {meetingType === "President" && (
+                  <div>
+                    <strong>Interpreter:</strong>{" "}
+                    {(() => {
+                      const found =
+                        interpreters.find((i) => i.empCode === selectedInterpreterEmpCode) ||
+                        null;
+                      if (!selectedInterpreterEmpCode) return "-";
+                      if (found?.firstNameEn && found?.lastNameEn) {
+                        return `${found.firstNameEn} ${found.lastNameEn} (${found.empCode})`;
+                      }
+                      return selectedInterpreterEmpCode;
+                    })()}
+                  </div>
+                )}
+                {meetingDetail && (
+                  <div>
+                    <strong>Detail:</strong> {meetingDetail}
+                  </div>
+                )}
+                {applicableModel && (
+                  <div>
+                    <strong>Applicable model:</strong> {applicableModel}
+                  </div>
+                )}
+                {meetingLink && (
+                  <div>
+                    <strong>Meeting link:</strong> {meetingLink}
+                  </div>
+                )}
+                {inviteEmails && inviteEmails.length > 0 && (
+                  <div>
+                    <strong>Invite emails:</strong> {inviteEmails.join(", ")}
+                  </div>
+                )}
+                {repeatChoice !== "none" && repeatSummary && (
+                  <div>
+                    <strong>Repeat:</strong> {repeatSummary}
+                  </div>
+                )}
+              </div>
+
+              <AlertDialogFooter>
+                <AlertDialogCancel onClick={() => setDialog({ type: "none" })}>
+                  Edit
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={async () => {
+                    setDialog({ type: "none" });
+                    await proceedSubmit();
+                  }}
+                >
+                  Confirm
                 </AlertDialogAction>
               </AlertDialogFooter>
             </>
