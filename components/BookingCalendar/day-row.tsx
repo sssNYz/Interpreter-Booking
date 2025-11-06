@@ -185,12 +185,12 @@ const DayRow: React.FC<Props> = ({
         const title = isWeekendDay
           ? "Weekend - No booking available"
           : isPastDay || isPastTime
-          ? "Past"
-          : isFull
-          ? "Time full"
-          : !isAllowedByMonth
-          ? `Forward limit: ${forwardMonthLimit} month${forwardMonthLimit === 1 ? '' : 's'} ahead`
-          : `Available: ${slot}`;
+            ? "Past"
+            : isFull
+              ? "Time full"
+              : !isAllowedByMonth
+                ? `Forward limit: ${forwardMonthLimit} month${forwardMonthLimit === 1 ? '' : 's'} ahead`
+                : `Available: ${slot}`;
 
         if (!clickable) {
           return (
@@ -245,10 +245,10 @@ const DayRow: React.FC<Props> = ({
             bar.status === "approve"
               ? "Approved"
               : bar.status === "waiting"
-              ? "Waiting"
-              : bar.status === "cancel"
-              ? "Cancelled"
-              : bar.status;
+                ? "Waiting"
+                : bar.status === "cancel"
+                  ? "Cancelled"
+                  : bar.status;
           return (
             <Popover
               key={`bar-${bar.bookingId}`}
@@ -258,8 +258,8 @@ const DayRow: React.FC<Props> = ({
                   isOpen
                     ? bar.bookingId
                     : current === bar.bookingId
-                    ? null
-                    : current
+                      ? null
+                      : current
                 );
               }}
             >
@@ -388,10 +388,10 @@ const DayRow: React.FC<Props> = ({
                         <div className="flex items-center gap-2 text-neutral-700">
                           <span className="font-medium">{statusLabel}</span>
                           <div
-                             className={`h-3 w-3 rounded-full ${statusStyle.bg}`}
-                             ></div>
+                            className={`h-3 w-3 rounded-full ${statusStyle.bg}`}
+                          ></div>
                         </div>
-                        
+
                       </div>
                     </div>
 
@@ -403,7 +403,20 @@ const DayRow: React.FC<Props> = ({
                           Meeting Type
                         </div>
                         <div className="font-medium text-neutral-700">
-                          {bar.meetingType }
+                          {bar.meetingType}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Meeting Detail */}
+                    <div className="flex items-start space-x-3">
+                      <div className="flex-shrink-0 w-2 h-2 bg-neutral-200 rounded-full mt-2"></div>
+                      <div className="flex-1">
+                        <div className="font-semibold text-neutral-500 text-sm mb-1">
+                          Meeting Detail
+                        </div>
+                        <div className="text-neutral-700 text-sm break-words">
+                          {bar.meetingDetail?.trim() || "No details provided"}
                         </div>
                       </div>
                     </div>
@@ -466,20 +479,20 @@ const DayRow: React.FC<Props> = ({
             return (
               <Popover key={`overflow-${idx}`}>
                 <PopoverTrigger asChild>
-                   <motion.div
-                     className="pointer-events-auto rounded-sm border border-neutral-600 bg-neutral-50 text-foreground/80"
-                     style={{
-                       position: "absolute",
-                       left,
-                       width,
-                       top,
-                       height: BAR_HEIGHT,
-                       borderRadius: 10,
-                       cursor: "pointer",
-                       backgroundImage: `radial-gradient(#f5f5f5 0.5px, transparent 0.5px)`,
-                       backgroundSize: "4px 4px",
-                       opacity: 0.6,
-                     }}
+                  <motion.div
+                    className="pointer-events-auto rounded-sm border border-neutral-600 bg-neutral-50 text-foreground/80"
+                    style={{
+                      position: "absolute",
+                      left,
+                      width,
+                      top,
+                      height: BAR_HEIGHT,
+                      borderRadius: 10,
+                      cursor: "pointer",
+                      backgroundImage: `radial-gradient(#f5f5f5 0.5px, transparent 0.5px)`,
+                      backgroundSize: "4px 4px",
+                      opacity: 0.6,
+                    }}
                     initial={{ scale: 0.98, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
                     whileHover={{ scale: 1.02 }}
@@ -591,10 +604,10 @@ const DayRow: React.FC<Props> = ({
                                     {b.status === "approve"
                                       ? "Approved"
                                       : b.status === "waiting"
-                                      ? "Waiting"
-                                      : b.status === "cancel"
-                                      ? "Cancelled"
-                                      : b.status}
+                                        ? "Waiting"
+                                        : b.status === "cancel"
+                                          ? "Cancelled"
+                                          : b.status}
                                   </span>
                                   <div
                                     className={`h-3 w-3 rounded-full ${getStatusStyle(b.status).bg}`}
