@@ -493,6 +493,16 @@ const BookingDetailDialog: React.FC<Props> = ({ open, onOpenChange, editData, is
       const isWait = booking.status === "Wait";
       setSubmitting(isWait ? "approve" : "apply");
 
+      // Snapshot old booking state for change detection (use database field names)
+      const oldBookingSnapshot = {
+        bookingId: booking.bookingId || booking.id,
+        interpreterEmpCode: booking.interpreter,
+        timeStart: new Date(`${booking.dateTime}T${booking.startTime}:00`),
+        timeEnd: new Date(`${booking.dateTime}T${booking.endTime}:00`),
+        meetingRoom: booking.room,
+        bookingStatus: booking.status === "Approve" ? "approve" : booking.status === "Cancel" ? "cancel" : "waiting"
+      };
+
       // Final validation: If both room and date/time are changed, re-validate the combination
       if (validatedDateTimeChanges && validatedRoomChange) {
         const dateStr = format(validatedDateTimeChanges.date, "yyyy-MM-dd");
@@ -518,6 +528,10 @@ const BookingDetailDialog: React.FC<Props> = ({ open, onOpenChange, editData, is
           }
         }
       }
+
+      // Track if any changes were made to approved booking
+      let changesWereMadeToApprovedBooking = false;
+      const wasApproved = booking.status === "Approve";
 
       // Handle date/time changes if validated
       if (validatedDateTimeChanges) {
@@ -558,7 +572,9 @@ const BookingDetailDialog: React.FC<Props> = ({ open, onOpenChange, editData, is
         setIsEditingDateTime(false);
         setValidatedDateTimeChanges(null);
 
-        alert("✅ Date and time updated successfully!");
+        if (wasApproved) {
+          changesWereMadeToApprovedBooking = true;
+        }
       }
 
       // Handle room change if validated
@@ -590,7 +606,9 @@ const BookingDetailDialog: React.FC<Props> = ({ open, onOpenChange, editData, is
         setIsEditingRoom(false);
         setValidatedRoomChange(null);
 
-        alert("✅ Room updated successfully!");
+        if (wasApproved) {
+          changesWereMadeToApprovedBooking = true;
+        }
       }
 
       // Handle interpreter assignment if selected
@@ -603,10 +621,46 @@ const BookingDetailDialog: React.FC<Props> = ({ open, onOpenChange, editData, is
           if ("updatedAt" in res) setServerVersion(res.updatedAt);
           setBooking((prev) => (prev ? { ...prev, interpreter: pendingEmpCode } : prev));
 
-          if (booking.status === "Approve") {
-            alert("✅ Interpreter updated successfully!\n\n📧 Email notifications:\n• Cancellation email sent for old meeting\n• New meeting invitation sent with updated interpreter\n\nParticipants will receive both emails automatically.");
+          if (wasApproved) {
+            changesWereMadeToApprovedBooking = true;
           }
         }
+      }
+
+      // NEW: Call unified Apply endpoint to send change notification email
+      if (changesWereMadeToApprovedBooking) {
+        try {
+          console.log(`[APPLY] Calling unified Apply endpoint for booking ${bookingIdForApi}`);
+          const applyRes = await fetch(`/api/booking-data/${bookingIdForApi}/apply`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ oldBookingSnapshot }),
+          });
+
+          if (applyRes.ok) {
+            const applyData = await applyRes.json();
+            if (applyData.emailSent) {
+              console.log(`[APPLY] Change notification email sent successfully`);
+              alert("✅ Changes applied successfully!\n\n📧 Email notification sent to all participants with the updated booking details.");
+            } else if (applyData.changesDetected) {
+              console.log(`[APPLY] Changes detected but email not sent:`, applyData);
+              alert("✅ Changes applied successfully!\n\n⚠️ Email notification could not be sent. Please check the logs.");
+            } else {
+              console.log(`[APPLY] No changes detected`);
+              alert("✅ Changes applied successfully!");
+            }
+          } else {
+            const errorData = await applyRes.json().catch(() => ({}));
+            console.error(`[APPLY] Apply endpoint error:`, errorData);
+            alert("✅ Changes saved, but email notification failed.\n\nPlease notify participants manually.");
+          }
+        } catch (applyError) {
+          console.error(`[APPLY] Error calling Apply endpoint:`, applyError);
+          alert("✅ Changes saved, but email notification failed.\n\nPlease notify participants manually.");
+        }
+      } else {
+        // No changes to approved booking, just show success
+        alert("✅ Applied successfully!");
       }
 
       setOpen(false);

@@ -137,7 +137,7 @@ export async function POST(
     if (hasAnyChanges(changes) && currentBooking.bookingStatus === 'approve') {
       try {
         console.log(`[APPLY] Sending change notification email for booking ${bookingId}`)
-        
+
         // Get formatted email template
         const { subject, body, isHtml } = await getFormattedChangeTemplateForBooking(
           bookingId,
@@ -180,7 +180,7 @@ export async function POST(
         const adminEmails = await getAdminEmailsForBooking(bookingId)
         const recipientsLower = new Set(Array.from(recipients).map(e => e.toLowerCase()))
         const ccLower = new Set(Array.from(ccRecipients).map(e => e.toLowerCase()))
-        
+
         adminEmails.forEach(adminEmail => {
           const lower = adminEmail.toLowerCase()
           if (!recipientsLower.has(lower) && !ccLower.has(lower)) {
@@ -195,46 +195,19 @@ export async function POST(
 
         console.log(`[APPLY] Email recipients - TO: ${recipients.size}, CC: ${deduplicatedCC.length}`)
 
-        // Generate calendar event
-        const calendarEvent = {
-          uid: `booking-${bookingId}@dit.daikin.co.jp`,
-          summary: currentBooking.meetingDetail 
-            ? `${currentBooking.meetingType} - ${currentBooking.meetingDetail}`
-            : currentBooking.meetingType,
-          start: new Date(currentBooking.timeStart).toISOString(),
-          end: new Date(currentBooking.timeEnd).toISOString(),
-          location: currentBooking.meetingRoom,
-          organizer: {
-            name: process.env.SMTP_FROM_NAME || 'DEDE_SYSTEM',
-            email: process.env.SMTP_FROM_EMAIL || 'DEDE_SYSTEM@dit.daikin.co.jp'
-          },
-          attendees: [...Array.from(recipients), ...deduplicatedCC].map(email => ({
-            email,
-            role: 'REQ-PARTICIPANT',
-            status: 'NEEDS-ACTION'
-          })),
-          method: 'REQUEST',
-          sequence: 1 // Increment for updates
-        }
+        // Send email directly using sendChangeNotificationEmail
+        const { sendChangeNotificationEmail } = await import('@/lib/mail/sender')
 
-        // Send email via mail API
-        const mailResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/mail/send-mail`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            to: Array.from(recipients),
-            cc: deduplicatedCC,
-            subject,
-            body,
-            isHtml,
-            calendarEvent
-          })
-        })
-
-        if (!mailResponse.ok) {
-          const errorData = await mailResponse.json().catch(() => ({}))
-          throw new Error(`Mail API error: ${mailResponse.status} - ${JSON.stringify(errorData)}`)
-        }
+        await sendChangeNotificationEmail(
+          bookingId,
+          Array.from(recipients),
+          deduplicatedCC,
+          subject,
+          body,
+          isHtml,
+          currentBooking,
+          changes
+        )
 
         emailSent = true
         console.log(`[APPLY] Change notification email sent successfully for booking ${bookingId}`)

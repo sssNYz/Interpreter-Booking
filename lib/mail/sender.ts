@@ -6,7 +6,9 @@ import { generateCalendarInvite, createCalendarEvent, createCancelledCalendarEve
 import { createTeamsMeeting } from '@/lib/meetings/teams'
 import { getAdminEmailsForBooking } from './admin-emails'
 function createTransporter() {
-  const host = (process.env.SMTP_HOST ?? '').trim() || '192.168.212.220'
+  // Handle SMTP_HOST with special check for "0" which should use default
+  const envHost = (process.env.SMTP_HOST ?? '').trim()
+  const host = (!envHost || envHost === '0') ? '192.168.212.220' : envHost
   const port = parseInt(process.env.SMTP_PORT ?? '25', 10)
   const secure = process.env.SMTP_SECURE === 'true'
   const authMethod = (process.env.SMTP_AUTH_METHOD ?? 'none').toLowerCase()
@@ -16,6 +18,7 @@ function createTransporter() {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS
     }
+  console.log(`[SMTP] Creating transporter with host: ${host}, port: ${port}, secure: ${secure}, auth: ${authMethod}`)
   return nodemailer.createTransport({
     host,
     port,
@@ -579,6 +582,141 @@ export async function sendCancellationEmailForBooking(
     console.log(`[EMAIL] Cancellation email sent successfully for booking ${bookingId}`)
   } catch (error) {
     console.error(`[EMAIL] CRITICAL ERROR sending cancellation email for booking ${bookingId}:`, error)
+    throw error  // Re-throw to propagate the error
+  } finally {
+    transporter.close()
+  }
+}
+
+export async function sendChangeNotificationEmail(
+  bookingId: number,
+  recipients: string[],
+  ccRecipients: string[],
+  subject: string,
+  body: string,
+  isHtml: boolean,
+  booking: any,
+  changes: any
+): Promise<void> {
+  console.log(`[EMAIL] sendChangeNotificationEmail called for booking ${bookingId}`)
+
+  if (recipients.length === 0 && ccRecipients.length === 0) {
+    console.log(`[EMAIL] No recipients for booking ${bookingId} - skipping email`)
+    return
+  }
+
+  if (!booking.timeStart || !booking.timeEnd) {
+    console.log(`[EMAIL] Booking ${bookingId} missing time info - skipping email`)
+    return
+  }
+
+  const { name: organizerName, email: organizerEmail } = getOrganizerInfo()
+
+  // Try to create a Teams online meeting and get join URL (no DB persistence)
+  let teamsJoinUrl: string | null = null
+  try {
+    console.log('[EMAIL][TEAMS] Attempting to create Teams meeting for change notification', {
+      enabled: process.env.ENABLE_MS_TEAMS,
+      organizerUpn: process.env.MS_GRAPH_ORGANIZER_UPN || process.env.SMTP_FROM_EMAIL,
+      start: String(booking.timeStart || ''),
+      end: String(booking.timeEnd || ''),
+      subject: booking.meetingDetail || booking.meetingType
+    })
+    teamsJoinUrl = await createTeamsMeeting({
+      start: booking.timeStart,
+      end: booking.timeEnd,
+      subject: booking.meetingDetail || booking.meetingType,
+      organizerUpn: process.env.MS_GRAPH_ORGANIZER_UPN || process.env.SMTP_FROM_EMAIL || undefined
+    })
+    console.log('[EMAIL][TEAMS] Created Teams meeting?', { hasUrl: !!teamsJoinUrl, url: teamsJoinUrl })
+  } catch (e) {
+    console.error('[EMAIL] Error creating Teams meeting (will continue without link):', e)
+  }
+
+  // Combine recipients and CC for calendar attendees
+  const allAttendees = [...recipients, ...ccRecipients]
+
+  // Create updated calendar event with incremented sequence
+  const calendarEvent = createCalendarEvent({
+    uid: getCalendarUid(booking.bookingId),
+    summary: booking.meetingDetail || booking.meetingType,
+    description: [
+      teamsJoinUrl ? `Microsoft Teams meeting: ${teamsJoinUrl}` : null,
+      booking.applicableModel ? `Applicable Model: ${booking.applicableModel}` : null
+    ].filter(Boolean).join(' | ') || undefined,
+    start: booking.timeStart,
+    end: booking.timeEnd,
+    timezone: 'Asia/Bangkok',
+    location: booking.meetingRoom || '',
+    organizerName,
+    organizerEmail,
+    attendeeEmails: allAttendees,
+    method: 'REQUEST',
+    sequence: 1 // Incremented sequence for updates
+  })
+
+  const calendarInvite = generateCalendarInvite(calendarEvent)
+
+  const teamsBlockHtml = teamsJoinUrl ? `<p><strong>Microsoft Teams:</strong> <a href="${teamsJoinUrl}">Join the meeting</a></p>` : ''
+  const teamsBlockText = teamsJoinUrl ? `Microsoft Teams: ${teamsJoinUrl}\n\n` : ''
+
+  const finalHtml = isHtml ? `${teamsBlockHtml}${body}` : undefined
+  const textBody = (isHtml ? toPlainText(`${teamsBlockText}${body}`) : `${teamsBlockText}${body}`).trim()
+
+  console.log('[EMAIL][TEAMS] Email composition', {
+    hasTeamsUrl: !!teamsJoinUrl,
+    htmlHasTeamsBlock: !!teamsBlockHtml,
+    icsHasDescription: !!calendarEvent.description
+  })
+
+  const transporter = createTransporter()
+  try {
+    console.log(`[EMAIL] Verifying SMTP connection for change notification email...`)
+    await transporter.verify()
+    console.log(`[EMAIL] SMTP connection verified successfully`)
+
+    const mailOptions: nodemailer.SendMailOptions = {
+      from: `${organizerName} <${organizerEmail}>`,
+      to: recipients.join(', '),
+      cc: ccRecipients.length > 0 ? ccRecipients.join(', ') : undefined,
+      subject,
+      text: textBody,
+      html: finalHtml,
+      alternatives: [
+        { contentType: calendarInvite.contentType, content: calendarInvite.content }
+      ],
+      attachments: [
+        {
+          filename: calendarInvite.filename,
+          content: calendarInvite.content,
+          contentType: calendarInvite.contentType,
+          contentDisposition: 'attachment',
+          encoding: 'utf8'
+        }
+      ],
+      headers: {
+        'X-MS-OLK-FORCEINSPECTOROPEN': 'TRUE',
+        'Content-Class': 'urn:content-classes:calendarmessage',
+        'X-MICROSOFT-CDO-BUSYSTATUS': 'BUSY',
+        'X-MICROSOFT-CDO-IMPORTANCE': '1',
+        'X-MICROSOFT-DISALLOW-COUNTER': 'FALSE',
+        'X-MS-HAS-ATTACH': 'TRUE',
+        'X-MS-OLK-CONFTYPE': '0',
+        'X-MS-OLK-SENDER': organizerEmail,
+        'X-MS-OLK-AUTOFORWARD': 'FALSE',
+        'X-MS-OLK-AUTOREPLY': 'FALSE',
+        'MIME-Version': '1.0',
+        'X-Booking-Id': String(bookingId),
+        'X-Meeting-Type': String(booking.meetingType),
+        'X-Organizer': booking.employee?.firstNameEn || '',
+        'X-Applicable-Model': booking.applicableModel || ''
+      }
+    }
+
+    await transporter.sendMail(mailOptions)
+    console.log(`[EMAIL] Change notification email sent successfully for booking ${bookingId}`)
+  } catch (error) {
+    console.error(`[EMAIL] CRITICAL ERROR sending change notification email for booking ${bookingId}:`, error)
     throw error  // Re-throw to propagate the error
   } finally {
     transporter.close()
