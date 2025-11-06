@@ -119,14 +119,34 @@ export async function POST(
       })
     }
 
+    // Enrich old snapshot with interpreter details for accurate display
+    const oldBooking = requestBody.oldBookingSnapshot as any
+
+    // Fetch old interpreter details if empCode is provided
+    if (oldBooking.interpreterEmpCode) {
+      const oldInterpreter = await prisma.employee.findUnique({
+        where: { empCode: oldBooking.interpreterEmpCode },
+        select: {
+          empCode: true,
+          email: true,
+          firstNameEn: true,
+          lastNameEn: true,
+        }
+      })
+      if (oldInterpreter) {
+        oldBooking.interpreterEmployee = oldInterpreter
+      }
+    }
+
     // Detect changes between old and current state
-    const oldBooking = requestBody.oldBookingSnapshot as BookingWithRelations
-    const changes = detectBookingChanges(oldBooking, currentBooking)
+    const changes = detectBookingChanges(oldBooking as BookingWithRelations, currentBooking)
 
     console.log(`[APPLY] Change detection for booking ${bookingId}:`, {
       hasInterpreterChange: changes.hasInterpreterChange,
       hasTimeChange: changes.hasTimeChange,
-      hasRoomChange: changes.hasRoomChange
+      hasRoomChange: changes.hasRoomChange,
+      oldInterpreterCode: oldBooking.interpreterEmpCode,
+      newInterpreterCode: currentBooking.interpreterEmpCode
     })
 
     // Only send email if:
