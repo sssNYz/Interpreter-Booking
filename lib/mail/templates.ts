@@ -1285,14 +1285,25 @@ export function detectBookingChanges(
         hasRoomChange: false
     }
 
-    // Check interpreter change
-    const oldInterpreterEmail = oldBooking.interpreterEmployee?.email || oldBooking.selectedInterpreter?.email || ''
-    const newInterpreterEmail = newBooking.interpreterEmployee?.email || newBooking.selectedInterpreter?.email || ''
+    // Check interpreter change (use empCode to detect actual changes)
+    const oldInterpreterCode = oldBooking.interpreterEmpCode || oldBooking.selectedInterpreterEmpCode || ''
+    const newInterpreterCode = newBooking.interpreterEmpCode || newBooking.selectedInterpreterEmpCode || ''
 
-    if (oldInterpreterEmail !== newInterpreterEmail) {
+    if (oldInterpreterCode !== newInterpreterCode) {
         changes.hasInterpreterChange = true
-        changes.oldInterpreter = oldInterpreterEmail || 'None'
-        changes.newInterpreter = newInterpreterEmail || 'None'
+        // Display name instead of email
+        const oldName = oldBooking.interpreterEmployee
+            ? `${oldBooking.interpreterEmployee.firstNameEn || ''} ${oldBooking.interpreterEmployee.lastNameEn || ''}`.trim()
+            : oldBooking.selectedInterpreter
+            ? `${oldBooking.selectedInterpreter.firstNameEn || ''} ${oldBooking.selectedInterpreter.lastNameEn || ''}`.trim()
+            : 'None'
+        const newName = newBooking.interpreterEmployee
+            ? `${newBooking.interpreterEmployee.firstNameEn || ''} ${newBooking.interpreterEmployee.lastNameEn || ''}`.trim()
+            : newBooking.selectedInterpreter
+            ? `${newBooking.selectedInterpreter.firstNameEn || ''} ${newBooking.selectedInterpreter.lastNameEn || ''}`.trim()
+            : 'None'
+        changes.oldInterpreter = oldName || oldInterpreterCode || 'None'
+        changes.newInterpreter = newName || newInterpreterCode || 'None'
     }
 
     // Check time change (date, start, or end)
@@ -1303,8 +1314,14 @@ export function detectBookingChanges(
 
     if (oldStart !== newStart || oldEnd !== newEnd) {
         changes.hasTimeChange = true
-        changes.oldTime = formatTimeRange(new Date(oldBooking.timeStart), new Date(oldBooking.timeEnd))
-        changes.newTime = formatTimeRange(new Date(newBooking.timeStart), new Date(newBooking.timeEnd))
+        // Include date with time range
+        const oldStartDate = new Date(oldBooking.timeStart)
+        const oldEndDate = new Date(oldBooking.timeEnd)
+        const newStartDate = new Date(newBooking.timeStart)
+        const newEndDate = new Date(newBooking.timeEnd)
+
+        changes.oldTime = `${formatGbDateWithWeekday(oldStartDate)} ${formatTimeRange(oldStartDate, oldEndDate)}`
+        changes.newTime = `${formatGbDateWithWeekday(newStartDate)} ${formatTimeRange(newStartDate, newEndDate)}`
     }
 
     // Check room change

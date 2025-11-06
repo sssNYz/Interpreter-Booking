@@ -494,9 +494,10 @@ const BookingDetailDialog: React.FC<Props> = ({ open, onOpenChange, editData, is
       setSubmitting(isWait ? "approve" : "apply");
 
       // Snapshot old booking state for change detection (use database field names)
+      // Use bookingDetail if available for accurate interpreterEmpCode, otherwise fall back to basic booking data
       const oldBookingSnapshot = {
         bookingId: booking.bookingId || booking.id,
-        interpreterEmpCode: booking.interpreter,
+        interpreterEmpCode: bookingDetail?.interpreterId || null,
         timeStart: new Date(`${booking.dateTime}T${booking.startTime}:00`),
         timeEnd: new Date(`${booking.dateTime}T${booking.endTime}:00`),
         meetingRoom: booking.room,
