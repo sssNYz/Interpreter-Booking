@@ -146,13 +146,20 @@ export async function POST(
       hasTimeChange: changes.hasTimeChange,
       hasRoomChange: changes.hasRoomChange,
       oldInterpreterCode: oldBooking.interpreterEmpCode,
-      newInterpreterCode: currentBooking.interpreterEmpCode
+      newInterpreterCode: currentBooking.interpreterEmpCode,
+      oldTimeStart: oldBooking.timeStart,
+      newTimeStart: currentBooking.timeStart,
+      oldTimeEnd: oldBooking.timeEnd,
+      newTimeEnd: currentBooking.timeEnd,
+      oldRoom: oldBooking.meetingRoom,
+      newRoom: currentBooking.meetingRoom
     })
 
     // Only send email if:
     // 1. Changes detected
     // 2. Booking is approved
     let emailSent = false
+    let interpreterCancellationSent = false
 
     if (hasAnyChanges(changes) && currentBooking.bookingStatus === 'approve') {
       try {
@@ -174,7 +181,7 @@ export async function POST(
           recipients.add(currentBooking.employee.email)
         }
 
-        // Add interpreter to CC
+        // Add NEW interpreter to CC (NOT the old one - they get a separate cancellation)
         if (currentBooking.interpreterEmployee?.email) {
           ccRecipients.add(currentBooking.interpreterEmployee.email)
         }
@@ -216,7 +223,7 @@ export async function POST(
         console.log(`[APPLY] Email recipients - TO: ${recipients.size}, CC: ${deduplicatedCC.length}`)
 
         // Send email directly using sendChangeNotificationEmail
-        const { sendChangeNotificationEmail } = await import('@/lib/mail/sender')
+        const { sendChangeNotificationEmail, sendInterpreterReplacementNotification } = await import('@/lib/mail/sender')
 
         await sendChangeNotificationEmail(
           bookingId,
@@ -232,6 +239,26 @@ export async function POST(
         emailSent = true
         console.log(`[APPLY] Change notification email sent successfully for booking ${bookingId}`)
         console.log(`[APPLY] Change types: ${buildChangeTypesString(changes)}`)
+
+        // If interpreter was changed, send cancellation ONLY to old interpreter
+        if (changes.hasInterpreterChange && oldBooking.interpreterEmployee?.email) {
+          try {
+            console.log(`[APPLY] Interpreter changed - sending cancellation to old interpreter only`)
+
+            await sendInterpreterReplacementNotification(
+              bookingId,
+              oldBooking.interpreterEmployee.email,
+              changes.oldInterpreter || 'Previous Interpreter',
+              changes.newInterpreter || 'New Interpreter'
+            )
+
+            interpreterCancellationSent = true
+            console.log(`[APPLY] Interpreter cancellation sent to old interpreter: ${oldBooking.interpreterEmployee.email}`)
+          } catch (error) {
+            console.error(`[APPLY] Failed to send interpreter cancellation (non-critical):`, error)
+            // Don't fail the whole operation if this fails
+          }
+        }
 
       } catch (error) {
         console.error(`[APPLY] Failed to send change notification email for booking ${bookingId}:`, error)
@@ -270,7 +297,8 @@ export async function POST(
           new: changes.newRoom
         } : null
       } : null,
-      emailSent
+      emailSent,
+      interpreterCancellationSent
     })
 
   } catch (error) {

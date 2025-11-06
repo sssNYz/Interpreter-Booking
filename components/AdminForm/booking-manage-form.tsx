@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { toast } from "sonner";
 import {
   RefreshCw,
   CheckCircle,
@@ -47,6 +48,18 @@ const fmtDateTime = (iso: string) =>
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(iso));
+
+/* ================= helpers: toast formatting ================= */
+// Helper to create multi-line toast descriptions with proper spacing
+const ToastDescription: React.FC<{ lines: string[] }> = ({ lines }) => (
+  <div className="space-y-1.5 mt-1">
+    {lines.map((line, idx) => (
+      <div key={idx} className="text-sm leading-relaxed text-black dark:text-white font-medium">
+        {line}
+      </div>
+    ))}
+  </div>
+);
 
 /* ================= helpers: UI status pill ================= */
 const Status: React.FC<{ value: BookingManage["status"] }> = ({ value }) => {
@@ -494,10 +507,19 @@ const BookingDetailDialog: React.FC<Props> = ({ open, onOpenChange, editData, is
       setSubmitting(isWait ? "approve" : "apply");
 
       // Snapshot old booking state for change detection (use database field names)
-      // Use bookingDetail if available for accurate interpreterEmpCode, otherwise fall back to basic booking data
-      const oldBookingSnapshot = {
+      // Use bookingDetail if available for accurate interpreterEmpCode and timestamps
+      // IMPORTANT: Use bookingDetail's ISO timestamps (source of truth) to avoid invalid date construction
+      const oldBookingSnapshot = bookingDetail ? {
         bookingId: booking.bookingId || booking.id,
-        interpreterEmpCode: bookingDetail?.interpreterId || null,
+        interpreterEmpCode: bookingDetail.interpreterId || null,
+        timeStart: new Date(bookingDetail.timeStart),
+        timeEnd: new Date(bookingDetail.timeEnd),
+        meetingRoom: bookingDetail.meetingRoom,
+        bookingStatus: booking.status === "Approve" ? "approve" : booking.status === "Cancel" ? "cancel" : "waiting"
+      } : {
+        // Fallback if bookingDetail is not loaded (should not happen in normal flow)
+        bookingId: booking.bookingId || booking.id,
+        interpreterEmpCode: null,
         timeStart: new Date(`${booking.dateTime}T${booking.startTime}:00`),
         timeEnd: new Date(`${booking.dateTime}T${booking.endTime}:00`),
         meetingRoom: booking.room,
@@ -642,32 +664,89 @@ const BookingDetailDialog: React.FC<Props> = ({ open, onOpenChange, editData, is
             const applyData = await applyRes.json();
             if (applyData.emailSent) {
               console.log(`[APPLY] Change notification email sent successfully`);
-              alert("✅ Changes applied successfully!\n\n📧 Email notification sent to all participants with the updated booking details.");
+
+              // Build success message lines
+              const lines: string[] = [
+                "📧 Email notification sent to all participants",
+              ];
+
+              // Add interpreter cancellation notice if applicable
+              if (applyData.interpreterCancellationSent) {
+                lines.push("📬 Cancellation notice sent to previous interpreter");
+              }
+
+              toast.success("Changes Applied Successfully", {
+                description: <ToastDescription lines={lines} />,
+                duration: 5000,
+              });
             } else if (applyData.changesDetected) {
               console.log(`[APPLY] Changes detected but email not sent:`, applyData);
-              alert("✅ Changes applied successfully!\n\n⚠️ Email notification could not be sent. Please check the logs.");
+              toast.success("Changes Applied Successfully", {
+                description: (
+                  <ToastDescription
+                    lines={[
+                      "⚠️ Email notification could not be sent",
+                      "Please check the logs for details"
+                    ]}
+                  />
+                ),
+                duration: 5000,
+              });
             } else {
               console.log(`[APPLY] No changes detected`);
-              alert("✅ Changes applied successfully!");
+              toast.success("Changes Applied Successfully", {
+                duration: 3000,
+              });
             }
           } else {
             const errorData = await applyRes.json().catch(() => ({}));
             console.error(`[APPLY] Apply endpoint error:`, errorData);
-            alert("✅ Changes saved, but email notification failed.\n\nPlease notify participants manually.");
+            toast.warning("Changes Saved", {
+              description: (
+                <ToastDescription
+                  lines={[
+                    "⚠️ Email notification failed",
+                    "Please notify participants manually"
+                  ]}
+                />
+              ),
+              duration: 5000,
+            });
           }
         } catch (applyError) {
           console.error(`[APPLY] Error calling Apply endpoint:`, applyError);
-          alert("✅ Changes saved, but email notification failed.\n\nPlease notify participants manually.");
+          toast.warning("Changes Saved", {
+            description: (
+              <ToastDescription
+                lines={[
+                  "⚠️ Email notification failed",
+                  "Please notify participants manually"
+                ]}
+              />
+            ),
+            duration: 5000,
+          });
         }
       } else {
         // No changes to approved booking, just show success
-        alert("✅ Applied successfully!");
+        toast.success("Applied Successfully", {
+          duration: 3000,
+        });
       }
 
       setOpen(false);
       setTimeout(() => onActionComplete?.(), EXIT_MS);
     } catch (e) {
-      alert((e as Error).message);
+      toast.error("Failed to Apply Changes", {
+        description: (
+          <ToastDescription
+            lines={[
+              "❌ " + (e as Error).message
+            ]}
+          />
+        ),
+        duration: 5000,
+      });
     } finally {
       setSubmitting(null);
     }
@@ -676,7 +755,14 @@ const BookingDetailDialog: React.FC<Props> = ({ open, onOpenChange, editData, is
   // Save button: Validate only (NO database update)
   const handleSaveDateTime = async () => {
     if (!booking || bookingIdForApi == null || !editedDate || !editedStartTime || !editedEndTime) {
-      alert("Please fill in all date and time fields");
+      toast.error("Validation Failed", {
+        description: (
+          <ToastDescription
+            lines={["Please fill in all date and time fields"]}
+          />
+        ),
+        duration: 4000,
+      });
       return;
     }
 
@@ -699,7 +785,14 @@ const BookingDetailDialog: React.FC<Props> = ({ open, onOpenChange, editData, is
       const timeEnd = new Date(timeEndStr);
 
       if (timeStart >= timeEnd) {
-        alert("End time must be after start time");
+        toast.error("Invalid Time Range", {
+          description: (
+            <ToastDescription
+              lines={["End time must be after start time"]}
+            />
+          ),
+          duration: 4000,
+        });
         setSubmitting(null);
         return;
       }
@@ -727,10 +820,19 @@ const BookingDetailDialog: React.FC<Props> = ({ open, onOpenChange, editData, is
 
       // Handle conflicts
       if (!data.available || (data.conflicts && data.conflicts.length > 0)) {
-        const conflictDetails = data.conflicts
-          .map((c: any) => `  • Booking #${c.bookingId}`)
-          .join('\n');
-        alert(`❌ Time slot is already booked!\n\n${conflictDetails}\n\nPlease select a different time.`);
+        const conflicts = data.conflicts.map((c: any) => `• Booking #${c.bookingId}`);
+        toast.error("Time Slot Already Booked", {
+          description: (
+            <ToastDescription
+              lines={[
+                "Conflicts detected:",
+                ...conflicts,
+                "Please select a different time"
+              ]}
+            />
+          ),
+          duration: 6000,
+        });
         setSubmitting(null);
         return;
       }
@@ -744,10 +846,27 @@ const BookingDetailDialog: React.FC<Props> = ({ open, onOpenChange, editData, is
 
       // Close editor and show success message
       setIsEditingDateTime(false);
-      alert("✅ Changes validated! Click the 'Apply' button below to save to database.");
+      toast.success("Changes Validated", {
+        description: (
+          <ToastDescription
+            lines={[
+              "✓ Time slot is available",
+              "Click 'Apply' button to save to database"
+            ]}
+          />
+        ),
+        duration: 4000,
+      });
 
     } catch (e) {
-      alert((e as Error).message);
+      toast.error("Validation Failed", {
+        description: (
+          <ToastDescription
+            lines={["❌ " + (e as Error).message]}
+          />
+        ),
+        duration: 5000,
+      });
     } finally {
       setSubmitting(null);
     }
@@ -775,7 +894,14 @@ const BookingDetailDialog: React.FC<Props> = ({ open, onOpenChange, editData, is
           throw new Error('Failed to load rooms');
         }
       } catch (e) {
-        alert((e as Error).message);
+        toast.error("Failed to Load Rooms", {
+          description: (
+            <ToastDescription
+              lines={["❌ " + (e as Error).message]}
+            />
+          ),
+          duration: 5000,
+        });
         setIsEditingRoom(false);
       } finally {
         setRoomsLoading(false);
@@ -840,7 +966,14 @@ const BookingDetailDialog: React.FC<Props> = ({ open, onOpenChange, editData, is
   // Save button for room: Validate only (NO database update)
   const handleSaveRoom = async () => {
     if (!booking || bookingIdForApi == null || !editedRoom) {
-      alert("Please select a room");
+      toast.error("Validation Failed", {
+        description: (
+          <ToastDescription
+            lines={["Please select a room"]}
+          />
+        ),
+        duration: 4000,
+      });
       return;
     }
 
@@ -857,10 +990,15 @@ const BookingDetailDialog: React.FC<Props> = ({ open, onOpenChange, editData, is
       // Check if room is available
       const availability = roomAvailability[editedRoom];
       if (!availability || !availability.available) {
-        const conflictDetails = availability?.conflicts
-          ?.map((c: any) => `  • Booking #${c.bookingId}`)
-          .join('\n') || '';
-        alert(`❌ Room is not available!\n\n${conflictDetails}\n\nPlease select a different room.`);
+        const conflicts = availability?.conflicts?.map((c: any) => `• Booking #${c.bookingId}`) || [];
+        const lines = conflicts.length > 0
+          ? ["Room is not available:", ...conflicts, "Please select a different room"]
+          : ["Room is not available", "Please select a different room"];
+
+        toast.error("Room Not Available", {
+          description: <ToastDescription lines={lines} />,
+          duration: 5000,
+        });
         setSubmitting(null);
         return;
       }
@@ -870,10 +1008,27 @@ const BookingDetailDialog: React.FC<Props> = ({ open, onOpenChange, editData, is
 
       // Close editor and show success message
       setIsEditingRoom(false);
-      alert("✅ Room change validated! Click the 'Apply' button below to save to database.");
+      toast.success("Room Change Validated", {
+        description: (
+          <ToastDescription
+            lines={[
+              "✓ Room is available",
+              "Click 'Apply' button to save to database"
+            ]}
+          />
+        ),
+        duration: 4000,
+      });
 
     } catch (e) {
-      alert((e as Error).message);
+      toast.error("Validation Failed", {
+        description: (
+          <ToastDescription
+            lines={["❌ " + (e as Error).message]}
+          />
+        ),
+        duration: 5000,
+      });
     } finally {
       setSubmitting(null);
     }
