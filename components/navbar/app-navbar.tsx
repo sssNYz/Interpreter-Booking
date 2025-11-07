@@ -233,20 +233,20 @@ export function AppNavbar() {
 
   return (
     <nav className="sticky top-0 z-[50] border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 shadow-sm">
-      <div className="w-full flex h-16 items-center justify-between">
+      <div className="w-full flex h-16 items-center justify-between px-4">
         {/* Logo */}
-        <div className="flex items-center gap-2 mb-4">
+        <div className="flex items-center gap-2 flex-shrink-0">
             <Image 
               src="/logo/BOOKIO.svg" 
               alt="Logo" 
               width={50} 
-              height={90}
-              className="h-95 w-95"
+              height={50}
+              className="h-auto w-auto max-h-10"
             />
           </div>
 
           {/* Segmented nav */}
-          <div className="flex items-center gap-2 pr-4">
+          <div className="flex items-center gap-2">
             <div
               ref={containerRef}
               className="relative flex items-center gap-1 bg-muted rounded-full p-1 h-10 overflow-hidden"
