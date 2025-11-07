@@ -1,13 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useCallback } from "react";
 import { motion } from "framer-motion";
 import {
   Calendar,
   CheckCircle,
-  LayoutDashboard,
   LogOut,
   BarChart2,
   Inbox,
@@ -233,16 +233,20 @@ export function AppNavbar() {
 
   return (
     <nav className="sticky top-0 z-[50] border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 shadow-sm">
-      <div className="container mx-auto px-4">
-        <div className="flex h-16 items-center justify-between">
-          {/* Logo */}
-          <div className="flex items-center gap-2">
-            <LayoutDashboard className="h-6 w-6" />
-            <span className="text-lg font-semibold">Interpreter Booking</span>
+      <div className="w-full flex h-16 items-center justify-between">
+        {/* Logo */}
+        <div className="flex items-center gap-2 mb-4">
+            <Image 
+              src="/logo/BOOKIO.svg" 
+              alt="Logo" 
+              width={50} 
+              height={90}
+              className="h-95 w-95"
+            />
           </div>
 
           {/* Segmented nav */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 pr-4">
             <div
               ref={containerRef}
               className="relative flex items-center gap-1 bg-muted rounded-full p-1 h-10 overflow-hidden"
@@ -387,7 +391,6 @@ export function AppNavbar() {
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
-        </div>
       </div>
       {/* Change phone dialog */}
       <Dialog open={phoneOpen} onOpenChange={setPhoneOpen}>
