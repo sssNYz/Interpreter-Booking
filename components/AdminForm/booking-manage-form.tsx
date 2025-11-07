@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { toast } from "sonner";
 import {
   RefreshCw,
   CheckCircle,
@@ -20,12 +21,18 @@ import {
   FileText,
   BarChart3,
   Sparkles,
+  Edit,
+  Save,
+  X as XIcon,
+  ArrowDown,
 } from "lucide-react";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { BarChart as RBarChart, Bar, XAxis, YAxis } from "recharts";
 import type { BookingManage } from "@/types/admin";
 import type { BookingData } from "@/types/booking";
 import { getMeetingTypeBadge } from "@/utils/priority";
+import { DateTimePicker } from "@/components/DateTimePicker/date-time-picker";
+import { format, parse } from "date-fns";
 
 /* ================= helpers: format ================= */
 const fmtDate = (ymd: string) => {
@@ -42,13 +49,25 @@ const fmtDateTime = (iso: string) =>
     minute: "2-digit",
   }).format(new Date(iso));
 
+/* ================= helpers: toast formatting ================= */
+// Helper to create multi-line toast descriptions with proper spacing
+const ToastDescription: React.FC<{ lines: string[] }> = ({ lines }) => (
+  <div className="space-y-1.5 mt-1">
+    {lines.map((line, idx) => (
+      <div key={idx} className="text-sm leading-relaxed text-black dark:text-white font-medium">
+        {line}
+      </div>
+    ))}
+  </div>
+);
+
 /* ================= helpers: UI status pill ================= */
 const Status: React.FC<{ value: BookingManage["status"] }> = ({ value }) => {
   const iconClass = value === "Approve"
     ? "text-emerald-600"
     : value === "Wait"
-    ? "text-amber-600"
-    : "text-red-600";
+      ? "text-amber-600"
+      : "text-red-600";
   const Icon = value === "Approve" ? CheckCircle : value === "Wait" ? Hourglass : XCircle;
   return (
     <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-muted text-foreground/80">
@@ -72,13 +91,13 @@ type AvailabilityListResponse = {
 
 type PatchInterpreterResponse =
   | {
-      bookingId: number;
-      interpreterEmpCode: string | null;
-      timeStart: string; // ISO
-      timeEnd: string;   // ISO
-      bookingStatus: ApiStatus;
-      updatedAt: string; // ISO
-    }
+    bookingId: number;
+    interpreterEmpCode: string | null;
+    timeStart: string; // ISO
+    timeEnd: string;   // ISO
+    bookingStatus: ApiStatus;
+    updatedAt: string; // ISO
+  }
   | { ok: true; unchanged: true; bookingId: number };
 
 export type BookingForDialog = BookingManage & {
@@ -188,12 +207,12 @@ const InterpreterSelector: React.FC<{
             )}
           </span>
         </div>
-        <Button 
-          variant="ghost" 
-          size="sm" 
-          className="h-6 w-6 p-0" 
-          onClick={load} 
-          title="Refresh list" 
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-6 w-6 p-0"
+          onClick={load}
+          title="Refresh list"
           disabled={loading}
         >
           <RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""} text-muted-foreground`} />
@@ -266,7 +285,7 @@ const BookingDetailDialog: React.FC<Props> = ({ open, onOpenChange, editData, is
   const [uOpen, setUOpen] = useState(false);
   const actualOpen = controlled ? (open as boolean) : uOpen;
   const setOpen = (v: boolean) => (controlled ? onOpenChange?.(v) : setUOpen(v));
-  
+
   // Responsive design
   const { isMobile, screenSize } = useMobile();
   const isTablet = screenSize === 'md' || screenSize === 'lg';
@@ -308,8 +327,84 @@ const BookingDetailDialog: React.FC<Props> = ({ open, onOpenChange, editData, is
   const [expand, setExpand] = useState(false);
   useEffect(() => setExpand(false), [booking?.bookingId, booking?.id, actualOpen]);
 
-  const [submitting, setSubmitting] = useState<null | "approve" | "cancel" | "apply">(null);
+  const [submitting, setSubmitting] = useState<null | "approve" | "cancel" | "apply" | "save-datetime" | "save-room">(null);
   const EXIT_MS = 150;
+
+  // Date/Time editing state - LOCAL DRAFT (scoped to this booking instance)
+  // This state is NEVER shared across bookings and is discarded when:
+  // - Dialog closes
+  // - User switches to another booking
+  // - User cancels editing
+  // Always reloads from database (source of truth) when reopening
+  const [isEditingDateTime, setIsEditingDateTime] = useState(false);
+  const [editedDate, setEditedDate] = useState<Date | undefined>(undefined);
+  const [editedStartTime, setEditedStartTime] = useState<string>("");
+  const [editedEndTime, setEditedEndTime] = useState<string>("");
+
+  // Room editing state - LOCAL DRAFT (independent from date/time editing)
+  const [isEditingRoom, setIsEditingRoom] = useState(false);
+  const [editedRoom, setEditedRoom] = useState<string>("");
+  const [availableRooms, setAvailableRooms] = useState<{ id: number; name: string; location: string | null; capacity: number; isActive: boolean }[]>([]);
+  const [roomsLoading, setRoomsLoading] = useState(false);
+  const [roomAvailability, setRoomAvailability] = useState<Record<string, { available: boolean; conflicts?: any[] }>>({});
+
+  // Validated date/time changes (ready to apply) - LOCAL DRAFT
+  // Only persisted to database when Apply button is clicked
+  // Cleared when dialog closes or booking changes
+  const [validatedDateTimeChanges, setValidatedDateTimeChanges] = useState<{
+    date: Date;
+    startTime: string;
+    endTime: string;
+  } | null>(null);
+
+  // Validated room changes (ready to apply) - LOCAL DRAFT
+  const [validatedRoomChange, setValidatedRoomChange] = useState<string | null>(null);
+
+  // Initialize edit values when entering edit mode
+  useEffect(() => {
+    if (isEditingDateTime && booking) {
+      try {
+        const date = parse(booking.dateTime, "yyyy-MM-dd", new Date());
+        setEditedDate(date);
+        setEditedStartTime(booking.startTime);
+        setEditedEndTime(booking.endTime);
+      } catch (e) {
+        console.error("Error parsing date:", e);
+      }
+    }
+  }, [isEditingDateTime, booking]);
+
+  // Reset ALL draft state when dialog closes or booking changes
+  // This ensures no cross-instance bleed and always loads from source of truth
+  useEffect(() => {
+    if (!actualOpen) {
+      // Dialog closed - discard ALL drafts
+      setIsEditingDateTime(false);
+      setEditedDate(undefined);
+      setEditedStartTime("");
+      setEditedEndTime("");
+      setValidatedDateTimeChanges(null);
+      setIsEditingRoom(false);
+      setEditedRoom("");
+      setValidatedRoomChange(null);
+      setRoomAvailability({});
+    }
+  }, [actualOpen]);
+
+  // Clear draft state when switching to a different booking
+  // This prevents stale drafts from one booking appearing in another
+  useEffect(() => {
+    // When booking changes, clear all draft state
+    setIsEditingDateTime(false);
+    setEditedDate(undefined);
+    setEditedStartTime("");
+    setEditedEndTime("");
+    setValidatedDateTimeChanges(null);
+    setIsEditingRoom(false);
+    setEditedRoom("");
+    setValidatedRoomChange(null);
+    setRoomAvailability({});
+  }, [booking?.bookingId, booking?.id]);
 
   const bookingIdForApi = getBookingId(booking);
 
@@ -348,7 +443,7 @@ const BookingDetailDialog: React.FC<Props> = ({ open, onOpenChange, editData, is
       if (id == null) return;
       try {
         const envQuery = targetEnvironmentId != null ? `&environmentId=${targetEnvironmentId}` : "";
-        const res = await fetch(`/api/bookings/${id}/suggestions?maxCandidates=20${envQuery}` , { cache: "no-store" });
+        const res = await fetch(`/api/bookings/${id}/suggestions?maxCandidates=20${envQuery}`, { cache: "no-store" });
         const j = await res.json().catch(() => ({}) as { ok?: boolean; candidates?: { empCode: string; score: number; reasons: string[]; time: { daysToMeeting: number; hoursToStart: number; lastJobDaysAgo: number }; currentHours?: number; afterAssignHours?: number; groupHours?: { iot: number; hardware: number; software: number; other: number } }[] });
         if (res.ok && j?.ok && Array.isArray(j.candidates)) {
           setSuggestions(j.candidates as typeof suggestions);
@@ -401,8 +496,9 @@ const BookingDetailDialog: React.FC<Props> = ({ open, onOpenChange, editData, is
 
   const canApprove = useMemo(() => {
     if (!booking || bookingIdForApi == null) return false;
-    return !!pendingEmpCode;
-  }, [booking, bookingIdForApi, pendingEmpCode]);
+    // Can apply if interpreter is selected OR date/time changes are validated OR room change is validated
+    return !!pendingEmpCode || !!validatedDateTimeChanges || !!validatedRoomChange;
+  }, [booking, bookingIdForApi, pendingEmpCode, validatedDateTimeChanges, validatedRoomChange]);
 
   const handleApproveOrApply = async () => {
     if (!booking || bookingIdForApi == null) return;
@@ -410,26 +506,529 @@ const BookingDetailDialog: React.FC<Props> = ({ open, onOpenChange, editData, is
       const isWait = booking.status === "Wait";
       setSubmitting(isWait ? "approve" : "apply");
 
-      if (!pendingEmpCode) throw new Error("Please select an interpreter first.");
+      // Snapshot old booking state for change detection (use database field names)
+      // Use bookingDetail if available for accurate interpreterEmpCode and timestamps
+      // IMPORTANT: Use bookingDetail's ISO timestamps (source of truth) to avoid invalid date construction
+      const oldBookingSnapshot = bookingDetail ? {
+        bookingId: booking.bookingId || booking.id,
+        interpreterEmpCode: bookingDetail.interpreterId || null,
+        timeStart: new Date(bookingDetail.timeStart),
+        timeEnd: new Date(bookingDetail.timeEnd),
+        meetingRoom: bookingDetail.meetingRoom,
+        bookingStatus: booking.status === "Approve" ? "approve" : booking.status === "Cancel" ? "cancel" : "waiting"
+      } : {
+        // Fallback if bookingDetail is not loaded (should not happen in normal flow)
+        bookingId: booking.bookingId || booking.id,
+        interpreterEmpCode: null,
+        timeStart: new Date(`${booking.dateTime}T${booking.startTime}:00`),
+        timeEnd: new Date(`${booking.dateTime}T${booking.endTime}:00`),
+        meetingRoom: booking.room,
+        bookingStatus: booking.status === "Approve" ? "approve" : booking.status === "Cancel" ? "cancel" : "waiting"
+      };
 
-      if (isWait) {
-        await adminApprove(bookingIdForApi, pendingEmpCode);
-        setBooking((prev) => (prev ? { ...prev, status: "Approve", interpreter: pendingEmpCode } : prev));
-      } else {
-        const res = await patchInterpreter(bookingIdForApi, pendingEmpCode, serverVersion);
-        if ("updatedAt" in res) setServerVersion(res.updatedAt);
-        setBooking((prev) => (prev ? { ...prev, interpreter: pendingEmpCode } : prev));
-        
-        // Show notification for approved bookings with interpreter changes
-        if (booking.status === "Approve") {
-          alert("✅ Interpreter updated successfully!\n\n📧 Email notifications:\n• Cancellation email sent for old meeting\n• New meeting invitation sent with updated interpreter\n\nParticipants will receive both emails automatically.");
+      // Final validation: If both room and date/time are changed, re-validate the combination
+      if (validatedDateTimeChanges && validatedRoomChange) {
+        const dateStr = format(validatedDateTimeChanges.date, "yyyy-MM-dd");
+        const params = new URLSearchParams({
+          date: dateStr,
+          room: validatedRoomChange,
+          startTime: validatedDateTimeChanges.startTime,
+          endTime: validatedDateTimeChanges.endTime,
+        });
+        if (bookingIdForApi) params.append('excludeBookingId', bookingIdForApi.toString());
+
+        const res = await fetch(`/api/booking-data/check-room-availability?${params}`, {
+          cache: 'no-store',
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          if (!data.available || (data.conflicts && data.conflicts.length > 0)) {
+            const conflictDetails = data.conflicts
+              ?.map((c: any) => `  • Booking #${c.bookingId}`)
+              .join('\n') || '';
+            throw new Error(`❌ Final validation failed: The combination of new room and new time is not available!\n\n${conflictDetails}\n\nPlease adjust your changes.`);
+          }
         }
+      }
+
+      // Track if any changes were made to approved booking
+      let changesWereMadeToApprovedBooking = false;
+      const wasApproved = booking.status === "Approve";
+
+      // Handle date/time changes if validated
+      if (validatedDateTimeChanges) {
+        const dateStr = format(validatedDateTimeChanges.date, "yyyy-MM-dd");
+        const timeStartStr = `${dateStr}T${validatedDateTimeChanges.startTime}:00`;
+        const timeEndStr = `${dateStr}T${validatedDateTimeChanges.endTime}:00`;
+
+        const res = await fetch(`/api/booking-data/patch-booking-datetime/${bookingIdForApi}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            timeStart: timeStartStr,
+            timeEnd: timeEndStr,
+          }),
+        });
+
+        if (!res.ok) {
+          const j = await res.json().catch(() => null);
+          if (res.status === 409) {
+            throw new Error(`❌ Conflict: Time slot was taken by another booking. Please select a different time.`);
+          }
+          throw new Error(j?.message || `Update failed (${res.status})`);
+        }
+
+        // Update local state
+        setBooking((prev) =>
+          prev
+            ? {
+              ...prev,
+              dateTime: dateStr,
+              startTime: validatedDateTimeChanges.startTime,
+              endTime: validatedDateTimeChanges.endTime,
+            }
+            : prev
+        );
+
+        // Reset date/time editing state
+        setIsEditingDateTime(false);
+        setValidatedDateTimeChanges(null);
+
+        if (wasApproved) {
+          changesWereMadeToApprovedBooking = true;
+        }
+      }
+
+      // Handle room change if validated
+      if (validatedRoomChange) {
+        const res = await fetch(`/api/booking-data/patch-booking-by-id/${bookingIdForApi}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            room: validatedRoomChange,
+          }),
+        });
+
+        if (!res.ok) {
+          const j = await res.json().catch(() => null);
+          throw new Error(j?.message || `Room update failed (${res.status})`);
+        }
+
+        // Update local state
+        setBooking((prev) =>
+          prev
+            ? {
+              ...prev,
+              room: validatedRoomChange,
+            }
+            : prev
+        );
+
+        // Reset room editing state
+        setIsEditingRoom(false);
+        setValidatedRoomChange(null);
+
+        if (wasApproved) {
+          changesWereMadeToApprovedBooking = true;
+        }
+      }
+
+      // Handle interpreter assignment if selected
+      if (pendingEmpCode) {
+        if (isWait) {
+          await adminApprove(bookingIdForApi, pendingEmpCode);
+          setBooking((prev) => (prev ? { ...prev, status: "Approve", interpreter: pendingEmpCode } : prev));
+        } else {
+          const res = await patchInterpreter(bookingIdForApi, pendingEmpCode, serverVersion);
+          if ("updatedAt" in res) setServerVersion(res.updatedAt);
+          setBooking((prev) => (prev ? { ...prev, interpreter: pendingEmpCode } : prev));
+
+          if (wasApproved) {
+            changesWereMadeToApprovedBooking = true;
+          }
+        }
+      }
+
+      // NEW: Call unified Apply endpoint to send change notification email
+      if (changesWereMadeToApprovedBooking) {
+        try {
+          console.log(`[APPLY] Calling unified Apply endpoint for booking ${bookingIdForApi}`);
+          const applyRes = await fetch(`/api/booking-data/${bookingIdForApi}/apply`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ oldBookingSnapshot }),
+          });
+
+          if (applyRes.ok) {
+            const applyData = await applyRes.json();
+            if (applyData.emailSent) {
+              console.log(`[APPLY] Change notification email sent successfully`);
+
+              // Build success message lines
+              const lines: string[] = [
+                "📧 Email notification sent to all participants",
+              ];
+
+              // Add interpreter cancellation notice if applicable
+              if (applyData.interpreterCancellationSent) {
+                lines.push("📬 Cancellation notice sent to previous interpreter");
+              }
+
+              toast.success("Changes Applied Successfully", {
+                description: <ToastDescription lines={lines} />,
+                duration: 5000,
+              });
+            } else if (applyData.changesDetected) {
+              console.log(`[APPLY] Changes detected but email not sent:`, applyData);
+              toast.success("Changes Applied Successfully", {
+                description: (
+                  <ToastDescription
+                    lines={[
+                      "⚠️ Email notification could not be sent",
+                      "Please check the logs for details"
+                    ]}
+                  />
+                ),
+                duration: 5000,
+              });
+            } else {
+              console.log(`[APPLY] No changes detected`);
+              toast.success("Changes Applied Successfully", {
+                duration: 3000,
+              });
+            }
+          } else {
+            const errorData = await applyRes.json().catch(() => ({}));
+            console.error(`[APPLY] Apply endpoint error:`, errorData);
+            toast.warning("Changes Saved", {
+              description: (
+                <ToastDescription
+                  lines={[
+                    "⚠️ Email notification failed",
+                    "Please notify participants manually"
+                  ]}
+                />
+              ),
+              duration: 5000,
+            });
+          }
+        } catch (applyError) {
+          console.error(`[APPLY] Error calling Apply endpoint:`, applyError);
+          toast.warning("Changes Saved", {
+            description: (
+              <ToastDescription
+                lines={[
+                  "⚠️ Email notification failed",
+                  "Please notify participants manually"
+                ]}
+              />
+            ),
+            duration: 5000,
+          });
+        }
+      } else {
+        // No changes to approved booking, just show success
+        toast.success("Applied Successfully", {
+          duration: 3000,
+        });
       }
 
       setOpen(false);
       setTimeout(() => onActionComplete?.(), EXIT_MS);
     } catch (e) {
-      alert((e as Error).message);
+      toast.error("Failed to Apply Changes", {
+        description: (
+          <ToastDescription
+            lines={[
+              "❌ " + (e as Error).message
+            ]}
+          />
+        ),
+        duration: 5000,
+      });
+    } finally {
+      setSubmitting(null);
+    }
+  };
+
+  // Save button: Validate only (NO database update)
+  const handleSaveDateTime = async () => {
+    if (!booking || bookingIdForApi == null || !editedDate || !editedStartTime || !editedEndTime) {
+      toast.error("Validation Failed", {
+        description: (
+          <ToastDescription
+            lines={["Please fill in all date and time fields"]}
+          />
+        ),
+        duration: 4000,
+      });
+      return;
+    }
+
+    try {
+      setSubmitting("save-datetime");
+
+      const dateStr = format(editedDate, "yyyy-MM-dd");
+      const timeStartStr = `${dateStr}T${editedStartTime}:00`;
+      const timeEndStr = `${dateStr}T${editedEndTime}:00`;
+
+      // Check if times are unchanged - if so, just close editor without validation
+      if (dateStr === booking.dateTime && editedStartTime === booking.startTime && editedEndTime === booking.endTime) {
+        setIsEditingDateTime(false);
+        setSubmitting(null);
+        return;
+      }
+
+      // Validate time range
+      const timeStart = new Date(timeStartStr);
+      const timeEnd = new Date(timeEndStr);
+
+      if (timeStart >= timeEnd) {
+        toast.error("Invalid Time Range", {
+          description: (
+            <ToastDescription
+              lines={["End time must be after start time"]}
+            />
+          ),
+          duration: 4000,
+        });
+        setSubmitting(null);
+        return;
+      }
+
+      // Check for conflicts (NO database update)
+      // Use validated room if there's a pending room change, otherwise use current room
+      const roomToCheck = validatedRoomChange || booking.room;
+      const params = new URLSearchParams({
+        date: dateStr,
+        room: roomToCheck,
+        startTime: editedStartTime,
+        endTime: editedEndTime,
+      });
+      if (bookingIdForApi) params.append('excludeBookingId', bookingIdForApi.toString());
+
+      const res = await fetch(`/api/booking-data/check-room-availability?${params}`, {
+        cache: 'no-store',
+      });
+
+      if (!res.ok) {
+        throw new Error(`Availability check failed (${res.status})`);
+      }
+
+      const data = await res.json();
+
+      // Handle conflicts
+      if (!data.available || (data.conflicts && data.conflicts.length > 0)) {
+        const conflicts = data.conflicts.map((c: any) => `• Booking #${c.bookingId}`);
+        toast.error("Time Slot Already Booked", {
+          description: (
+            <ToastDescription
+              lines={[
+                "Conflicts detected:",
+                ...conflicts,
+                "Please select a different time"
+              ]}
+            />
+          ),
+          duration: 6000,
+        });
+        setSubmitting(null);
+        return;
+      }
+
+      // No conflicts - store validated changes (NO database update yet)
+      setValidatedDateTimeChanges({
+        date: editedDate,
+        startTime: editedStartTime,
+        endTime: editedEndTime,
+      });
+
+      // Close editor and show success message
+      setIsEditingDateTime(false);
+      toast.success("Changes Validated", {
+        description: (
+          <ToastDescription
+            lines={[
+              "✓ Time slot is available",
+              "Click 'Apply' button to save to database"
+            ]}
+          />
+        ),
+        duration: 4000,
+      });
+
+    } catch (e) {
+      toast.error("Validation Failed", {
+        description: (
+          <ToastDescription
+            lines={["❌ " + (e as Error).message]}
+          />
+        ),
+        duration: 5000,
+      });
+    } finally {
+      setSubmitting(null);
+    }
+  };
+
+  // Fetch available rooms when room editing starts
+  useEffect(() => {
+    const fetchRooms = async () => {
+      if (!isEditingRoom) return;
+
+      try {
+        setRoomsLoading(true);
+        const res = await fetch('/api/admin/add-room?isActive=true&pageSize=100', {
+          cache: 'no-store',
+        });
+
+        if (!res.ok) {
+          throw new Error(`Failed to fetch rooms (${res.status})`);
+        }
+
+        const data = await res.json();
+        if (data.success && data.data?.rooms) {
+          setAvailableRooms(data.data.rooms);
+        } else {
+          throw new Error('Failed to load rooms');
+        }
+      } catch (e) {
+        toast.error("Failed to Load Rooms", {
+          description: (
+            <ToastDescription
+              lines={["❌ " + (e as Error).message]}
+            />
+          ),
+          duration: 5000,
+        });
+        setIsEditingRoom(false);
+      } finally {
+        setRoomsLoading(false);
+      }
+    };
+
+    void fetchRooms();
+  }, [isEditingRoom]);
+
+  // Check room availability when rooms are loaded
+  useEffect(() => {
+    const checkRoomAvailability = async () => {
+      if (!isEditingRoom || !booking || availableRooms.length === 0) return;
+
+      // Use validated date/time if available, otherwise use current booking date/time
+      const dateStr = validatedDateTimeChanges
+        ? format(validatedDateTimeChanges.date, "yyyy-MM-dd")
+        : booking.dateTime;
+      const startTime = validatedDateTimeChanges
+        ? validatedDateTimeChanges.startTime
+        : booking.startTime;
+      const endTime = validatedDateTimeChanges
+        ? validatedDateTimeChanges.endTime
+        : booking.endTime;
+
+      const availability: Record<string, { available: boolean; conflicts?: any[] }> = {};
+
+      for (const room of availableRooms) {
+        try {
+          const params = new URLSearchParams({
+            date: dateStr,
+            room: room.name,
+            startTime,
+            endTime,
+          });
+          if (bookingIdForApi) params.append('excludeBookingId', bookingIdForApi.toString());
+
+          const res = await fetch(`/api/booking-data/check-room-availability?${params}`, {
+            cache: 'no-store',
+          });
+
+          if (res.ok) {
+            const data = await res.json();
+            availability[room.name] = {
+              available: data.available && (!data.conflicts || data.conflicts.length === 0),
+              conflicts: data.conflicts || [],
+            };
+          } else {
+            availability[room.name] = { available: false };
+          }
+        } catch (e) {
+          availability[room.name] = { available: false };
+        }
+      }
+
+      setRoomAvailability(availability);
+    };
+
+    void checkRoomAvailability();
+  }, [isEditingRoom, booking, availableRooms, bookingIdForApi, validatedDateTimeChanges]);
+
+  // Save button for room: Validate only (NO database update)
+  const handleSaveRoom = async () => {
+    if (!booking || bookingIdForApi == null || !editedRoom) {
+      toast.error("Validation Failed", {
+        description: (
+          <ToastDescription
+            lines={["Please select a room"]}
+          />
+        ),
+        duration: 4000,
+      });
+      return;
+    }
+
+    try {
+      setSubmitting("save-room");
+
+      // Check if room is unchanged
+      if (editedRoom === booking.room) {
+        setIsEditingRoom(false);
+        setSubmitting(null);
+        return;
+      }
+
+      // Check if room is available
+      const availability = roomAvailability[editedRoom];
+      if (!availability || !availability.available) {
+        const conflicts = availability?.conflicts?.map((c: any) => `• Booking #${c.bookingId}`) || [];
+        const lines = conflicts.length > 0
+          ? ["Room is not available:", ...conflicts, "Please select a different room"]
+          : ["Room is not available", "Please select a different room"];
+
+        toast.error("Room Not Available", {
+          description: <ToastDescription lines={lines} />,
+          duration: 5000,
+        });
+        setSubmitting(null);
+        return;
+      }
+
+      // Room is available - store validated change
+      setValidatedRoomChange(editedRoom);
+
+      // Close editor and show success message
+      setIsEditingRoom(false);
+      toast.success("Room Change Validated", {
+        description: (
+          <ToastDescription
+            lines={[
+              "✓ Room is available",
+              "Click 'Apply' button to save to database"
+            ]}
+          />
+        ),
+        duration: 4000,
+      });
+
+    } catch (e) {
+      toast.error("Validation Failed", {
+        description: (
+          <ToastDescription
+            lines={["❌ " + (e as Error).message]}
+          />
+        ),
+        duration: 5000,
+      });
     } finally {
       setSubmitting(null);
     }
@@ -482,355 +1081,594 @@ const BookingDetailDialog: React.FC<Props> = ({ open, onOpenChange, editData, is
 
   return (
     <>
-    <Dialog open={actualOpen} onOpenChange={setOpen}>
-      <DialogContent
-        onOpenAutoFocus={(e) => e.preventDefault()}
-        onCloseAutoFocus={(e) => e.preventDefault()}
-        showCloseButton={false}
-        className={`grid overflow-hidden border-none p-0 bg-background grid-rows-[auto,1fr,auto] ${
-          isMobile 
-            ? "w-[95vw] max-w-sm h-[90vh]" 
-            : isTablet 
-            ? "w-[90vw] max-w-2xl" 
-            : "w-[min(85vw,900px)] max-w-4xl"
-        }`}
-      >
-        {/* Minimal Header */}
-        <DialogHeader className="px-4 pt-2 pb-2 border-b">
-          <DialogTitle className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <span className="text-base font-semibold">
-                {booking ? `Booking #${getBookingId(booking)}` : isEditing ? "Booking Details" : "Create Booking"}
-              </span>
-              {booking && <Status value={booking.status} />}
-            </div>
-            {booking && getMeetingTypeBadge(booking.meetingType, booking.drType, booking.otherType)}
-          </DialogTitle>
-        </DialogHeader>
-
-        {/* Content Body - Flat Layout */}
-        <div className="px-4 py-3 overflow-y-auto space-y-3 max-h-[calc(90vh-140px)]">
-          {!booking ? (
-            <div className="flex min-h-[150px] items-center justify-center">
-              <div className="text-center">
-                <Hourglass className="h-6 w-6 mx-auto mb-2 text-muted-foreground" />
-                <p className="text-sm text-muted-foreground">Select a booking to inspect</p>
+      <Dialog open={actualOpen} onOpenChange={setOpen}>
+        <DialogContent
+          onOpenAutoFocus={(e) => e.preventDefault()}
+          onCloseAutoFocus={(e) => e.preventDefault()}
+          showCloseButton={false}
+          className={`grid overflow-hidden border-none p-0 bg-background grid-rows-[auto,1fr,auto] ${isMobile
+            ? "w-[95vw] max-w-sm h-[90vh]"
+            : isTablet
+              ? "w-[90vw] max-w-2xl"
+              : "w-[min(85vw,900px)] max-w-4xl"
+            }`}
+        >
+          {/* Minimal Header */}
+          <DialogHeader className="px-4 pt-2 pb-2 border-b">
+            <DialogTitle className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <span className="text-base font-semibold">
+                  {booking ? `Booking #${getBookingId(booking)}` : isEditing ? "Booking Details" : "Create Booking"}
+                </span>
+                {booking && <Status value={booking.status} />}
               </div>
-            </div>
-          ) : (
-            <>
-              {/* Basic Info - Flat rows */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between py-1">
-                  <span className="text-sm text-muted-foreground flex items-center gap-2">
-                    <CalendarDays className="h-4 w-4" />
-                    Date & Time
-                  </span>
-                  <span className="text-sm font-medium">{fmtDate(booking.dateTime)} • {booking.startTime} - {booking.endTime}</span>
+              {booking && getMeetingTypeBadge(booking.meetingType, booking.drType, booking.otherType)}
+            </DialogTitle>
+          </DialogHeader>
+
+          {/* Content Body - Flat Layout */}
+          <div className="px-4 py-3 overflow-y-auto space-y-3 max-h-[calc(90vh-140px)]">
+            {!booking ? (
+              <div className="flex min-h-[150px] items-center justify-center">
+                <div className="text-center">
+                  <Hourglass className="h-6 w-6 mx-auto mb-2 text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground">Select a booking to inspect</p>
                 </div>
-                
-                <div className="flex items-center justify-between py-1">
-                  <span className="text-sm text-muted-foreground flex items-center gap-2">
-                    <MapPin className="h-4 w-4" />
-                    Room
-                  </span>
-                  <span className="text-sm font-medium">{booking.room}</span>
-                </div>
-
-                <div className="flex items-center justify-between py-1">
-                  <span className="text-sm text-muted-foreground flex items-center gap-2">
-                    <Users className="h-4 w-4" />
-                    Requested by
-                  </span>
-                  <span className="text-sm font-medium truncate max-w-[200px]" title={booking.bookedBy}>{booking.bookedBy}</span>
-                </div>
-
-                <div className="flex items-center justify-between py-1">
-                  <span className="text-sm text-muted-foreground flex items-center gap-2">
-                    <Clock className="h-4 w-4" />
-                    Requested at
-                  </span>
-                  <span className="text-xs text-muted-foreground">{fmtDateTime(booking.requestedTime)}</span>
-                </div>
-
-                {booking?.group && (
-                  <div className="flex items-center justify-between py-1">
-                    <span className="text-sm text-muted-foreground">Group</span>
-                    <span className="text-xs bg-muted px-2 py-1 rounded uppercase font-semibold">{booking.group}</span>
-                  </div>
-                )}
-
-                {bookingDetail?.applicableModel && (
-                  <div className="flex items-center justify-between py-1">
-                    <span className="text-sm text-muted-foreground flex items-center gap-2">
-                      <FileText className="h-4 w-4" />
-                      Model
-                    </span>
-                    <span className="text-sm font-medium truncate max-w-[240px]" title={bookingDetail.applicableModel}>
-                      {bookingDetail.applicableModel}
-                    </span>
-                  </div>
-                )}
-
-                {(bookingDetail?.languageCode || bookingDetail?.chairmanEmail) && (
-                  <>
-                    {bookingDetail.languageCode && (
+              </div>
+            ) : (
+              <>
+                {/* Basic Info - Flat rows */}
+                <div className="space-y-2">
+                  {/* Date & Time Section with Edit Toggle */}
+                  {!isEditingDateTime ? (
+                    <>
                       <div className="flex items-center justify-between py-1">
-                        <span className="text-sm text-muted-foreground">Language</span>
-                        <span className="text-sm font-medium">{bookingDetail.languageCode}</span>
+                        <span className="text-sm text-muted-foreground flex items-center gap-2">
+                          <CalendarDays className="h-4 w-4" />
+                          Date & Time
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium">{fmtDate(booking.dateTime)} • {booking.startTime} - {booking.endTime}</span>
+                          {booking.status !== "Cancel" && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 w-6 p-0"
+                              onClick={() => setIsEditingDateTime(true)}
+                              title="Edit date and time"
+                            >
+                              <Edit className="h-3 w-3" />
+                            </Button>
+                          )}
+                        </div>
                       </div>
-                    )}
-                    {bookingDetail.chairmanEmail && (
-                      <div className="flex items-center justify-between py-1">
-                        <span className="text-sm text-muted-foreground">Chairman</span>
-                        <span className="text-sm font-medium truncate max-w-[240px]" title={bookingDetail.chairmanEmail}>
-                          {bookingDetail.chairmanEmail}
+
+                      {/* Show preview of validated changes */}
+                      {validatedDateTimeChanges && (
+                        <div className="ml-6 p-2 rounded bg-primary/10 border border-primary/20">
+                          <div className="flex items-center justify-between mb-1">
+                            <div className="flex items-center gap-2">
+                              <ArrowDown className="h-3 w-3 text-primary" />
+                              <span className="text-xs font-medium text-primary">New time (pending):</span>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-5 px-2 text-xs"
+                              onClick={() => setValidatedDateTimeChanges(null)}
+                              title="Cancel date/time change"
+                            >
+                              <XIcon className="h-3 w-3 mr-1" />
+                              Cancel
+                            </Button>
+                          </div>
+                          <div className="text-sm font-bold text-primary">
+                            {format(validatedDateTimeChanges.date, "dd MMM yyyy")} • {validatedDateTimeChanges.startTime} - {validatedDateTimeChanges.endTime}
+                          </div>
+                          <div className="text-xs text-primary/80 mt-1">
+                            Click "Apply" button below to save
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Room Section with Edit Toggle */}
+                      {!isEditingRoom ? (
+                        <>
+                          <div className="flex items-center justify-between py-1">
+                            <span className="text-sm text-muted-foreground flex items-center gap-2">
+                              <MapPin className="h-4 w-4" />
+                              Room
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-medium">{booking.room}</span>
+                              {booking.status !== "Cancel" && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 w-6 p-0"
+                                  onClick={() => {
+                                    setIsEditingRoom(true);
+                                    setEditedRoom(booking.room);
+                                  }}
+                                  title="Edit room"
+                                >
+                                  <Edit className="h-3 w-3" />
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Show preview of validated room change */}
+                          {validatedRoomChange && (
+                            <div className="ml-6 p-2 rounded bg-primary/10 border border-primary/20">
+                              <div className="flex items-center justify-between mb-1">
+                                <div className="flex items-center gap-2">
+                                  <ArrowDown className="h-3 w-3 text-primary" />
+                                  <span className="text-xs font-medium text-primary">New room (pending):</span>
+                                </div>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-5 px-2 text-xs"
+                                  onClick={() => setValidatedRoomChange(null)}
+                                  title="Cancel room change"
+                                >
+                                  <XIcon className="h-3 w-3 mr-1" />
+                                  Cancel
+                                </Button>
+                              </div>
+                              <div className="text-sm font-bold text-primary">
+                                {validatedRoomChange}
+                              </div>
+                              <div className="text-xs text-primary/80 mt-1">
+                                Click "Apply" button below to save
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <div className="border rounded-lg p-3 space-y-3 bg-muted/20">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium flex items-center gap-2">
+                              <Edit className="h-4 w-4" />
+                              Edit Room
+                            </span>
+                            <div className="flex gap-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 px-2"
+                                onClick={() => setIsEditingRoom(false)}
+                                disabled={submitting === "save-room"}
+                              >
+                                <XIcon className="h-3 w-3 mr-1" />
+                                Cancel
+                              </Button>
+                              <Button
+                                variant="default"
+                                size="sm"
+                                className="h-7 px-2"
+                                onClick={handleSaveRoom}
+                                disabled={submitting === "save-room" || !editedRoom || roomsLoading}
+                              >
+                                <Save className="h-3 w-3 mr-1" />
+                                {submitting === "save-room" ? "Saving..." : "Save"}
+                              </Button>
+                            </div>
+                          </div>
+
+                          {roomsLoading ? (
+                            <div className="text-sm text-muted-foreground flex items-center gap-2">
+                              <RefreshCw className="h-4 w-4 animate-spin" />
+                              Loading rooms...
+                            </div>
+                          ) : (
+                            <div className="space-y-3">
+                              {/* Current Room Display */}
+                              <div className="flex items-center justify-between p-2 rounded-lg border bg-muted/20">
+                                <div className="flex items-center gap-2">
+                                  <MapPin className="h-4 w-4 text-muted-foreground" />
+                                  <span className="text-xs font-medium text-muted-foreground">Current:</span>
+                                  <span className="text-sm font-medium text-foreground">{booking.room}</span>
+                                </div>
+                              </div>
+
+                              <div className="space-y-2">
+                                <label className="text-sm font-medium">Select New Room</label>
+                                <Select
+                                  value={editedRoom}
+                                  onValueChange={setEditedRoom}
+                                  disabled={submitting === "save-room"}
+                                >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Choose a room" />
+                                </SelectTrigger>
+                                <SelectContent className="max-h-[300px]">
+                                  {availableRooms.map((room) => {
+                                    const availability = roomAvailability[room.name];
+                                    const isAvailable = availability?.available !== false;
+                                    const conflicts = availability?.conflicts || [];
+
+                                    return (
+                                      <SelectItem
+                                        key={room.id}
+                                        value={room.name}
+                                        disabled={!isAvailable}
+                                      >
+                                        <div className="flex items-center justify-between w-full gap-2">
+                                          <div className="flex items-center gap-2">
+                                            <MapPin className="h-3 w-3" />
+                                            <span>{room.name}</span>
+                                            {room.location && (
+                                              <span className="text-xs text-muted-foreground">({room.location})</span>
+                                            )}
+                                          </div>
+                                          {!isAvailable && (
+                                            <span className="text-xs text-destructive">
+                                              (Booked{conflicts.length > 0 ? ` #${conflicts[0].bookingId}` : ''})
+                                            </span>
+                                          )}
+                                        </div>
+                                      </SelectItem>
+                                    );
+                                  })}
+                                </SelectContent>
+                                </Select>
+                                <div className="text-xs text-muted-foreground">
+                                  ℹ️ Only available rooms for {validatedDateTimeChanges ? format(validatedDateTimeChanges.date, "dd MMM yyyy") : fmtDate(booking.dateTime)} • {validatedDateTimeChanges ? validatedDateTimeChanges.startTime : booking.startTime} - {validatedDateTimeChanges ? validatedDateTimeChanges.endTime : booking.endTime} are selectable
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="border rounded-lg p-3 space-y-3 bg-muted/20">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium flex items-center gap-2">
+                          <Edit className="h-4 w-4" />
+                          Edit Date & Time
+                        </span>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 px-2"
+                            onClick={() => setIsEditingDateTime(false)}
+                            disabled={submitting === "save-datetime"}
+                          >
+                            <XIcon className="h-3 w-3 mr-1" />
+                            Cancel
+                          </Button>
+                          <Button
+                            variant="default"
+                            size="sm"
+                            className="h-7 px-2"
+                            onClick={handleSaveDateTime}
+                            disabled={submitting === "save-datetime" || !editedDate || !editedStartTime || !editedEndTime}
+                          >
+                            <Save className="h-3 w-3 mr-1" />
+                            {submitting === "save-datetime" ? "Saving..." : "Save"}
+                          </Button>
+                        </div>
+                      </div>
+
+                      <DateTimePicker
+                        selectedDate={editedDate}
+                        selectedStartTime={editedStartTime}
+                        selectedEndTime={editedEndTime}
+                        selectedRoom={booking.room}
+                        bookingId={bookingIdForApi}
+                        onDateChange={setEditedDate}
+                        onStartTimeChange={setEditedStartTime}
+                        onEndTimeChange={setEditedEndTime}
+                        disabled={submitting === "save-datetime"}
+                      />
+
+                      <div className="flex items-center justify-between py-1 text-xs text-muted-foreground">
+                        <span className="flex items-center gap-2">
+                          <MapPin className="h-3 w-3" />
+                          Room: {booking.room}
                         </span>
                       </div>
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between py-1">
+                    <span className="text-sm text-muted-foreground flex items-center gap-2">
+                      <Users className="h-4 w-4" />
+                      Requested by
+                    </span>
+                    <span className="text-sm font-medium truncate max-w-[200px]" title={booking.bookedBy}>{booking.bookedBy}</span>
+                  </div>
+
+                  <div className="flex items-center justify-between py-1">
+                    <span className="text-sm text-muted-foreground flex items-center gap-2">
+                      <Clock className="h-4 w-4" />
+                      Requested at
+                    </span>
+                    <span className="text-xs text-muted-foreground">{fmtDateTime(booking.requestedTime)}</span>
+                  </div>
+
+                  {booking?.group && (
+                    <div className="flex items-center justify-between py-1">
+                      <span className="text-sm text-muted-foreground">Group</span>
+                      <span className="text-xs bg-muted px-2 py-1 rounded uppercase font-semibold">{booking.group}</span>
+                    </div>
+                  )}
+
+                  {bookingDetail?.applicableModel && (
+                    <div className="flex items-center justify-between py-1">
+                      <span className="text-sm text-muted-foreground flex items-center gap-2">
+                        <FileText className="h-4 w-4" />
+                        Model
+                      </span>
+                      <span className="text-sm font-medium truncate max-w-[240px]" title={bookingDetail.applicableModel}>
+                        {bookingDetail.applicableModel}
+                      </span>
+                    </div>
+                  )}
+
+                  {(bookingDetail?.languageCode || bookingDetail?.chairmanEmail) && (
+                    <>
+                      {bookingDetail.languageCode && (
+                        <div className="flex items-center justify-between py-1">
+                          <span className="text-sm text-muted-foreground">Language</span>
+                          <span className="text-sm font-medium">{bookingDetail.languageCode}</span>
+                        </div>
+                      )}
+                      {bookingDetail.chairmanEmail && (
+                        <div className="flex items-center justify-between py-1">
+                          <span className="text-sm text-muted-foreground">Chairman</span>
+                          <span className="text-sm font-medium truncate max-w-[240px]" title={bookingDetail.chairmanEmail}>
+                            {bookingDetail.chairmanEmail}
+                          </span>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+
+                {/* Meeting Notes - Show early so admin knows what meeting is about */}
+                {(booking?.meetingDetail || booking?.topic) && (
+                  <>
+                    <hr className="border-border" />
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                          <FileText className="h-4 w-4 text-muted-foreground" />
+                          <span>Meeting Notes</span>
+                        </div>
+                        <Button variant="ghost" size="sm" className="text-xs h-6 px-2" onClick={() => setExpand((v) => !v)}>
+                          {expand ? "Less" : "More"}
+                        </Button>
+                      </div>
+                      <div className={`text-sm text-foreground/90 ${expand ? "" : "line-clamp-3"}`}>
+                        {booking?.meetingDetail ?? booking?.topic}
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                <hr className="border-border" />
+
+                {/* Interpreter Assignment - Flat */}
+                <div>
+                  <div className="flex items-center gap-2 mb-3 text-sm font-medium text-foreground">
+                    <Sparkles className="h-4 w-4 text-primary" />
+                    <span>Assign Interpreter</span>
+                  </div>
+
+                  <div className="space-y-3">
+                    <InterpreterSelector
+                      bookingId={bookingIdForApi ?? 0}
+                      currentDisplayName={booking.interpreter}
+                      disabled={booking.status === "Cancel" || bookingIdForApi == null}
+                      onSelect={(code) => setPendingEmpCode(code)}
+                      onServerVersion={handleServerVersion}
+                      suggestedEmpCodes={suggestions.map((s) => s.empCode)}
+                      onOptionsChange={handleOptionsChange}
+                    />
+
+                    {/* Top Suggestion - Flat inline */}
+                    {topSuggestion && (
+                      <div className="flex items-center justify-between p-2 rounded border bg-primary/5 border-primary/20">
+                        <div className="flex items-center gap-2">
+                          <Star className="h-3 w-3 text-primary" />
+                          <span className="text-sm font-medium">Best choice: {getDisplayName(topSuggestion.empCode)}</span>
+                        </div>
+                        <div className="flex gap-2 text-xs">
+                          <span>Meeting in: {topSuggestion.time?.daysToMeeting ?? "--"}d {topSuggestion.time?.hoursToStart ?? "--"}h</span>
+                        </div>
+                      </div>
                     )}
+
+                    {/* Workload Comparison Chart */}
+                    {stackedData.length > 0 && (
+                      <div className="rounded border bg-card/50 p-2 sm:p-3">
+                        <div className="flex items-center gap-2 mb-2">
+                          <BarChart3 className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
+                          <span className="text-xs sm:text-sm font-medium">Compare Workload</span>
+                        </div>
+                        <ChartContainer
+                          className="h-[100px] sm:h-[120px] md:h-[140px] w-full"
+                          config={{
+                            iot: { label: "IoT", color: "hsl(210, 70%, 55%)" },
+                            hardware: { label: "HW", color: "hsl(140, 45%, 60%)" },
+                            software: { label: "SW", color: "hsl(0, 55%, 60%)" },
+                            other: { label: "Other", color: "hsl(40, 60%, 65%)" },
+                          }}
+                        >
+                          <RBarChart
+                            data={stackedData}
+                            layout="vertical"
+                            margin={{
+                              top: 5,
+                              right: 10,
+                              left: isMobile ? 35 : isTablet ? 45 : 55,
+                              bottom: 5
+                            }}
+                            barSize={isMobile ? 28 : isTablet ? 36 : 44}
+                          >
+                            <XAxis type="number" dataKey="total" hide domain={[0, 'dataMax']} />
+                            <YAxis
+                              dataKey="name"
+                              type="category"
+                              tickLine={false}
+                              tickMargin={8}
+                              axisLine={false}
+                              stroke="var(--muted-foreground)"
+                              tick={{ fontSize: isMobile ? 9 : isTablet ? 10 : 11, fontWeight: 500 }}
+                              width={isMobile ? 30 : isTablet ? 40 : 50}
+                            />
+                            <ChartTooltip
+                              cursor={false}
+                              content={<ChartTooltipContent hideLabel />}
+                            />
+                            <Bar dataKey="iot" stackId="hrs" fill="var(--color-iot)" radius={0} />
+                            <Bar dataKey="hardware" stackId="hrs" fill="var(--color-hardware)" radius={0} />
+                            <Bar dataKey="software" stackId="hrs" fill="var(--color-software)" radius={0} />
+                            <Bar dataKey="other" stackId="hrs" fill="var(--color-other)" radius={0} />
+                          </RBarChart>
+                        </ChartContainer>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Email Invites */}
+                {(bookingDetailLoading || bookingDetail?.inviteEmails) && (
+                  <>
+                    <hr className="border-border" />
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                          <FileText className="h-4 w-4 text-muted-foreground" />
+                          <span>Email Invites</span>
+                          {bookingDetail?.inviteEmails && bookingDetail.inviteEmails.length > 0 && (
+                            <span className="text-xs text-primary">
+                              {bookingDetail.inviteEmails.length} {bookingDetail.inviteEmails.length === 1 ? 'recipient' : 'recipients'}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      {bookingDetailLoading ? (
+                        <div className="text-xs text-muted-foreground">Loading...</div>
+                      ) : bookingDetail?.inviteEmails && bookingDetail.inviteEmails.length > 0 ? (
+                        <div className="space-y-1.5 max-h-[180px] overflow-y-auto pr-1">
+                          {bookingDetail.inviteEmails.map((email, idx) => (
+                            <div key={idx} className="flex items-start gap-2 p-2 rounded bg-muted/40">
+                              <span className="mt-1 h-1.5 w-1.5 rounded-full bg-primary/60" />
+                              <span className="text-sm leading-relaxed break-all">{email}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-xs text-muted-foreground">No email invites</div>
+                      )}
+                      {bookingDetailError && (
+                        <div className="text-xs text-destructive mt-1">{bookingDetailError}</div>
+                      )}
+                    </div>
+                  </>
+                )}
+              </>
+            )}
+          </div>
+
+          {/* Minimal Footer */}
+          <div className="border-t px-4 py-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                {pendingEmpCode ? (
+                  <>
+                    <CheckCircle className="w-4 h-4 text-primary" />
+                    <span><strong className="text-foreground">{getDisplayName(pendingEmpCode)}</strong> selected</span>
+                    {topSuggestion && pendingEmpCode === topSuggestion.empCode && (
+                      <Star className="w-3 h-3 text-primary" />
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <XCircle className="w-4 h-4" />
+                    <span>No selection</span>
                   </>
                 )}
               </div>
 
-              {/* Meeting Notes - Show early so admin knows what meeting is about */}
-              {(booking?.meetingDetail || booking?.topic) && (
-                <>
-                  <hr className="border-border" />
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-                        <FileText className="h-4 w-4 text-muted-foreground" />
-                        <span>Meeting Notes</span>
-                      </div>
-                      <Button variant="ghost" size="sm" className="text-xs h-6 px-2" onClick={() => setExpand((v) => !v)}>
-                        {expand ? "Less" : "More"}
-                      </Button>
-                    </div>
-                    <div className={`text-sm text-foreground/90 ${expand ? "" : "line-clamp-3"}`}>
-                      {booking?.meetingDetail ?? booking?.topic}
-                    </div>
-                  </div>
-                </>
-              )}
-              
-              <hr className="border-border" />
+              <div className="flex items-center gap-2">
+                {booking && booking.status !== "Cancel" && (
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    className="px-4 h-8"
+                    disabled={submitting === "approve" || submitting === "apply" || submitting === "cancel"}
+                    onClick={openCancelDialog}
+                  >
+                    <>
+                      <XCircle className="w-3 h-3 mr-1" />
+                      Cancel booking
+                    </>
+                  </Button>
+                )}
 
-              {/* Interpreter Assignment - Flat */}
-              <div>
-                <div className="flex items-center gap-2 mb-3 text-sm font-medium text-foreground">
-                  <Sparkles className="h-4 w-4 text-primary" />
-                  <span>Assign Interpreter</span>
-                </div>
-
-                <div className="space-y-3">
-                  <InterpreterSelector
-                    bookingId={bookingIdForApi ?? 0}
-                    currentDisplayName={booking.interpreter}
-                    disabled={booking.status === "Cancel" || bookingIdForApi == null}
-                    onSelect={(code) => setPendingEmpCode(code)}
-                    onServerVersion={handleServerVersion}
-                    suggestedEmpCodes={suggestions.map((s) => s.empCode)}
-                    onOptionsChange={handleOptionsChange}
-                  />
-
-                  {/* Top Suggestion - Flat inline */}
-                  {topSuggestion && (
-                    <div className="flex items-center justify-between p-2 rounded border bg-primary/5 border-primary/20">
-                      <div className="flex items-center gap-2">
-                        <Star className="h-3 w-3 text-primary" />
-                        <span className="text-sm font-medium">Best choice: {getDisplayName(topSuggestion.empCode)}</span>
-                      </div>
-                      <div className="flex gap-2 text-xs">
-                        <span>Meeting in: {topSuggestion.time?.daysToMeeting ?? "--"}d {topSuggestion.time?.hoursToStart ?? "--"}h</span>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Workload Comparison Chart */}
-                  {stackedData.length > 0 && (
-                    <div className="rounded border bg-card/50 p-2 sm:p-3">
-                      <div className="flex items-center gap-2 mb-2">
-                        <BarChart3 className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
-                        <span className="text-xs sm:text-sm font-medium">Compare Workload</span>
-                      </div>
-                      <ChartContainer
-                        className="h-[100px] sm:h-[120px] md:h-[140px] w-full"
-                        config={{
-                          iot: { label: "IoT", color: "hsl(210, 70%, 55%)" },
-                          hardware: { label: "HW", color: "hsl(140, 45%, 60%)" },
-                          software: { label: "SW", color: "hsl(0, 55%, 60%)" },
-                          other: { label: "Other", color: "hsl(40, 60%, 65%)" },
-                        }}
-                      >
-                        <RBarChart 
-                          data={stackedData} 
-                          layout="vertical"
-                          margin={{ 
-                            top: 5, 
-                            right: 10, 
-                            left: isMobile ? 35 : isTablet ? 45 : 55, 
-                            bottom: 5 
-                          }}
-                          barSize={isMobile ? 28 : isTablet ? 36 : 44}
-                        >
-                          <XAxis type="number" dataKey="total" hide domain={[0, 'dataMax']} />
-                          <YAxis 
-                            dataKey="name" 
-                            type="category"
-                            tickLine={false}
-                            tickMargin={8}
-                            axisLine={false}
-                            stroke="var(--muted-foreground)" 
-                            tick={{ fontSize: isMobile ? 9 : isTablet ? 10 : 11, fontWeight: 500 }} 
-                            width={isMobile ? 30 : isTablet ? 40 : 50}
-                          />
-                          <ChartTooltip
-                            cursor={false}
-                            content={<ChartTooltipContent hideLabel />}
-                          />
-                          <Bar dataKey="iot" stackId="hrs" fill="var(--color-iot)" radius={0} />
-                          <Bar dataKey="hardware" stackId="hrs" fill="var(--color-hardware)" radius={0} />
-                          <Bar dataKey="software" stackId="hrs" fill="var(--color-software)" radius={0} />
-                          <Bar dataKey="other" stackId="hrs" fill="var(--color-other)" radius={0} />
-                        </RBarChart>
-                      </ChartContainer>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Email Invites */}
-              {(bookingDetailLoading || bookingDetail?.inviteEmails) && (
-                <>
-                  <hr className="border-border" />
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-                        <FileText className="h-4 w-4 text-muted-foreground" />
-                        <span>Email Invites</span>
-                        {bookingDetail?.inviteEmails && bookingDetail.inviteEmails.length > 0 && (
-                          <span className="text-xs text-primary">
-                            {bookingDetail.inviteEmails.length} {bookingDetail.inviteEmails.length === 1 ? 'recipient' : 'recipients'}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    {bookingDetailLoading ? (
-                      <div className="text-xs text-muted-foreground">Loading...</div>
-                    ) : bookingDetail?.inviteEmails && bookingDetail.inviteEmails.length > 0 ? (
-                      <div className="space-y-1.5 max-h-[180px] overflow-y-auto pr-1">
-                        {bookingDetail.inviteEmails.map((email, idx) => (
-                          <div key={idx} className="flex items-start gap-2 p-2 rounded bg-muted/40">
-                            <span className="mt-1 h-1.5 w-1.5 rounded-full bg-primary/60" />
-                            <span className="text-sm leading-relaxed break-all">{email}</span>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-xs text-muted-foreground">No email invites</div>
-                    )}
-                    {bookingDetailError && (
-                      <div className="text-xs text-destructive mt-1">{bookingDetailError}</div>
-                    )}
-                  </div>
-                </>
-              )}
-            </>
-          )}
-        </div>
-
-        {/* Minimal Footer */}
-        <div className="border-t px-4 py-2">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              {pendingEmpCode ? (
-                <>
-                  <CheckCircle className="w-4 h-4 text-primary" />
-                  <span><strong className="text-foreground">{getDisplayName(pendingEmpCode)}</strong> selected</span>
-                  {topSuggestion && pendingEmpCode === topSuggestion.empCode && (
-                    <Star className="w-3 h-3 text-primary" />
-                  )}
-                </>
-              ) : (
-                <>
-                  <XCircle className="w-4 h-4" />
-                  <span>No selection</span>
-                </>
-              )}
-            </div>
-
-            <div className="flex items-center gap-2">
-              {booking && booking.status !== "Cancel" && (
                 <Button
-                  variant="destructive"
                   size="sm"
                   className="px-4 h-8"
-                  disabled={submitting === "approve" || submitting === "apply" || submitting === "cancel"}
-                  onClick={openCancelDialog}
+                  disabled={!canApprove || submitting === "cancel"}
+                  onClick={handleApproveOrApply}
                 >
-                  <>
-                    <XCircle className="w-3 h-3 mr-1" />
-                    Cancel booking
-                  </>
+                  {submitting === "approve" || submitting === "apply" ? (
+                    <>
+                      <RefreshCw className="w-3 h-3 mr-1 animate-spin" />
+                      {booking?.status === "Wait" ? "Approving..." : "Applying..."}
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="w-3 h-3 mr-1" />
+                      {booking?.status === "Wait" ? "Approve" : "Apply"}
+                    </>
+                  )}
                 </Button>
-              )}
-
-            <Button
-              size="sm"
-              className="px-4 h-8"
-              disabled={!canApprove || submitting === "cancel"}
-              onClick={handleApproveOrApply}
-            >
-              {submitting === "approve" || submitting === "apply" ? (
-                <>
-                  <RefreshCw className="w-3 h-3 mr-1 animate-spin" />
-                  {booking?.status === "Wait" ? "Approving..." : "Applying..."}
-                </>
-              ) : (
-                <>
-                  <CheckCircle className="w-3 h-3 mr-1" />
-                  {booking?.status === "Wait" ? "Approve" : "Apply"}
-                </>
-              )}
-            </Button>
+              </div>
             </div>
           </div>
-        </div>
-      </DialogContent>
-    </Dialog>
-    {/* Cancel reason dialog */}
-    <Dialog open={showCancelDialog} onOpenChange={(v) => { if (!submitting) setShowCancelDialog(v); }}>
-      <DialogContent onOpenAutoFocus={(e) => e.preventDefault()} className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Cancel Booking</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-3">
-          <p className="text-sm text-muted-foreground">Please provide a reason for cancellation.</p>
-          <Textarea
-            value={cancelReason}
-            onChange={(e) => setCancelReason(e.target.value)}
-            placeholder="Enter reason..."
-            rows={4}
-          />
-          {cancelError && <div className="text-xs text-destructive">{cancelError}</div>}
-          <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" size="sm" onClick={() => setShowCancelDialog(false)} disabled={submitting === "cancel"}>
-              Close
-            </Button>
-            <Button variant="destructive" size="sm" onClick={performCancel} disabled={submitting === "cancel"}>
-              {submitting === "cancel" ? (
-                <>
-                  <RefreshCw className="w-3 h-3 mr-1 animate-spin" />
-                  Canceling...
-                </>
-              ) : (
-                <>Confirm Cancel</>
-              )}
-            </Button>
+        </DialogContent>
+      </Dialog>
+      {/* Cancel reason dialog */}
+      <Dialog open={showCancelDialog} onOpenChange={(v) => { if (!submitting) setShowCancelDialog(v); }}>
+        <DialogContent onOpenAutoFocus={(e) => e.preventDefault()} className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Cancel Booking</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">Please provide a reason for cancellation.</p>
+            <Textarea
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              placeholder="Enter reason..."
+              rows={4}
+            />
+            {cancelError && <div className="text-xs text-destructive">{cancelError}</div>}
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" size="sm" onClick={() => setShowCancelDialog(false)} disabled={submitting === "cancel"}>
+                Close
+              </Button>
+              <Button variant="destructive" size="sm" onClick={performCancel} disabled={submitting === "cancel"}>
+                {submitting === "cancel" ? (
+                  <>
+                    <RefreshCw className="w-3 h-3 mr-1 animate-spin" />
+                    Canceling...
+                  </>
+                ) : (
+                  <>Confirm Cancel</>
+                )}
+              </Button>
+            </div>
           </div>
-        </div>
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
     </>
   );
 };

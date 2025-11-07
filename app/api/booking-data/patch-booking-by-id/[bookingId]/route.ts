@@ -3,7 +3,9 @@ import prisma from "@/prisma/prisma";
 import { z } from "zod";
 // ---- Schema ของ body (ให้ตรง enum ใน Prisma) ----
 const PatchSchema = z.object({
-  bookingStatus: z.enum(["approve", "cancel", "waiting"]),
+  bookingStatus: z.enum(["approve", "cancel", "waiting"]).optional(),
+  // Support room updates (use database field name 'meetingRoom')
+  room: z.string().min(1).optional(),
   // ถ้าต้องแก้ไขล่ามพร้อมกันให้เปิดใช้:
   // interpreterEmpCode: z.string().min(1).optional(),
 });
@@ -63,36 +65,68 @@ export async function PATCH(
   if (!existing) {
     return problem(404, "Not Found", "Booking plan not found.");
   }
-  // 4) ตรวจ transition
-  const from = existing.bookingStatus as Status;
-  const to = parsed.bookingStatus as Status;
-  if (!allowedTransitions[from]?.includes(to)) {
-    return problem(409, "Conflict", `Cannot transition from '${from}' to '${to}'.`);
+  // 4) Prepare update data
+  const updateData: any = {};
+
+  // Track status changes for email logic
+  let statusFrom: Status | null = null;
+  let statusTo: Status | null = null;
+
+  // Handle status change if provided
+  if (parsed.bookingStatus) {
+    statusFrom = existing.bookingStatus as Status;
+    statusTo = parsed.bookingStatus as Status;
+    if (!allowedTransitions[statusFrom]?.includes(statusTo)) {
+      return problem(409, "Conflict", `Cannot transition from '${statusFrom}' to '${statusTo}'.`);
+    }
+    updateData.bookingStatus = parsed.bookingStatus;
   }
+
+  // Handle room change if provided
+  if (parsed.room) {
+    updateData.meetingRoom = parsed.room;
+    console.log(`[PATCH] Updating room for booking ${bookingId}: ${existing.bookingStatus} -> ${parsed.room}`);
+  }
+
+  // Check if there's anything to update
+  if (Object.keys(updateData).length === 0) {
+    return problem(400, "Bad Request", "No fields to update provided");
+  }
+
   // 5) อัปเดต
   const updated = await prisma.bookingPlan.update({
     where: { bookingId },
-    data: {
-      bookingStatus: parsed.bookingStatus,
-      // interpreterEmpCode: parsed.interpreterEmpCode ?? undefined,
-    },
+    data: updateData,
     include: {
       employee: true,
       interpreterEmployee: true,
       inviteEmails: true,
     },
   });
-  // fire-and-forget notifications when status transitions
+  // ⚠️ EMAIL TRIGGER - Modified to prevent duplicate emails
+  // Only send emails on FIRST approval or cancellation (not on updates)
+  // For updates to already-approved bookings, use the unified Apply endpoint
+  // Room changes should use the unified Apply endpoint
+  // See EMAIL_CONSOLIDATION_PLAN.md for details
   try {
-    if ((to === 'approve' && from !== 'approve') || (to === 'cancel' && from !== 'cancel')) {
+    if (statusFrom && statusTo && ((statusTo === 'approve' && statusFrom !== 'approve') || (statusTo === 'cancel' && statusFrom !== 'cancel'))) {
       const { sendApprovalEmailForBooking, sendCancellationEmailForBooking } = await import('@/lib/mail/sender')
-      if (to === 'approve' && from !== 'approve') {
-        console.log(`[EMAIL] Triggering approval email for booking ${updated.bookingId}`)
+
+      // FIRST APPROVAL: waiting → approve (send initial invitation)
+      if (statusTo === 'approve' && statusFrom === 'waiting') {
+        console.log(`[EMAIL] Triggering INITIAL approval email for booking ${updated.bookingId} (first approval)`)
         sendApprovalEmailForBooking(updated.bookingId).catch((err) => {
           console.error(`[EMAIL] Failed to send approval email for booking ${updated.bookingId}:`, err)
         })
       }
-      if (to === 'cancel' && from !== 'cancel') {
+      // UPDATES TO APPROVED BOOKINGS: Should use unified Apply endpoint instead
+      else if (statusTo === 'approve' && statusFrom === 'approve') {
+        console.log(`[EMAIL] Booking ${updated.bookingId} is already approved - no email sent`)
+        console.log(`[EMAIL] For updates to approved bookings, use the unified Apply endpoint`)
+      }
+
+      // CANCELLATION: any status → cancel (send cancellation)
+      if (statusTo === 'cancel' && statusFrom !== 'cancel') {
         console.log(`[EMAIL] Triggering cancellation email for booking ${updated.bookingId}`)
         // Pass preserved interpreter info from 'existing' before it was cleared
         const preservedInfo = {
@@ -105,6 +139,12 @@ export async function PATCH(
           console.error(`[EMAIL] Failed to send cancellation email for booking ${updated.bookingId}:`, err)
         })
       }
+    }
+
+    // Log room changes (email will be sent via unified Apply endpoint)
+    if (parsed.room) {
+      console.log(`[EMAIL] Room updated for booking ${updated.bookingId}`)
+      console.log(`[EMAIL] Email notification will be sent via unified Apply endpoint`)
     }
   } catch (err) {
     console.error('[EMAIL] Error in email trigger block:', err)

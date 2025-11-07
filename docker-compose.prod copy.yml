@@ -1,0 +1,44 @@
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: interpreter-booking:prod
+    container_name: interpreter-booking-web
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3030
+      NEXT_TELEMETRY_DISABLED: "1"
+      DATABASE_URL: "mysql://STG:P@ssw0rd@172.31.150.22:3306/booking_interpreter"
+      
+      NEXT_PUBLIC_ENABLE_ROOM_BOOKING: "1"
+      NEXT_PUBLIC_ENABLE_JUPM_TO_CALENDAR: "1"
+      NEXT_PUBLIC_ENABLE_FORWARD_USER: "0"
+      NEXT_PUBLIC_ENABLE_FORWARD_ADMIN: "0"
+
+      ENABLE_ROOM_BOOKING: "0"
+      ENABLE_FORWARD_USER: "0"
+      ENABLE_FORWARD_ADMIN: "0"
+
+      SMTP_HOST: "192.168.212.220"
+      SMTP_PORT: "25"
+      SMTP_SECURE: "false"
+      SMTP_AUTH_METHOD: "none"
+      SMTP_REQUIRE_TLS: "false"
+      SMTP_FROM_EMAIL: "DEDE_SYSTEM@dit.daikin.co.jp"
+      SMTP_FROM_NAME: "DEDE_SYSTEM"
+      EMAIL_DOMAIN: "dit.daikin.co.jp"
+      ORGANIZATION_NAME: "Daikin"
+
+      MS_GRAPH_CLIENT_ID: ${MS_GRAPH_CLIENT_ID:-618f50d6-e699-409c-9a24-d291731b80e0}
+      MS_GRAPH_TENANT_ID: ${MS_GRAPH_TENANT_ID:-a6ac163f-c071-46a6-b6e2-ec119b6531a1}
+      MS_GRAPH_CLIENT_SECRET: ${MS_GRAPH_CLIENT_SECRET}
+      MS_GRAPH_ORGANIZER_UPN: ${MS_GRAPH_ORGANIZER_UPN:-app_dev@ditiot.onmicrosoft.com}
+      ENABLE_MS_TEAMS: 1
+
+
+      
+    ports:
+      - "3030:3030"
+

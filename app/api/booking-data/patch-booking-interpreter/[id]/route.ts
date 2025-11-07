@@ -187,63 +187,31 @@ export async function PATCH(
       }
     })
 
-    // Handle email notifications for approved bookings with interpreter changes
+    // ⚠️ EMAIL TRIGGER DISABLED - Moved to unified Apply endpoint
+    // This prevents duplicate emails and ensures emails are only sent after "Apply" action
+    // See EMAIL_CONSOLIDATION_PLAN.md for details
+    //
+    // TODO: Implement unified Apply endpoint that:
+    // 1. Detects all changes (interpreter, time, room)
+    // 2. Sends single combined email
+    // 3. Only triggers on "Apply" (not "Save")
+    //
+    // Old code (DISABLED):
+    /*
     if (result.status === 200 && 'emailContext' in result && result.emailContext?.wasApproved) {
       const { oldInterpreterEmpCode, newInterpreterEmpCode } = result.emailContext
-
-      // Only send emails if interpreter actually changed (not just assignment)
       if (oldInterpreterEmpCode && oldInterpreterEmpCode !== newInterpreterEmpCode) {
-        try {
-          console.log(`[EMAIL] Interpreter changed for approved booking ${bookingId}: ${oldInterpreterEmpCode} → ${newInterpreterEmpCode}`)
-
-          // Fetch the old interpreter's information
-          const oldInterpreter = await prisma.employee.findUnique({
-            where: { empCode: oldInterpreterEmpCode },
-            select: { empCode: true, email: true, firstNameEn: true, lastNameEn: true }
-          })
-
-          if (!oldInterpreter?.email) {
-            console.error(`[EMAIL] Could not find old interpreter ${oldInterpreterEmpCode} or email missing`)
-          }
-
-          // Import email functions dynamically to avoid circular dependencies
-          const { sendInterpreterChangeCancellation, sendApprovalEmailForBooking } = await import('@/lib/mail/sender')
-
-          // Step 1: Send cancellation ONLY to old interpreter A
-          // This cancels their calendar event without CCing them
-          if (oldInterpreter?.email) {
-            const oldInterpreterName = [oldInterpreter.firstNameEn, oldInterpreter.lastNameEn]
-              .filter(Boolean)
-              .join(' ') || oldInterpreter.email
-            
-            console.log(`[EMAIL] Sending cancellation with old interpreter info:`, {
-              empCode: oldInterpreterEmpCode,
-              email: oldInterpreter.email,
-              name: oldInterpreterName
-            })
-            
-            sendInterpreterChangeCancellation(
-              bookingId,
-              oldInterpreter.email,
-              oldInterpreterName,
-              `Interpreter reassigned to ${newInterpreterEmpCode}`
-            ).catch((err) => {
-              console.error(`[EMAIL] Failed to send cancellation to old interpreter (booking ${bookingId}):`, err)
-            })
-          }
-
-          // Step 2: Send new approval email with the new interpreter B
-          // Small delay to ensure cancellation is processed first
-          setTimeout(() => {
-            sendApprovalEmailForBooking(bookingId).catch((err) => {
-              console.error(`[EMAIL] Failed to send new approval email for interpreter change (booking ${bookingId}):`, err)
-            })
-          }, 1000) // 1 second delay
-
-        } catch (err) {
-          console.error(`[EMAIL] Error in email handling for interpreter change (booking ${bookingId}):`, err)
-          // Don't fail the API call if email fails
-        }
+        // ... email sending code ...
+      }
+    }
+    */
+    
+    // Log the change for debugging
+    if (result.status === 200 && 'emailContext' in result && result.emailContext?.wasApproved) {
+      const { oldInterpreterEmpCode, newInterpreterEmpCode } = result.emailContext
+      if (oldInterpreterEmpCode && oldInterpreterEmpCode !== newInterpreterEmpCode) {
+        console.log(`[EMAIL] Interpreter changed for approved booking ${bookingId}: ${oldInterpreterEmpCode} → ${newInterpreterEmpCode}`)
+        console.log(`[EMAIL] Email notification will be sent when user clicks "Apply" button`)
       }
     }
 

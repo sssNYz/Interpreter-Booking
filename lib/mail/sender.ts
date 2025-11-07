@@ -6,7 +6,9 @@ import { generateCalendarInvite, createCalendarEvent, createCancelledCalendarEve
 import { createTeamsMeeting } from '@/lib/meetings/teams'
 import { getAdminEmailsForBooking } from './admin-emails'
 function createTransporter() {
-  const host = (process.env.SMTP_HOST ?? '').trim() || '192.168.212.220'
+  // Handle SMTP_HOST with special check for "0" which should use default
+  const envHost = (process.env.SMTP_HOST ?? '').trim()
+  const host = (!envHost || envHost === '0') ? '192.168.212.220' : envHost
   const port = parseInt(process.env.SMTP_PORT ?? '25', 10)
   const secure = process.env.SMTP_SECURE === 'true'
   const authMethod = (process.env.SMTP_AUTH_METHOD ?? 'none').toLowerCase()
@@ -16,6 +18,7 @@ function createTransporter() {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS
     }
+  console.log(`[SMTP] Creating transporter with host: ${host}, port: ${port}, secure: ${secure}, auth: ${authMethod}`)
   return nodemailer.createTransport({
     host,
     port,
@@ -274,13 +277,25 @@ export async function sendApprovalEmailForBooking(bookingId: number): Promise<vo
     transporter.close()
   }
 }
-export async function sendInterpreterChangeCancellation(
+/**
+ * Send cancellation email ONLY to the old interpreter when they are replaced
+ * This notifies them that their assignment has been canceled
+ * Other participants (organizer, attendees) will receive the change notification instead
+ */
+export async function sendInterpreterReplacementNotification(
   bookingId: number,
   oldInterpreterEmail: string,
   oldInterpreterName: string,
-  reason?: string
+  newInterpreterName: string
 ): Promise<void> {
-  console.log(`[EMAIL] sendInterpreterChangeCancellation called for booking ${bookingId}`)
+  console.log(`[EMAIL] sendInterpreterReplacementNotification called for booking ${bookingId}`)
+  console.log(`[EMAIL] Old interpreter: ${oldInterpreterName} (${oldInterpreterEmail})`)
+  console.log(`[EMAIL] New interpreter: ${newInterpreterName}`)
+
+  if (!oldInterpreterEmail) {
+    console.log(`[EMAIL] No old interpreter email provided - skipping notification`)
+    return
+  }
 
   const booking = await prisma.bookingPlan.findUnique({
     where: { bookingId },
@@ -293,105 +308,52 @@ export async function sendInterpreterChangeCancellation(
   })
 
   if (!booking || !booking.timeStart || !booking.timeEnd) {
-    console.log(`[EMAIL] Booking ${bookingId} not found or missing time info - skipping cancellation`)
+    console.log(`[EMAIL] Booking ${bookingId} not found or missing time info - skipping notification`)
     return
   }
 
-  console.log(`[EMAIL] Sending interpreter change cancellation to ALL original recipients (to clear their calendars)`)
+  // ONLY send to the old interpreter (no one else)
+  const recipients = [oldInterpreterEmail]
+  console.log(`[EMAIL] Sending interpreter replacement notification ONLY to old interpreter: ${oldInterpreterEmail}`)
 
-  // Build all recipients (creator, attendees, chairman, old interpreter)
-  const recipients = new Set<string>()
-  const ccRecipients = new Set<string>()
+  // Build cancellation reason explaining the replacement
+  const reason = `Your interpreter assignment for this meeting has been replaced by ${newInterpreterName}.`
 
-  // 1. Add the meeting owner/booker (person who created the booking)
-  const ownerEmail = booking.employee?.email?.trim()
-  if (ownerEmail) {
-    recipients.add(ownerEmail)
-    console.log(`[EMAIL] Added owner to recipients: ${ownerEmail}`)
-  }
-
-  // 2. Add the OLD interpreter (the one being replaced) - use the passed email
-  if (oldInterpreterEmail) {
-    ccRecipients.add(oldInterpreterEmail)
-    console.log(`[EMAIL] Added old interpreter to CC: ${oldInterpreterEmail}`)
-  }
-
-  // 3. Add chairman email (for DR meetings)
-  const chairmanEmail = booking.chairmanEmail?.trim()
-  if (chairmanEmail) {
-    recipients.add(chairmanEmail)
-    console.log(`[EMAIL] Added chairman to recipients: ${chairmanEmail}`)
-  }
-
-  // 4. Add all invited attendees from invite_email_list
-  booking.inviteEmails?.forEach(invite => {
-    const email = invite.email?.trim()
-    if (email) {
-      recipients.add(email)
-      console.log(`[EMAIL] Added attendee to recipients: ${email}`)
-    }
-  })
-
-  // 5. Add admin emails to CC
-  const adminEmails = await getAdminEmailsForBooking(bookingId)
-  if (adminEmails.length > 0) {
-    console.log(`[EMAIL] Found ${adminEmails.length} admin emails`)
-    const recipientsLower = new Set(Array.from(recipients).map(e => e.toLowerCase()))
-    const ccLower = new Set(Array.from(ccRecipients).map(e => e.toLowerCase()))
-
-    adminEmails.forEach(adminEmail => {
-      const lower = adminEmail.toLowerCase()
-      if (!recipientsLower.has(lower) && !ccLower.has(lower)) {
-        ccRecipients.add(adminEmail)
-        console.log(`[EMAIL] Added admin to CC: ${adminEmail}`)
-      } else {
-        console.log(`[EMAIL] Skipped admin (already in recipients): ${adminEmail}`)
-      }
-    })
-  }
-
-  // Deduplicate: remove any CC recipients that are already in To recipients (case-insensitive)
-  const recipientsLower = new Set(Array.from(recipients).map(e => e.toLowerCase()))
-  const deduplicatedCC = Array.from(ccRecipients).filter(cc => !recipientsLower.has(cc.toLowerCase()))
-
-  const recipientsList = Array.from(recipients)
-  const ccList = deduplicatedCC
-
-  console.log(`[EMAIL] Final cancellation recipients - TO: ${recipientsList.length}, CC: ${ccList.length}`)
-
-  // Build template variables for cancellation (includes reasonSection)
+  // Build template variables for cancellation
   const vars = await buildCancellationTemplateVariablesFromBooking(bookingId, reason)
 
-  console.log(`[EMAIL] Original interpreter section from DB:`, vars.interpreterSection?.substring(0, 200))
-  console.log(`[EMAIL] Reason section:`, reason ? 'Present' : 'Not provided')
-
-  // Override interpreter section to show the OLD interpreter (the one being cancelled)
+  // Override interpreter section to show the OLD interpreter (the one being canceled)
   const interpreterSection = oldInterpreterName ? `
                         <tr>
                             <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
-                                🗣️ Interpreter:
+                                💬 Previous Interpreter:
                             </td>
                             <td style="padding: 10px 0; color: #374151;">
                                 ${oldInterpreterName}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 10px 0; width: 140px; font-weight: 600; color: #0f172a; vertical-align: top;">
+                                💬 New Interpreter:
+                            </td>
+                            <td style="padding: 10px 0; color: #374151;">
+                                ${newInterpreterName}
                             </td>
                         </tr>` : ''
 
   vars.interpreterSection = interpreterSection
 
-  console.log(`[EMAIL] Overridden interpreter section with old interpreter:`, interpreterSection.substring(0, 200))
-  console.log(`[EMAIL] Old interpreter name being used:`, oldInterpreterName)
-
   // Get the cancellation template and format it with our modified variables
   const template = getTemplateById('unified-cancellation')
   if (!template) throw new Error('Cancellation template not found')
 
-  const { subject, body, isHtml } = formatTemplate(template, vars)
+  // Override subject to be specific about interpreter assignment cancellation
+  const { body, isHtml } = formatTemplate(template, vars)
+  const subject = `Interpreter Assignment Canceled: ${vars.meetingType}${vars.descriptionSubject}`
 
-  console.log(`[EMAIL] Final email body contains old interpreter name?`, body.includes(oldInterpreterName))
   const { name: organizerName, email: organizerEmail } = getOrganizerInfo()
 
-  // Send cancellation to ALL original recipients to clear their calendars
-  const allAttendees = [...recipientsList, ...ccList]
+  // Create cancellation calendar event (only for the old interpreter)
   const baseEvent = createCalendarEvent({
     uid: getCalendarUid(booking.bookingId),
     summary: vars.topic || booking.meetingType,
@@ -401,7 +363,7 @@ export async function sendInterpreterChangeCancellation(
     location: booking.meetingRoom || '',
     organizerName,
     organizerEmail,
-    attendeeEmails: allAttendees, // All original recipients
+    attendeeEmails: [oldInterpreterEmail], // ONLY old interpreter
     method: 'REQUEST',
     sequence: 0
   })
@@ -411,14 +373,13 @@ export async function sendInterpreterChangeCancellation(
 
   const transporter = createTransporter()
   try {
-    console.log(`[EMAIL] Verifying SMTP connection for interpreter change cancellation...`)
+    console.log(`[EMAIL] Verifying SMTP connection for interpreter replacement notification...`)
     await transporter.verify()
     console.log(`[EMAIL] SMTP connection verified successfully`)
 
     const mailOptions: nodemailer.SendMailOptions = {
       from: `${organizerName} <${organizerEmail}>`,
-      to: recipientsList.join(', '), // All original TO recipients
-      cc: ccList.length > 0 ? ccList.join(', ') : undefined, // All original CC recipients
+      to: oldInterpreterEmail, // ONLY to old interpreter
       subject,
       text: textBody,
       html: isHtml ? body : undefined,
@@ -453,9 +414,9 @@ export async function sendInterpreterChangeCancellation(
       }
     }
     await transporter.sendMail(mailOptions)
-    console.log(`[EMAIL] Interpreter change cancellation sent successfully to ${recipientsList.length} TO recipients and ${ccList.length} CC recipients for booking ${bookingId}`)
+    console.log(`[EMAIL] Interpreter replacement notification sent successfully to ${oldInterpreterEmail} for booking ${bookingId}`)
   } catch (error) {
-    console.error(`[EMAIL] CRITICAL ERROR sending interpreter change cancellation for booking ${bookingId}:`, error)
+    console.error(`[EMAIL] CRITICAL ERROR sending interpreter replacement notification for booking ${bookingId}:`, error)
     throw error
   } finally {
     transporter.close()
@@ -579,6 +540,141 @@ export async function sendCancellationEmailForBooking(
     console.log(`[EMAIL] Cancellation email sent successfully for booking ${bookingId}`)
   } catch (error) {
     console.error(`[EMAIL] CRITICAL ERROR sending cancellation email for booking ${bookingId}:`, error)
+    throw error  // Re-throw to propagate the error
+  } finally {
+    transporter.close()
+  }
+}
+
+export async function sendChangeNotificationEmail(
+  bookingId: number,
+  recipients: string[],
+  ccRecipients: string[],
+  subject: string,
+  body: string,
+  isHtml: boolean,
+  booking: any,
+  changes: any
+): Promise<void> {
+  console.log(`[EMAIL] sendChangeNotificationEmail called for booking ${bookingId}`)
+
+  if (recipients.length === 0 && ccRecipients.length === 0) {
+    console.log(`[EMAIL] No recipients for booking ${bookingId} - skipping email`)
+    return
+  }
+
+  if (!booking.timeStart || !booking.timeEnd) {
+    console.log(`[EMAIL] Booking ${bookingId} missing time info - skipping email`)
+    return
+  }
+
+  const { name: organizerName, email: organizerEmail } = getOrganizerInfo()
+
+  // Try to create a Teams online meeting and get join URL (no DB persistence)
+  let teamsJoinUrl: string | null = null
+  try {
+    console.log('[EMAIL][TEAMS] Attempting to create Teams meeting for change notification', {
+      enabled: process.env.ENABLE_MS_TEAMS,
+      organizerUpn: process.env.MS_GRAPH_ORGANIZER_UPN || process.env.SMTP_FROM_EMAIL,
+      start: String(booking.timeStart || ''),
+      end: String(booking.timeEnd || ''),
+      subject: booking.meetingDetail || booking.meetingType
+    })
+    teamsJoinUrl = await createTeamsMeeting({
+      start: booking.timeStart,
+      end: booking.timeEnd,
+      subject: booking.meetingDetail || booking.meetingType,
+      organizerUpn: process.env.MS_GRAPH_ORGANIZER_UPN || process.env.SMTP_FROM_EMAIL || undefined
+    })
+    console.log('[EMAIL][TEAMS] Created Teams meeting?', { hasUrl: !!teamsJoinUrl, url: teamsJoinUrl })
+  } catch (e) {
+    console.error('[EMAIL] Error creating Teams meeting (will continue without link):', e)
+  }
+
+  // Combine recipients and CC for calendar attendees
+  const allAttendees = [...recipients, ...ccRecipients]
+
+  // Create updated calendar event with incremented sequence
+  const calendarEvent = createCalendarEvent({
+    uid: getCalendarUid(booking.bookingId),
+    summary: booking.meetingDetail || booking.meetingType,
+    description: [
+      teamsJoinUrl ? `Microsoft Teams meeting: ${teamsJoinUrl}` : null,
+      booking.applicableModel ? `Applicable Model: ${booking.applicableModel}` : null
+    ].filter(Boolean).join(' | ') || undefined,
+    start: booking.timeStart,
+    end: booking.timeEnd,
+    timezone: 'Asia/Bangkok',
+    location: booking.meetingRoom || '',
+    organizerName,
+    organizerEmail,
+    attendeeEmails: allAttendees,
+    method: 'REQUEST',
+    sequence: 1 // Incremented sequence for updates
+  })
+
+  const calendarInvite = generateCalendarInvite(calendarEvent)
+
+  const teamsBlockHtml = teamsJoinUrl ? `<p><strong>Microsoft Teams:</strong> <a href="${teamsJoinUrl}">Join the meeting</a></p>` : ''
+  const teamsBlockText = teamsJoinUrl ? `Microsoft Teams: ${teamsJoinUrl}\n\n` : ''
+
+  const finalHtml = isHtml ? `${teamsBlockHtml}${body}` : undefined
+  const textBody = (isHtml ? toPlainText(`${teamsBlockText}${body}`) : `${teamsBlockText}${body}`).trim()
+
+  console.log('[EMAIL][TEAMS] Email composition', {
+    hasTeamsUrl: !!teamsJoinUrl,
+    htmlHasTeamsBlock: !!teamsBlockHtml,
+    icsHasDescription: !!calendarEvent.description
+  })
+
+  const transporter = createTransporter()
+  try {
+    console.log(`[EMAIL] Verifying SMTP connection for change notification email...`)
+    await transporter.verify()
+    console.log(`[EMAIL] SMTP connection verified successfully`)
+
+    const mailOptions: nodemailer.SendMailOptions = {
+      from: `${organizerName} <${organizerEmail}>`,
+      to: recipients.join(', '),
+      cc: ccRecipients.length > 0 ? ccRecipients.join(', ') : undefined,
+      subject,
+      text: textBody,
+      html: finalHtml,
+      alternatives: [
+        { contentType: calendarInvite.contentType, content: calendarInvite.content }
+      ],
+      attachments: [
+        {
+          filename: calendarInvite.filename,
+          content: calendarInvite.content,
+          contentType: calendarInvite.contentType,
+          contentDisposition: 'attachment',
+          encoding: 'utf8'
+        }
+      ],
+      headers: {
+        'X-MS-OLK-FORCEINSPECTOROPEN': 'TRUE',
+        'Content-Class': 'urn:content-classes:calendarmessage',
+        'X-MICROSOFT-CDO-BUSYSTATUS': 'BUSY',
+        'X-MICROSOFT-CDO-IMPORTANCE': '1',
+        'X-MICROSOFT-DISALLOW-COUNTER': 'FALSE',
+        'X-MS-HAS-ATTACH': 'TRUE',
+        'X-MS-OLK-CONFTYPE': '0',
+        'X-MS-OLK-SENDER': organizerEmail,
+        'X-MS-OLK-AUTOFORWARD': 'FALSE',
+        'X-MS-OLK-AUTOREPLY': 'FALSE',
+        'MIME-Version': '1.0',
+        'X-Booking-Id': String(bookingId),
+        'X-Meeting-Type': String(booking.meetingType),
+        'X-Organizer': booking.employee?.firstNameEn || '',
+        'X-Applicable-Model': booking.applicableModel || ''
+      }
+    }
+
+    await transporter.sendMail(mailOptions)
+    console.log(`[EMAIL] Change notification email sent successfully for booking ${bookingId}`)
+  } catch (error) {
+    console.error(`[EMAIL] CRITICAL ERROR sending change notification email for booking ${bookingId}:`, error)
     throw error  // Re-throw to propagate the error
   } finally {
     transporter.close()
