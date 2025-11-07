@@ -13,7 +13,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Button } from "@/components/ui/button";
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious, PaginationEllipsis } from "@/components/ui/pagination";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { FilterIcon, UserSearchIcon, XIcon, ArrowUpLeft, ArrowUpDown, ChevronDown, DoorClosed, Languages, ListFilter, Trash2 } from "lucide-react";
+import { FilterIcon, UserSearchIcon, XIcon, ArrowUpLeft, ArrowUpDown, ChevronDown, DoorClosed, Languages, ListFilter, Trash2, Edit, Pencil } from "lucide-react";
 import { client as featureFlags } from "@/lib/feature-flags";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -31,6 +31,7 @@ import {
   type CarouselApi,
 } from "@/components/ui/carousel";
 import { CopyButton } from "@/components/ui/shadcn-io/copy-button";
+import { UserBookingEditDialog } from "./user-booking-edit-dialog";
 
 type StatusFilter = "all" | "approve" | "waiting" | "cancel" | "complete";
 
@@ -106,6 +107,10 @@ export default function BookingHistory({ renderEmpty, startDate, endDate }: Book
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [bookingToCancel, setBookingToCancel] = useState<BookingData | null>(null);
   const [cancellingBooking, setCancellingBooking] = useState(false);
+
+  // Edit dialog state
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [bookingToEdit, setBookingToEdit] = useState<BookingData | null>(null);
 
   // Tutorial modal state
   const [isTutorialOpen, setIsTutorialOpen] = useState(false);
@@ -355,14 +360,49 @@ export default function BookingHistory({ renderEmpty, startDate, endDate }: Book
     setCancelDialogOpen(true);
   };
 
+  const handleEditClick = (booking: BookingData) => {
+    setBookingToEdit(booking);
+    setEditDialogOpen(true);
+  };
+
+  const handleEditComplete = () => {
+    // Refresh bookings list after edit
+    if (!userEmpCode) return;
+    
+    setLoading(true);
+    const params = new URLSearchParams({
+      page: String(page),
+      pageSize: String(pageSize),
+      status: statusFilter,
+      sort: sortOrder,
+    });
+    if (startDate) params.set("startDate", startDate);
+    if (endDate) params.set("endDate", endDate);
+    if (selectedInterpreterIds.length > 0) params.set('interpreterIds', selectedInterpreterIds.join(','));
+    if (selectedStatuses.length > 0) params.set('statuses', selectedStatuses.join(','));
+    
+    fetch(`/api/booking-data/get-booking-by-owner/${userEmpCode}?${params.toString()}`)
+      .then(async (r) => {
+        if (!r.ok) throw new Error("Failed to load bookings");
+        const j = await r.json();
+        setBookings(j.items || []);
+        setTotal(Number(j.total || 0));
+      })
+      .catch((e) => {
+        console.error("Failed to refresh bookings:", e);
+      })
+      .finally(() => setLoading(false));
+  };
+
   const handleCancelConfirm = async () => {
-    if (!bookingToCancel) return;
+    if (!bookingToCancel || !userEmpCode) return;
     
     setCancellingBooking(true);
     try {
       const response = await fetch(`/api/booking-data/cancel-booking/${bookingToCancel.bookingId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userEmpCode }),
       });
       
       if (!response.ok) {
@@ -677,14 +717,27 @@ export default function BookingHistory({ renderEmpty, startDate, endDate }: Book
                                 </span>
                               )}
                               <div className="flex gap-2">
-                                {/* Cancel button - only for ROOM bookings and not already cancelled */}
-                                {b.bookingKind === 'ROOM' && b.bookingStatus !== 'cancel' && (
+                                {/* Edit button - only for WAITING status bookings */}
+                                {b.bookingStatus.toLowerCase() === 'waiting' && (
                                   <Button
                                     size="sm"
                                     variant="outline"
-                                    className="px-2 py-1 text-xs bg-background hover:bg-red-50 hover:text-red-600 hover:border-red-300 rounded-full border-border/60"
+                                    className="px-2 py-1 text-xs bg-background hover:bg-primary/10 rounded-full border-border/60"
+                                    onClick={() => handleEditClick(b)}
+                                    aria-label="Edit booking"
+                                  >
+                                    <Pencil className="w-3.5 h-3.5" />
+                                  </Button>
+                                )}
+                                {/* Cancel button - for WAITING status bookings (both ROOM and INTERPRETER) */}
+                                {b.bookingStatus.toLowerCase() === 'waiting' && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="px-2 py-1 text-xs bg-background hover:bg-red-50 hover:text-red-600 hover:border-red-300 dark:hover:bg-red-950/30 dark:hover:border-red-800 rounded-full border-border/60"
                                     onClick={() => handleCancelClick(b)}
                                     aria-label="Cancel booking"
+                                    disabled={cancellingBooking}
                                   >
                                     <Trash2 className="w-3.5 h-3.5" />
                                   </Button>
@@ -1200,6 +1253,14 @@ export default function BookingHistory({ renderEmpty, startDate, endDate }: Book
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Edit Booking Dialog */}
+      <UserBookingEditDialog
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+        booking={bookingToEdit}
+        onEditComplete={handleEditComplete}
+      />
     </div>
   );
 }

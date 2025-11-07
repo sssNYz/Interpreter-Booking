@@ -13,6 +13,7 @@ type TimeSlot = {
     minute: number;
     label: string;
     available: boolean;
+    reason?: 'past' | 'current-booking' | 'conflict'; // Reason for unavailability
 };
 
 type Props = {
@@ -87,7 +88,16 @@ export const DateTimePicker: React.FC<Props> = ({
     useEffect(() => {
         const checkAvailability = async () => {
             if (!selectedDate || !selectedRoom || !selectedStartTime || !selectedEndTime) {
-                setAvailableSlots(generateTimeSlots());
+                // Mark past times as unavailable even without room selection
+                const slots = generateTimeSlots().map(slot => {
+                    const isPast = isTimePast(slot.label);
+                    return {
+                        ...slot,
+                        available: !isPast,
+                        reason: isPast ? 'past' as const : undefined
+                    };
+                });
+                setAvailableSlots(slots);
                 return;
             }
 
@@ -138,10 +148,26 @@ export const DateTimePicker: React.FC<Props> = ({
                         });
                     }
 
-                    const updatedSlots = allSlots.map((slot) => ({
-                        ...slot,
-                        available: !conflictingSlots.has(slot.label),  // Only mark conflicts as unavailable
-                    }));
+                    const updatedSlots = allSlots.map((slot) => {
+                        const isPast = isTimePast(slot.label);
+                        const hasConflict = conflictingSlots.has(slot.label);
+                        const isCurrentBookingTime = (slot.label === selectedStartTime || slot.label === selectedEndTime);
+                        
+                        let reason: 'past' | 'current-booking' | 'conflict' | undefined;
+                        if (isPast) {
+                            reason = 'past';
+                        } else if (isCurrentBookingTime && hasConflict) {
+                            reason = 'current-booking';
+                        } else if (hasConflict) {
+                            reason = 'conflict';
+                        }
+                        
+                        return {
+                            ...slot,
+                            available: !hasConflict && !isPast,
+                            reason
+                        };
+                    });
 
                     setAvailableSlots(updatedSlots);
                 } else {
@@ -267,20 +293,35 @@ export const DateTimePicker: React.FC<Props> = ({
                             <SelectValue placeholder="Select start time" />
                         </SelectTrigger>
                         <SelectContent className="max-h-[300px]">
-                            {availableSlots.map((slot) => (
-                                <SelectItem
-                                    key={`start-${slot.label}`}
-                                    value={slot.label}
-                                    disabled={!slot.available}
-                                >
-                                    <div className="flex items-center justify-between w-full gap-2">
-                                        <span>{slot.label}</span>
-                                        {!slot.available && (
-                                            <span className="text-xs text-destructive">(Unavailable)</span>
-                                        )}
-                                    </div>
-                                </SelectItem>
-                            ))}
+                            {availableSlots.map((slot) => {
+                                let reasonLabel = '';
+                                if (!slot.available) {
+                                    if (slot.reason === 'past') {
+                                        reasonLabel = '(Time has passed)';
+                                    } else if (slot.reason === 'current-booking') {
+                                        reasonLabel = '(Previously booked)';
+                                    } else if (slot.reason === 'conflict') {
+                                        reasonLabel = '(Unavailable)';
+                                    } else {
+                                        reasonLabel = '(Unavailable)';
+                                    }
+                                }
+                                
+                                return (
+                                    <SelectItem
+                                        key={`start-${slot.label}`}
+                                        value={slot.label}
+                                        disabled={!slot.available}
+                                    >
+                                        <div className="flex items-center justify-between w-full gap-2">
+                                            <span>{slot.label}</span>
+                                            {!slot.available && (
+                                                <span className="text-xs text-destructive">{reasonLabel}</span>
+                                            )}
+                                        </div>
+                                    </SelectItem>
+                                );
+                            })}
                         </SelectContent>
                     </Select>
                 </div>
@@ -302,20 +343,35 @@ export const DateTimePicker: React.FC<Props> = ({
                         <SelectContent className="max-h-[300px]">
                             {availableSlots
                                 .filter((slot) => selectedStartTime ? slot.label > selectedStartTime : true)
-                                .map((slot) => (
-                                    <SelectItem
-                                        key={`end-${slot.label}`}
-                                        value={slot.label}
-                                        disabled={!slot.available}
-                                    >
-                                        <div className="flex items-center justify-between w-full gap-2">
-                                            <span>{slot.label}</span>
-                                            {!slot.available && (
-                                                <span className="text-xs text-destructive">(Unavailable)</span>
-                                            )}
-                                        </div>
-                                    </SelectItem>
-                                ))}
+                                .map((slot) => {
+                                    let reasonLabel = '';
+                                    if (!slot.available) {
+                                        if (slot.reason === 'past') {
+                                            reasonLabel = '(Time has passed)';
+                                        } else if (slot.reason === 'current-booking') {
+                                            reasonLabel = '(Previously booked)';
+                                        } else if (slot.reason === 'conflict') {
+                                            reasonLabel = '(Unavailable)';
+                                        } else {
+                                            reasonLabel = '(Unavailable)';
+                                        }
+                                    }
+                                    
+                                    return (
+                                        <SelectItem
+                                            key={`end-${slot.label}`}
+                                            value={slot.label}
+                                            disabled={!slot.available}
+                                        >
+                                            <div className="flex items-center justify-between w-full gap-2">
+                                                <span>{slot.label}</span>
+                                                {!slot.available && (
+                                                    <span className="text-xs text-destructive">{reasonLabel}</span>
+                                                )}
+                                            </div>
+                                        </SelectItem>
+                                    );
+                                })}
                         </SelectContent>
                     </Select>
                 </div>
@@ -336,20 +392,9 @@ export const DateTimePicker: React.FC<Props> = ({
                 </div>
             )}
 
-            {/* Past Time Warning */}
-            {pastTimeWarning && (
-                <div className="text-xs text-amber-600 flex items-center gap-2 p-2 rounded bg-amber-50 border border-amber-200">
-                    <AlertCircle className="h-3 w-3" />
-                    {pastTimeWarning}
-                </div>
-            )}
+            {/* Past Time Warning - Removed: Now shown inline in time slots */}
 
-            {/* Availability Info - Only show conflicts */}
-            {selectedDate && selectedRoom && !loading && !error && availableSlots.filter((s) => !s.available).length > 0 && (
-                <div className="text-xs text-muted-foreground p-2 rounded bg-muted/50">
-                    <span>⚠️ Some time slots are unavailable due to existing bookings</span>
-                </div>
-            )}
+            {/* Availability Info - Removed: Now shown inline in each time slot with specific reason */}
         </div>
     );
 };

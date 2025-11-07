@@ -6,6 +6,8 @@ const PatchSchema = z.object({
   bookingStatus: z.enum(["approve", "cancel", "waiting"]).optional(),
   // Support room updates (use database field name 'meetingRoom')
   room: z.string().min(1).optional(),
+  // Support participant email updates
+  inviteEmails: z.array(z.string().email()).optional(),
   // ถ้าต้องแก้ไขล่ามพร้อมกันให้เปิดใช้:
   // interpreterEmpCode: z.string().min(1).optional(),
 });
@@ -18,10 +20,11 @@ const allowedTransitions: Record<Status, Status[]> = {
 };
 export async function PATCH(
   req: Request,
-  { params }: { params: { bookingId: string } }
+  { params }: { params: Promise<{ bookingId: string }> }
 ) {
   // 1) ตรวจ path param
-  const bookingId = Number(params.bookingId);
+  const resolvedParams = await params;
+  const bookingId = Number(resolvedParams.bookingId);
   if (!Number.isFinite(bookingId)) {
     return problem(400, "Invalid bookingId", "bookingId must be an integer.");
   }
@@ -88,21 +91,62 @@ export async function PATCH(
     console.log(`[PATCH] Updating room for booking ${bookingId}: ${existing.bookingStatus} -> ${parsed.room}`);
   }
 
+  // Handle participant email updates if provided
+  let inviteEmailsToUpdate: string[] | null = null;
+  if (parsed.inviteEmails !== undefined) {
+    inviteEmailsToUpdate = parsed.inviteEmails;
+    console.log(`[PATCH] Updating participants for booking ${bookingId}:`, inviteEmailsToUpdate);
+  }
+
   // Check if there's anything to update
-  if (Object.keys(updateData).length === 0) {
+  if (Object.keys(updateData).length === 0 && inviteEmailsToUpdate === null) {
     return problem(400, "Bad Request", "No fields to update provided");
   }
 
   // 5) อัปเดต
-  const updated = await prisma.bookingPlan.update({
-    where: { bookingId },
-    data: updateData,
-    include: {
-      employee: true,
-      interpreterEmployee: true,
-      inviteEmails: true,
-    },
-  });
+  // Handle inviteEmails separately using transaction if needed
+  let updated;
+  if (inviteEmailsToUpdate !== null) {
+    // Use transaction to update both booking and inviteEmails
+    updated = await prisma.$transaction(async (tx) => {
+      // First, delete existing invite emails
+      await tx.inviteEmailList.deleteMany({
+        where: { bookingId },
+      });
+
+      // Then, create new invite emails
+      if (inviteEmailsToUpdate.length > 0) {
+        await tx.inviteEmailList.createMany({
+          data: inviteEmailsToUpdate.map((email) => ({
+            bookingId,
+            email,
+          })),
+        });
+      }
+
+      // Finally, update the booking plan
+      return await tx.bookingPlan.update({
+        where: { bookingId },
+        data: updateData,
+        include: {
+          employee: true,
+          interpreterEmployee: true,
+          inviteEmails: true,
+        },
+      });
+    });
+  } else {
+    // No inviteEmails update, just update the booking
+    updated = await prisma.bookingPlan.update({
+      where: { bookingId },
+      data: updateData,
+      include: {
+        employee: true,
+        interpreterEmployee: true,
+        inviteEmails: true,
+      },
+    });
+  }
   // ⚠️ EMAIL TRIGGER - Modified to prevent duplicate emails
   // Only send emails on FIRST approval or cancellation (not on updates)
   // For updates to already-approved bookings, use the unified Apply endpoint

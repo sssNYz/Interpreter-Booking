@@ -9,11 +9,12 @@ const PatchDateTimeSchema = z.object({
 
 export async function PATCH(
   req: Request,
-  { params }: { params: { bookingId: string } }
+  { params }: { params: Promise<{ bookingId: string }> }
 ) {
   try {
     // 1) Validate bookingId
-    const bookingId = Number(params.bookingId);
+    const resolvedParams = await params;
+    const bookingId = Number(resolvedParams.bookingId);
     if (!Number.isFinite(bookingId)) {
       return NextResponse.json(
         { success: false, message: "Invalid bookingId" },
