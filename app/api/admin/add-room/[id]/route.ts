@@ -63,7 +63,7 @@ export async function PUT(
     const { id } = await params;
     const roomId = parseInt(id);
     const body = await request.json();
-    const { name, location, capacity, isActive } = body;
+    const { name, location, capacity, isActive, isBookable } = body;
 
     if (isNaN(roomId)) {
       return NextResponse.json(
@@ -146,10 +146,23 @@ export async function PUT(
       },
     });
 
+    // Fallback path: set IS_BOOKABLE using raw SQL to support environments
+    // where the Prisma Client hasn't yet picked up the new schema.
+    if (isBookable !== undefined) {
+      try {
+        await prisma.$executeRaw`UPDATE ROOM SET IS_BOOKABLE = ${isBookable ? 1 : 0} WHERE ID = ${roomId}`;
+      } catch (e) {
+        console.error("Failed to set IS_BOOKABLE via raw SQL", e);
+      }
+    }
+
+    // Re-fetch to return latest state (including IS_BOOKABLE)
+    const refreshed = await prisma.room.findUnique({ where: { id: roomId } });
+
     return NextResponse.json({
       success: true,
       message: "Room updated successfully",
-      data: updatedRoom,
+      data: refreshed ?? updatedRoom,
     });
   } catch (error) {
     console.error("Error updating room:", error);

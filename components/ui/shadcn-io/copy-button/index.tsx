@@ -78,15 +78,47 @@ function CopyButton({
     (e: React.MouseEvent<HTMLButtonElement>) => {
       if (isCopied) return;
       if (content) {
-        navigator.clipboard
-          .writeText(content)
+        const copyWithClipboardApi = () =>
+          (navigator as any)?.clipboard?.writeText?.(content);
+
+        const copyWithFallback = () => {
+          return new Promise<void>((resolve, reject) => {
+            try {
+              const textarea = document.createElement('textarea');
+              textarea.value = content;
+              // Avoid scrolling to bottom
+              textarea.style.position = 'fixed';
+              textarea.style.top = '0';
+              textarea.style.left = '0';
+              textarea.style.opacity = '0';
+              textarea.setAttribute('readonly', '');
+              document.body.appendChild(textarea);
+              textarea.focus();
+              textarea.select();
+              // iOS support
+              textarea.setSelectionRange(0, textarea.value.length);
+              const ok = document.execCommand('copy');
+              document.body.removeChild(textarea);
+              ok ? resolve() : reject(new Error('execCommand copy failed'));
+            } catch (err) {
+              reject(err as Error);
+            }
+          });
+        };
+
+        const doCopy = () =>
+          (copyWithClipboardApi()?.then?.(() => undefined) as Promise<void>)
+            ?.catch(() => copyWithFallback())
+            ?? copyWithFallback();
+
+        doCopy()
           .then(() => {
             handleIsCopied(true);
             setTimeout(() => handleIsCopied(false), delay);
             onCopy?.(content);
           })
           .catch((error) => {
-            console.error('Error copying command', error);
+            console.error('Error copying content', error);
           });
       }
       onClick?.(e);

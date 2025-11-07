@@ -22,7 +22,7 @@ services:
       NEXT_PUBLIC_ENABLE_FORWARD_USER: "0"
       NEXT_PUBLIC_ENABLE_FORWARD_ADMIN: "0"
 
-      ENABLE_ROOM_BOOKING: "0"
+      ENABLE_ROOM_BOOKING: "1"
       ENABLE_FORWARD_USER: "0"
       ENABLE_FORWARD_ADMIN: "0"
 
@@ -42,6 +42,8 @@ services:
       
     ports:
       - "3030:3030"
+    volumes:
+      - room_images:/app/public/Room
 
   db:
     image: mysql:8.0
@@ -65,3 +67,4 @@ services:
 
 volumes:
   db_data:
+  room_images:

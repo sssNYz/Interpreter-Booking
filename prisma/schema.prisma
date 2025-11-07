@@ -15,6 +15,7 @@ model BookingPlan {
   timeStart                  DateTime               @map("TIME_START") @db.DateTime(0)
   timeEnd                    DateTime               @map("TIME_END") @db.DateTime(0)
   bookingStatus              BookingStatus          @default(waiting) @map("BOOKING_STATUS")
+  bookingKind                BookingKind            @default(INTERPRETER) @map("BOOKING_KIND")
   createdAt                  DateTime               @default(now()) @map("created_at") @db.Timestamp(0)
   updatedAt                  DateTime               @default(now()) @updatedAt @map("updated_at") @db.Timestamp(0)
   drType                     DRType?                @map("DR_TYPE")
@@ -376,6 +377,7 @@ model Room {
   location  String?  @map("LOCATION") @db.VarChar(255)
   capacity  Int      @default(1) @map("CAPACITY")
   isActive  Boolean  @default(true) @map("IS_ACTIVE")
+  isBookable Boolean @default(true) @map("IS_BOOKABLE")
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(0)
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamp(0)
 
@@ -464,4 +466,11 @@ enum RoleCode {
   ADMIN
   INTERPRETER
   SUPER_ADMIN
+}
+
+enum BookingKind {
+  INTERPRETER
+  ROOM
+
+  @@map("booking_kind")
 }

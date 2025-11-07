@@ -1,4 +1,4 @@
-import prisma from "@/prisma/prisma";
+import prisma, { BookingKind } from "@/prisma/prisma";
 import { runAssignment } from "@/lib/assignment/core/run";
 import { scheduleAutoAssignForBooking } from "./compute";
 // Lightweight timezone handling without external deps.
@@ -66,7 +66,7 @@ function msUntilNextZonedTime(hh: number, mm: number, timezone: string): number 
 async function resetStaleLocks(): Promise<number> {
   const cutoff = new Date(Date.now() - 15 * 60 * 1000); // 15 minutes
   const res = await prisma.bookingPlan.updateMany({
-    where: { autoAssignStatus: 'processing', autoAssignLockedAt: { lt: cutoff } },
+    where: { autoAssignStatus: 'processing', autoAssignLockedAt: { lt: cutoff }, bookingKind: 'INTERPRETER' as any },
     data: { autoAssignStatus: 'pending', autoAssignLockedAt: null, autoAssignLockedBy: null }
   });
   return res.count;
@@ -79,7 +79,8 @@ async function findDueBookings(limit = 50): Promise<Array<{ bookingId: number }>
       autoAssignStatus: 'pending',
       autoAssignAt: { lte: now },
       bookingStatus: 'waiting',
-      interpreterEmpCode: null
+      interpreterEmpCode: null,
+      bookingKind: 'INTERPRETER' as any
     },
     select: { bookingId: true },
     orderBy: { autoAssignAt: 'asc' },

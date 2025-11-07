@@ -16,9 +16,32 @@ export async function GET(
     // Ensure booking exists and is visible
     const b = await prisma.bookingPlan.findUnique({
       where: { bookingId },
-      select: { bookingId: true, timeStart: true, meetingType: true, autoAssignAt: true, bookingStatus: true, interpreterEmpCode: true }
+      select: { bookingId: true, timeStart: true, meetingType: true, autoAssignAt: true, bookingStatus: true, interpreterEmpCode: true, bookingKind: true }
     });
     if (!b) return NextResponse.json({ ok: false, error: "Booking not found" }, { status: 404 });
+
+    // For room bookings, auto-assign ETA is not applicable
+    if ((b as any).bookingKind && (b as any).bookingKind !== 'INTERPRETER') {
+      return NextResponse.json({
+        ok: true,
+        data: {
+          bookingId: b.bookingId,
+          timeStart: b.timeStart,
+          mode: 'DISABLED',
+          urgentThresholdDays: 0,
+          generalThresholdDays: 0,
+          urgentFrom: b.timeStart,
+          schedulerFrom: null,
+          firstAutoAssignAt: null,
+          etaSeconds: 0,
+          etaLabel: 'n/a',
+          state: {
+            bookingStatus: b.bookingStatus,
+            hasInterpreter: Boolean(b.interpreterEmpCode)
+          }
+        }
+      });
+    }
 
     const meta = await computeETAForBooking(bookingId);
 
@@ -55,4 +78,3 @@ export async function GET(
     return NextResponse.json({ ok: false, error: "Internal server error" }, { status: 500 });
   }
 }
-

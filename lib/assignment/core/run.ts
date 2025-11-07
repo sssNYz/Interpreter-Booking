@@ -127,6 +127,7 @@ export async function runAssignment(bookingId: number): Promise<RunResult> {
         meetingType: true,
         interpreterEmpCode: true,
         meetingDetail: true,
+        bookingKind: true,
         employee: { select: { deptPath: true } }
       }
     });
@@ -137,6 +138,11 @@ export async function runAssignment(bookingId: number): Promise<RunResult> {
         status: "escalated",
         reason: "booking not found"
       };
+    }
+
+    // Guardrail: skip room bookings entirely
+    if (booking.bookingKind && booking.bookingKind !== 'INTERPRETER') {
+      return { status: 'escalated', reason: 'room booking — skip auto-assign' };
     }
 
     // Check if already assigned

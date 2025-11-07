@@ -11,6 +11,10 @@ type Row = {
   status: string; // BookingStatus as string: waiting/approve/complet/cancel
   startLocal: string; // "YYYY-MM-DD HH:mm:ss" (business local time)
   endLocal: string;   // "YYYY-MM-DD HH:mm:ss" (business local time)
+  meetingType: string | null;
+  meetingDetail: string | null;
+  ownerName: string | null;
+  ownerEmail: string | null;
 };
 
 function isValidYMD(s: string): boolean {
@@ -40,23 +44,49 @@ export async function GET(req: NextRequest) {
              r.NAME AS roomName,
              b.BOOKING_ID AS bookingId,
              b.BOOKING_STATUS AS status,
+             b.MEETING_TYPE AS meetingType,
+             b.MEETING_DETAIL AS meetingDetail,
+             CONCAT(COALESCE(e.FIRST_NAME_EN, ''), ' ', COALESCE(e.LAST_NAME_EN, '')) AS ownerName,
+             e.EMAIL AS ownerEmail,
              DATE_FORMAT(b.TIME_START, '%Y-%m-%d %H:%i:%s') AS startLocal,
              DATE_FORMAT(b.TIME_END,   '%Y-%m-%d %H:%i:%s') AS endLocal
       FROM ROOM r
       JOIN BOOKING_PLAN b
         ON b.MEETING_ROOM = r.NAME
-      WHERE b.BOOKING_STATUS IN ('waiting', 'approve', 'complet')
+      LEFT JOIN EMPLOYEE e
+        ON b.OWNER_EMP_CODE = e.EMP_CODE
+      WHERE r.IS_ACTIVE = 1
+        AND r.IS_BOOKABLE = 1
+        AND b.BOOKING_STATUS IN ('waiting', 'approve', 'complet')
         AND b.TIME_START < DATE_ADD(STR_TO_DATE(${date}, '%Y-%m-%d'), INTERVAL 1 DAY)
         AND b.TIME_END   > STR_TO_DATE(${date}, '%Y-%m-%d')
       ORDER BY r.NAME ASC, b.TIME_START ASC`;
 
     // Group by room
-    const byRoom = new Map<number, { id: number; name: string; bookings: Array<{ id: number; start: string; end: string; status: string }> }>();
+    const byRoom = new Map<number, { id: number; name: string; bookings: Array<{ 
+      id: number; 
+      start: string; 
+      end: string; 
+      status: string;
+      meetingType: string | null;
+      meetingDetail: string | null;
+      ownerName: string | null;
+      ownerEmail: string | null;
+    }> }>();
     for (const r of rows) {
       if (!byRoom.has(r.roomId)) {
         byRoom.set(r.roomId, { id: r.roomId, name: r.roomName, bookings: [] });
       }
-      byRoom.get(r.roomId)!.bookings.push({ id: r.bookingId, start: r.startLocal, end: r.endLocal, status: r.status });
+      byRoom.get(r.roomId)!.bookings.push({ 
+        id: r.bookingId, 
+        start: r.startLocal, 
+        end: r.endLocal, 
+        status: r.status,
+        meetingType: r.meetingType,
+        meetingDetail: r.meetingDetail,
+        ownerName: r.ownerName,
+        ownerEmail: r.ownerEmail,
+      });
     }
 
     return NextResponse.json({

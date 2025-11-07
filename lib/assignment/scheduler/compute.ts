@@ -28,9 +28,13 @@ export async function getEnvironmentIdForBooking(bookingId: number): Promise<num
 export async function computeAutoAssignAt(bookingId: number): Promise<{ autoAssignAt: Date | null; generalThresholdDays: number; urgentThresholdDays: number; environmentId: number | null; mode: string; autoAssignEnabled: boolean } | null> {
   const booking = await prisma.bookingPlan.findUnique({
     where: { bookingId },
-    select: { bookingId: true, timeStart: true, meetingType: true }
+    select: { bookingId: true, timeStart: true, meetingType: true, bookingKind: true }
   });
   if (!booking) return null;
+  // Guardrail: skip room bookings entirely
+  if (booking.bookingKind && booking.bookingKind !== 'INTERPRETER') {
+    return null;
+  }
 
   const environmentId = await getEnvironmentIdForBooking(bookingId);
 
@@ -164,4 +168,3 @@ export async function scheduleAutoAssignForBooking(bookingId: number): Promise<{
 
   return { updated: true, status, autoAssignAt: meta.autoAssignAt };
 }
-

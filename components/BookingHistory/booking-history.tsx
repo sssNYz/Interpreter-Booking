@@ -13,7 +13,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Button } from "@/components/ui/button";
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious, PaginationEllipsis } from "@/components/ui/pagination";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { FilterIcon, UserSearchIcon, XIcon, ArrowUpLeft, ArrowUpDown, ChevronDown } from "lucide-react";
+import { FilterIcon, UserSearchIcon, XIcon, ArrowUpLeft, ArrowUpDown, ChevronDown, DoorClosed, Languages, ListFilter, Trash2 } from "lucide-react";
 import { client as featureFlags } from "@/lib/feature-flags";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -85,8 +85,10 @@ export default function BookingHistory({ renderEmpty, startDate, endDate }: Book
   ]);
   const [interpreterFilterOpen, setInterpreterFilterOpen] = useState(false);
   const [statusFilterOpen, setStatusFilterOpen] = useState(false);
+  const [bookingTypeFilterOpen, setBookingTypeFilterOpen] = useState(false);
   const [interpreters, setInterpreters] = useState<Array<{ id: string; name: string }>>([]);
   const [selectedInterpreterIds, setSelectedInterpreterIds] = useState<string[]>([]);
+  const [selectedBookingTypes, setSelectedBookingTypes] = useState<string[]>([]);
   const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc");
   const [bookings, setBookings] = useState<BookingData[]>([]);
   const [total, setTotal] = useState<number>(0);
@@ -100,6 +102,10 @@ export default function BookingHistory({ renderEmpty, startDate, endDate }: Book
   const [meetingDetailDialogOpen, setMeetingDetailDialogOpen] = useState(false);
   const [selectedBookingForDetail, setSelectedBookingForDetail] = useState<BookingData | null>(null);
   const [fetchedBookingById, setFetchedBookingById] = useState<BookingData | null>(null);
+  
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  const [bookingToCancel, setBookingToCancel] = useState<BookingData | null>(null);
+  const [cancellingBooking, setCancellingBooking] = useState(false);
 
   // Tutorial modal state
   const [isTutorialOpen, setIsTutorialOpen] = useState(false);
@@ -221,12 +227,68 @@ export default function BookingHistory({ renderEmpty, startDate, endDate }: Book
     return () => controller.abort();
   }, [userEmpCode, page, pageSize, statusFilter, sortOrder, startDate, endDate, selectedInterpreterIds, selectedStatuses]);
 
-  const pageItems = bookings;
+  // Client-side filter by booking type
+  const pageItems = useMemo(() => {
+    if (selectedBookingTypes.length === 0) return bookings;
+    return bookings.filter((b) => {
+      const kind = b.bookingKind || 'INTERPRETER';
+      return selectedBookingTypes.includes(kind);
+    });
+  }, [bookings, selectedBookingTypes]);
+
   const currentPage = page;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const dialogBooking = fetchedBookingById || selectedBookingForDetail;
   const dialogStatusStyle = dialogBooking ? getStatusStyle(dialogBooking.bookingStatus) : null;
   const dialogStatusLabel = dialogBooking ? formatStatusLabel(dialogBooking.bookingStatus) : "";
+  const dialogInviteEmails = useMemo(() => {
+    const a = fetchedBookingById?.inviteEmails;
+    if (Array.isArray(a) && a.length > 0) return a;
+    const b = selectedBookingForDetail?.inviteEmails;
+    return Array.isArray(b) ? b : [];
+  }, [fetchedBookingById, selectedBookingForDetail]);
+
+  const safeCopy = useCallback(async (text: string) => {
+    try {
+      if ((navigator as any)?.clipboard?.writeText) {
+        await (navigator as any).clipboard.writeText(text);
+        return true;
+      }
+    } catch {}
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.top = '0';
+      ta.style.left = '0';
+      ta.style.opacity = '0';
+      ta.setAttribute('readonly', '');
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      ta.setSelectionRange(0, ta.value.length);
+      const ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      return ok;
+    } catch {
+      return false;
+    }
+  }, []);
+
+  const handleCopyInviteEmails = useCallback(async (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const id = dialogBooking?.bookingId;
+    if (!id) return;
+    try {
+      const res = await fetch(`/api/booking-data/invite-emails/${encodeURIComponent(String(id))}`);
+      const j = await res.json();
+      const emails: string[] = Array.isArray(j?.emails) ? j.emails : [];
+      const text = emails.join(', ');
+      if (text.length === 0) return;
+      await safeCopy(text);
+    } catch {}
+  }, [dialogBooking?.bookingId, safeCopy]);
 
   const goToPage = (next: number) => {
     if (next < 1 || next > totalPages || next === page) return;
@@ -286,6 +348,45 @@ export default function BookingHistory({ renderEmpty, startDate, endDate }: Book
       const bookingId = encodeURIComponent(String(booking.bookingId));
       router.push(`/BookingPage?date=${date}&time=${time}&bookingId=${bookingId}`);
     } catch {}
+  };
+
+  const handleCancelClick = (booking: BookingData) => {
+    setBookingToCancel(booking);
+    setCancelDialogOpen(true);
+  };
+
+  const handleCancelConfirm = async () => {
+    if (!bookingToCancel) return;
+    
+    setCancellingBooking(true);
+    try {
+      const response = await fetch(`/api/booking-data/cancel-booking/${bookingToCancel.bookingId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to cancel booking');
+      }
+      
+      // Refresh bookings list
+      setBookings((prev) => 
+        prev.map((b) => 
+          b.bookingId === bookingToCancel.bookingId 
+            ? { ...b, bookingStatus: 'cancel' } 
+            : b
+        )
+      );
+      
+      setCancelDialogOpen(false);
+      setBookingToCancel(null);
+    } catch (error) {
+      console.error('Failed to cancel booking:', error);
+      alert(error instanceof Error ? error.message : 'Failed to cancel booking');
+    } finally {
+      setCancellingBooking(false);
+    }
   };
 
   return (
@@ -348,6 +449,56 @@ export default function BookingHistory({ renderEmpty, startDate, endDate }: Book
                           >
                             <span className={`mr-2 inline-block w-3.5 h-3.5 rounded border ${checked ? 'bg-primary border-primary' : 'border-muted-foreground/40'}`} />
                             {s.toUpperCase()}
+                          </CommandItem>
+                        );
+                      })}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+
+            <Popover open={bookingTypeFilterOpen} onOpenChange={setBookingTypeFilterOpen}>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-2 h-8 rounded-[12px] font-normal">
+                  <ListFilter className="w-3.5 h-3.5" />
+                  Booking Type
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="p-0 w-[220px] rounded-[16px]">
+                <Command>
+                  <CommandList>
+                    <CommandGroup heading="Booking Type">
+                      <CommandItem
+                        onSelect={() => {
+                          setSelectedBookingTypes([]);
+                          setBookingTypeFilterOpen(false);
+                        }}
+                      >
+                        <XIcon className="w-3.5 h-3.5 mr-2" />
+                        Clear filter
+                      </CommandItem>
+                      {[
+                        { value: 'INTERPRETER', label: 'Interpreter Booking', icon: <Languages className="w-3.5 h-3.5" /> },
+                        { value: 'ROOM', label: 'Room Booking', icon: <DoorClosed className="w-3.5 h-3.5" /> }
+                      ].map((type) => {
+                        const checked = selectedBookingTypes.includes(type.value);
+                        return (
+                          <CommandItem
+                            key={type.value}
+                            onSelect={() => {
+                              setSelectedBookingTypes((prev) => {
+                                return checked
+                                  ? prev.filter((x) => x !== type.value)
+                                  : [...prev, type.value];
+                              });
+                            }}
+                          >
+                            <span className={`mr-2 inline-block w-3.5 h-3.5 rounded border ${checked ? 'bg-primary border-primary' : 'border-muted-foreground/40'}`} />
+                            <span className="flex items-center gap-2">
+                              {type.icon}
+                              {type.label}
+                            </span>
                           </CommandItem>
                         );
                       })}
@@ -513,11 +664,31 @@ export default function BookingHistory({ renderEmpty, startDate, endDate }: Book
                             </div>
                           
                             <div className="flex flex-col gap-2 items-start sm:items-end">
-                              <span className="text-xs text-muted-foreground text-left sm:text-right font-normal">interpreter</span>
-                              <span className="font-normal text-foreground text-left sm:text-right text-sm">
-                                {(b.interpreterName && b.interpreterName.trim()) || b.interpreterId || "Not assigned"}
-                              </span>
+                              {/* Booking type label */}
+                              {b.bookingKind === 'ROOM' ? (
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-normal bg-gray-100 text-gray-700 border border-gray-400 dark:bg-gray-900/30 dark:text-gray-300 dark:border-gray-600">
+                                  <DoorClosed className="w-3.5 h-3.5" />
+                                  Room Booking
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-normal bg-gray-100 text-gray-700 border border-gray-400 dark:bg-gray-900/30 dark:text-gray-300 dark:border-gray-600">
+                                  <Languages className="w-3.5 h-3.5" />
+                                  Interpreter Booking
+                                </span>
+                              )}
                               <div className="flex gap-2">
+                                {/* Cancel button - only for ROOM bookings and not already cancelled */}
+                                {b.bookingKind === 'ROOM' && b.bookingStatus !== 'cancel' && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="px-2 py-1 text-xs bg-background hover:bg-red-50 hover:text-red-600 hover:border-red-300 rounded-full border-border/60"
+                                    onClick={() => handleCancelClick(b)}
+                                    aria-label="Cancel booking"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </Button>
+                                )}
                                 <Button 
                                   size="sm" 
                                   variant="outline" 
@@ -756,26 +927,29 @@ export default function BookingHistory({ renderEmpty, startDate, endDate }: Book
                       </div>
                     </motion.div>
                     
-                    <motion.div
-                      initial={{ y: 10, opacity: 0 }}
-                      animate={{ y: 0, opacity: 1 }}
-                      transition={{ duration: 0.3, delay: 0.2 }}
-                      className="group bg-card rounded-[24px] p-5 border border-primary/10 shadow-sm hover:shadow-md hover:border-primary/20 transition-all duration-300"
-                    >
-                      <div className="flex items-start gap-3.5">
-                        <div className="p-2.5 rounded-[16px] bg-primary/10 group-hover:bg-primary/15 transition-colors">
-                          <svg className="w-5 h-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                          </svg>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">Interpreter</div>
-                          <div className="text-xl font-medium text-foreground">
-                            {dialogBooking.interpreterName || dialogBooking.interpreterId || 'Not assigned'}
+                    {/* Show interpreter section only for INTERPRETER bookings */}
+                    {dialogBooking.bookingKind === 'INTERPRETER' && (
+                      <motion.div
+                        initial={{ y: 10, opacity: 0 }}
+                        animate={{ y: 0, opacity: 1 }}
+                        transition={{ duration: 0.3, delay: 0.2 }}
+                        className="group bg-card rounded-[24px] p-5 border border-primary/10 shadow-sm hover:shadow-md hover:border-primary/20 transition-all duration-300"
+                      >
+                        <div className="flex items-start gap-3.5">
+                          <div className="p-2.5 rounded-[16px] bg-primary/10 group-hover:bg-primary/15 transition-colors">
+                            <svg className="w-5 h-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                            </svg>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">Interpreter</div>
+                            <div className="text-xl font-medium text-foreground">
+                              {dialogBooking.interpreterName || dialogBooking.interpreterId || 'Not assigned'}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </motion.div>
+                      </motion.div>
+                    )}
                     
                     <motion.div
                       initial={{ y: 10, opacity: 0 }}
@@ -837,25 +1011,27 @@ export default function BookingHistory({ renderEmpty, startDate, endDate }: Book
                         </div>
                         <div>
                           <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Email Invites</div>
-                          {dialogBooking.inviteEmails && dialogBooking.inviteEmails.length > 0 && (
+                          {dialogInviteEmails.length > 0 && (
                             <div className="text-xs text-primary font-medium mt-0.5">
-                              {dialogBooking.inviteEmails.length} {dialogBooking.inviteEmails.length === 1 ? 'recipient' : 'recipients'}
+                              {dialogInviteEmails.length} {dialogInviteEmails.length === 1 ? 'recipient' : 'recipients'}
                             </div>
                           )}
                         </div>
-                        {dialogBooking.inviteEmails && dialogBooking.inviteEmails.length > 0 && (
-                          <CopyButton
-                            content={dialogBooking.inviteEmails.join(', ')}
-                            variant="outline"
-                            size="sm"
-                            aria-label="Copy all emails"
-                          />
-                        )}
+                        <CopyButton
+                          type="button"
+                          // Let onClick handle DB fetch + copy; keep content undefined to skip internal copy
+                          content={undefined}
+                          variant="outline"
+                          size="sm"
+                          aria-label="Copy all emails"
+                          disabled={!dialogBooking?.bookingId}
+                          onClick={handleCopyInviteEmails}
+                        />
                       </div>
                       
-                      {dialogBooking.inviteEmails && dialogBooking.inviteEmails.length > 0 ? (
+                      {dialogInviteEmails.length > 0 ? (
                         <div className="space-y-2.5 max-h-[520px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-primary/20 scrollbar-track-transparent hover:scrollbar-thumb-primary/30">
-                          {dialogBooking.inviteEmails.map((email, idx) => (
+                          {dialogInviteEmails.map((email, idx) => (
                             <motion.div
                               key={idx}
                               initial={{ x: 10, opacity: 0 }}
@@ -958,6 +1134,72 @@ export default function BookingHistory({ renderEmpty, startDate, endDate }: Book
           )}
         </ModalContent>
       </Modal>
+
+      {/* Cancel Confirmation Dialog */}
+      <Dialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
+        <DialogContent className="max-w-md rounded-[24px]">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-medium flex items-center gap-2">
+              <Trash2 className="w-5 h-5 text-foreground" />
+              Cancel Room Booking
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="py-4">
+            <p className="text-sm text-muted-foreground mb-4">
+              Are you sure you want to cancel this room booking?
+            </p>
+            
+            {bookingToCancel && (
+              <div className="bg-muted/30 rounded-[16px] p-4 space-y-2">
+                <div className="flex items-center gap-2">
+                  <DoorClosed className="w-4 h-4 text-muted-foreground" />
+                  <span className="text-sm font-medium">{bookingToCancel.meetingRoom}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">
+                    {new Date(bookingToCancel.timeStart as unknown as string).toLocaleDateString('en', { 
+                      weekday: 'long', 
+                      month: 'short', 
+                      day: 'numeric',
+                      year: 'numeric'
+                    })}
+                  </span>
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  {extractHHMM(bookingToCancel.timeStart as unknown as string)} - {extractHHMM(bookingToCancel.timeEnd as unknown as string)}
+                </div>
+              </div>
+            )}
+            
+            <p className="text-sm text-red-600 mt-4">
+              This action cannot be undone.
+            </p>
+          </div>
+          
+          <div className="flex gap-3 justify-end">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setCancelDialogOpen(false);
+                setBookingToCancel(null);
+              }}
+              disabled={cancellingBooking}
+              className="rounded-full"
+            >
+              No, Keep it
+            </Button>
+            <Button
+              onClick={handleCancelConfirm}
+              disabled={cancellingBooking}
+              className="rounded-full text-white hover:bg-black/90"
+              style={{ backgroundColor: '#262626' }}
+            >
+              {cancellingBooking ? 'Cancelling...' : 'Yes, Cancel'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

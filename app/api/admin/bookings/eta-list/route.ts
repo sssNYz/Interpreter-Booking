@@ -19,7 +19,8 @@ export async function GET(request: NextRequest) {
     const rows = await prisma.bookingPlan.findMany({
       where: {
         bookingStatus: 'waiting',
-        interpreterEmpCode: null
+        interpreterEmpCode: null,
+        bookingKind: 'INTERPRETER' as any
       },
       select: {
         bookingId: true,
@@ -79,4 +80,3 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ ok: false, error: "Internal server error" }, { status: 500 });
   }
 }
-

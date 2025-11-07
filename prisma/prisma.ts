@@ -6,8 +6,9 @@ import {
   RecurrenceType,
   EndType,
   WeekOrder,
-  DRType,  
+  DRType,
   OtherTypeScope,
+  BookingKind,
 } from "@prisma/client";
   declare global {
   var prisma: PrismaClient | undefined;
@@ -31,4 +32,5 @@ export {
   WeekOrder,
   DRType,
   OtherTypeScope,
+  BookingKind,
 };

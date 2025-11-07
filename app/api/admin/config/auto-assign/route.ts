@@ -279,12 +279,12 @@ export async function POST(request: NextRequest) {
     try {
       const now = new Date();
       const horizon = new Date(now.getTime() + 90 * 24 * 3600 * 1000);
-      const candidates = await prisma.bookingPlan.findMany({
-        where: { bookingStatus: 'waiting', interpreterEmpCode: null, timeStart: { lte: horizon } },
-        select: { bookingId: true },
-        orderBy: { timeStart: 'asc' },
-        take: 300
-      });
+    const candidates = await prisma.bookingPlan.findMany({
+      where: { bookingStatus: 'waiting', interpreterEmpCode: null, timeStart: { lte: horizon }, bookingKind: 'INTERPRETER' as any },
+      select: { bookingId: true },
+      orderBy: { timeStart: 'asc' },
+      take: 300
+    });
       for (const c of candidates) {
         await scheduleAutoAssignForBooking(c.bookingId);
         try {

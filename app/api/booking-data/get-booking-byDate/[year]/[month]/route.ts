@@ -37,12 +37,20 @@ export async function GET(
   const startDate = new Date(Date.UTC(yearNum, monthNum - 1, 1, 0, 0, 0));
   const endDate = new Date(Date.UTC(yearNum, monthNum, 0, 23, 59, 59));
 
-  const bookings = await prisma.bookingPlan.findMany({
+  // Filter interpreter bookings via raw SQL to avoid client schema mismatch issues
+  const idRows = await prisma.$queryRaw<Array<{ bookingId: number | bigint }>>`
+    SELECT BOOKING_ID as bookingId
+    FROM BOOKING_PLAN
+    WHERE BOOKING_KIND = 'INTERPRETER'
+      AND TIME_START >= ${startDate}
+      AND TIME_START <= ${endDate}
+    ORDER BY TIME_START ASC`;
+
+  const interpreterIds = idRows.map(r => Number(r.bookingId)).filter(n => Number.isFinite(n));
+
+  const bookings = interpreterIds.length === 0 ? [] : await prisma.bookingPlan.findMany({
     where: {
-      timeStart: {
-        gte: startDate,
-        lte: endDate,
-      },
+      bookingId: { in: interpreterIds },
     },
     orderBy: { timeStart: "asc" },
     select: {

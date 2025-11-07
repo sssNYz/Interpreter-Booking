@@ -82,7 +82,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     const now = new Date();
     const horizon = new Date(now.getTime() + 90 * 24 * 3600 * 1000);
     const candidates = await prisma.bookingPlan.findMany({
-      where: { bookingStatus: 'waiting', interpreterEmpCode: null, timeStart: { lte: horizon } },
+      where: { bookingStatus: 'waiting', interpreterEmpCode: null, timeStart: { lte: horizon }, bookingKind: 'INTERPRETER' as any },
       select: { bookingId: true },
       orderBy: { timeStart: 'asc' },
       take: 300
@@ -106,4 +106,3 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
   return NextResponse.json({ ok: true, results });
 }
-

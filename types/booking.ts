@@ -22,6 +22,7 @@ export type BookingData = {
   meetingDetail: string;
   meetingType: string;
   applicableModel?: string;
+  bookingKind?: string;
   timeStart: string;
   timeEnd: string;
   interpreterId: string | null;

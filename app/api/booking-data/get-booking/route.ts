@@ -72,7 +72,15 @@ const mapStatus = (
     const viewRaw = (url.searchParams.get("view") || "").toLowerCase();
     const view: "user"|"admin"|"all" = viewRaw === "user" || viewRaw === "admin" || viewRaw === "all" ? (viewRaw as "user"|"admin"|"all") : "admin";
 
-    const rows = await prisma.bookingPlan.findMany({
+    // Filter interpreter rows via raw SQL to avoid client schema mismatch issues
+    const idRows = await prisma.$queryRaw<Array<{ id: number | bigint }>>`
+      SELECT BOOKING_ID as id
+      FROM BOOKING_PLAN
+      WHERE BOOKING_KIND = 'INTERPRETER'`;
+    const interpreterIds = idRows.map(r => Number(r.id)).filter(n => Number.isFinite(n));
+
+    const rows = interpreterIds.length === 0 ? [] : await prisma.bookingPlan.findMany({
+      where: { bookingId: { in: interpreterIds } },
       orderBy: { timeStart: "asc" },
       include: {
         employee: { select: { firstNameEn: true, lastNameEn: true, deptPath: true } },

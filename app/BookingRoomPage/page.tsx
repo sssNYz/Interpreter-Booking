@@ -36,6 +36,8 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Calendar as DatePickerCalendar } from "@/components/ui/calendar";
+import { RoomBookingForm } from "@/components/RoomBooking/room-booking-form";
+import type { DayInfo } from "@/types/booking";
 
 interface Room {
   id: number;
@@ -43,6 +45,7 @@ interface Room {
   location: string | null;
   capacity: number | null;
   isActive: boolean;
+  isBookable?: boolean;
   amenities?: string[] | null;
   photoUrl?: string | null;
 }
@@ -91,6 +94,11 @@ interface Booking {
   endTime: string;
   date: string;
   readOnly?: boolean; // true when sourced from server (BookingPlan) occupancy
+  meetingType?: string | null;
+  meetingDetail?: string | null;
+  ownerName?: string | null;
+  ownerEmail?: string | null;
+  status?: string;
 }
 
 type BookingStatus = "booked" | "unavailable";
@@ -258,6 +266,10 @@ const BookingRoomPage = (): JSX.Element => {
   const [isMobile, setIsMobile] = useState(false);
   const [activeRoomIndex, setActiveRoomIndex] = useState(0);
   const [focusPoint, setFocusPoint] = useState<{ roomIndex: number; slotIndex: number } | null>(null);
+  const [roomFormOpen, setRoomFormOpen] = useState(false);
+  const [roomFormSlot, setRoomFormSlot] = useState<{ day: number; slot: string } | undefined>(undefined);
+  const [roomFormPresetRoom, setRoomFormPresetRoom] = useState<string | undefined>(undefined);
+  const [reloadNonce, setReloadNonce] = useState(0);
   const [createDialog, setCreateDialog] = useState<{
     roomId: number;
     start: Date;
@@ -266,6 +278,7 @@ const BookingRoomPage = (): JSX.Element => {
     pending: boolean;
   }>({ roomId: 0, start: new Date(), end: new Date(), title: "", pending: false });
   const [detailsBooking, setDetailsBooking] = useState<NormalisedBooking | null>(null);
+  const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
 
   const VISIBLE_COLUMNS = 5;
   const SLOT_HEIGHT_PX = 60; // fixed height for each 30-min slot
@@ -289,6 +302,7 @@ const BookingRoomPage = (): JSX.Element => {
       try {
         const params = new URLSearchParams({
           isActive: "true",
+          isBookable: "true",
           pageSize: "100",
         });
         const response = await fetch(`/api/admin/add-room?${params.toString()}`, {
@@ -300,7 +314,7 @@ const BookingRoomPage = (): JSX.Element => {
         const json = await response.json();
         if (cancelled) return;
         const dataRooms: Room[] = Array.isArray(json?.data?.rooms) ? json.data.rooms : [];
-        setRooms(dataRooms);
+        setRooms(dataRooms.filter(r => (r.isBookable ?? true)));
       } catch (error) {
         console.error("Failed to load rooms", error);
         if (!cancelled) {
@@ -366,16 +380,30 @@ const BookingRoomPage = (): JSX.Element => {
         const json = await res.json();
         if (json?.success && Array.isArray(json?.data?.rooms)) {
           const serverBookings: Booking[] = [];
-          for (const room of json.data.rooms as Array<{ id: number; name: string; bookings: Array<{ id: number; start: string; end: string; status?: string }> }>) {
+          for (const room of json.data.rooms as Array<{ id: number; name: string; bookings: Array<{ 
+            id: number; 
+            start: string; 
+            end: string; 
+            status?: string;
+            meetingType?: string | null;
+            meetingDetail?: string | null;
+            ownerName?: string | null;
+            ownerEmail?: string | null;
+          }> }>) {
             for (const b of room.bookings) {
               serverBookings.push({
                 id: String(b.id),
                 roomId: room.id,
-                title: b.status ? `Booked (${b.status})` : "Booked",
+                title: b.meetingType || (b.status ? `Booked (${b.status})` : "Booked"),
                 startTime: toHM(b.start),
                 endTime: toHM(b.end),
                 date: dateStr,
                 readOnly: true,
+                meetingType: b.meetingType,
+                meetingDetail: b.meetingDetail,
+                ownerName: b.ownerName,
+                ownerEmail: b.ownerEmail,
+                status: b.status,
               });
             }
           }
@@ -392,7 +420,14 @@ const BookingRoomPage = (): JSX.Element => {
     return () => {
       alive = false;
     };
-  }, [selectedDate]);
+  }, [selectedDate, reloadNonce]);
+
+  // Listen for booking updates to refresh occupancy
+  useEffect(() => {
+    const handler = () => setReloadNonce((n) => n + 1);
+    window.addEventListener("booking:updated", handler as EventListener);
+    return () => window.removeEventListener("booking:updated", handler as EventListener);
+  }, []);
 
   const timeSlots = useMemo(() => {
     const slots: string[] = [];
@@ -454,34 +489,53 @@ const BookingRoomPage = (): JSX.Element => {
     );
   };
 
+  const isTimeSlotPast = useCallback((date: Date, timeSlot: string): boolean => {
+    const now = new Date();
+    const [slotHour, slotMinute] = timeSlot.split(":").map(Number);
+
+    // Only check past slots for today
+    const isToday =
+      date.getDate() === now.getDate() &&
+      date.getMonth() === now.getMonth() &&
+      date.getFullYear() === now.getFullYear();
+
+    if (!isToday) return false;
+
+    // Calculate when this 30-minute slot ends
+    let slotEndHour = slotHour;
+    let slotEndMinute = slotMinute + 30;
+    if (slotEndMinute >= 60) {
+      slotEndHour += 1;
+      slotEndMinute -= 60;
+    }
+
+    // Check if current time is past or equal to the slot END time
+    // Users can book as long as there's still time left in the slot
+    if (now.getHours() > slotEndHour) return true;
+    if (now.getHours() === slotEndHour && now.getMinutes() >= slotEndMinute)
+      return true;
+    return false;
+  }, []);
+
   const handleSlotClick = useCallback((roomId: number, time: string) => {
     const booking = isSlotBooked(roomId, time);
     if (booking) {
       if (booking.readOnly) {
-        toast.error("This time is already booked.");
+        // Show booking details dialog
+        setSelectedBooking(booking);
         return;
       }
       // Allow removing locally-created bookings
       setBookings(prev => prev.filter((b) => b.id !== booking.id));
       toast.success("Booking removed");
     } else {
-      // Create new booking
-      const [hours, minutes] = time.split(":").map(Number);
-      const endHour = hours + 1;
-      const endTime = `${String(endHour).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
-
-      const start = combineDateTime(selectedDate, time);
-      const end = combineDateTime(selectedDate, endTime);
-
-      setCreateDialog({
-        roomId,
-        start,
-        end,
-        title: "",
-        pending: false,
-      });
+      // Open full room booking form with preselected slot and room
+      const preset = rooms.find(r => r.id === roomId)?.name;
+      setRoomFormPresetRoom(preset);
+      setRoomFormSlot({ day: selectedDate.getDate(), slot: time });
+      setRoomFormOpen(true);
     }
-  }, [bookings, selectedDate]);
+  }, [bookings, selectedDate, rooms]);
 
 
   const handleCreateBooking = useCallback(async () => {
@@ -738,16 +792,22 @@ const BookingRoomPage = (): JSX.Element => {
                   const booking = isSlotBooked(room.id, slot);
                   const isBooked = !!booking;
                   const isStart = isBooked && booking!.startTime === slot;
+                  const isPastTime = isTimeSlotPast(selectedDate, slot);
+                  // Only block clicking on EMPTY past slots, allow clicking booked slots to see details
+                  const isClickDisabled = isPastTime && !isBooked;
 
                   return (
                     <div
                       key={`${room.id}-${slot}`}
-                      className={`border-b border-r last:border-r-0 p-2 h-[60px] cursor-pointer transition-all relative ${
+                      className={`border-b border-r last:border-r-0 p-2 h-[60px] transition-all relative ${
                         isBooked
-                          ? "bg-blue-50 hover:bg-blue-100"
-                          : "bg-white hover:bg-black/20"
+                          ? "bg-blue-50 hover:bg-blue-100 cursor-pointer"
+                          : isPastTime
+                          ? "bg-neutral-100 cursor-not-allowed"
+                          : "bg-white hover:bg-black/20 cursor-pointer"
                       }`}
-                      onClick={() => handleSlotClick(room.id, slot)}
+                      onClick={() => !isClickDisabled && handleSlotClick(room.id, slot)}
+                      title={isClickDisabled ? "Past time - Cannot book" : undefined}
                     >
                       {isBooked ? (
                         isStart ? (
@@ -955,6 +1015,22 @@ const BookingRoomPage = (): JSX.Element => {
         </DialogContent>
       </Dialog>
 
+      {/* Room Booking Form Sheet */}
+      <RoomBookingForm
+        open={roomFormOpen}
+        onOpenChange={setRoomFormOpen}
+        selectedSlot={roomFormSlot}
+        daysInMonth={[{
+          date: selectedDate.getDate(),
+          dayName: selectedDate.toLocaleDateString("en-US", { weekday: "long" }),
+          fullDate: selectedDate,
+          isPast: false,
+        } as DayInfo]}
+        maxLanes={4}
+        forwardMonthLimit={1}
+        initialMeetingRoom={roomFormPresetRoom}
+      />
+
       <Dialog open={Boolean(detailsBooking)} onOpenChange={(open) => !open && setDetailsBooking(null)}>
         <DialogContent className="max-w-[420px]">
           <DialogHeader>
@@ -1013,6 +1089,97 @@ const BookingRoomPage = (): JSX.Element => {
               </Button>
             )}
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Room Booking Details Dialog */}
+      <Dialog open={Boolean(selectedBooking)} onOpenChange={(open) => !open && setSelectedBooking(null)}>
+        <DialogContent className="max-w-[500px]" showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle>Booking Details</DialogTitle>
+          </DialogHeader>
+          {selectedBooking && (
+            <div className="space-y-4 py-2">
+              {/* Room and Time */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-1">Room</p>
+                  <p className="text-sm font-semibold truncate" title={rooms.find(r => r.id === selectedBooking.roomId)?.name || `Room ${selectedBooking.roomId}`}>
+                    {rooms.find(r => r.id === selectedBooking.roomId)?.name || `Room ${selectedBooking.roomId}`}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-1">Status</p>
+                  <span className={cn(
+                    "inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold",
+                    selectedBooking.status === "approve" ? "bg-green-100 text-green-700" :
+                    selectedBooking.status === "waiting" ? "bg-yellow-100 text-yellow-700" :
+                    "bg-blue-100 text-blue-700"
+                  )}>
+                    {selectedBooking.status === "approve" ? "Approved" :
+                     selectedBooking.status === "waiting" ? "Waiting" :
+                     selectedBooking.status || "Booked"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Time Range */}
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-1">Meeting Time</p>
+                <div className="flex items-center gap-2 text-sm">
+                  <Clock className="h-4 w-4 text-muted-foreground" />
+                  <span className="font-medium">{selectedBooking.startTime} - {selectedBooking.endTime}</span>
+                  <span className="text-muted-foreground">
+                    ({Math.round((hmToMinutes(selectedBooking.endTime) - hmToMinutes(selectedBooking.startTime)))} min)
+                  </span>
+                </div>
+              </div>
+
+              {/* Meeting Type */}
+              {selectedBooking.meetingType && (
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-1">Meeting Type</p>
+                  <p className="text-sm truncate" title={selectedBooking.meetingType}>
+                    {selectedBooking.meetingType}
+                  </p>
+                </div>
+              )}
+
+              {/* Meeting Detail */}
+              {selectedBooking.meetingDetail && (
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-1">Meeting Detail</p>
+                  <div className="text-sm text-muted-foreground bg-muted/40 rounded-md p-3 border max-h-[100px] overflow-y-auto">
+                    <p className="break-words">{selectedBooking.meetingDetail}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Owner Information */}
+              {(selectedBooking.ownerName || selectedBooking.ownerEmail) && (
+                <div className="border-t pt-4">
+                  <p className="text-xs font-medium text-muted-foreground mb-2">Booked By</p>
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center justify-center w-10 h-10 rounded-full bg-primary/10 text-primary font-semibold text-sm">
+                      {selectedBooking.ownerName ? selectedBooking.ownerName.charAt(0).toUpperCase() : "?"}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      {selectedBooking.ownerName && (
+                        <p className="text-sm font-medium truncate" title={selectedBooking.ownerName}>
+                          {selectedBooking.ownerName}
+                        </p>
+                      )}
+                      {selectedBooking.ownerEmail && (
+                        <p className="text-xs text-muted-foreground truncate" title={selectedBooking.ownerEmail}>
+                          {selectedBooking.ownerEmail}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

@@ -1,0 +1,14 @@
+-- Safe, no-data-loss migration for BOOKING_KIND
+-- 1) Add column with default and allow NULL temporarily
+ALTER TABLE `BOOKING_PLAN`
+  ADD COLUMN `BOOKING_KIND` ENUM('INTERPRETER','ROOM') NULL DEFAULT 'INTERPRETER';
+
+-- 2) Backfill existing rows explicitly (defensive even with DEFAULT)
+UPDATE `BOOKING_PLAN`
+  SET `BOOKING_KIND` = 'INTERPRETER'
+WHERE `BOOKING_KIND` IS NULL;
+
+-- 3) Enforce NOT NULL with DEFAULT going forward
+ALTER TABLE `BOOKING_PLAN`
+  MODIFY COLUMN `BOOKING_KIND` ENUM('INTERPRETER','ROOM') NOT NULL DEFAULT 'INTERPRETER';
+

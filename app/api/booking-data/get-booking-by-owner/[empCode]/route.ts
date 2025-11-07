@@ -129,6 +129,7 @@ export async function GET(
         // Ensure we fetch real DB fields used by UI
         applicableModel: true,
         meetingType: true,
+        bookingKind: true,
         timeStart: true,
         timeEnd: true,
         bookingStatus: true,
@@ -175,6 +176,7 @@ export async function GET(
       meetingDetail: string | null;
       meetingType?: string | null;
       applicableModel?: string | null;
+      bookingKind?: string | null;
       timeStart: Date;
       timeEnd: Date;
       bookingStatus: string;
@@ -208,6 +210,7 @@ export async function GET(
     meetingType: (b as { meetingType?: string | null }).meetingType ?? "",
     applicableModel:
       (b as { applicableModel?: string | null }).applicableModel ?? "",
+    bookingKind: (b as { bookingKind?: string | null }).bookingKind ?? "INTERPRETER",
     timeStart: formatDateTime(b.timeStart),
     timeEnd: formatDateTime(b.timeEnd),
     interpreterId: b.interpreterEmployee?.empCode ?? null,

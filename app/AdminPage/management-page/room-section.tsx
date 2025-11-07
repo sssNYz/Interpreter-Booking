@@ -32,6 +32,7 @@ interface Room {
   location: string | null;
   capacity: number;
   isActive: boolean;
+  isBookable: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -47,6 +48,7 @@ export default function RoomManagementSection() {
     location: "",
     capacity: 1,
     isActive: true,
+    isBookable: true,
   });
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -92,7 +94,7 @@ export default function RoomManagementSection() {
           await uploadRoomImage(id);
         }
         setShowCreateDialog(false);
-        setFormData({ name: "", location: "", capacity: 1, isActive: true });
+      setFormData({ name: "", location: "", capacity: 1, isActive: true, isBookable: true });
         clearImage();
         fetchRooms();
       } else {
@@ -125,7 +127,7 @@ export default function RoomManagementSection() {
           await uploadRoomImage(editingRoom.id);
         }
         setEditingRoom(null);
-        setFormData({ name: "", location: "", capacity: 1, isActive: true });
+        setFormData({ name: "", location: "", capacity: 1, isActive: true, isBookable: true });
         clearImage();
         fetchRooms();
       } else {
@@ -206,7 +208,7 @@ export default function RoomManagementSection() {
 
   // Reset form
   const resetForm = () => {
-    setFormData({ name: "", location: "", capacity: 1, isActive: true });
+    setFormData({ name: "", location: "", capacity: 1, isActive: true, isBookable: true });
     setEditingRoom(null);
     setShowCreateDialog(false);
     clearImage();
@@ -220,6 +222,7 @@ export default function RoomManagementSection() {
       location: room.location || "",
       capacity: room.capacity,
       isActive: room.isActive,
+      isBookable: room.isBookable,
     });
   };
 
@@ -381,6 +384,17 @@ export default function RoomManagementSection() {
                 <Label htmlFor="isActive">Active</Label>
               </div>
 
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="isBookable"
+                  checked={formData.isBookable}
+                  onCheckedChange={(checked) =>
+                    setFormData({ ...formData, isBookable: checked })
+                  }
+                />
+                <Label htmlFor="isBookable">Bookable (Room Booking)</Label>
+              </div>
+
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={resetForm}>
                   Cancel
@@ -432,9 +446,14 @@ export default function RoomManagementSection() {
                       {room.location || "No location specified"}
                     </CardDescription>
                   </div>
-                  <Badge variant={room.isActive ? "default" : "secondary"}>
-                    {room.isActive ? "Active" : "Inactive"}
-                  </Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge variant={room.isActive ? "default" : "secondary"}>
+                      {room.isActive ? "Active" : "Inactive"}
+                    </Badge>
+                    <Badge variant={room.isBookable ? "default" : "secondary"}>
+                      {room.isBookable ? "Bookable" : "Not bookable"}
+                    </Badge>
+                  </div>
                 </div>
               </CardHeader>
 

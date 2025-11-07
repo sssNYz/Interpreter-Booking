@@ -78,6 +78,9 @@ interface MeetingDetailsSectionProps {
   ) => void;
   dayObj?: { dayName?: string; fullDate?: Date };
   selectedSlot?: { day?: number; slot?: string };
+  hideRecurrenceControls?: boolean;
+  lockMeetingRoom?: boolean;
+  chairmanOptional?: boolean;
 }
 
 export function MeetingDetailsSection({
@@ -113,6 +116,9 @@ export function MeetingDetailsSection({
   setRecurrenceEndType,
   dayObj,
   selectedSlot,
+  hideRecurrenceControls,
+  lockMeetingRoom,
+  chairmanOptional,
 }: MeetingDetailsSectionProps) {
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loadingRooms, setLoadingRooms] = useState(false);
@@ -156,6 +162,9 @@ export function MeetingDetailsSection({
           >
             Meeting Room <span className="text-destructive">*</span>
           </Label>
+          {lockMeetingRoom ? (
+            <Input id="meetingRoom" value={meetingRoom} readOnly className="bg-muted cursor-not-allowed" />
+          ) : (
           <Popover open={roomComboboxOpen} onOpenChange={setRoomComboboxOpen}>
             <PopoverTrigger asChild>
               <Button
@@ -221,6 +230,7 @@ export function MeetingDetailsSection({
               </Command>
             </PopoverContent>
           </Popover>
+          )}
         </div>
 
         <div className="space-y-2">
@@ -361,8 +371,14 @@ export function MeetingDetailsSection({
         </div>
       </div>
 
-      {/* Line 2: Meeting Time, Repeat Schedule, Until... */}
-      <div className="grid grid-cols-1 sm:grid-cols-[2fr_1fr_1fr] gap-4 items-start">
+      {/* Line 2: Meeting Time (and optionally recurrence controls) */}
+      <div
+        className={
+          hideRecurrenceControls
+            ? "grid grid-cols-1 gap-4 items-start"
+            : "grid grid-cols-1 sm:grid-cols-[2fr_1fr_1fr] gap-4 items-start"
+        }
+      >
         <div className="space-y-1">
           <Label
             className="text-sm font-medium text-foreground"
@@ -387,6 +403,7 @@ export function MeetingDetailsSection({
           />
         </div>
 
+        {!hideRecurrenceControls && (
         <div className="space-y-2">
           <label
             className="text-sm font-medium text-foreground"
@@ -424,7 +441,9 @@ export function MeetingDetailsSection({
             </SelectContent>
           </Select>
         </div>
+        )}
 
+        {!hideRecurrenceControls && (
         <div className="space-y-2">
           <label className="text-sm font-medium text-foreground">
             <HoverCard openDelay={1000}>
@@ -487,6 +506,7 @@ export function MeetingDetailsSection({
             </SelectContent>
           </Select>
         </div>
+        )}
       </div>
 
       {/* Line 3: Repeat Section (if provided) */}
@@ -505,7 +525,11 @@ export function MeetingDetailsSection({
                   tabIndex={0}
                   className="inline-flex items-center gap-1 underline-offset-4 decoration-muted-foreground/70 hover:underline focus-visible:underline outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-sm"
                 >
-                  Chairman Email <span className="text-destructive">*</span>
+                  Chairman Email {chairmanOptional ? (
+                    <span className="text-muted-foreground">(Optional)</span>
+                  ) : (
+                    <span className="text-destructive">*</span>
+                  )}
                 </span>
               </HoverCardTrigger>
               <HoverCardContent className="w-80">

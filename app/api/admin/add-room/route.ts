@@ -7,7 +7,7 @@ import prisma from "@/prisma/prisma";
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { name, location, capacity, isActive = true } = body;
+    const { name, location, capacity, isActive = true, isBookable = true } = body;
 
     // Validate required fields
     if (!name || typeof name !== "string" || name.trim().length === 0) {
@@ -56,6 +56,7 @@ export async function POST(request: NextRequest) {
         location: location?.trim() || null,
         capacity: capacity || 1,
         isActive: Boolean(isActive),
+        isBookable: Boolean(isBookable),
       },
     });
 
@@ -86,6 +87,7 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const isActive = searchParams.get("isActive");
+    const isBookable = searchParams.get("isBookable");
     const search = searchParams.get("search");
     const page = parseInt(searchParams.get("page") || "1");
     const pageSize = parseInt(searchParams.get("pageSize") || "10");
@@ -95,6 +97,9 @@ export async function GET(request: NextRequest) {
 
     if (isActive !== null) {
       where.isActive = isActive === "true";
+    }
+    if (isBookable !== null) {
+      where.isBookable = isBookable === "true";
     }
 
     if (search) {
